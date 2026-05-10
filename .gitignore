@@ -18,6 +18,9 @@ src-tauri/resources/tessdata/
 src-tauri/resources/pdfcrack/
 src-tauri/gen/
 
+# Sidecar staging stubs (real binaries fetched on demand)
+src-tauri/sidecars/*.exe
+
 # IDE
 .vscode/
 .idea/

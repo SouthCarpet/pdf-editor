@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "sidecars",
+  "description": "Permission to spawn bundled sidecar binaries",
+  "windows": ["main"],
+  "permissions": [
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "sidecars/qpdf", "sidecar": true, "args": true },
+        { "name": "sidecars/gswin64c", "sidecar": true, "args": true },
+        { "name": "sidecars/mutool", "sidecar": true, "args": true },
+        { "name": "sidecars/tesseract", "sidecar": true, "args": true },
+        { "name": "sidecars/pdfcrack", "sidecar": true, "args": true }
+      ]
+    }
+  ]
+}

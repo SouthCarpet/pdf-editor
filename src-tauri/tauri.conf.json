@@ -29,6 +29,13 @@
     "active": true,
     "targets": ["msi"],
     "icon": ["icons/icon.png"],
+    "externalBin": [
+      "sidecars/qpdf",
+      "sidecars/gswin64c",
+      "sidecars/mutool",
+      "sidecars/tesseract",
+      "sidecars/pdfcrack"
+    ],
     "windows": {
       "wix": {
         "language": ["en-US"]
