@@ -9,7 +9,10 @@ rust-version = "1.85"
 
 [lib]
 name = "pdf_editor_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Note: cdylib removed for desktop builds — mingw-w64 ld hits export-ordinal
+# overflow (>65535 symbols) with full Tauri+plugins. cdylib is only needed for
+# Tauri mobile (iOS/Android); add back when mobile targets are configured.
+crate-type = ["staticlib", "rlib"]
 
 [build-dependencies]
 # Delta J: pin Tauri core to 2.11.x. tauri-build follows a separate release
