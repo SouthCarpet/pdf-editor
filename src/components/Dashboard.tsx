@@ -1,4 +1,55 @@
-// Stub for Task 38; replaced by Task 43 with full tile grid + recent files.
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { ToolTile } from "./ToolTile";
+import { TOOLS } from "@/config/tools";
+import { useRecentFiles } from "@/stores/recentFilesStore";
+
 export function Dashboard() {
-  return <h1>Dashboard placeholder</h1>;
+  const { t } = useTranslation("dashboard");
+  const { files, refresh } = useRecentFiles();
+  useEffect(() => {
+    refresh().catch(() => {});
+  }, [refresh]);
+
+  const toolItems = TOOLS.filter((x) => x.category === "tool");
+  const systemItems = TOOLS.filter((x) => x.category === "system");
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-8">
+      <h1 className="text-2xl font-bold">{t("title")}</h1>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">{t("tools_heading")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+          {toolItems.map((tool) => (
+            <ToolTile key={tool.id} tool={tool} />
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">{t("recent_heading")}</h2>
+        {files.length === 0 ? (
+          <p className="text-sm text-[var(--color-muted)]">{t("no_recent")}</p>
+        ) : (
+          <ul className="space-y-1">
+            {files.map((f) => (
+              <li key={f.path} className="text-sm">
+                {f.display_name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">{t("projects_heading")}</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {systemItems.map((tool) => (
+            <ToolTile key={tool.id} tool={tool} />
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
