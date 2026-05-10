@@ -1,0 +1,50 @@
+{
+  "qpdf": {
+    "version": "12.3.2",
+    "url": "https://github.com/qpdf/qpdf/releases/download/v12.3.2/qpdf-12.3.2-bin-mingw64.zip",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/qpdf",
+    "binary": "qpdf.exe"
+  },
+  "ghostscript": {
+    "version": "10.04.0",
+    "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10040/gs10040w64.exe",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/ghostscript",
+    "binary": "gswin64c.exe"
+  },
+  "mupdf": {
+    "version": "1.24.10",
+    "url": "https://mupdf.com/downloads/archive/mupdf-1.24.10-windows.zip",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/mupdf",
+    "binary": "mutool.exe"
+  },
+  "libreoffice": {
+    "version": "24.8.4",
+    "url": "https://download.documentfoundation.org/libreoffice/portable/24.8/LibreOfficePortable_24.8.4_MultilingualStandard.paf.exe",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/libreoffice",
+    "binary": "App/libreoffice/program/soffice.exe"
+  },
+  "tesseract": {
+    "version": "5.4.1",
+    "url": "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/tesseract",
+    "binary": "tesseract.exe"
+  },
+  "tessdata": {
+    "version": "tessdata_best",
+    "languages": ["eng", "slk", "ces", "deu"],
+    "url_template": "https://github.com/tesseract-ocr/tessdata_best/raw/main/{lang}.traineddata",
+    "extract_to": "src-tauri/resources/tessdata"
+  },
+  "pdfcrack": {
+    "version": "0.20",
+    "url": "https://sourceforge.net/projects/pdfcrack/files/pdfcrack/pdfcrack-0.20/pdfcrack-0.20.tar.gz/download",
+    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "extract_to": "src-tauri/resources/pdfcrack",
+    "binary": "pdfcrack.exe"
+  }
+}
