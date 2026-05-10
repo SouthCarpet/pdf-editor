@@ -9,10 +9,10 @@ rust-version = "1.85"
 
 [lib]
 name = "pdf_editor_lib"
-# Note: cdylib removed for desktop builds — mingw-w64 ld hits export-ordinal
-# overflow (>65535 symbols) with full Tauri+plugins. cdylib is only needed for
-# Tauri mobile (iOS/Android); add back when mobile targets are configured.
-crate-type = ["staticlib", "rlib"]
+# Restored full crate-type list after switching to MSVC toolchain.
+# (mingw-w64 ld hit export-ordinal overflow >65535 with full Tauri+plugins;
+# MSVC link.exe handles arbitrary export counts.)
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 # Delta J: pin Tauri core to 2.11.x. tauri-build follows a separate release
@@ -38,6 +38,17 @@ tracing-appender = "0.2"
 directories = "5"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
+lopdf = "0.34"
+# mupdf = "0.4"  # deferred — mupdf-sys 0.4.4 generates VS2019 (v142) solution which requires installing VS 2019 BuildTools alongside our VS 2026 (v143). Use mutool sidecar (Phase 4 MupdfWrapper) at runtime per engine_pdf_rust_core spec.
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "bmp"] }
+imageproc = "0.25"
+similar = "2"
+# tesseract = "0.15"  # deferred — leptonica-sys requires vcpkg with leptonica installed (VCPKG_ROOT). Always use Tesseract sidecar at runtime per engine_ocr_stack "Always use sidecar" fallback.
+aes = "0.8"
+cbc = "0.1"
+sha2 = "0.10"
+rayon = "1.10"
+num_cpus = "1"
 
 [features]
 default = ["custom-protocol"]
