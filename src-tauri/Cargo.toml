@@ -1,0 +1,38 @@
+[package]
+name = "pdf-editor"
+version = "0.1.0"
+description = "Localhost-only PDF editor"
+authors = ["You"]
+license = "AGPL-3.0"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "pdf_editor_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+# Delta J: pin Tauri core to 2.11.x. tauri-build follows a separate release
+# train (2.x where x = minor cadence) and is pinned to its highest 2.6.x.
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Delta J: pin Tauri core to 2.11.x (verified-stable). Plugins follow their
+# own release cadence and are compatible with tauri 2.11 at 2.x.
+tauri = { version = "=2.11", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "process", "sync", "time", "io-util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+directories = "5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

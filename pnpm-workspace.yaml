@@ -1,0 +1,10 @@
+packages:
+  - "."
+
+# exFAT on D: drive does not support symlinks; pnpm 10+ reads this from
+# pnpm-workspace.yaml (no longer from .npmrc).
+nodeLinker: hoisted
+
+# Approve native build scripts that Tauri/Vite tooling needs.
+allowBuilds:
+  esbuild: true
