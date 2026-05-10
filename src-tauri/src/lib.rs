@@ -2,5 +2,6 @@
 pub mod commands;
 pub mod error;
 pub mod persistence;
+pub mod services;
 pub mod sidecars;
 pub mod util;
