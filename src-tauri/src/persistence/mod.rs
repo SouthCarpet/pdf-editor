@@ -1,3 +1,4 @@
+pub mod autosave;
 pub mod db;
 pub mod pipeline_presets;
 pub mod projects;
