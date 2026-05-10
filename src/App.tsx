@@ -1,8 +1,8 @@
 export default function App() {
   return (
-    <div style={{ padding: 24 }}>
-      <h1>PDF Editor — scaffold</h1>
-      <p>Tauri 2 + React 19 working.</p>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold">PDF Editor — scaffold</h1>
+      <p className="mt-2 text-sm text-neutral-600">Tauri + React + Tailwind v4 working.</p>
     </div>
   );
 }
