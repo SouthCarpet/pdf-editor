@@ -1,3 +1,4 @@
+pub mod diff_engine;
 pub mod image_to_pdf;
 pub mod pdf_editor;
 pub mod pdf_reader;
