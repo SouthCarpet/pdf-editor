@@ -1,6 +1,14 @@
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
+import { TopBar } from "./TopBar";
+import { ThemeProvider } from "./ThemeProvider";
 
-// Stub for Task 38; replaced by Task 42 with TopBar + ThemeProvider wrapping.
 export function Layout({ children }: { children: ReactNode }) {
-  return <>{children}</>;
+  return (
+    <ThemeProvider>
+      <div className="flex min-h-screen flex-col">
+        <TopBar />
+        <main className="flex-1 overflow-auto p-6">{children}</main>
+      </div>
+    </ThemeProvider>
+  );
 }
