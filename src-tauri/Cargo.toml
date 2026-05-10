@@ -41,3 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+tempfile = "3"
+
