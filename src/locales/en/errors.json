@@ -1,0 +1,11 @@
+{
+  "file_not_found": "File not found",
+  "pdf_corrupted": "PDF is corrupted or unsupported",
+  "password_required": "This PDF requires a password",
+  "password_invalid": "Incorrect password",
+  "sidecar_failed": "Tool {{tool}} failed",
+  "cancelled": "Cancelled",
+  "invalid_argument": "Invalid argument: {{detail}}",
+  "io_error": "I/O error: {{detail}}",
+  "internal": "Internal error: {{detail}}"
+}

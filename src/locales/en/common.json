@@ -1,0 +1,28 @@
+{
+  "app_name": "PDF Editor",
+  "open": "Open",
+  "save": "Save",
+  "save_as": "Save As",
+  "cancel": "Cancel",
+  "ok": "OK",
+  "delete": "Delete",
+  "settings": "Settings",
+  "language": "Language",
+  "theme": { "label": "Theme", "light": "Light", "dark": "Dark", "system": "System" },
+  "tools": {
+    "merge": "Merge",
+    "split": "Split",
+    "edit": "Edit",
+    "compress": "Compress",
+    "convert_export": "Convert (Export)",
+    "convert_import": "Convert (Import)",
+    "crop": "Crop",
+    "organize": "Organize",
+    "compare": "Compare",
+    "unlock": "Unlock",
+    "optimize": "Optimize",
+    "extract": "Extract Pages",
+    "pipeline": "Pipeline",
+    "projects": "Projects"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "file_not_found": "Súbor sa nenašiel",
+  "pdf_corrupted": "PDF je poškodené alebo nepodporované",
+  "password_required": "Toto PDF vyžaduje heslo",
+  "password_invalid": "Nesprávne heslo",
+  "sidecar_failed": "Nástroj {{tool}} zlyhal",
+  "cancelled": "Zrušené",
+  "invalid_argument": "Neplatný argument: {{detail}}",
+  "io_error": "I/O chyba: {{detail}}",
+  "internal": "Vnútorná chyba: {{detail}}"
+}

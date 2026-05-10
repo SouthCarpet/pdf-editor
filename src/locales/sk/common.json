@@ -1,0 +1,28 @@
+{
+  "app_name": "PDF Editor",
+  "open": "Otvoriť",
+  "save": "Uložiť",
+  "save_as": "Uložiť ako",
+  "cancel": "Zrušiť",
+  "ok": "OK",
+  "delete": "Zmazať",
+  "settings": "Nastavenia",
+  "language": "Jazyk",
+  "theme": { "label": "Téma", "light": "Svetlá", "dark": "Tmavá", "system": "Systémová" },
+  "tools": {
+    "merge": "Zlúčiť",
+    "split": "Rozdeliť",
+    "edit": "Upraviť",
+    "compress": "Skomprimovať",
+    "convert_export": "Konvertovať (Export)",
+    "convert_import": "Konvertovať (Import)",
+    "crop": "Orezať",
+    "organize": "Zoradiť",
+    "compare": "Porovnať",
+    "unlock": "Odomknúť",
+    "optimize": "Optimalizovať",
+    "extract": "Extrahovať strany",
+    "pipeline": "Pipeline",
+    "projects": "Projekty"
+  }
+}
