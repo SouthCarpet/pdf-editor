@@ -1,0 +1,33 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
+# Tauri
+src-tauri/target/
+src-tauri/resources/qpdf/
+src-tauri/resources/ghostscript/
+src-tauri/resources/mupdf/
+src-tauri/resources/libreoffice/
+src-tauri/resources/tessdata/
+src-tauri/resources/pdfcrack/
+src-tauri/gen/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+*.msi
+*.exe.zip
