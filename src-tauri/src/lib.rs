@@ -26,5 +26,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::meta::recent_files_list,
             commands::meta::recent_files_remove,
             commands::meta::cancel_job,
+            // Delta P (crash & error logging)
+            commands::meta::record_frontend_error,
+            commands::meta::open_logs_folder,
         ])
 }

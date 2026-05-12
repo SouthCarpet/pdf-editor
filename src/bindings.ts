@@ -17,9 +17,27 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("cancel_job", { jobId })),
+	recordFrontendError: (payload: FrontendErrorPayload) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("record_frontend_error", { payload })),
+	openLogsFolder: () => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("open_logs_folder")),
 };
 
 /* Types */
+export type FrontendErrorPayload = {
+	message: string,
+	source: string | null,
+	line: number | null,
+	column: number | null,
+	stack: string | null,
+	/**  "error" (window.onerror) or "unhandledrejection". */
+	kind: string,
+};
+
 export type RecentFile = {
 	path: string,
 	display_name: string,
