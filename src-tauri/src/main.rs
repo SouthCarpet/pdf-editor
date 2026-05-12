@@ -4,19 +4,38 @@ use pdf_editor_lib::app_state::AppState;
 use pdf_editor_lib::persistence::db::{create_pool, run_migrations};
 use pdf_editor_lib::specta_builder;
 use pdf_editor_lib::util::{
+    crash_logger::{install_panic_hook, install_unhandled_exception_filter, TraceRing},
     logging::init_logging,
     paths::{db_path, logs_dir},
 };
 
 #[tokio::main]
 async fn main() {
-    let _guard = match logs_dir().and_then(|d| init_logging(&d, "info")) {
+    // Resolve logs_dir once up-front. If it fails we still try to limp on
+    // with a `logs/` fallback so the panic hook has somewhere to write.
+    let logs = logs_dir().unwrap_or_else(|e| {
+        eprintln!("WARN: failed to resolve logs dir: {e:#}; falling back to ./logs");
+        std::path::PathBuf::from("logs")
+    });
+
+    // Delta P: the ring buffer must exist before init_logging so the
+    // RingLayer can be installed alongside the file/stdout layers, and
+    // before install_panic_hook so the panic hook captures the same ring.
+    let ring = TraceRing::new();
+
+    let _guard = match init_logging(&logs, "info", ring.clone()) {
         Ok(g) => Some(g),
         Err(e) => {
             eprintln!("WARN: failed to init logs: {e:#}");
             None
         }
     };
+
+    // Delta P: install crash hooks BEFORE Tauri builder. The panic hook
+    // chains the previous hook (set by Rust's std machinery); the SEH
+    // filter is a no-op on non-Windows.
+    install_panic_hook(logs.clone(), ring.clone());
+    install_unhandled_exception_filter(logs.clone());
 
     // Delta G: init the rayon thread pool process-wide, leaving one core for
     // the Tauri/UI thread. `build_global` can only succeed once per process,
