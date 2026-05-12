@@ -1,21 +1,15 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use pdf_editor_lib::util::{logging::init_logging, paths::logs_dir};
+use pdf_editor_lib::app_state::AppState;
+use pdf_editor_lib::persistence::db::{create_pool, run_migrations};
+use pdf_editor_lib::specta_builder;
+use pdf_editor_lib::util::{
+    logging::init_logging,
+    paths::{db_path, logs_dir},
+};
 
-// Tauri-bound wrapper for the lib's `hello_command`. Reason: keeping the
-// `#[tauri::command]` macro out of `pdf_editor_lib` prevents `tauri::Wry`
-// runtime symbols from being pulled into integration tests that link the
-// lib. On the host's mingw-w64 GNU toolchain that link path produces test
-// executables that fail to start with STATUS_ENTRYPOINT_NOT_FOUND.
-//
-// TODO (Phase 9): TEST DELTA N ON MSVC. With link.exe this should be safe;
-// when the first real command moves into the lib, this wrapper can fold away.
-#[tauri::command]
-fn hello_command(name: String) -> String {
-    pdf_editor_lib::commands::hello::hello_command(name)
-}
-
-fn main() {
+#[tokio::main]
+async fn main() {
     let _guard = match logs_dir().and_then(|d| init_logging(&d, "info")) {
         Ok(g) => Some(g),
         Err(e) => {
@@ -32,11 +26,31 @@ fn main() {
         .build_global()
         .ok();
 
+    let pool = create_pool(&db_path().expect("resolve db path"))
+        .await
+        .expect("open sqlite pool");
+    run_migrations(&pool).await.expect("run db migrations");
+    let state = AppState::new(pool);
+
+    let builder = specta_builder();
+
+    // In dev, regenerate the TS bindings on every launch so they stay in sync.
+    #[cfg(debug_assertions)]
+    {
+        let out = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/bindings.ts");
+        let _ = builder.export(specta_typescript::Typescript::default(), out);
+    }
+
     tauri::Builder::default()
+        .manage(state)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![hello_command])
+        .invoke_handler(builder.invoke_handler())
+        .setup(move |app| {
+            builder.mount_events(app);
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 

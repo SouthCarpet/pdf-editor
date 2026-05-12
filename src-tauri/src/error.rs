@@ -65,6 +65,33 @@ impl Serialize for AppError {
     }
 }
 
+// Manual specta::Type impl: serialized shape is `{ key: string, data: object }`.
+// We can't auto-derive because of the custom Serialize that flattens variants
+// into this shape. `data` is intentionally typed as a TypeScript `Record<string,
+// unknown>` via `specta_typescript::opaque::define`: each variant has its own
+// payload shape (FileNotFound carries `path`, SidecarFailed carries `tool +
+// exit_code + stderr_tail`, etc.) and the front-end discriminates on `key`.
+// Trying to fully derive the union would require duplicating the variant list
+// here; an opaque object is honest about the structural-typing tradeoff.
+//
+// Calling `serde_json::Value::definition` directly here would stack-overflow
+// because specta's built-in impl uses `Vec<Value>` and `Map<String, Value>`
+// recursively without an NDT boundary to break the cycle.
+impl specta::Type for AppError {
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        use specta::datatype::{Field, Struct};
+        Struct::named()
+            .field("key", Field::new(<String as specta::Type>::definition(types)))
+            .field(
+                "data",
+                Field::new(
+                    <specta_typescript::Unknown as specta::Type>::definition(types),
+                ),
+            )
+            .build()
+    }
+}
+
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> Self { AppError::IoError { detail: e.to_string() } }
 }

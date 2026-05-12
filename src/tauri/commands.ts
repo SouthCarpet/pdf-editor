@@ -1,13 +1,8 @@
-// Phase 9+ will add commands to `pdf_editor_lib::specta_builder()` via
-// `collect_commands![]`. Once `src/bindings.ts` contains real exports (i.e.
-// it stops being a single-line comment file), uncomment the re-export below
-// and delete the hand-rolled `helloCommand` that lives at the bottom.
-//
-// export * from "../bindings";
-
-// Hand-rolled wrapper for the `hello_command` smoke test (Phase 2 legacy).
-import { invoke } from "@tauri-apps/api/core";
-
-export async function helloCommand(name: string): Promise<string> {
-  return invoke<string>("hello_command", { name });
-}
+// Generated bindings live in `src/bindings.ts`. Re-export `commands` and any
+// generated types so call-sites import from a stable path (`@/tauri/commands`)
+// even if the bindings file moves later. Hand-rolled wrappers belong below the
+// re-export, but Phase 7 Task 45 wired `hello_command` into specta, so the
+// previous hand-rolled `helloCommand` was removed in favour of the generated
+// `commands.helloCommand` (which returns a plain string for the smoke-test
+// command — error-typed commands use the `typedError` wrapper).
+export * from "../bindings";

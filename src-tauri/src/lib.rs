@@ -10,13 +10,21 @@ pub mod app_state;
 
 /// Build the specta Builder used by both the binding generator and the runtime.
 ///
-/// Phase 6 starts with no commands wired here — Phase 7+ tasks add command lib
-/// fns to the `commands::*` modules and append them to this `collect_commands!`.
-///
-/// TODO (Phase 9): TEST DELTA N ON MSVC. The mingw GNU toolchain crashed
-/// integration tests when `#[tauri::command]` lived inside the lib (Delta N).
-/// On MSVC link.exe this should now be safe — when Phase 9 wires the first real
-/// command into this builder, run the full test suite to confirm.
+/// Phase 7 Task 45 wires the first batch of commands here. With the MSVC
+/// toolchain, `#[tauri::command]` inside the lib should no longer crash
+/// integration tests (Delta N) — when that's confirmed, future phases can
+/// keep adding commands here without the main.rs wrapper dance.
 pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
-    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![])
+    tauri_specta::Builder::<tauri::Wry>::new()
+        // Tauri serializes commands via JSON, where JS numbers can represent
+        // integers up to 2^53. Our i64 page counts / sizes / limits all fit
+        // well below that — opt out of the BigInt restriction so the bindings
+        // type them as plain `number` instead of refusing to compile.
+        .dangerously_cast_bigints_to_number()
+        .commands(tauri_specta::collect_commands![
+            commands::hello::hello_command,
+            commands::meta::recent_files_list,
+            commands::meta::recent_files_remove,
+            commands::meta::cancel_job,
+        ])
 }

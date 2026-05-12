@@ -49,7 +49,7 @@ cbc = "0.1"
 sha2 = "0.10"
 rayon = "1.10"
 num_cpus = "1"
-specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive", "chrono", "serde_json"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 
