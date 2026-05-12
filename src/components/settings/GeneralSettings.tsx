@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/stores/appStore";
 import { useTheme } from "@/components/ThemeProvider";
+import { Button } from "@/components/ui/button";
+import { commands } from "@/bindings";
 
 export function GeneralSettings() {
   const { t, i18n } = useTranslation("common");
@@ -9,6 +11,17 @@ export function GeneralSettings() {
   const setLanguage = useAppStore((s) => s.setLanguage);
   const privacyStrict = useAppStore((s) => s.privacyStrict);
   const setPrivacy = useAppStore((s) => s.setPrivacy);
+
+  // Delta P: shells out to explorer.exe via the open_logs_folder Tauri
+  // command. We don't surface errors visually — the only way it can fail
+  // is if logs_dir() can't resolve %AppData% (unlikely on Windows) or
+  // spawning explorer is denied; both already produce a frontend error
+  // event captured by installCrashHandlers().
+  const handleOpenLogs = () => {
+    void commands.openLogsFolder().catch((e) => {
+      console.error("open_logs_folder failed", e);
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -56,6 +69,12 @@ export function GeneralSettings() {
           />
           Strict privacy mode (block all network calls)
         </label>
+      </div>
+
+      <div>
+        <Button variant="outline" onClick={handleOpenLogs}>
+          Open logs folder
+        </Button>
       </div>
     </div>
   );
