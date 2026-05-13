@@ -37,11 +37,13 @@
     "clsx": "^2.1.1",
     "i18next": "^26.0.10",
     "i18next-browser-languagedetector": "^8.2.1",
+    "konva": "^10.3.0",
     "lucide-react": "^1.14.0",
     "pdfjs-dist": "^5.7.284",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-i18next": "^17.0.7",
+    "react-konva": "^19.2.4",
     "react-window": "^2.2.7",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.13"
