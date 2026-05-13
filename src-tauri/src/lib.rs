@@ -42,5 +42,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Phase 10 — Workspace shell (Tasks 57-58)
             commands::workspace::open_document,
             commands::workspace::save_document,
+            commands::render::render_page_thumbnail,
         ])
 }

@@ -30,6 +30,34 @@ impl MupdfWrapper {
         self.run(args, cancel, Duration::from_secs(60)).await
     }
 
+    /// Render a single PDF page to a PNG at the requested DPI via
+    /// `mutool draw -F png -o <out> -r <dpi> <input> <page+1>`.
+    ///
+    /// Phase 10 Task 58 — the Rust `mupdf` crate is deferred, so thumbnail
+    /// rendering routes through the sidecar. `page_index` is 0-based; mutool
+    /// page numbers are 1-based, so we add one before formatting.
+    pub async fn render_page_to_png(
+        &self,
+        input: &Path,
+        page_index: u32,
+        output: &Path,
+        dpi: u32,
+        cancel: Option<CancellationToken>,
+    ) -> AppResult<()> {
+        let args = vec![
+            "draw".into(),
+            "-F".into(),
+            "png".into(),
+            "-o".into(),
+            output.display().to_string(),
+            "-r".into(),
+            dpi.to_string(),
+            input.display().to_string(),
+            (page_index + 1).to_string(),
+        ];
+        self.run(args, cancel, Duration::from_secs(60)).await
+    }
+
     /// Convert a PDF to a raster format (`png`, `jpeg`, `tiff`, `pnm`, ...)
     /// via `mutool convert -F <fmt> -O resolution=<dpi>`. Output paths are
     /// what `mutool` writes — for multi-page rasters this is typically

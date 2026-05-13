@@ -69,6 +69,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("save_document", { sourcePath, targetPath })),
+	renderPageThumbnail: (path: string, pageIndex: number, dpi: number) => typedError<string, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("render_page_thumbnail", { path, pageIndex, dpi })),
 };
 
 /* Types */

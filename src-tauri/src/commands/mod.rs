@@ -6,6 +6,7 @@ pub mod hello;
 pub mod merge;
 pub mod meta;
 pub mod optimize;
+pub mod render;
 pub mod split;
 pub mod unlock;
 pub mod workspace;
