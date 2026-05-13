@@ -33,9 +33,24 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("split_pdf_cmd", { args })),
+	extractPagesCmd: (args: ExtractArgs) => typedError<ExtractResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("extract_pages_cmd", { args })),
 };
 
 /* Types */
+export type ExtractArgs = {
+	input: string,
+	pages: number[],
+	output: string,
+	job_id: string,
+};
+
+export type ExtractResult = {
+	output_paths: string[],
+};
+
 export type FrontendErrorPayload = {
 	message: string,
 	source: string | null,

@@ -36,7 +36,7 @@ export const TOOLS: ToolDef[] = [
   { id: "compare",        i18nKey: "compare",        route: "/workspace/new?tool=compare",   icon: GitCompare, category: "tool" },
   { id: "unlock",         i18nKey: "unlock",         route: "/tools/unlock",                 icon: Unlock,     category: "tool" },
   { id: "optimize",       i18nKey: "optimize",       route: "/tools/optimize",               icon: Zap,        category: "tool" },
-  { id: "extract",        i18nKey: "extract",        route: "/workspace/new?tool=extract",   icon: FileText,   category: "tool" },
+  { id: "extract",        i18nKey: "extract",        route: "/tools/extract",                icon: FileText,   category: "tool" },
   { id: "pipeline",       i18nKey: "pipeline",       route: "/pipeline",                     icon: Workflow,   category: "system" },
   { id: "projects",       i18nKey: "projects",       route: "/projects",                     icon: FolderOpen, category: "system" },
 ];
