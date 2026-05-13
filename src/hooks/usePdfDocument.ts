@@ -17,13 +17,12 @@ export interface PdfDoc {
 }
 
 export function usePdfDocument(path: string | null): PdfDoc | null {
-  const [doc, setDoc] = useState<PdfDoc | null>(null);
+  // Key the cached doc to the path it was loaded for; whenever `path`
+  // changes we render null synchronously and the effect (re)loads.
+  const [entry, setEntry] = useState<{ path: string; doc: PdfDoc } | null>(null);
 
   useEffect(() => {
-    if (!path) {
-      setDoc(null);
-      return;
-    }
+    if (!path) return;
     let cancelled = false;
     (async () => {
       const bytes = await readFile(path);
@@ -36,9 +35,8 @@ export function usePdfDocument(path: string | null): PdfDoc | null {
         pdf.destroy();
         return;
       }
-      setDoc({ pdf, numPages: pdf.numPages });
+      setEntry({ path, doc: { pdf, numPages: pdf.numPages } });
     })().catch((err) => {
-      // eslint-disable-next-line no-console
       console.error("usePdfDocument failed:", err);
     });
     return () => {
@@ -46,5 +44,7 @@ export function usePdfDocument(path: string | null): PdfDoc | null {
     };
   }, [path]);
 
-  return doc;
+  // Only return the cached doc if it matches the currently requested path.
+  // Otherwise the consumer sees `null` until the effect resolves the new doc.
+  return path && entry?.path === path ? entry.doc : null;
 }

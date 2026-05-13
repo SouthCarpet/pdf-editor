@@ -33,7 +33,6 @@ export function PdfViewer({ pdf, pageIndex, zoom, className }: Props) {
       // RenderingCancelledException is fine; the next effect already kicked
       // off a fresh render. Anything else is worth logging.
       if (err?.name !== "RenderingCancelledException") {
-        // eslint-disable-next-line no-console
         console.error("PdfViewer render failed:", err);
       }
     });
