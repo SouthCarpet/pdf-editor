@@ -57,6 +57,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("convert_pdf_export_cmd", { args })),
+	convertToPdfCmd: (args: ImportArgs) => typedError<ImportResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("convert_to_pdf_cmd", { args })),
 };
 
 /* Types */
@@ -107,6 +111,16 @@ export type FrontendErrorPayload = {
 	stack: string | null,
 	/**  "error" (window.onerror) or "unhandledrejection". */
 	kind: string,
+};
+
+export type ImportArgs = {
+	inputs: string[],
+	output: string,
+	job_id: string,
+};
+
+export type ImportResult = {
+	output_paths: string[],
 };
 
 export type MergeArgs = {

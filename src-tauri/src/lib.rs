@@ -38,5 +38,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::unlock::detect_pdf_encryption,
             commands::unlock::unlock_pdf_cmd,
             commands::convert_export::convert_pdf_export_cmd,
+            commands::convert_import::convert_to_pdf_cmd,
         ])
 }

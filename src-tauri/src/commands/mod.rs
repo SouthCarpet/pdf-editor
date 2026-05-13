@@ -1,5 +1,6 @@
 pub mod compress;
 pub mod convert_export;
+pub mod convert_import;
 pub mod extract;
 pub mod hello;
 pub mod merge;
