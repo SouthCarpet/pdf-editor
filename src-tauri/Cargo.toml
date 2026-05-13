@@ -52,6 +52,9 @@ num_cpus = "1"
 specta = { version = "=2.0.0-rc.25", features = ["derive", "chrono", "serde_json"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+# Phase 9 Task 53 Optimize tool: pipelines intermediate PDFs through a
+# scoped tempdir before the final copy to `output`.
+tempfile = "3"
 
 # Delta P: SetUnhandledExceptionFilter for the Windows SEH crash logger
 # (segfault / access violation / stack overflow). Only used on target_os=windows

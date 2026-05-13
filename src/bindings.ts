@@ -41,6 +41,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("compress_pdf_cmd", { args })),
+	optimizePdfCmd: (args: OptimizeArgs) => typedError<OptimizeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("optimize_pdf_cmd", { args })),
 };
 
 /* Types */
@@ -88,6 +92,29 @@ export type MergeArgs = {
 
 export type MergeResult = {
 	output_paths: string[],
+};
+
+export type OptimizeArgs = {
+	input: string,
+	output: string,
+	linearize: boolean,
+	remove_unused: boolean,
+	subset_fonts: boolean,
+	object_streams: boolean,
+	strip_metadata: boolean,
+	flatten_annotations: boolean,
+	remove_form_data: boolean,
+	/**  Language code (e.g. "eng+slk") when OCR layer should be added; None to skip. */
+	make_searchable_ocr: string | null,
+	/**  PDF/A version (e.g. 2) when conversion should run; None to skip. */
+	convert_pdfa: number | null,
+	job_id: string,
+};
+
+export type OptimizeResult = {
+	output_paths: string[],
+	before_bytes: number,
+	after_bytes: number,
 };
 
 export type RecentFile = {
