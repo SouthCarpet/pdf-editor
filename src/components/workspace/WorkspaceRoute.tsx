@@ -3,20 +3,32 @@
 // only exports the `Route` object (keeps React Refresh / Fast Refresh
 // happy: the warning fires when a route file mixes route exports with
 // any other component).
+//
+// Phase 11 Task 62: read the optional `?tool=` search param so the
+// dashboard can land directly on a specific workspace tool (Crop in
+// this commit, Organize/Extract/Compare in later Phase 11 commits).
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { commands } from "@/bindings";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
+import { useWorkspace } from "@/stores/workspaceStore";
 import { Workspace } from "./Workspace";
 
 export function WorkspaceRoute() {
   const { docId } = useParams({ from: "/workspace/$docId" });
+  const search = useSearch({ from: "/workspace/$docId" });
   const navigate = useNavigate();
   const addDoc = useDocuments((s) => s.add);
+  const setTool = useWorkspace((s) => s.setTool);
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Apply the tool search param exactly once on first mount.
+  useEffect(() => {
+    if (search.tool) setTool(search.tool);
+  }, [search.tool, setTool]);
 
   // Resolve docId → absolute file path. "new" triggers the picker; anything
   // else is the URL-encoded absolute path (TanStack params are decoded by
@@ -42,6 +54,7 @@ export function WorkspaceRoute() {
         navigate({
           to: "/workspace/$docId",
           params: { docId: encodeURIComponent(absolute) },
+          search,
           replace: true,
         });
       } else {
@@ -66,7 +79,7 @@ export function WorkspaceRoute() {
       });
       if (!cancelled) setPath(doc.path);
     }
-  }, [docId, navigate, addDoc]);
+  }, [docId, navigate, addDoc, search]);
 
   const pdfDoc = usePdfDocument(path);
 
@@ -78,5 +91,5 @@ export function WorkspaceRoute() {
   if (!path || !pdfDoc) {
     return <div className="p-6 text-[var(--color-muted)]">Loading…</div>;
   }
-  return <Workspace pdf={pdfDoc.pdf} />;
+  return <Workspace pdf={pdfDoc.pdf} path={path} />;
 }

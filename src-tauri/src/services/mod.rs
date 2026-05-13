@@ -1,3 +1,4 @@
+pub mod crop;
 pub mod diff_engine;
 pub mod image_to_pdf;
 pub mod ocr_engine;

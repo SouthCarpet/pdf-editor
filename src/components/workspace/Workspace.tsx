@@ -1,27 +1,63 @@
 // Top-level Workspace shell. Holds the tool picker, the virtualized
 // thumbnail strip, the main PDF canvas (PDF.js), and a right-hand slot
-// where active-tool panels will live (filled in by Phase 11+). The
-// PDF document itself is loaded by the route via `usePdfDocument`.
+// that hosts the active tool's panel. The PDF document itself is loaded
+// by the route via `usePdfDocument`.
+//
+// Phase 11 Task 62: the right-hand slot now switches on
+// `workspaceStore.activeTool`. The Crop tool ships in this commit;
+// Organize/Extract panels are added in subsequent Phase 11 commits.
 import type * as pdfjs from "pdfjs-dist";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Rect } from "react-konva";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { OverlayCanvas } from "./OverlayCanvas";
 import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
+import { CropPanel, type CropRect } from "./tools/CropPanel";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
+  /** Absolute filesystem path of the loaded PDF. Used by tool panels
+   * that invoke backend commands. */
+  path: string;
 }
 
-export function Workspace({ pdf }: Props) {
+export function Workspace({ pdf, path }: Props) {
+  const activeTool = useWorkspace((s) => s.activeTool);
   const activePage = useWorkspace((s) => s.activePage);
   const setActivePage = useWorkspace((s) => s.setActivePage);
   const zoom = useWorkspace((s) => s.zoom);
+
+  // Track the rendered viewport size of the active page so the overlay
+  // (and crop rect) line up 1:1 with the PDF.js canvas.
+  const [pageSize, setPageSize] = useState<{ width: number; height: number }>({
+    width: 0,
+    height: 0,
+  });
+
+  // Crop rectangle lives at the workspace level so it can be shared
+  // between the Konva overlay and the CropPanel.
+  const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, width: 0, height: 0 });
 
   // Clamp active page when the document changes (defensive).
   useEffect(() => {
     if (activePage >= pdf.numPages) setActivePage(0);
   }, [pdf, activePage, setActivePage]);
+
+  // Resolve current page viewport size whenever the page or zoom changes.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const page = await pdf.getPage(activePage + 1);
+      if (cancelled) return;
+      const vp = page.getViewport({ scale: zoom });
+      setPageSize({ width: Math.ceil(vp.width), height: Math.ceil(vp.height) });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, activePage, zoom]);
 
   return (
     <div className="flex h-[calc(100vh-3rem)] flex-col">
@@ -36,12 +72,44 @@ export function Workspace({ pdf }: Props) {
           />
         </aside>
         <main className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6">
-          <div className="relative">
+          <div className="relative" style={{ width: pageSize.width, height: pageSize.height }}>
             <PdfViewer pdf={pdf} pageIndex={activePage} zoom={zoom} className="shadow-lg" />
+            {activeTool === "crop" && pageSize.width > 0 && (
+              <OverlayCanvas width={pageSize.width} height={pageSize.height}>
+                <Rect
+                  x={cropRect.x}
+                  y={cropRect.y}
+                  width={cropRect.width}
+                  height={cropRect.height}
+                  stroke="red"
+                  strokeWidth={1}
+                  dash={[4, 4]}
+                  draggable
+                  onDragEnd={(e) =>
+                    setCropRect((r) => ({ ...r, x: e.target.x(), y: e.target.y() }))
+                  }
+                />
+              </OverlayCanvas>
+            )}
           </div>
         </main>
-        <aside className="w-72 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
-          {/* Tool panel slot — filled in by Phase 11+ */}
+        <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+          {activeTool === "crop" && (
+            <CropPanel
+              docPath={path}
+              pageWidth={pageSize.width}
+              pageHeight={pageSize.height}
+              rect={cropRect}
+              onRectChange={setCropRect}
+            />
+          )}
+          {activeTool === "edit" && (
+            <p className="text-xs text-[var(--color-muted)]">
+              Edit tool — coming in Phase 12.
+            </p>
+          )}
+          {/* Organize / Extract / Compare panels are added in later
+              Phase 11 commits (Tasks 63-65). */}
         </aside>
       </div>
     </div>

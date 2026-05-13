@@ -73,6 +73,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("render_page_thumbnail", { path, pageIndex, dpi })),
+	cropPdfCmd: (args: CropArgs) => typedError<CropResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("crop_pdf_cmd", { args })),
 };
 
 /* Types */
@@ -90,6 +94,21 @@ export type CompressResult = {
 };
 
 export type CompressionPresetDto = "recommended" | "high" | "maximum";
+
+export type CropArgs = {
+	input: string,
+	output: string,
+	page_index: number,
+	bbox: [(number | null), (number | null), (number | null), (number | null)] | null,
+	auto_detect: boolean,
+	apply_to_all_pages: boolean,
+	job_id: string,
+};
+
+export type CropResult = {
+	output_paths: string[],
+	bbox_applied: [(number | null), (number | null), (number | null), (number | null)],
+};
 
 export type ExportArgs = {
 	input: string,
