@@ -53,6 +53,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("unlock_pdf_cmd", { args })),
+	convertPdfExportCmd: (args: ExportArgs) => typedError<ExportResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("convert_pdf_export_cmd", { args })),
 };
 
 /* Types */
@@ -70,6 +74,19 @@ export type CompressResult = {
 };
 
 export type CompressionPresetDto = "recommended" | "high" | "maximum";
+
+export type ExportArgs = {
+	input: string,
+	format: ExportFormat,
+	out_dir: string,
+	job_id: string,
+};
+
+export type ExportFormat = "png" | "jpg" | "tiff" | "txt" | "html" | "docx" | "odt" | "rtf" | "epub" | "pdfa";
+
+export type ExportResult = {
+	output_paths: string[],
+};
 
 export type ExtractArgs = {
 	input: string,
