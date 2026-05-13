@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use lopdf::{Document, Object};
 use std::path::Path;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct PdfMetadata {
     pub title: Option<String>,
     pub author: Option<String>,

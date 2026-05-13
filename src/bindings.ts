@@ -61,6 +61,14 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("convert_to_pdf_cmd", { args })),
+	openDocument: (path: string) => typedError<OpenedDocument, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("open_document", { path })),
+	saveDocument: (sourcePath: string, targetPath: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("save_document", { sourcePath, targetPath })),
 };
 
 /* Types */
@@ -133,6 +141,14 @@ export type MergeResult = {
 	output_paths: string[],
 };
 
+export type OpenedDocument = {
+	path: string,
+	page_count: number,
+	metadata: PdfMetadata,
+	is_encrypted: boolean,
+	size_bytes: number,
+};
+
 export type OptimizeArgs = {
 	input: string,
 	output: string,
@@ -154,6 +170,15 @@ export type OptimizeResult = {
 	output_paths: string[],
 	before_bytes: number,
 	after_bytes: number,
+};
+
+export type PdfMetadata = {
+	title: string | null,
+	author: string | null,
+	subject: string | null,
+	keywords: string | null,
+	creator: string | null,
+	producer: string | null,
 };
 
 export type RecentFile = {

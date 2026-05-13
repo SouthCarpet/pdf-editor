@@ -39,5 +39,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::unlock::unlock_pdf_cmd,
             commands::convert_export::convert_pdf_export_cmd,
             commands::convert_import::convert_to_pdf_cmd,
+            // Phase 10 — Workspace shell (Tasks 57-58)
+            commands::workspace::open_document,
+            commands::workspace::save_document,
         ])
 }

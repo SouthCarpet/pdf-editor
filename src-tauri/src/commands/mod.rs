@@ -8,3 +8,4 @@ pub mod meta;
 pub mod optimize;
 pub mod split;
 pub mod unlock;
+pub mod workspace;
