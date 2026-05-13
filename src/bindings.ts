@@ -25,6 +25,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("open_logs_folder")),
+	mergePdfsCmd: (args: MergeArgs) => typedError<MergeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("merge_pdfs_cmd", { args })),
 };
 
 /* Types */
@@ -36,6 +40,16 @@ export type FrontendErrorPayload = {
 	stack: string | null,
 	/**  "error" (window.onerror) or "unhandledrejection". */
 	kind: string,
+};
+
+export type MergeArgs = {
+	inputs: string[],
+	output: string,
+	job_id: string,
+};
+
+export type MergeResult = {
+	output_paths: string[],
 };
 
 export type RecentFile = {

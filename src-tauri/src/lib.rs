@@ -29,5 +29,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Delta P (crash & error logging)
             commands::meta::record_frontend_error,
             commands::meta::open_logs_folder,
+            // Phase 9 — Form-style tools (Tasks 49-56)
+            commands::merge::merge_pdfs_cmd,
         ])
 }

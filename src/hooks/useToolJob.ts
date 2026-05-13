@@ -57,7 +57,22 @@ export function useToolJob(toolId: string) {
     });
 
     try {
-      const result = await invoke<T>(commandName, { ...args, jobId: id });
+      // Phase 9: most tool commands accept a single struct param named `args`
+      // with a `job_id` field (Rust) → `jobId` (camelCase via serde rename
+      // boundary). When the caller wraps params under `args`, inject the
+      // hook-generated id into `args.jobId` so the Rust side can register
+      // the cancellation token under the same key the hook will later call
+      // `cancel_job` with. Top-level `jobId` is preserved for legacy direct-
+      // param commands.
+      const argsWithJob: Record<string, unknown> = { ...args, jobId: id };
+      if (
+        argsWithJob.args &&
+        typeof argsWithJob.args === "object" &&
+        argsWithJob.args !== null
+      ) {
+        argsWithJob.args = { ...(argsWithJob.args as Record<string, unknown>), jobId: id };
+      }
+      const result = await invoke<T>(commandName, argsWithJob);
       const outputPaths = (result as { outputPaths?: string[] } | undefined)?.outputPaths;
       finish(id, outputPaths);
       return { id, outputPaths };
