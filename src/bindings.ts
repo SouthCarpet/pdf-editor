@@ -37,9 +37,28 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("extract_pages_cmd", { args })),
+	compressPdfCmd: (args: CompressArgs) => typedError<CompressResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("compress_pdf_cmd", { args })),
 };
 
 /* Types */
+export type CompressArgs = {
+	input: string,
+	output: string,
+	preset: CompressionPresetDto,
+	job_id: string,
+};
+
+export type CompressResult = {
+	output_paths: string[],
+	before_bytes: number,
+	after_bytes: number,
+};
+
+export type CompressionPresetDto = "recommended" | "high" | "maximum";
+
 export type ExtractArgs = {
 	input: string,
 	pages: number[],
