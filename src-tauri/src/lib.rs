@@ -35,5 +35,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::extract::extract_pages_cmd,
             commands::compress::compress_pdf_cmd,
             commands::optimize::optimize_pdf_cmd,
+            commands::unlock::detect_pdf_encryption,
+            commands::unlock::unlock_pdf_cmd,
         ])
 }

@@ -45,6 +45,14 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("optimize_pdf_cmd", { args })),
+	detectPdfEncryption: (input: string) => typedError<boolean, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("detect_pdf_encryption", { input })),
+	unlockPdfCmd: (args: UnlockArgs) => typedError<UnlockResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("unlock_pdf_cmd", { args })),
 };
 
 /* Types */
@@ -135,6 +143,15 @@ export type SplitArgs = {
 export type SplitResult = {
 	output_paths: string[],
 };
+
+export type UnlockArgs = {
+	input: string,
+	output: string,
+	password: string | null,
+	job_id: string,
+};
+
+export type UnlockResult = { type: "ok"; output_paths: string[] } | { type: "password_required" };
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
