@@ -29,6 +29,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("merge_pdfs_cmd", { args })),
+	splitPdfCmd: (args: SplitArgs) => typedError<SplitResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("split_pdf_cmd", { args })),
 };
 
 /* Types */
@@ -58,6 +62,17 @@ export type RecentFile = {
 	last_opened_at: string,
 	page_count: number | null,
 	size_bytes: number | null,
+};
+
+export type SplitArgs = {
+	input: string,
+	ranges: ([number, number])[],
+	out_dir: string,
+	job_id: string,
+};
+
+export type SplitResult = {
+	output_paths: string[],
 };
 
 /* Tauri Specta runtime */
