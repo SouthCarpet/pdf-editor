@@ -15,6 +15,7 @@ import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { CropPanel, type CropRect } from "./tools/CropPanel";
+import { OrganizePanel } from "./tools/OrganizePanel";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
@@ -103,13 +104,14 @@ export function Workspace({ pdf, path }: Props) {
               onRectChange={setCropRect}
             />
           )}
+          {activeTool === "organize" && <OrganizePanel pdf={pdf} docPath={path} />}
           {activeTool === "edit" && (
             <p className="text-xs text-[var(--color-muted)]">
               Edit tool — coming in Phase 12.
             </p>
           )}
-          {/* Organize / Extract / Compare panels are added in later
-              Phase 11 commits (Tasks 63-65). */}
+          {/* Extract / Compare panels are added in later Phase 11
+              commits (Tasks 64-65). */}
         </aside>
       </div>
     </div>

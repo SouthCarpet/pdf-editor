@@ -77,6 +77,22 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("crop_pdf_cmd", { args })),
+	rotatePagesCmd: (args: RotateArgs) => typedError<OrganizeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("rotate_pages_cmd", { args })),
+	deletePagesCmd: (args: DeletePagesArgs) => typedError<OrganizeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("delete_pages_cmd", { args })),
+	reorderPagesCmd: (args: ReorderArgs) => typedError<OrganizeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("reorder_pages_cmd", { args })),
+	insertBlankPageCmd: (args: InsertBlankPageArgs) => typedError<OrganizeResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("insert_blank_page_cmd", { args })),
 };
 
 /* Types */
@@ -108,6 +124,13 @@ export type CropArgs = {
 export type CropResult = {
 	output_paths: string[],
 	bbox_applied: [(number | null), (number | null), (number | null), (number | null)],
+};
+
+export type DeletePagesArgs = {
+	input: string,
+	output: string,
+	pages: number[],
+	job_id: string,
 };
 
 export type ExportArgs = {
@@ -154,6 +177,20 @@ export type ImportResult = {
 	output_paths: string[],
 };
 
+export type InsertBlankPageArgs = {
+	input: string,
+	output: string,
+	/**
+	 *  Insert a blank page AFTER this 0-based page index. Use `-1` (or
+	 *  `0` with `after_page_index = -1` equivalent) to insert at the
+	 *  beginning. The Rust side normalizes negative indices to 0.
+	 */
+	after_page_index: number,
+	width: number | null,
+	height: number | null,
+	job_id: string,
+};
+
 export type MergeArgs = {
 	inputs: string[],
 	output: string,
@@ -195,6 +232,10 @@ export type OptimizeResult = {
 	after_bytes: number,
 };
 
+export type OrganizeResult = {
+	output_paths: string[],
+};
+
 export type PdfMetadata = {
 	title: string | null,
 	author: string | null,
@@ -210,6 +251,21 @@ export type RecentFile = {
 	last_opened_at: string,
 	page_count: number | null,
 	size_bytes: number | null,
+};
+
+export type ReorderArgs = {
+	input: string,
+	output: string,
+	new_order: number[],
+	job_id: string,
+};
+
+export type RotateArgs = {
+	input: string,
+	output: string,
+	/**  Tuple list (page_number_1based, rotation_degrees). */
+	rotations: ([number, number])[],
+	job_id: string,
 };
 
 export type SplitArgs = {

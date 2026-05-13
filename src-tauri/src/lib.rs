@@ -45,5 +45,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::render::render_page_thumbnail,
             // Phase 11 — Workspace tools (Tasks 62-65)
             commands::crop::crop_pdf_cmd,
+            commands::organize::rotate_pages_cmd,
+            commands::organize::delete_pages_cmd,
+            commands::organize::reorder_pages_cmd,
+            commands::organize::insert_blank_page_cmd,
         ])
 }

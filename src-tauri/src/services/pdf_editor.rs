@@ -131,6 +131,71 @@ pub fn rotate_pages(
     Ok(())
 }
 
+/// Insert a single blank page into the document AFTER the given 0-based
+/// page index. The new page's MediaBox is `(0, 0, width, height)` in PDF
+/// user-space (72 pt) units. Phase 11 Task 63 — Organize tool.
+pub fn insert_blank_page(
+    input: &Path,
+    after_page_index: u32,
+    output: &Path,
+    width: f32,
+    height: f32,
+) -> Result<()> {
+    let mut doc = Document::load(input)?;
+    let pages_id: ObjectId = doc
+        .catalog()
+        .ok()
+        .and_then(|c| c.get(b"Pages").ok())
+        .and_then(|o| o.as_reference().ok())
+        .ok_or_else(|| anyhow::anyhow!("missing /Pages in catalog"))?;
+
+    // Create an empty content stream for the blank page.
+    let contents_id = doc.add_object(Object::Stream(lopdf::Stream::new(
+        lopdf::Dictionary::new(),
+        Vec::new(),
+    )));
+
+    let mut blank = lopdf::Dictionary::new();
+    blank.set("Type", Object::Name(b"Page".to_vec()));
+    blank.set("Parent", pages_id);
+    blank.set(
+        "MediaBox",
+        vec![
+            Object::Real(0.0),
+            Object::Real(0.0),
+            Object::Real(width),
+            Object::Real(height),
+        ],
+    );
+    blank.set("Resources", lopdf::Dictionary::new());
+    blank.set("Contents", Object::Reference(contents_id));
+    let blank_id = doc.add_object(Object::Dictionary(blank));
+
+    // Splice the blank into /Pages /Kids at the requested position.
+    let pages_map = doc.get_pages();
+    let mut kid_order: Vec<ObjectId> = (1..=pages_map.len() as u32)
+        .filter_map(|n| pages_map.get(&n).copied())
+        .collect();
+    let insert_at = (after_page_index as usize + 1).min(kid_order.len());
+    kid_order.insert(insert_at, blank_id);
+
+    if let Some(obj) = doc.objects.get_mut(&pages_id) {
+        if let Ok(d) = obj.as_dict_mut() {
+            d.set(
+                "Kids",
+                kid_order
+                    .iter()
+                    .map(|id| Object::Reference(*id))
+                    .collect::<Vec<_>>(),
+            );
+            d.set("Count", kid_order.len() as i64);
+        }
+    }
+    doc.compress();
+    doc.save(output)?;
+    Ok(())
+}
+
 pub fn reorder_pages(input: &Path, new_order: &[u32], output: &Path) -> Result<()> {
     let mut doc = Document::load(input)?;
     let pages = doc.get_pages();
