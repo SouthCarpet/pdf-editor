@@ -93,9 +93,25 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("insert_blank_page_cmd", { args })),
+	compareVisualCmd: (args: CompareArgs) => typedError<VisualDiffResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("compare_visual_cmd", { args })),
+	compareTextCmd: (args: CompareArgs) => typedError<TextDiffResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("compare_text_cmd", { args })),
 };
 
 /* Types */
+export type CompareArgs = {
+	left: string,
+	right: string,
+	job_id: string,
+	dpi: number,
+	tolerance: number | null,
+};
+
 export type CompressArgs = {
 	input: string,
 	output: string,
@@ -279,6 +295,16 @@ export type SplitResult = {
 	output_paths: string[],
 };
 
+export type TextDiffChange = {
+	kind: string,
+	left: string | null,
+	right: string | null,
+};
+
+export type TextDiffResult = {
+	changes: TextDiffChange[],
+};
+
 export type UnlockArgs = {
 	input: string,
 	output: string,
@@ -287,6 +313,21 @@ export type UnlockArgs = {
 };
 
 export type UnlockResult = { type: "ok"; output_paths: string[] } | { type: "password_required" };
+
+export type VisualDiffPage = {
+	page_index: number,
+	/**
+	 *  String path so it crosses the Tauri IPC boundary cleanly (PathBuf
+	 *  would land as `{}` because specta can't bridge it). Convert with
+	 *  `convertFileSrc` on the front-end to display.
+	 */
+	diff_image: string,
+	changed_pixel_ratio: number | null,
+};
+
+export type VisualDiffResult = {
+	pages: VisualDiffPage[],
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

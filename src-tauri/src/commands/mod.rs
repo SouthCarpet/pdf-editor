@@ -1,3 +1,4 @@
+pub mod compare;
 pub mod compress;
 pub mod convert_export;
 pub mod convert_import;

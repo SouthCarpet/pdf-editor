@@ -4,16 +4,19 @@
 // happy: the warning fires when a route file mixes route exports with
 // any other component).
 //
-// Phase 11 Task 62: read the optional `?tool=` search param so the
-// dashboard can land directly on a specific workspace tool (Crop in
-// this commit, Organize/Extract/Compare in later Phase 11 commits).
+// Phase 11 Task 62 / 65: read the optional `?tool=` search param so the
+// dashboard can land directly on a specific workspace tool. `tool=compare`
+// is special-cased into a two-document workspace (no single-doc state).
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { commands } from "@/bindings";
+import type { TextDiffResult, VisualDiffPage } from "@/bindings";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { CompareViewer } from "./CompareViewer";
+import { ComparePanel } from "./tools/ComparePanel";
 import { Workspace } from "./Workspace";
 
 export function WorkspaceRoute() {
@@ -30,10 +33,14 @@ export function WorkspaceRoute() {
     if (search.tool) setTool(search.tool);
   }, [search.tool, setTool]);
 
+  const isCompareMode = search.tool === "compare";
+
   // Resolve docId → absolute file path. "new" triggers the picker; anything
   // else is the URL-encoded absolute path (TanStack params are decoded by
   // the router, so we don't need decodeURIComponent here).
+  // Skipped entirely in compare mode — we don't load a single doc.
   useEffect(() => {
+    if (isCompareMode) return;
     let cancelled = false;
     (async () => {
       if (docId === "new") {
@@ -79,7 +86,7 @@ export function WorkspaceRoute() {
       });
       if (!cancelled) setPath(doc.path);
     }
-  }, [docId, navigate, addDoc, search]);
+  }, [docId, navigate, addDoc, search, isCompareMode]);
 
   const pdfDoc = usePdfDocument(path);
 
@@ -88,8 +95,55 @@ export function WorkspaceRoute() {
       <div className="p-6 text-red-600">Failed to open document: {error}</div>
     );
   }
+  if (isCompareMode) {
+    return <CompareWorkspace />;
+  }
   if (!path || !pdfDoc) {
     return <div className="p-6 text-[var(--color-muted)]">Loading…</div>;
   }
   return <Workspace pdf={pdfDoc.pdf} path={path} />;
+}
+
+// ---------- Compare-mode workspace shell ----------
+
+function CompareWorkspace() {
+  const [leftPath, setLeftPath] = useState<string | null>(null);
+  const [rightPath, setRightPath] = useState<string | null>(null);
+  const [mode, setMode] = useState<"visual" | "text">("visual");
+  const [visualResult, setVisualResult] = useState<VisualDiffPage[] | null>(null);
+  const [textResult, setTextResult] = useState<TextDiffResult | null>(null);
+
+  const ready = leftPath && rightPath;
+
+  return (
+    <div className="flex h-[calc(100vh-3rem)]">
+      <main className="flex-1 overflow-hidden">
+        {ready ? (
+          <CompareViewer
+            leftPath={leftPath!}
+            rightPath={rightPath!}
+            mode={mode}
+            visualResult={visualResult}
+            textResult={textResult}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center text-[var(--color-muted)]">
+            Pick a left and right PDF in the panel to begin.
+          </div>
+        )}
+      </main>
+      <aside className="w-72 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+        <ComparePanel
+          leftPath={leftPath}
+          rightPath={rightPath}
+          mode={mode}
+          setLeftPath={setLeftPath}
+          setRightPath={setRightPath}
+          setMode={setMode}
+          onVisualResult={setVisualResult}
+          onTextResult={setTextResult}
+        />
+      </aside>
+    </div>
+  );
 }

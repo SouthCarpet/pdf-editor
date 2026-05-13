@@ -2,36 +2,39 @@ use anyhow::Result;
 use image::{ImageBuffer, Rgba, RgbaImage};
 use serde::{Deserialize, Serialize};
 use similar::{ChangeTag, TextDiff};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::services::pdf_reader::{LopdfReader, PdfReader};
 use crate::services::pdf_renderer::{render_page_to_png, RenderOptions};
 use crate::services::text_extractor::extract_text_per_page;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct DiffOptions {
     pub dpi: u32,
     pub tolerance: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct VisualDiffResult {
     pub pages: Vec<VisualDiffPage>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct VisualDiffPage {
     pub page_index: usize,
-    pub diff_image: PathBuf,
+    /// String path so it crosses the Tauri IPC boundary cleanly (PathBuf
+    /// would land as `{}` because specta can't bridge it). Convert with
+    /// `convertFileSrc` on the front-end to display.
+    pub diff_image: String,
     pub changed_pixel_ratio: f32,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TextDiffResult {
     pub changes: Vec<TextDiffChange>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct TextDiffChange {
     pub kind: String,
     pub left: Option<String>,
@@ -77,14 +80,20 @@ pub fn visual_diff_pdfs(
         diff_img.save(&diff_path).ok();
         results.push(VisualDiffPage {
             page_index: i,
-            diff_image: diff_path,
+            diff_image: diff_path.display().to_string(),
             changed_pixel_ratio: ratio,
         });
     }
     Ok(VisualDiffResult { pages: results })
 }
 
-fn pixel_diff(a: &RgbaImage, b: &RgbaImage, tolerance: f32) -> (RgbaImage, f32) {
+/// Pixel-by-pixel diff of two RGBA images. Returns the overlay image
+/// (red where different, faded original where same) and the changed-pixel
+/// ratio in `[0, 1]`. Made `pub` in Phase 11 so the Compare command can
+/// drive rendering itself and reuse the comparison core (see Delta Q in
+/// the plan: rendering is now orchestrated by the command handler, not
+/// the diff engine).
+pub fn pixel_diff(a: &RgbaImage, b: &RgbaImage, tolerance: f32) -> (RgbaImage, f32) {
     let (w, h) = (a.width().min(b.width()), a.height().min(b.height()));
     let mut out: RgbaImage = ImageBuffer::new(w, h);
     let mut diff_count = 0u64;

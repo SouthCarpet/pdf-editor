@@ -49,5 +49,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::organize::delete_pages_cmd,
             commands::organize::reorder_pages_cmd,
             commands::organize::insert_blank_page_cmd,
+            commands::compare::compare_visual_cmd,
+            commands::compare::compare_text_cmd,
         ])
 }
