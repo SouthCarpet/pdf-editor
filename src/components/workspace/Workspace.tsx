@@ -15,6 +15,7 @@ import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { CropPanel, type CropRect } from "./tools/CropPanel";
+import { ExtractPanel } from "./tools/ExtractPanel";
 import { OrganizePanel } from "./tools/OrganizePanel";
 
 interface Props {
@@ -105,13 +106,15 @@ export function Workspace({ pdf, path }: Props) {
             />
           )}
           {activeTool === "organize" && <OrganizePanel pdf={pdf} docPath={path} />}
+          {activeTool === "extract" && (
+            <ExtractPanel docPath={path} pageCount={pdf.numPages} />
+          )}
           {activeTool === "edit" && (
             <p className="text-xs text-[var(--color-muted)]">
               Edit tool — coming in Phase 12.
             </p>
           )}
-          {/* Extract / Compare panels are added in later Phase 11
-              commits (Tasks 64-65). */}
+          {/* Compare uses a separate workspace shell (see WorkspaceRoute). */}
         </aside>
       </div>
     </div>
