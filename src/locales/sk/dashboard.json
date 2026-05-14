@@ -5,5 +5,7 @@
   "projects_heading": "Projekty",
   "no_recent": "Žiadne nedávne súbory",
   "no_projects": "Zatiaľ žiadne projekty",
-  "new_project": "Nový projekt"
+  "new_project": "Nový projekt",
+  "open_file": "Otvoriť súbor",
+  "drop_files": "Sem pretiahnite súbory alebo kliknite pre výber"
 }

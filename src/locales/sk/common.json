@@ -6,9 +6,22 @@
   "cancel": "Zrušiť",
   "ok": "OK",
   "delete": "Zmazať",
+  "remove": "Odstrániť",
+  "add": "Pridať",
+  "close": "Zavrieť",
+  "apply": "Použiť",
+  "reset": "Obnoviť",
+  "retry": "Skúsiť znova",
+  "running": "Beží",
+  "loading": "Načítava sa",
   "settings": "Nastavenia",
   "language": "Jazyk",
-  "theme": { "label": "Téma", "light": "Svetlá", "dark": "Tmavá", "system": "Systémová" },
+  "theme": {
+    "label": "Téma",
+    "light": "Svetlá",
+    "dark": "Tmavá",
+    "system": "Systémová"
+  },
   "tools": {
     "merge": "Zlúčiť",
     "split": "Rozdeliť",

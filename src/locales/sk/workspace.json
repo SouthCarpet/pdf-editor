@@ -1,0 +1,62 @@
+{
+  "title": "Pracovná plocha",
+  "save_status_clean": "Všetky zmeny sú uložené",
+  "save_status_dirty": "Neuložené zmeny",
+  "save_status_saving": "Ukladá sa...",
+  "zoom_in": "Priblížiť",
+  "zoom_out": "Oddialiť",
+  "fit_width": "Prispôsobiť šírke",
+  "fit_page": "Prispôsobiť strane",
+  "page_n_of_m": "Strana {{n}} z {{m}}",
+  "thumbnails": "Náhľady",
+  "tools": {
+    "edit": "Upraviť",
+    "edit_text": "Text",
+    "edit_annotations": "Anotácie",
+    "edit_forms": "Formuláre",
+    "crop": "Orezať",
+    "organize": "Zoradiť",
+    "extract": "Extrahovať",
+    "compare": "Porovnať",
+    "ocr": "OCR"
+  },
+  "annotations": {
+    "mode": "Režim",
+    "highlight": "Zvýrazniť",
+    "note": "Poznámka",
+    "freetext": "Textové pole",
+    "square": "Obdĺžnik",
+    "circle": "Elipsa",
+    "line": "Čiara",
+    "ink": "Atrament",
+    "stamp": "Pečiatka",
+    "underline": "Podčiarknutie",
+    "strikethrough": "Prečiarknutie",
+    "color": "Farba",
+    "stroke_width": "Hrúbka ťahu",
+    "fill_color": "Výplň",
+    "opacity": "Priehľadnosť",
+    "font": "Font",
+    "size": "Veľkosť",
+    "align": "Zarovnanie",
+    "bold": "Tučné",
+    "italic": "Kurzíva",
+    "underline_toggle": "Podčiarknuté",
+    "strike_toggle": "Prečiarknuté",
+    "save_default": "Uložiť ako predvolené",
+    "reset_default": "Obnoviť predvolené"
+  },
+  "forms": {
+    "title": "Formuláre",
+    "no_fields": "Toto PDF nemá AcroForm polia",
+    "field_name": "Pole",
+    "field_value": "Hodnota"
+  },
+  "edit_text": {
+    "title": "Text",
+    "click_empty_message": "Tu nie je upraviteľný text. Pridať nový text?",
+    "add_new_text": "Pridať nový text",
+    "preserve_original": "Zachovať pôvodný",
+    "override_style": "Prepísať štýl"
+  }
+}

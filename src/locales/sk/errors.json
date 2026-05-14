@@ -7,5 +7,9 @@
   "cancelled": "Zrušené",
   "invalid_argument": "Neplatný argument: {{detail}}",
   "io_error": "I/O chyba: {{detail}}",
-  "internal": "Vnútorná chyba: {{detail}}"
+  "internal": "Vnútorná chyba: {{detail}}",
+  "unimplemented": "Zatiaľ neimplementované: {{feature}}",
+  "boundary_title": "Niečo sa pokazilo",
+  "boundary_retry": "Skúsiť znova",
+  "boundary_copy": "Skopírovať detaily"
 }

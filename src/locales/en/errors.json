@@ -7,5 +7,9 @@
   "cancelled": "Cancelled",
   "invalid_argument": "Invalid argument: {{detail}}",
   "io_error": "I/O error: {{detail}}",
-  "internal": "Internal error: {{detail}}"
+  "internal": "Internal error: {{detail}}",
+  "unimplemented": "Not yet implemented: {{feature}}",
+  "boundary_title": "Something went wrong",
+  "boundary_retry": "Retry",
+  "boundary_copy": "Copy details"
 }

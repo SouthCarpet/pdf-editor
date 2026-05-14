@@ -1,0 +1,26 @@
+{
+  "title": "Pipeline",
+  "new_pipeline": "Nová pipeline",
+  "presets": "Predvoľby",
+  "save_preset": "Uložiť predvoľbu",
+  "load_preset": "Načítať predvoľbu",
+  "node_palette": "Uzly",
+  "node_config": "Konfigurácia uzla",
+  "run": "Spustiť",
+  "run_on_folder": "Spustiť na priečinku",
+  "running": "Beží...",
+  "preflight_warnings": "Varovania pred spustením",
+  "warning_artifact_stripped": "Krok {{from}} produkuje {{artifact}}, ale {{to}} ho odstráni.",
+  "results": "Výsledky",
+  "errors": "Chyby",
+  "output_paths": "Výstupné súbory",
+  "no_results": "Zatiaľ žiadne výsledky",
+  "artifacts": {
+    "annotations": "anotácie",
+    "form_fields": "polia formulárov",
+    "metadata": "metadáta",
+    "bookmarks": "záložky",
+    "signatures": "podpisy",
+    "outlines": "obrysy"
+  }
+}

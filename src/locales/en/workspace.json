@@ -1,0 +1,62 @@
+{
+  "title": "Workspace",
+  "save_status_clean": "All changes saved",
+  "save_status_dirty": "Unsaved changes",
+  "save_status_saving": "Saving...",
+  "zoom_in": "Zoom in",
+  "zoom_out": "Zoom out",
+  "fit_width": "Fit width",
+  "fit_page": "Fit page",
+  "page_n_of_m": "Page {{n}} of {{m}}",
+  "thumbnails": "Thumbnails",
+  "tools": {
+    "edit": "Edit",
+    "edit_text": "Text",
+    "edit_annotations": "Annotations",
+    "edit_forms": "Forms",
+    "crop": "Crop",
+    "organize": "Organize",
+    "extract": "Extract",
+    "compare": "Compare",
+    "ocr": "OCR"
+  },
+  "annotations": {
+    "mode": "Mode",
+    "highlight": "Highlight",
+    "note": "Note",
+    "freetext": "Text box",
+    "square": "Rectangle",
+    "circle": "Ellipse",
+    "line": "Line",
+    "ink": "Ink",
+    "stamp": "Stamp",
+    "underline": "Underline",
+    "strikethrough": "Strikethrough",
+    "color": "Color",
+    "stroke_width": "Stroke width",
+    "fill_color": "Fill color",
+    "opacity": "Opacity",
+    "font": "Font",
+    "size": "Size",
+    "align": "Alignment",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline_toggle": "Underline",
+    "strike_toggle": "Strikethrough",
+    "save_default": "Save as default",
+    "reset_default": "Reset to defaults"
+  },
+  "forms": {
+    "title": "Forms",
+    "no_fields": "This PDF has no AcroForm fields",
+    "field_name": "Field",
+    "field_value": "Value"
+  },
+  "edit_text": {
+    "title": "Text",
+    "click_empty_message": "No editable text here. Add new text?",
+    "add_new_text": "Add new text",
+    "preserve_original": "Preserve original",
+    "override_style": "Override style"
+  }
+}

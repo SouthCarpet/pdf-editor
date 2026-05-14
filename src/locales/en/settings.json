@@ -1,0 +1,22 @@
+{
+  "title": "Settings",
+  "general": "General",
+  "appearance": "Appearance",
+  "language_label": "Language",
+  "theme_label": "Theme",
+  "tool_defaults": "Tool defaults",
+  "units": "Units",
+  "unit_points": "Points (pt)",
+  "unit_millimeters": "Millimeters (mm)",
+  "unit_inches": "Inches (in)",
+  "recent_colors_retention": "Recent colors retained",
+  "recent_fonts_retention": "Recent fonts retained",
+  "default_font": "Default font for new text",
+  "ocr_languages": "OCR languages",
+  "ocr_add_language": "Add language (.traineddata)",
+  "ocr_remove_language": "Remove",
+  "always_sidecar_ocr": "Always use OCR sidecar",
+  "restore_session_prompt": "Restore last session?",
+  "restore": "Restore",
+  "discard": "Discard"
+}

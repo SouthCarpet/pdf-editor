@@ -1,0 +1,26 @@
+{
+  "title": "Pipeline",
+  "new_pipeline": "New pipeline",
+  "presets": "Presets",
+  "save_preset": "Save preset",
+  "load_preset": "Load preset",
+  "node_palette": "Nodes",
+  "node_config": "Node config",
+  "run": "Run",
+  "run_on_folder": "Run on folder",
+  "running": "Running...",
+  "preflight_warnings": "Preflight warnings",
+  "warning_artifact_stripped": "Step {{from}} produces {{artifact}} but {{to}} would strip it.",
+  "results": "Results",
+  "errors": "Errors",
+  "output_paths": "Output files",
+  "no_results": "No results yet",
+  "artifacts": {
+    "annotations": "annotations",
+    "form_fields": "form fields",
+    "metadata": "metadata",
+    "bookmarks": "bookmarks",
+    "signatures": "signatures",
+    "outlines": "outlines"
+  }
+}

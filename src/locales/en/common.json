@@ -6,9 +6,22 @@
   "cancel": "Cancel",
   "ok": "OK",
   "delete": "Delete",
+  "remove": "Remove",
+  "add": "Add",
+  "close": "Close",
+  "apply": "Apply",
+  "reset": "Reset",
+  "retry": "Retry",
+  "running": "Running",
+  "loading": "Loading",
   "settings": "Settings",
   "language": "Language",
-  "theme": { "label": "Theme", "light": "Light", "dark": "Dark", "system": "System" },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
   "tools": {
     "merge": "Merge",
     "split": "Split",

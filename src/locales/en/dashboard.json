@@ -5,5 +5,7 @@
   "projects_heading": "Projects",
   "no_recent": "No recent files",
   "no_projects": "No projects yet",
-  "new_project": "New project"
+  "new_project": "New project",
+  "open_file": "Open file",
+  "drop_files": "Drop files here or click to browse"
 }

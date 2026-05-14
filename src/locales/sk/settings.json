@@ -1,0 +1,22 @@
+{
+  "title": "Nastavenia",
+  "general": "Všeobecné",
+  "appearance": "Vzhľad",
+  "language_label": "Jazyk",
+  "theme_label": "Téma",
+  "tool_defaults": "Predvolené hodnoty nástrojov",
+  "units": "Jednotky",
+  "unit_points": "Body (pt)",
+  "unit_millimeters": "Milimetre (mm)",
+  "unit_inches": "Palce (in)",
+  "recent_colors_retention": "Počet nedávnych farieb",
+  "recent_fonts_retention": "Počet nedávnych fontov",
+  "default_font": "Predvolený font pre nový text",
+  "ocr_languages": "OCR jazyky",
+  "ocr_add_language": "Pridať jazyk (.traineddata)",
+  "ocr_remove_language": "Odstrániť",
+  "always_sidecar_ocr": "Vždy používať OCR sidecar",
+  "restore_session_prompt": "Obnoviť poslednú reláciu?",
+  "restore": "Obnoviť",
+  "discard": "Zahodiť"
+}
