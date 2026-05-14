@@ -7,6 +7,11 @@ import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
 import { commands, type CompressionPresetDto } from "@/bindings";
 import { useJobsStore } from "@/stores/jobsStore";
+import {
+  CompressOptions,
+  DEFAULT_COMPRESS_OPTIONS,
+  type CompressOptionsValue,
+} from "./options/CompressOptions";
 
 interface RunStats {
   before: number;
@@ -26,7 +31,9 @@ function formatBytes(n: number): string {
 export function CompressTool() {
   const { t } = useTranslation();
   const [file, setFile] = useState<string | null>(null);
-  const [preset, setPreset] = useState<CompressionPresetDto>("recommended");
+  const [options, setOptions] = useState<CompressOptionsValue>(
+    DEFAULT_COMPRESS_OPTIONS,
+  );
   const [stats, setStats] = useState<RunStats | null>(null);
   const [running, setRunning] = useState(false);
   const { start, finish, fail } = useJobsStore();
@@ -43,10 +50,15 @@ export function CompressTool() {
     const id = crypto.randomUUID();
     start(id, "compress", [file]);
     try {
+      // The Rust compress_pdf_cmd currently accepts only the named preset;
+      // the Custom path falls back to "recommended" until Phase 17 wires
+      // the custom_quality / custom_dpi knobs through GhostscriptWrapper.
+      const presetToSend: CompressionPresetDto =
+        options.preset === "custom" ? "recommended" : options.preset;
       const res = await commands.compressPdfCmd({
         input: file,
         output: out,
-        preset,
+        preset: presetToSend,
         job_id: id,
       });
       if (res.status === "ok") {
@@ -70,18 +82,7 @@ export function CompressTool() {
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
-      <div className="space-y-1">
-        <label className="text-sm text-[var(--color-muted)]">Preset</label>
-        <select
-          value={preset}
-          onChange={(e) => setPreset(e.target.value as CompressionPresetDto)}
-          className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
-        >
-          <option value="recommended">Recommended (balanced)</option>
-          <option value="high">High (smaller)</option>
-          <option value="maximum">Maximum (smallest)</option>
-        </select>
-      </div>
+      <CompressOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || running} onClick={onRun}>
           {t("ok")}
@@ -95,7 +96,7 @@ export function CompressTool() {
             Saved:{" "}
             {stats.before > 0
               ? `${(((stats.before - stats.after) / stats.before) * 100).toFixed(1)}%`
-              : "—"}
+              : "-"}
           </div>
         </div>
       )}

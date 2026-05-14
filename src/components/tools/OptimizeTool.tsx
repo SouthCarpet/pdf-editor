@@ -2,50 +2,21 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
 import { useToolJob } from "@/hooks/useToolJob";
-
-interface OptimizeOptions {
-  linearize: boolean;
-  remove_unused: boolean;
-  subset_fonts: boolean;
-  object_streams: boolean;
-  strip_metadata: boolean;
-  flatten_annotations: boolean;
-  remove_form_data: boolean;
-  // Optional toggles that map to Some(...) when enabled.
-  ocr: boolean;
-  ocr_lang: string;
-  pdfa: boolean;
-  pdfa_version: number;
-}
-
-const DEFAULT: OptimizeOptions = {
-  linearize: true,
-  remove_unused: true,
-  subset_fonts: true,
-  object_streams: true,
-  strip_metadata: false,
-  flatten_annotations: false,
-  remove_form_data: false,
-  ocr: false,
-  ocr_lang: "eng",
-  pdfa: false,
-  pdfa_version: 2,
-};
+import {
+  DEFAULT_OPTIMIZE_OPTIONS,
+  OptimizeOptions,
+  type OptimizeOptionsValue,
+} from "./options/OptimizeOptions";
 
 export function OptimizeTool() {
   const { t } = useTranslation();
   const [file, setFile] = useState<string | null>(null);
-  const [opts, setOpts] = useState<OptimizeOptions>(DEFAULT);
+  const [opts, setOpts] = useState<OptimizeOptionsValue>(DEFAULT_OPTIMIZE_OPTIONS);
   const { run, cancelActive, activeId } = useToolJob("optimize");
-
-  function toggle<K extends keyof OptimizeOptions>(key: K, value: OptimizeOptions[K]) {
-    setOpts((o) => ({ ...o, [key]: value }));
-  }
 
   async function onRun() {
     if (!file) return;
@@ -76,16 +47,6 @@ export function OptimizeTool() {
     ).catch(() => {});
   }
 
-  const checks: Array<[keyof OptimizeOptions, string]> = [
-    ["linearize", "Linearize (fast web view)"],
-    ["remove_unused", "Remove unused resources"],
-    ["subset_fonts", "Subset embedded fonts"],
-    ["object_streams", "Generate object streams"],
-    ["flatten_annotations", "Flatten annotations"],
-    ["strip_metadata", "Strip metadata"],
-    ["remove_form_data", "Remove form data"],
-  ];
-
   return (
     <ToolPage
       title={t("tools.optimize")}
@@ -93,48 +54,7 @@ export function OptimizeTool() {
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
-      <div className="space-y-2 rounded border p-3">
-        {checks.map(([k, label]) => (
-          <label key={k} className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={opts[k] as boolean}
-              onCheckedChange={(v) => toggle(k, Boolean(v) as OptimizeOptions[typeof k])}
-            />
-            <span>{label}</span>
-          </label>
-        ))}
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={opts.ocr}
-            onCheckedChange={(v) => toggle("ocr", Boolean(v))}
-          />
-          <span>Make searchable (OCR) — language:</span>
-          <input
-            type="text"
-            value={opts.ocr_lang}
-            onChange={(e) => toggle("ocr_lang", e.target.value)}
-            disabled={!opts.ocr}
-            className="ml-2 h-8 w-24 rounded border px-2 text-sm"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={opts.pdfa}
-            onCheckedChange={(v) => toggle("pdfa", Boolean(v))}
-          />
-          <span>Convert to PDF/A — version:</span>
-          <select
-            value={opts.pdfa_version}
-            onChange={(e) => toggle("pdfa_version", Number(e.target.value))}
-            disabled={!opts.pdfa}
-            className="ml-2 h-8 rounded border px-2 text-sm"
-          >
-            <option value={1}>1</option>
-            <option value={2}>2</option>
-            <option value={3}>3</option>
-          </select>
-        </label>
-      </div>
+      <OptimizeOptions value={opts} onChange={setOpts} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !!activeId} onClick={onRun}>
           {t("ok")}
