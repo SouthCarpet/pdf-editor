@@ -1,6 +1,8 @@
 use sqlx::SqlitePool;
 use std::sync::Arc;
+use tokio::sync::OnceCell;
 
+use crate::services::fonts::SystemFont;
 use crate::sidecars::{
     ghostscript::GhostscriptWrapper,
     manager::SidecarManager,
@@ -23,6 +25,10 @@ pub struct AppState {
     pub tesseract: Arc<TesseractWrapper>,
     pub pdfcrack: Arc<PdfcrackWrapper>,
     pub cancellation: CancellationRegistry,
+    /// Delta U: lazily-populated cache of system fonts. First call to
+    /// `list_fonts_cmd` enumerates via font-kit; subsequent calls return
+    /// the cached list.
+    pub fonts: Arc<OnceCell<Vec<SystemFont>>>,
 }
 
 impl AppState {
@@ -38,6 +44,7 @@ impl AppState {
             pdfcrack: Arc::new(PdfcrackWrapper::new(mgr.clone())),
             sidecar_mgr: mgr,
             cancellation: CancellationRegistry::new(),
+            fonts: Arc::new(OnceCell::new()),
         }
     }
 }

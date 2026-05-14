@@ -42,6 +42,10 @@ lopdf = "0.34"
 # mupdf = "0.4"  # deferred — mupdf-sys 0.4.4 generates VS2019 (v142) solution which requires installing VS 2019 BuildTools alongside our VS 2026 (v143). Use mutool sidecar (Phase 4 MupdfWrapper) at runtime per engine_pdf_rust_core spec.
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "bmp"] }
 imageproc = "0.25"
+# Delta U: system font enumeration + TTF parsing. font-kit uses DirectWrite on
+# Windows (no native build deps); ttf-parser is pure-Rust no-std.
+font-kit = "0.14"
+ttf-parser = "0.24"
 similar = "2"
 # tesseract = "0.15"  # deferred — leptonica-sys requires vcpkg with leptonica installed (VCPKG_ROOT). Always use Tesseract sidecar at runtime per engine_ocr_stack "Always use sidecar" fallback.
 aes = "0.8"

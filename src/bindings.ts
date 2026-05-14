@@ -109,6 +109,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("set_form_values_cmd", { args })),
+	listFontsCmd: () => typedError<SystemFont[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("list_fonts_cmd")),
 };
 
 /* Types */
@@ -320,6 +324,21 @@ export type SplitArgs = {
 
 export type SplitResult = {
 	output_paths: string[],
+};
+
+export type SystemFont = {
+	family: string,
+	postscript_name: string,
+	/**  "Regular" / "Bold" / "Italic" / "BoldItalic" / "standard14". */
+	style: string,
+	/**  CSS-style numeric weight, 100..900. 400 = regular, 700 = bold. */
+	weight: number,
+	italic: boolean,
+	monospace: boolean,
+	/**  Absolute filesystem path of the font file (empty for Standard 14). */
+	file_path: string,
+	/**  True for the 14 PDF native fonts; these never need embedding. */
+	is_standard_14: boolean,
 };
 
 export type TextDiffChange = {

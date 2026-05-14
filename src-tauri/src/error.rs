@@ -29,6 +29,18 @@ pub enum AppError {
 
     #[error("internal: {detail}")]
     Internal { detail: String },
+
+    /// Surfaced when a sub-feature is deliberately not yet implemented (user
+    /// directive 2026-05-10: never silently degrade). The frontend renders a
+    /// "feature not yet available" message with the `feature` payload.
+    #[error("unimplemented: {feature}")]
+    Unimplemented { feature: String },
+
+    /// Encoding inversion failure for Tier 3 text edit: the requested target
+    /// font/encoding does not have a glyph for one or more characters of the
+    /// new string. Payload includes the missing character(s) for diagnostics.
+    #[error("encoding_mismatch: {detail}")]
+    EncodingMismatch { detail: String },
 }
 
 impl AppError {
@@ -43,6 +55,8 @@ impl AppError {
             Self::InvalidArgument { .. } => "invalid_argument",
             Self::IoError { .. } => "io_error",
             Self::Internal { .. } => "internal",
+            Self::Unimplemented { .. } => "unimplemented",
+            Self::EncodingMismatch { .. } => "encoding_mismatch",
         }
     }
 }
@@ -59,6 +73,8 @@ impl Serialize for AppError {
             Self::InvalidArgument { detail }            => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
             Self::IoError { detail }                    => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
             Self::Internal { detail }                   => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
+            Self::Unimplemented { feature }             => m.serialize_entry("data", &serde_json::json!({"feature": feature}))?,
+            Self::EncodingMismatch { detail }           => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
             _ => m.serialize_entry("data", &serde_json::json!({}))?,
         };
         m.end()

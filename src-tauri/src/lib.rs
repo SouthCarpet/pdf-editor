@@ -54,5 +54,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Phase 12 Task 66 — Edit Tier 1 (AcroForm fill)
             commands::edit_forms::read_form_fields_cmd,
             commands::edit_forms::set_form_values_cmd,
+            // Delta U (typography baseline) — system font enumeration
+            commands::fonts::list_fonts_cmd,
         ])
 }
