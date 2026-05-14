@@ -1,11 +1,13 @@
 import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { RecoveryWarningModal } from "@/components/recovery/RecoveryWarningModal";
 import { commands } from "@/bindings";
 import { useJobsStore } from "@/stores/jobsStore";
 
@@ -20,9 +22,11 @@ type Stage =
 
 export function UnlockTool() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [file, setFile] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [stage, setStage] = useState<Stage>({ kind: "idle" });
+  const [recoveryWarningOpen, setRecoveryWarningOpen] = useState(false);
   const { start, finish, fail } = useJobsStore();
 
   async function onFile(paths: string[]) {
@@ -111,15 +115,34 @@ export function UnlockTool() {
       {stage.kind === "done" && (
         <p className="text-sm text-green-700">Saved to {stage.outputs[0]}</p>
       )}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <Button
           disabled={!file || stage.kind === "running" || stage.kind === "detecting"}
           onClick={onRun}
         >
           {t("ok")}
         </Button>
+        {stage.kind === "prompt" && (
+          <button
+            className="text-xs text-blue-600 underline hover:text-blue-700"
+            onClick={() => setRecoveryWarningOpen(true)}
+          >
+            Forgot the password? Try recovery →
+          </button>
+        )}
       </div>
       <ProgressList />
+      <RecoveryWarningModal
+        open={recoveryWarningOpen}
+        onCancel={() => setRecoveryWarningOpen(false)}
+        onConfirm={() => {
+          setRecoveryWarningOpen(false);
+          navigate({
+            to: "/tools/unlock/recovery",
+            search: file ? { input: file } : {},
+          });
+        }}
+      />
     </ToolPage>
   );
 }
