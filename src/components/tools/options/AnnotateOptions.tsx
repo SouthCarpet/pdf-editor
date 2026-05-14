@@ -6,38 +6,11 @@
 // choice + a free-text "annotations spec" textarea (JSON) so a preset
 // can encode pre-defined annotations to apply.
 //
-// Default mode = "highlight" + empty annotations spec. The pipeline
-// executor does not yet ship an Annotate node (the standalone tool is
-// the canonical entry point); this component exists so the Option
-// surface is ready when Phase 17 wires it.
+// The pipeline executor does not yet ship an Annotate node (the
+// standalone tool is the canonical entry point); this component exists
+// so the Option surface is ready when Phase 17 wires it.
 import { Input } from "@/components/ui/input";
-
-export type AnnotateMode =
-  | "highlight"
-  | "freetext"
-  | "square"
-  | "strikethrough"
-  | "underline"
-  | "ink";
-
-export interface AnnotateOptionsValue {
-  mode: AnnotateMode;
-  /// Raw JSON describing the annotations to apply. The pipeline node
-  /// validates this server-side via apply_annotations_cmd; the
-  /// standalone tool maintains an in-memory list per page.
-  annotations_json: string;
-  color: string;
-  opacity: number;
-  stroke_width: number;
-}
-
-export const DEFAULT_ANNOTATE_OPTIONS: AnnotateOptionsValue = {
-  mode: "highlight",
-  annotations_json: "[]",
-  color: "#FFFF00",
-  opacity: 0.5,
-  stroke_width: 2,
-};
+import type { AnnotateMode, AnnotateOptionsValue } from "./defaults";
 
 interface Props {
   value: AnnotateOptionsValue;

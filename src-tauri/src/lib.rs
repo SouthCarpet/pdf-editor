@@ -79,5 +79,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::pipeline_presets::pipeline_preset_get,
             commands::pipeline_presets::pipeline_preset_update,
             commands::pipeline_presets::pipeline_preset_delete,
+            // Phase 14 Task 77 — Pipeline run (single + folder)
+            commands::pipeline_run::pipeline_run_cmd,
+            commands::pipeline_run::pipeline_run_on_folder_cmd,
         ])
 }

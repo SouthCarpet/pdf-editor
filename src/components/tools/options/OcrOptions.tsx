@@ -2,24 +2,7 @@
 // this with i18n + a language picker tied to list_ocr_languages; the
 // pipeline node embeds the same component for parity.
 import { Input } from "@/components/ui/input";
-
-export type OcrOutputMode = "searchable_pdf" | "pdf_plus_text" | "text_only";
-
-export interface OcrOptionsValue {
-  language: string;
-  dpi: number;
-  output: OcrOutputMode;
-  deskew: boolean;
-  despeckle: boolean;
-}
-
-export const DEFAULT_OCR_OPTIONS: OcrOptionsValue = {
-  language: "eng",
-  dpi: 300,
-  output: "searchable_pdf",
-  deskew: true,
-  despeckle: false,
-};
+import type { OcrOptionsValue, OcrOutputMode } from "./defaults";
 
 interface Props {
   value: OcrOptionsValue;

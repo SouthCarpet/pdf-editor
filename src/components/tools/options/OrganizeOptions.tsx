@@ -7,38 +7,12 @@
 // + selections; the pipeline editor surface here is text-driven (page
 // number lists) because there is no preview canvas inside a node.
 import { Input } from "@/components/ui/input";
-
-export interface RotateOptionsValue {
-  rotations: Array<[number, number]>;
-}
-
-export const DEFAULT_ROTATE_OPTIONS: RotateOptionsValue = { rotations: [] };
-
-export interface DeletePagesOptionsValue {
-  pages: number[];
-}
-
-export const DEFAULT_DELETE_PAGES_OPTIONS: DeletePagesOptionsValue = {
-  pages: [],
-};
-
-export interface ReorderOptionsValue {
-  new_order: number[];
-}
-
-export const DEFAULT_REORDER_OPTIONS: ReorderOptionsValue = { new_order: [] };
-
-export interface InsertBlankOptionsValue {
-  after_page_index: number;
-  width: number;
-  height: number;
-}
-
-export const DEFAULT_INSERT_BLANK_OPTIONS: InsertBlankOptionsValue = {
-  after_page_index: 0,
-  width: 612,
-  height: 792,
-};
+import type {
+  RotateOptionsValue,
+  DeletePagesOptionsValue,
+  ReorderOptionsValue,
+  InsertBlankOptionsValue,
+} from "./defaults";
 
 type Mode = "standalone" | "pipeline-node";
 

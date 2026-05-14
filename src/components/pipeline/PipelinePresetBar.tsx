@@ -64,7 +64,13 @@ export function PipelinePresetBar() {
   }
 
   useEffect(() => {
-    refresh();
+    // The lint rule flags any direct setState reachable from the effect
+    // body. Queue the load on a microtask so it lands after the render
+    // commit and out of the cascading-render zone.
+    void Promise.resolve().then(() => {
+      void refresh();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave() {

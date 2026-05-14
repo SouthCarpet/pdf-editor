@@ -3,20 +3,7 @@
 // schema (bbox + auto_detect + apply_to_all_pages + page_index) with
 // text-driven inputs.
 import { Input } from "@/components/ui/input";
-
-export interface CropOptionsValue {
-  bbox: [number, number, number, number] | null;
-  auto_detect: boolean;
-  apply_to_all_pages: boolean;
-  page_index: number;
-}
-
-export const DEFAULT_CROP_OPTIONS: CropOptionsValue = {
-  bbox: null,
-  auto_detect: true,
-  apply_to_all_pages: true,
-  page_index: 0,
-};
+import type { CropOptionsValue } from "./defaults";
 
 interface Props {
   value: CropOptionsValue;

@@ -10,48 +10,11 @@
 // Until then, NodeConfigPanel renders the form but the executor errors
 // with AppError::Unimplemented at run time.
 import { Input } from "@/components/ui/input";
-
-export type WatermarkMode = "text" | "image";
-export type WatermarkPosition =
-  | "top_left"
-  | "top_center"
-  | "top_right"
-  | "middle_left"
-  | "center"
-  | "middle_right"
-  | "bottom_left"
-  | "bottom_center"
-  | "bottom_right";
-
-export interface WatermarkOptionsValue {
-  watermark_mode: WatermarkMode;
-  text: string;
-  image_path: string | null;
-  font_family: string;
-  font_size: number;
-  color: string;
-  opacity: number;
-  rotation: number;
-  position: WatermarkPosition;
-  /// "all" | "current" | "1-5,7"
-  page_range: string;
-  /// behind page content vs on top of page content
-  behind_text: boolean;
-}
-
-export const DEFAULT_WATERMARK_OPTIONS: WatermarkOptionsValue = {
-  watermark_mode: "text",
-  text: "DRAFT",
-  image_path: null,
-  font_family: "Arial",
-  font_size: 48,
-  color: "#888888",
-  opacity: 0.4,
-  rotation: -45,
-  position: "center",
-  page_range: "all",
-  behind_text: false,
-};
+import type {
+  WatermarkMode,
+  WatermarkOptionsValue,
+  WatermarkPosition,
+} from "./defaults";
 
 interface Props {
   value: WatermarkOptionsValue;
@@ -65,7 +28,7 @@ export function WatermarkOptions({ value, onChange, mode = "standalone" }: Props
       {mode === "pipeline-node" && (
         <p className="rounded bg-amber-50 p-2 text-xs text-amber-800">
           Watermark execution is unimplemented in the pipeline executor
-          (awaits the standalone Watermark tool's font picker). The node
+          (awaits the standalone Watermark tool font picker). The node
           persists in the graph; running it surfaces a clear error.
         </p>
       )}
