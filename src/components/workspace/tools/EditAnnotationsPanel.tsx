@@ -10,7 +10,7 @@
 // Note (Stamp): the backend now embeds the supplied image as a real `/AP /N`
 // appearance stream when the path resolves; if reading the file fails we
 // fall back to the legacy "Approved" placeholder stamp.
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -116,9 +116,13 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [cfg, setCfg] = useState<ModeConfig>(defaultConfig);
+  const [lastMode, setLastMode] = useState<AnnotationMode>(mode);
 
-  // Reset config on mode switch to a sensible default for that mode.
-  useEffect(() => {
+  // Reset config on mode switch to a sensible default for that mode —
+  // derived inline (not in an effect) to keep eslint
+  // react-hooks/set-state-in-effect happy and avoid cascading renders.
+  if (mode !== lastMode) {
+    setLastMode(mode);
     setCfg((prev) => ({
       ...prev,
       color:
@@ -130,7 +134,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
       strokeWidth: mode === "ink" ? 3 : mode === "highlight" ? 1 : prev.strokeWidth,
       opacity: mode === "highlight" ? 0.5 : 1,
     }));
-  }, [mode]);
+  }
 
   // Autosave the in-progress annotation set.
   useAutosave(docPath, { tool: "annotations", annotations }, 5000);

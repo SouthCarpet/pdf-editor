@@ -23,23 +23,37 @@ interface RunEdit {
 
 export function EditTextPanel({ docPath }: Props) {
   const { t } = useTranslation("common");
-  const [runs, setRuns] = useState<TextRun[]>([]);
+  // Combined fetch state — single useState avoids cascading effect-setState.
+  const [docState, setDocState] = useState<{
+    path: string;
+    runs: TextRun[];
+    loading: boolean;
+  }>({ path: docPath, runs: [], loading: true });
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [edit, setEdit] = useState<RunEdit>({ newText: "" });
+  const [lastSelectedKey, setLastSelectedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showRedactionFallback, setShowRedactionFallback] = useState(false);
-  const [loading, setLoading] = useState(true);
+
+  // Reset state inline (not in an effect) when docPath changes.
+  if (docState.path !== docPath) {
+    setDocState({ path: docPath, runs: [], loading: true });
+    setSelectedIndex(null);
+    setLastSelectedKey(null);
+  }
 
   useEffect(() => {
-    setLoading(true);
     let cancelled = false;
     (async () => {
       const r = await commands.extractRunsCmd(docPath);
       if (cancelled) return;
-      if (r.status === "ok") setRuns(r.data);
-      else setErr(JSON.stringify(r.error));
-      setLoading(false);
+      if (r.status === "ok") {
+        setDocState({ path: docPath, runs: r.data, loading: false });
+      } else {
+        setErr(JSON.stringify(r.error));
+        setDocState({ path: docPath, runs: [], loading: false });
+      }
     })();
     return () => {
       cancelled = true;
@@ -48,12 +62,19 @@ export function EditTextPanel({ docPath }: Props) {
 
   useAutosave(docPath, { tool: "text", selectedIndex, edit }, 5000);
 
+  const runs = docState.runs;
+  const loading = docState.loading;
   const selected = selectedIndex !== null ? runs[selectedIndex] : null;
-
-  useEffect(() => {
-    if (selected) setEdit({ newText: selected.text });
+  // Sync the edit state when the user changes selection — derived inline,
+  // not via an effect.
+  const selectedKey = selected
+    ? `${selected.page}-${selected.operator_index}`
+    : null;
+  if (selectedKey !== lastSelectedKey) {
+    setLastSelectedKey(selectedKey);
+    setEdit({ newText: selected?.text ?? "" });
     setShowRedactionFallback(false);
-  }, [selected]);
+  }
 
   async function onApply() {
     if (selected === null || !edit.newText) return;

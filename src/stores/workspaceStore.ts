@@ -4,21 +4,27 @@
 import { create } from "zustand";
 
 export type WorkspaceTool = "edit" | "organize" | "crop" | "extract" | "compare";
+export type EditSubTool = "forms" | "annotations" | "text";
 
 interface WorkspaceState {
   activeTool: WorkspaceTool;
+  /** Sub-tool inside the Edit panel (Phase 12). */
+  editSubTool: EditSubTool;
   activePage: number;
   zoom: number;
   setTool: (t: WorkspaceTool) => void;
+  setEditSubTool: (t: EditSubTool) => void;
   setActivePage: (n: number) => void;
   setZoom: (z: number) => void;
 }
 
 export const useWorkspace = create<WorkspaceState>((set) => ({
   activeTool: "edit",
+  editSubTool: "forms",
   activePage: 0,
   zoom: 1.0,
   setTool: (t) => set({ activeTool: t }),
+  setEditSubTool: (t) => set({ editSubTool: t }),
   setActivePage: (n) => set({ activePage: Math.max(0, n) }),
   // Clamp zoom to a sane range so accidental wheel events can't blow the
   // canvas up to OOM territory.

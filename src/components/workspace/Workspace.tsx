@@ -15,6 +15,10 @@ import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { CropPanel, type CropRect } from "./tools/CropPanel";
+import { EditAnnotationsPanel } from "./tools/EditAnnotationsPanel";
+import { EditFormsPanel } from "./tools/EditFormsPanel";
+import { EditSubToolToggle } from "./tools/EditSubToolToggle";
+import { EditTextPanel } from "./tools/EditTextPanel";
 import { ExtractPanel } from "./tools/ExtractPanel";
 import { OrganizePanel } from "./tools/OrganizePanel";
 
@@ -27,6 +31,8 @@ interface Props {
 
 export function Workspace({ pdf, path }: Props) {
   const activeTool = useWorkspace((s) => s.activeTool);
+  const editSubTool = useWorkspace((s) => s.editSubTool);
+  const setEditSubTool = useWorkspace((s) => s.setEditSubTool);
   const activePage = useWorkspace((s) => s.activePage);
   const setActivePage = useWorkspace((s) => s.setActivePage);
   const zoom = useWorkspace((s) => s.zoom);
@@ -110,9 +116,18 @@ export function Workspace({ pdf, path }: Props) {
             <ExtractPanel docPath={path} pageCount={pdf.numPages} />
           )}
           {activeTool === "edit" && (
-            <p className="text-xs text-[var(--color-muted)]">
-              Edit tool — coming in Phase 12.
-            </p>
+            <div className="space-y-3">
+              <EditSubToolToggle value={editSubTool} onChange={setEditSubTool} />
+              {editSubTool === "forms" && <EditFormsPanel docPath={path} />}
+              {editSubTool === "annotations" && (
+                <EditAnnotationsPanel
+                  docPath={path}
+                  pageWidth={pageSize.width}
+                  pageHeight={pageSize.height}
+                />
+              )}
+              {editSubTool === "text" && <EditTextPanel docPath={path} />}
+            </div>
           )}
           {/* Compare uses a separate workspace shell (see WorkspaceRoute). */}
         </aside>

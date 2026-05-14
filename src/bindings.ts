@@ -134,6 +134,18 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("replace_run_redaction_cmd", { args })),
+	autosavePut: (docPath: string, patchJson: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("autosave_put", { docPath, patchJson })),
+	autosaveGet: (docPath: string) => typedError<string | null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("autosave_get", { docPath })),
+	autosaveDelete: (docPath: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("autosave_delete", { docPath })),
 };
 
 /* Types */

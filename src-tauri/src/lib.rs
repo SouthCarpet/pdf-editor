@@ -62,5 +62,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::edit_text::extract_runs_cmd,
             commands::edit_text::replace_run_cmd,
             commands::edit_text::replace_run_redaction_cmd,
+            // Phase 12 Task 69 — Autosave
+            commands::autosave::autosave_put,
+            commands::autosave::autosave_get,
+            commands::autosave::autosave_delete,
         ])
 }
