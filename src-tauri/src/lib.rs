@@ -97,5 +97,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Phase 15 Task 80 — Project import / export.
             commands::project_io::project_export,
             commands::project_io::project_import,
+            // Phase 16 Task 81 — Recovery wizard (Dict + Brute; Mask Unimplemented).
+            commands::recovery::recovery_attempt,
         ])
 }

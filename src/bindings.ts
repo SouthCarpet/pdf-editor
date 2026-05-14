@@ -255,6 +255,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("project_import", { inputPath })),
+	recoveryAttempt: (args: RecoveryArgs) => typedError<RecoveryResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("recovery_attempt", { args })),
 };
 
 /* Types */
@@ -682,6 +686,12 @@ export type RecentFile = {
 	last_opened_at: string,
 	page_count: number | null,
 	size_bytes: number | null,
+};
+
+export type RecoveryArgs = { mode: "dictionary"; input: string; wordlist_path: string; job_id: string } | { mode: "mask"; input: string; mask: string; job_id: string } | { mode: "brute"; input: string; charset: string; min_len: number; max_len: number; job_id: string };
+
+export type RecoveryResult = {
+	password: string | null,
 };
 
 export type RedactReplaceArgs = {

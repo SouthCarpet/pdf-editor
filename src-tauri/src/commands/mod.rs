@@ -19,6 +19,7 @@ pub mod pipeline_presets;
 pub mod pipeline_run;
 pub mod project_io;
 pub mod projects;
+pub mod recovery;
 pub mod render;
 pub mod split;
 pub mod tessdata;
