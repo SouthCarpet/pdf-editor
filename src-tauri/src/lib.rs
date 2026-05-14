@@ -82,5 +82,17 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Phase 14 Task 77 — Pipeline run (single + folder)
             commands::pipeline_run::pipeline_run_cmd,
             commands::pipeline_run::pipeline_run_on_folder_cmd,
+            // Phase 15 Task 78 — Projects (CRUD + files + attached pipelines)
+            commands::projects::project_create,
+            commands::projects::project_list,
+            commands::projects::project_get,
+            commands::projects::project_update,
+            commands::projects::project_delete,
+            commands::projects::project_add_file,
+            commands::projects::project_remove_file,
+            commands::projects::project_list_files,
+            commands::projects::project_add_pipeline,
+            commands::projects::project_remove_pipeline,
+            commands::projects::project_list_pipelines,
         ])
 }
