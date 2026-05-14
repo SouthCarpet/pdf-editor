@@ -706,10 +706,10 @@ async fn run_node(
             despeckle,
         } => {
             // Mirror commands::ocr::ocr_pdf logic via the same service
-            // composition, but inlined here so the pipeline doesn't depend
-            // on the Tauri command layer.
-            use lopdf::{dictionary, Document, Object, Stream};
-            use crate::services::ocr_engine::build_text_layer_from_hocr;
+            // composition. Delegates to commands::ocr::inject_text_layers so
+            // the Delta W Type0 CIDFont path is the only OCR layer path.
+            use crate::commands::ocr::inject_text_layers;
+            use lopdf::Document;
 
             let opts = OcrOptions {
                 language: language.clone(),
@@ -762,44 +762,9 @@ async fn run_node(
                     let pdf_in_b = pdf_in.clone();
                     let pdf_out_b = pdf_out.clone();
                     let hocr_b = hocr_per_page.clone();
+                    let opts_b = opts.clone();
                     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-                        let mut doc = Document::load(&pdf_in_b)?;
-                        let pages_map = doc.get_pages();
-                        let helv_id = doc.add_object(dictionary! {
-                            "Type" => "Font",
-                            "Subtype" => "Type1",
-                            "BaseFont" => "Helvetica",
-                            "Encoding" => "WinAnsiEncoding",
-                        });
-                        for (page_index, hocr, pixel_w, pixel_h) in &hocr_b {
-                            let Some(&page_id) = pages_map.get(&(page_index + 1)) else {
-                                continue;
-                            };
-                            let (page_w, page_h) = page_dimensions(&doc, page_id)
-                                .unwrap_or((612.0, 792.0));
-                            let stream_bytes = build_text_layer_from_hocr(
-                                hocr, *pixel_w, *pixel_h, page_w, page_h,
-                            );
-                            let stream_id = doc.add_object(Object::Stream(Stream::new(
-                                dictionary! {},
-                                stream_bytes,
-                            )));
-                            if let Some(obj) = doc.objects.get_mut(&page_id) {
-                                if let Ok(d) = obj.as_dict_mut() {
-                                    let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
-                                        Ok(Object::Reference(r)) => vec![Object::Reference(r)],
-                                        Ok(Object::Array(a)) => a,
-                                        _ => Vec::new(),
-                                    };
-                                    contents.push(Object::Reference(stream_id));
-                                    d.set("Contents", contents);
-                                    ensure_helv_font(d, helv_id);
-                                }
-                            }
-                        }
-                        doc.compress();
-                        doc.save(&pdf_out_b)?;
-                        Ok(())
+                        inject_text_layers(&pdf_in_b, &pdf_out_b, &opts_b, &hocr_b)
                     })
                     .await
                     .map_err(|e| AppError::Internal { detail: e.to_string() })?
@@ -889,47 +854,5 @@ fn read_png_dimensions(path: &Path) -> Option<(u32, u32)> {
     Some((w, h))
 }
 
-fn page_dimensions(doc: &lopdf::Document, page_id: lopdf::ObjectId) -> Option<(f32, f32)> {
-    let page = doc.get_object(page_id).ok()?.as_dict().ok()?;
-    let mbox = page.get(b"MediaBox").ok()?.as_array().ok()?;
-    if mbox.len() != 4 {
-        return None;
-    }
-    let get = |i: usize| -> f32 {
-        match &mbox[i] {
-            lopdf::Object::Integer(n) => *n as f32,
-            lopdf::Object::Real(f) => *f,
-            _ => 0.0,
-        }
-    };
-    Some((get(2) - get(0), get(3) - get(1)))
-}
-
-fn ensure_helv_font(page: &mut lopdf::Dictionary, helv_id: lopdf::ObjectId) {
-    let res = match page.get_mut(b"Resources") {
-        Ok(lopdf::Object::Dictionary(r)) => r,
-        _ => {
-            page.set(
-                "Resources",
-                lopdf::Object::Dictionary(lopdf::Dictionary::new()),
-            );
-            match page.get_mut(b"Resources") {
-                Ok(lopdf::Object::Dictionary(r)) => r,
-                _ => return,
-            }
-        }
-    };
-    let fonts = match res.get_mut(b"Font") {
-        Ok(lopdf::Object::Dictionary(f)) => f,
-        _ => {
-            res.set("Font", lopdf::Object::Dictionary(lopdf::Dictionary::new()));
-            match res.get_mut(b"Font") {
-                Ok(lopdf::Object::Dictionary(f)) => f,
-                _ => return,
-            }
-        }
-    };
-    if fonts.get(b"F1").is_err() {
-        fonts.set("F1", lopdf::Object::Reference(helv_id));
-    }
-}
+// Delta W: page_dimensions + ensure_helv_font now live in commands::ocr.rs
+// (inject_text_layers shares them with the pipeline OCR node).

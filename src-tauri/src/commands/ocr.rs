@@ -14,6 +14,8 @@
 
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
+use crate::services::font_embed::FontSubsetter;
+use crate::services::fonts;
 use crate::services::ocr_engine::{
     build_text_layer_from_hocr, OcrOptions, OcrOutputMode,
 };
@@ -159,10 +161,61 @@ fn read_png_dimensions(path: &Path) -> Option<(u32, u32)> {
     Some((w, h))
 }
 
+/// Delta W: pick the font that will back the OCR invisible text layer.
+///
+/// Preference order:
+///   1. Arial Regular (Windows default sans-serif, broad Unicode coverage).
+///   2. First non-Standard-14 sans-serif font discoverable on the system.
+///   3. None — caller falls back to Standard 14 Helvetica (ASCII only).
+fn pick_ocr_font() -> Option<crate::services::fonts::SystemFont> {
+    let all = fonts::list_system_fonts();
+    // 1. Arial Regular (exact PostScript name).
+    if let Some(f) = all
+        .iter()
+        .find(|f| f.postscript_name == "ArialMT" && !f.is_standard_14)
+    {
+        return Some(f.clone());
+    }
+    if let Some(f) = all.iter().find(|f| {
+        f.family == "Arial" && f.style == "Regular" && !f.is_standard_14
+    }) {
+        return Some(f.clone());
+    }
+    // 2. First non-Standard-14 sans-serif Regular face we can identify.
+    let known_sans = [
+        "Segoe UI", "Helvetica", "Liberation Sans", "DejaVu Sans",
+        "Noto Sans", "Calibri", "Verdana", "Tahoma",
+    ];
+    for fam in known_sans.iter() {
+        if let Some(f) = all.iter().find(|f| {
+            f.family == *fam && f.style == "Regular" && !f.is_standard_14
+        }) {
+            return Some(f.clone());
+        }
+    }
+    // 3. Any non-monospace, non-italic, non-Standard-14 face.
+    all.into_iter().find(|f| {
+        !f.is_standard_14
+            && !f.italic
+            && !f.monospace
+            && !f.file_path.is_empty()
+            && f.weight <= 500
+    })
+}
+
 /// Open the PDF, append a /Contents reference per page that points to
-/// the invisible text overlay, then save to `output`. Helvetica is
-/// registered as /F1 in each touched page's /Resources /Font dict.
-fn inject_text_layers(
+/// the invisible text overlay, then save to `output`.
+///
+/// Delta W: the OCR text layer uses a Type0 CIDFont subset (Identity-H)
+/// of a system sans-serif font (Arial preferred). This is required for
+/// Slovak/Czech/German diacritics to round-trip through the Delta S inline
+/// edit path — WinAnsi-encoded Helvetica cannot represent `č ě ř ů`.
+///
+/// If no system font is locatable, falls back to Standard 14 Helvetica.
+/// This is the only allowed fallback (NON-NEGOTIABLE rule: no automatic
+/// fallback for the regular text edit path; the OCR layer fallback exists
+/// purely so the OCR feature does not hard-fail on a font-stripped host).
+pub fn inject_text_layers(
     input: &Path,
     output: &Path,
     _opts: &OcrOptions,
@@ -171,24 +224,70 @@ fn inject_text_layers(
     let mut doc = Document::load(input)?;
     let pages_map = doc.get_pages();
 
-    let helv_id = doc.add_object(dictionary! {
-        "Type" => "Font",
-        "Subtype" => "Type1",
-        "BaseFont" => "Helvetica",
-        "Encoding" => "WinAnsiEncoding",
-    });
+    // Pre-compute page dimensions so we can register every word with the
+    // subsetter before emitting any content stream. write_to_pdf needs the
+    // full used_chars set to produce a minimal subset.
+    let page_specs: Vec<(u32, String, u32, u32, lopdf::ObjectId, f32, f32)> = hocrs
+        .iter()
+        .filter_map(|(page_index, hocr, pixel_w, pixel_h)| {
+            let &page_id = pages_map.get(&(page_index + 1))?;
+            let (page_w, page_h) =
+                page_dimensions(&doc, page_id).unwrap_or((612.0, 792.0));
+            Some((*page_index, hocr.clone(), *pixel_w, *pixel_h, page_id, page_w, page_h))
+        })
+        .collect();
 
-    for (page_index, hocr, pixel_w, pixel_h) in hocrs {
-        let Some(&page_id) = pages_map.get(&(page_index + 1)) else {
-            continue;
-        };
-        let (page_w, page_h) = match page_dimensions(&doc, page_id) {
-            Some(d) => d,
-            None => (612.0, 792.0),
-        };
-        let stream_bytes =
-            build_text_layer_from_hocr(hocr, *pixel_w, *pixel_h, page_w, page_h);
-        let stream_id = doc.add_object(Object::Stream(Stream::new(dictionary! {}, stream_bytes)));
+    // Pick + load the embedded font once.
+    let picked = pick_ocr_font();
+    let mut subsetter: Option<FontSubsetter> = match picked.as_ref() {
+        Some(f) if !f.file_path.is_empty() => {
+            match FontSubsetter::new_from_path(Path::new(&f.file_path)) {
+                Ok(s) => Some(s),
+                Err(e) => {
+                    tracing::warn!(target: "ocr", "could not load OCR font {} ({e:#}); falling back to Helvetica", f.file_path);
+                    None
+                }
+            }
+        }
+        _ => None,
+    };
+
+    // Build all content streams first so the subsetter sees every char.
+    let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
+    for (_, hocr, pixel_w, pixel_h, page_id, page_w, page_h) in &page_specs {
+        let bytes = build_text_layer_from_hocr(
+            hocr,
+            *pixel_w,
+            *pixel_h,
+            *page_w,
+            *page_h,
+            subsetter.as_mut(),
+        );
+        stream_specs.push((*page_id, bytes));
+    }
+
+    // Emit the font ONCE, then register /F1 on each touched page.
+    let font_obj_id = if let Some(ref s) = subsetter {
+        let (id, _tag) = s.write_to_pdf(&mut doc)?;
+        Some(id)
+    } else {
+        // Standard 14 Helvetica fallback. Per the user directive ("NO
+        // automatic fallback to Standard 14"), this path is reached only
+        // when the host machine has no usable system font. The OCR feature
+        // still completes, but diacritic editing will surface
+        // EncodingMismatch downstream — the expected/documented behaviour.
+        let helv_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+            "Encoding" => "WinAnsiEncoding",
+        });
+        Some(helv_id)
+    };
+
+    for (page_id, stream_bytes) in stream_specs {
+        let stream_id =
+            doc.add_object(Object::Stream(Stream::new(dictionary! {}, stream_bytes)));
         if let Some(obj) = doc.objects.get_mut(&page_id) {
             if let Ok(d) = obj.as_dict_mut() {
                 let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
@@ -198,10 +297,13 @@ fn inject_text_layers(
                 };
                 contents.push(Object::Reference(stream_id));
                 d.set("Contents", contents);
-                ensure_helv_font(d, helv_id);
+                if let Some(fid) = font_obj_id {
+                    ensure_helv_font(d, fid);
+                }
             }
         }
     }
+
     doc.compress();
     doc.save(output)?;
     Ok(())

@@ -1,4 +1,6 @@
-use pdf_editor_lib::services::ocr_engine::{ocr_pdf_add_text_layer, OcrOptions};
+use pdf_editor_lib::services::ocr_engine::{
+    ocr_pdf_add_text_layer, OcrOptions, OcrOutputMode,
+};
 use pdf_editor_lib::services::text_extractor::extract_text;
 use std::path::Path;
 use tempfile::TempDir;
@@ -14,6 +16,12 @@ fn ocr_makes_scanned_pdf_searchable() {
         &OcrOptions {
             language: "eng".into(),
             dpi: 300,
+            psm: 3,
+            oem: 3,
+            output: OcrOutputMode::SearchablePdf,
+            deskew: true,
+            despeckle: false,
+            preserve_raster: true,
         },
     )
     .unwrap();

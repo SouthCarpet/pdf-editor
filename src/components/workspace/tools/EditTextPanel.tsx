@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type TextRun } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
+import { useWorkspace } from "@/stores/workspaceStore";
 
 interface Props {
   docPath: string;
@@ -23,6 +24,7 @@ interface RunEdit {
 
 export function EditTextPanel({ docPath }: Props) {
   const { t } = useTranslation("common");
+  const setEditSubTool = useWorkspace((s) => s.setEditSubTool);
   // Combined fetch state — single useState avoids cascading effect-setState.
   const [docState, setDocState] = useState<{
     path: string;
@@ -35,6 +37,10 @@ export function EditTextPanel({ docPath }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showRedactionFallback, setShowRedactionFallback] = useState(false);
+  // Delta W §4: when the user wants to add text where there is no
+  // editable run, show a popover offering to switch to the annotations
+  // sub-tool (FreeText) at the click location.
+  const [showEmptyAreaPrompt, setShowEmptyAreaPrompt] = useState(false);
 
   // Reset state inline (not in an effect) when docPath changes.
   if (docState.path !== docPath) {
@@ -199,6 +205,53 @@ export function EditTextPanel({ docPath }: Props) {
           )}
         </>
       )}
+      {/* Delta W §4: click-on-empty-area workflow.
+          When no run is selected (either none picked yet, or user wants to
+          add new text), offer to switch to annotations + FreeText. */}
+      {selected === null && !loading && (
+        <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+          <p className="text-[11px] text-[var(--color-muted)]">
+            No editable text here? You can add a free-text annotation
+            instead.
+          </p>
+          {!showEmptyAreaPrompt ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowEmptyAreaPrompt(true)}
+            >
+              Add new text…
+            </Button>
+          ) : (
+            <div className="rounded border border-blue-400 bg-blue-50 p-2 text-[11px] text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+              <p className="font-medium">No editable text here</p>
+              <p className="mb-2">
+                Switch to Annotations to add a new FreeText box.
+              </p>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setShowEmptyAreaPrompt(false);
+                    setEditSubTool("annotations");
+                  }}
+                >
+                  Add FreeText annotation
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowEmptyAreaPrompt(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {err && <p className="text-xs text-red-600">{err}</p>}
     </div>
   );

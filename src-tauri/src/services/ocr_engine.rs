@@ -157,15 +157,22 @@ fn html_unescape(s: &str) -> String {
 /// raster page space (pixel_w / pixel_h at the rasterization DPI) to PDF
 /// points (page_w_pt / page_h_pt).
 ///
-/// The resulting stream uses Helvetica as the rendering font. The text
-/// is not visible to the eye but IS selectable, searchable, and exposed
-/// to assistive tech — that's the entire point of a "searchable PDF".
+/// Delta W: the resulting stream uses `/F1 Tf` but `/F1` is bound by the
+/// caller to a Type0 CIDFont subset emitted via `FontSubsetter`. Identity-H
+/// CIDs are emitted as hex strings (e.g. `<00480065006C006C006F>`) so
+/// Slovak/Czech/German diacritics (`č ě ř ů ä ö ü ß`) survive the round-
+/// trip and remain editable through the Delta S inline-edit path.
+///
+/// When `font_subsetter` is `None` (Standard 14 fallback), the legacy
+/// WinAnsi-encoded literal strings are emitted. The fallback covers ASCII
+/// only — diacritics are passed through verbatim and may not round-trip.
 pub fn build_invisible_text_stream(
     words: &[HocrWord],
     pixel_w: u32,
     pixel_h: u32,
     page_w_pt: f32,
     page_h_pt: f32,
+    font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
 ) -> Vec<u8> {
     let mut out = String::new();
     out.push_str("BT\n");
@@ -175,39 +182,66 @@ pub fn build_invisible_text_stream(
     let sx = page_w_pt / pixel_w as f32;
     let sy = page_h_pt / pixel_h as f32;
 
-    for w in words {
-        // hOCR origin = top-left of raster; PDF origin = bottom-left.
-        let x = w.bbox[0] as f32 * sx;
-        let y = page_h_pt - w.bbox[3] as f32 * sy;
-        let h = (w.bbox[3] - w.bbox[1]).max(1) as f32 * sy;
-        // Place the text matrix so the font is `h` pt tall starting at
-        // (x, y). Width is approximate — readers compute it from the
-        // font metrics; we just need a reasonable target so the
-        // selection rect overlaps the visible glyphs.
-        out.push_str(&format!("{h} 0 0 {h} {x} {y} Tm\n", h = h, x = x, y = y));
-        // Escape parens + backslashes for literal string syntax.
-        let escaped = w
-            .text
-            .replace('\\', "\\\\")
-            .replace('(', "\\(")
-            .replace(')', "\\)");
-        out.push_str(&format!("({}) Tj\n", escaped));
+    // Type0 path: register every char with the subsetter so the embedded
+    // FontFile2 includes the right glyphs. We register BEFORE emitting the
+    // operators so all subset bookkeeping is complete when the caller later
+    // invokes `write_to_pdf`.
+    if let Some(ref sub) = font_subsetter.as_ref() {
+        let _ = sub; // borrow check: re-borrowed below as &mut
+    }
+    if let Some(sub) = font_subsetter {
+        for w in words {
+            sub.add_text(&w.text);
+        }
+        for w in words {
+            let x = w.bbox[0] as f32 * sx;
+            let y = page_h_pt - w.bbox[3] as f32 * sy;
+            let h = (w.bbox[3] - w.bbox[1]).max(1) as f32 * sy;
+            out.push_str(&format!("{h} 0 0 {h} {x} {y} Tm\n", h = h, x = x, y = y));
+            // Identity-H CID string: 2 bytes per glyph, hex-encoded.
+            let cids = sub.encode_text_as_cids(&w.text);
+            out.push('<');
+            for b in cids {
+                out.push_str(&format!("{:02X}", b));
+            }
+            out.push_str("> Tj\n");
+        }
+    } else {
+        for w in words {
+            let x = w.bbox[0] as f32 * sx;
+            let y = page_h_pt - w.bbox[3] as f32 * sy;
+            let h = (w.bbox[3] - w.bbox[1]).max(1) as f32 * sy;
+            out.push_str(&format!("{h} 0 0 {h} {x} {y} Tm\n", h = h, x = x, y = y));
+            let escaped = w
+                .text
+                .replace('\\', "\\\\")
+                .replace('(', "\\(")
+                .replace(')', "\\)");
+            out.push_str(&format!("({}) Tj\n", escaped));
+        }
     }
     out.push_str("ET\n");
     out.into_bytes()
 }
 
-/// Compose `parse_hocr_word` + `build_invisible_text_stream` and inject
-/// the result as a `/Contents` overlay onto the page.
+/// Compose `parse_hocr_word` + `build_invisible_text_stream` and return
+/// the bytes ready to inject as a `/Contents` overlay onto the page.
+///
+/// `font_subsetter` is the Type0 CIDFont subsetter that will be written to
+/// the PDF by the caller after every page's content stream is built. When
+/// `None`, the legacy WinAnsi/Helvetica fallback is used (Standard 14 path,
+/// ASCII only — the fallback exists for the "no system font available"
+/// degraded path; the regular ocr_pdf_cmd path always supplies a subsetter).
 pub fn build_text_layer_from_hocr(
     hocr: &str,
     pixel_w: u32,
     pixel_h: u32,
     page_w_pt: f32,
     page_h_pt: f32,
+    font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
 ) -> Vec<u8> {
     let words = parse_hocr_word(hocr);
-    build_invisible_text_stream(&words, pixel_w, pixel_h, page_w_pt, page_h_pt)
+    build_invisible_text_stream(&words, pixel_w, pixel_h, page_w_pt, page_h_pt, font_subsetter)
 }
 
 #[cfg(test)]
@@ -240,12 +274,13 @@ mod tests {
     }
 
     #[test]
-    fn invisible_stream_contains_bt_tj_et() {
+    fn invisible_stream_contains_bt_tj_et_fallback() {
         let words = vec![HocrWord {
             text: "Hello".into(),
             bbox: [10, 20, 100, 50],
         }];
-        let bytes = build_invisible_text_stream(&words, 1000, 1000, 612.0, 792.0);
+        // Standard 14 fallback path (no subsetter).
+        let bytes = build_invisible_text_stream(&words, 1000, 1000, 612.0, 792.0, None);
         let s = String::from_utf8(bytes).unwrap();
         assert!(s.starts_with("BT"));
         assert!(s.contains("3 Tr"));
