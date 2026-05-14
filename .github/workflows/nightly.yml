@@ -1,0 +1,58 @@
+name: Nightly
+
+on:
+  schedule:
+    # 02:00 UTC every night for benches; Saturday 03:00 UTC for fuzz.
+    - cron: "0 2 * * *"
+    - cron: "0 3 * * 6"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  performance:
+    if: github.event.schedule == '0 2 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Cache sidecars
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/sidecars
+          key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
+      - shell: pwsh
+        run: pwsh scripts/fetch-sidecars.ps1
+      - shell: pwsh
+        run: pwsh scripts/stage-sidecars.ps1
+      - shell: pwsh
+        run: pwsh scripts/generate-fixtures.ps1
+      - shell: pwsh
+        run: pwsh scripts/check-perf-regression.ps1
+
+  fuzz:
+    if: github.event.schedule == '0 3 * * 6' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 270
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo install --locked cargo-fuzz
+      - name: Run cargo-fuzz pdf_parse target (4h budget)
+        working-directory: src-tauri
+        run: cargo +nightly fuzz run pdf_parse -- -max_total_time=14400
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: src-tauri/fuzz/artifacts/

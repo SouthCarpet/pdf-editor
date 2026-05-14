@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  msi-build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Cache sidecars
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/sidecars
+          key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
+      - shell: pwsh
+        run: pwsh scripts/fetch-sidecars.ps1
+      - shell: pwsh
+        run: pwsh scripts/stage-sidecars.ps1
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:bindings
+      - run: pnpm tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msi-bundle
+          path: src-tauri/target/release/bundle/msi/*.msi
+
+  msi-install-smoke:
+    needs: [msi-build]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: msi-bundle
+          path: src-tauri/target/release/bundle/msi/
+      - name: Run install smoke (requires Sandbox-enabled runner)
+        shell: pwsh
+        run: pwsh scripts/test-msi-install.ps1

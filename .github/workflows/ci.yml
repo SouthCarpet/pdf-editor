@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm tsc --noEmit
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable-x86_64-pc-windows-msvc
+          components: clippy,rustfmt
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+
+  cargo-deny:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install --locked cargo-deny
+      - run: cargo deny --manifest-path src-tauri/Cargo.toml check
+
+  rust-unit:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  rust-property:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --test proptest_pdf_editor
+
+  frontend-unit:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  bindings-drift:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:bindings
+      - name: Verify bindings.ts in sync
+        shell: pwsh
+        run: |
+          git diff --exit-code src/bindings.ts
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "::error::bindings.ts drift detected; run pnpm gen:bindings locally and commit"
+            exit 1
+          }
+
+  localization:
+    runs-on: windows-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+      - run: node scripts/check-i18n.mjs
+
+  sidecar-contract:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Cache sidecars
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/sidecars
+          key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
+      - shell: pwsh
+        run: pwsh scripts/fetch-sidecars.ps1
+      - shell: pwsh
+        run: pwsh scripts/stage-sidecars.ps1
+      - shell: pwsh
+        run: pwsh scripts/generate-fixtures.ps1
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --features sidecar-tests -- --include-ignored
+
+  privacy:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    needs: [rust-unit]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo build --release --manifest-path src-tauri/Cargo.toml
+      - shell: pwsh
+        run: pwsh scripts/test-privacy.ps1
+
+  a11y:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm vitest run a11y
+
+  frontend-e2e:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    needs: [sidecar-contract]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.19
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: src-tauri/sidecars
+          key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps
+      - run: pnpm tauri build --debug
+      - run: pnpm exec playwright test
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: tests/e2e/test-results
