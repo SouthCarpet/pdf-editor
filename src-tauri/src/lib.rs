@@ -56,5 +56,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::edit_forms::set_form_values_cmd,
             // Delta U (typography baseline) — system font enumeration
             commands::fonts::list_fonts_cmd,
+            // Phase 12 Task 67 — Edit Tier 2 (annotations)
+            commands::edit_annotations::apply_annotations_cmd,
         ])
 }

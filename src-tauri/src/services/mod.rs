@@ -1,3 +1,4 @@
+pub mod annotations;
 pub mod crop;
 pub mod diff_engine;
 pub mod font_embed;

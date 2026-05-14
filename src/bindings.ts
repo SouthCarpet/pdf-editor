@@ -113,9 +113,31 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("list_fonts_cmd")),
+	applyAnnotationsCmd: (args: ApplyAnnotsArgs) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("apply_annotations_cmd", { args })),
 };
 
 /* Types */
+export type Annotation = { type: "highlight"; page: number; quads: ([(number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null)])[]; color: [(number | null), (number | null), (number | null)]; opacity: number | null } | { type: "note"; page: number; x: number | null; y: number | null; contents: string; icon: NoteIcon; color: [(number | null), (number | null), (number | null)] } | { type: "square"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; 
+/**  `None` = transparent fill. Alpha is in `[3]`. */
+fill_color: [(number | null), (number | null), (number | null), (number | null)] | null; corner_radius: number | null } | { type: "circle"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; fill_color: [(number | null), (number | null), (number | null), (number | null)] | null } | { type: "line"; page: number; from: [(number | null), (number | null)]; to: [(number | null), (number | null)]; color: [(number | null), (number | null), (number | null)]; width: number | null; style: BorderStyle; arrow_start: LineEnd; arrow_end: LineEnd } | { type: "free_text"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; contents: string; 
+/**
+ *  Delta U: full TextStyle replaces the old enum-based font.
+ *  Non-Standard-14 fonts are embedded via Type0 CIDFont.
+ */
+style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean } | { type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null } | { type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean };
+
+export type ApplyAnnotsArgs = {
+	input: string,
+	output: string,
+	annotations: Annotation[],
+	job_id: string,
+};
+
+export type BorderStyle = "solid" | "dashed" | "dotted";
+
 export type CompareArgs = {
 	left: string,
 	right: string,
@@ -231,6 +253,8 @@ export type InsertBlankPageArgs = {
 	job_id: string,
 };
 
+export type LineEnd = "none" | "open_arrow" | "closed_arrow" | "diamond" | "square" | "circle";
+
 export type MergeArgs = {
 	inputs: string[],
 	output: string,
@@ -240,6 +264,8 @@ export type MergeArgs = {
 export type MergeResult = {
 	output_paths: string[],
 };
+
+export type NoteIcon = "comment" | "check" | "cross" | "key" | "note" | "insert";
 
 export type OpenedDocument = {
 	path: string,
@@ -341,6 +367,8 @@ export type SystemFont = {
 	is_standard_14: boolean,
 };
 
+export type TextAlign = "left" | "center" | "right" | "justify";
+
 export type TextDiffChange = {
 	kind: string,
 	left: string | null,
@@ -349,6 +377,37 @@ export type TextDiffChange = {
 
 export type TextDiffResult = {
 	changes: TextDiffChange[],
+};
+
+export type TextStyle = {
+	/**
+	 *  Display family ("Arial", "Helvetica", ...). UI display only; the
+	 *  authoritative font identifier is `font_postscript_name`.
+	 */
+	font_family: string,
+	/**
+	 *  Specific face ("Helvetica-Bold", "Arial-Italic"). When this is one of
+	 *  the 14 Standard PDF fonts, the save path emits a Type1 reference.
+	 *  Otherwise the save path locates the font file via `services::fonts::
+	 *  find_by_postscript_name` and embeds it as a Type0 CIDFont via
+	 *  `services::font_embed`. Never silently falls back to Helvetica.
+	 */
+	font_postscript_name: string,
+	/**  Font size in PDF points (6.0 to 200.0). */
+	size_pt: number | null,
+	bold: boolean,
+	italic: boolean,
+	underline: boolean,
+	strikethrough: boolean,
+	/**  Text color, RGB in 0..1 range. */
+	color: [(number | null), (number | null), (number | null)],
+	/**  Optional text highlight background, RGBA in 0..1 (alpha in `[3]`). */
+	background: [(number | null), (number | null), (number | null), (number | null)] | null,
+	align: TextAlign,
+	/**  Letter spacing in PDF points (`Tc`). 0 = default. */
+	letter_spacing: number | null,
+	/**  Line height multiplier. 1.0 = single, 1.5 = 1.5x, etc. */
+	line_height_multiplier: number | null,
 };
 
 export type UnlockArgs = {
