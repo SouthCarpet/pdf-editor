@@ -37,5 +37,10 @@
     "extract": "Extract Pages",
     "pipeline": "Pipeline",
     "projects": "Projects"
+  },
+  "session": {
+    "restore_prompt": "Restore your previous session ({{count}})?",
+    "restore": "Restore",
+    "discard": "Discard"
   }
 }

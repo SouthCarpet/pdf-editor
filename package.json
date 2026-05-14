@@ -12,6 +12,7 @@
     "format": "prettier --write src",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:i18n": "node scripts/check-i18n.mjs",
     "gen:bindings": "cargo run --manifest-path src-tauri/Cargo.toml --bin generate_bindings"
   },
   "dependencies": {

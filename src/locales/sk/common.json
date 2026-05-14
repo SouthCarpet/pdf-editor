@@ -37,5 +37,10 @@
     "extract": "Extrahovať strany",
     "pipeline": "Pipeline",
     "projects": "Projekty"
+  },
+  "session": {
+    "restore_prompt": "Obnoviť predchádzajúcu reláciu ({{count}})?",
+    "restore": "Obnoviť",
+    "discard": "Zahodiť"
   }
 }
