@@ -197,6 +197,56 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("pipeline_run_on_folder_cmd", { args, onEvent })),
+	projectCreate: (p: NewProject) => typedError<number, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_create", { p })),
+	projectList: () => typedError<Project[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_list")),
+	projectGet: (id: number) => typedError<{
+	id: number,
+	name: string,
+	description: string | null,
+	created_at: string,
+	updated_at: string,
+} | null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_get", { id })),
+	projectUpdate: (p: Project) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_update", { p })),
+	projectDelete: (id: number) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_delete", { id })),
+	projectAddFile: (projectId: number, path: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_add_file", { projectId, path })),
+	projectRemoveFile: (projectId: number, path: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_remove_file", { projectId, path })),
+	projectListFiles: (projectId: number) => typedError<string[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_list_files", { projectId })),
+	projectAddPipeline: (projectId: number, presetId: number) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_add_pipeline", { projectId, presetId })),
+	projectRemovePipeline: (projectId: number, presetId: number) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_remove_pipeline", { projectId, presetId })),
+	projectListPipelines: (projectId: number) => typedError<number[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_list_pipelines", { projectId })),
 };
 
 /* Types */
@@ -349,6 +399,11 @@ export type NewPipelinePreset = {
 	name: string,
 	description: string | null,
 	graph_json: string,
+};
+
+export type NewProject = {
+	name: string,
+	description: string | null,
 };
 
 /**
@@ -603,6 +658,14 @@ export type PreservationWarning = {
 	 *  snake_case so the frontend can translate them.
 	 */
 	artifacts: string[],
+};
+
+export type Project = {
+	id: number,
+	name: string,
+	description: string | null,
+	created_at: string,
+	updated_at: string,
 };
 
 export type RecentFile = {
