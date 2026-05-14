@@ -162,6 +162,33 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("add_ocr_language", { sourcePath })),
+	pipelinePresetCreate: (p: NewPipelinePreset) => typedError<number, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("pipeline_preset_create", { p })),
+	pipelinePresetList: () => typedError<PipelinePreset[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("pipeline_preset_list")),
+	pipelinePresetGet: (id: number) => typedError<{
+	id: number,
+	name: string,
+	description: string | null,
+	graph_json: string,
+	created_at: string,
+	updated_at: string,
+} | null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("pipeline_preset_get", { id })),
+	pipelinePresetUpdate: (p: PipelinePreset) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("pipeline_preset_update", { p })),
+	pipelinePresetDelete: (id: number) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("pipeline_preset_delete", { id })),
 };
 
 /* Types */
@@ -310,6 +337,12 @@ export type MergeResult = {
 	output_paths: string[],
 };
 
+export type NewPipelinePreset = {
+	name: string,
+	description: string | null,
+	graph_json: string,
+};
+
 export type NoteIcon = "comment" | "check" | "cross" | "key" | "note" | "insert";
 
 export type OcrArgs = {
@@ -400,6 +433,15 @@ export type PdfMetadata = {
 	keywords: string | null,
 	creator: string | null,
 	producer: string | null,
+};
+
+export type PipelinePreset = {
+	id: number,
+	name: string,
+	description: string | null,
+	graph_json: string,
+	created_at: string,
+	updated_at: string,
 };
 
 export type RecentFile = {

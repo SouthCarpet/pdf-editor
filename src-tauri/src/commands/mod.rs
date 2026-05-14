@@ -15,6 +15,7 @@ pub mod meta;
 pub mod ocr;
 pub mod optimize;
 pub mod organize;
+pub mod pipeline_presets;
 pub mod render;
 pub mod split;
 pub mod tessdata;

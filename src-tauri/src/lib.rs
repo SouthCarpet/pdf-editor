@@ -73,5 +73,11 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // Phase 13 Task 72 — OCR language management
             commands::tessdata::list_ocr_languages,
             commands::tessdata::add_ocr_language,
+            // Phase 14 Task 76 — Pipeline preset CRUD
+            commands::pipeline_presets::pipeline_preset_create,
+            commands::pipeline_presets::pipeline_preset_list,
+            commands::pipeline_presets::pipeline_preset_get,
+            commands::pipeline_presets::pipeline_preset_update,
+            commands::pipeline_presets::pipeline_preset_delete,
         ])
 }
