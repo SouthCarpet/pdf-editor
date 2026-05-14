@@ -9,12 +9,13 @@
 // is special-cased into a two-document workspace (no single-doc state).
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { commands } from "@/bindings";
 import type { TextDiffResult, VisualDiffPage } from "@/bindings";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { ScanDetectedDialog, type OcrSelections } from "@/components/ScanDetectedDialog";
 import { CompareViewer } from "./CompareViewer";
 import { ComparePanel } from "./tools/ComparePanel";
 import { Workspace } from "./Workspace";
@@ -27,6 +28,7 @@ export function WorkspaceRoute() {
   const setTool = useWorkspace((s) => s.setTool);
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scanDialogOpen, setScanDialogOpen] = useState(false);
 
   // Apply the tool search param exactly once on first mount.
   useEffect(() => {
@@ -85,8 +87,39 @@ export function WorkspaceRoute() {
         dirty: false,
       });
       if (!cancelled) setPath(doc.path);
+      // Phase 13 Task 71 — kick off scan detection in the background.
+      const detect = await commands.detectScannedPdf(doc.path);
+      if (cancelled) return;
+      if (detect.status === "ok" && detect.data.is_likely_scanned) {
+        setScanDialogOpen(true);
+      }
     }
   }, [docId, navigate, addDoc, search, isCompareMode]);
+
+  async function onRunOcr(sel: OcrSelections) {
+    if (!path) return;
+    setScanDialogOpen(false);
+    const out = await saveDialog({
+      defaultPath: path.replace(/\.pdf$/i, ".ocr.pdf"),
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (!out) return;
+    await commands.ocrPdfCmd({
+      input: path,
+      output: out,
+      options: {
+        language: sel.languages.join("+"),
+        dpi: sel.dpi,
+        psm: sel.psm,
+        oem: 3,
+        output: "searchable_pdf",
+        deskew: true,
+        despeckle: false,
+        preserve_raster: true,
+      },
+      job_id: crypto.randomUUID(),
+    });
+  }
 
   const pdfDoc = usePdfDocument(path);
 
@@ -101,7 +134,16 @@ export function WorkspaceRoute() {
   if (!path || !pdfDoc) {
     return <div className="p-6 text-[var(--color-muted)]">Loading…</div>;
   }
-  return <Workspace pdf={pdfDoc.pdf} path={path} />;
+  return (
+    <>
+      <Workspace pdf={pdfDoc.pdf} path={path} />
+      <ScanDetectedDialog
+        open={scanDialogOpen}
+        onClose={() => setScanDialogOpen(false)}
+        onRunOcr={onRunOcr}
+      />
+    </>
+  );
 }
 
 // ---------- Compare-mode workspace shell ----------
