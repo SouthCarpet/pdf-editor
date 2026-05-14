@@ -184,6 +184,40 @@ pub struct Pipeline {
     pub edges: Vec<PipelineEdge>,
 }
 
+/// Delta Y preflight warning: one is emitted for every edge `(from, to)`
+/// where the downstream node `may_strip` an artifact the upstream node
+/// `preserves`. The frontend pipeline editor reads this off
+/// `PipelineRunReport.warnings` and draws an alert icon on the matching
+/// edge so the user can fix the chain before running.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct PreservationWarning {
+    pub from: String,
+    pub to: String,
+    /// Names of `Artifact` bits that would be lost. Stable, lowercase
+    /// snake_case so the frontend can translate them.
+    pub artifacts: Vec<String>,
+}
+
+/// One-per-input failure record returned alongside the report.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+pub struct NodeError {
+    pub input: String,
+    pub message: String,
+}
+
+/// Final result of `pipeline_run_cmd` / `pipeline_run_on_folder_cmd`. The
+/// frontend displays `output_paths` in the result table, `errors` in a
+/// red panel, and `warnings` (preflight) as inline edge alerts before
+/// the run starts.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
+pub struct PipelineRunReport {
+    pub output_paths: Vec<String>,
+    pub success: usize,
+    pub failed: usize,
+    pub errors: Vec<NodeError>,
+    pub warnings: Vec<PreservationWarning>,
+}
+
 impl Pipeline {
     /// Kahn's algorithm topological sort. Returns the node IDs in order
     /// of execution. Bails on cycles (executor would otherwise deadlock).

@@ -14,15 +14,77 @@
 
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
-use crate::pipeline::dag::{NodeExportFormat, NodeKind, NodeOcrOutputMode, Pipeline};
+use crate::pipeline::dag::{
+    NodeExportFormat, NodeKind, NodeOcrOutputMode, Pipeline, PreservationWarning,
+};
+use crate::pipeline::preservation::Artifact;
 use crate::services::ocr_engine::{OcrOptions, OcrOutputMode};
 use crate::services::pdf_editor;
 use crate::util::progress::ProgressReporter;
 use chrono::Utc;
+use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
+
+/// Delta Y preflight: walk every edge once and emit a warning whenever
+/// the downstream node `may_strip` an artifact the upstream node
+/// `preserves`. Empty result = clean pipeline. The frontend reads this
+/// off `PipelineRunReport.warnings`.
+pub fn preflight_warnings(pipeline: &Pipeline) -> Vec<PreservationWarning> {
+    // Build id -> kind index so we don't quadratic-search per edge.
+    let by_id: HashMap<&str, &NodeKind> = pipeline
+        .nodes
+        .iter()
+        .map(|n| (n.id.as_str(), &n.kind))
+        .collect();
+    let mut out = Vec::new();
+    for edge in &pipeline.edges {
+        let (Some(from_kind), Some(to_kind)) =
+            (by_id.get(edge.from.as_str()), by_id.get(edge.to.as_str()))
+        else {
+            continue;
+        };
+        let from = from_kind.preservation();
+        let to = to_kind.preservation();
+        let conflict = from.preserves & to.may_strip;
+        if !conflict.is_empty() {
+            out.push(PreservationWarning {
+                from: edge.from.clone(),
+                to: edge.to.clone(),
+                artifacts: artifact_names(conflict),
+            });
+        }
+    }
+    out
+}
+
+fn artifact_names(a: Artifact) -> Vec<String> {
+    let mut v = Vec::new();
+    if a.contains(Artifact::TEXT_LAYER) {
+        v.push("text_layer".into());
+    }
+    if a.contains(Artifact::ANNOTATIONS) {
+        v.push("annotations".into());
+    }
+    if a.contains(Artifact::FORM_FIELDS) {
+        v.push("form_fields".into());
+    }
+    if a.contains(Artifact::BOOKMARKS) {
+        v.push("bookmarks".into());
+    }
+    if a.contains(Artifact::EMBEDDED_FONTS) {
+        v.push("embedded_fonts".into());
+    }
+    if a.contains(Artifact::PDFA_COMPLIANCE) {
+        v.push("pdfa_compliance".into());
+    }
+    if a.contains(Artifact::LINEARIZATION) {
+        v.push("linearization".into());
+    }
+    v
+}
 
 /// Run a pipeline over `inputs` and return the final output paths.
 ///
@@ -46,6 +108,18 @@ pub async fn run_pipeline(
 
     reporter.started(Some("pipeline starting".into())).await;
 
+    // Delta Y: log preflight warnings (the run command surfaces them in
+    // the report so the frontend can decorate the canvas; we log so the
+    // ops logs reflect what the user accepted before running).
+    for w in preflight_warnings(pipeline) {
+        tracing::warn!(
+            from = %w.from,
+            to = %w.to,
+            artifacts = ?w.artifacts,
+            "pipeline preflight: downstream node may strip upstream artifact",
+        );
+    }
+
     for (i, node_id) in order.iter().enumerate() {
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
@@ -58,6 +132,17 @@ pub async fn run_pipeline(
                 detail: format!("node {node_id} disappeared after topo sort"),
             })?;
         let label = format!("node {} of {}: {}", i + 1, order.len(), node_label(&node.kind));
+        // Delta Y: trace each node's preservation contract so a post-run
+        // investigation can reconstruct what was guaranteed kept vs what
+        // was permitted to be stripped on a per-step basis.
+        let contract = node.kind.preservation();
+        tracing::info!(
+            node = %node.id,
+            label = %label,
+            preserves = ?contract.preserves,
+            may_strip = ?contract.may_strip,
+            "pipeline node preservation contract",
+        );
         reporter.progress(i as f32 / total, Some(label)).await;
         current_files = run_node(state, &node.kind, &current_files, scratch.path(), cancel.clone(), i).await?;
     }
