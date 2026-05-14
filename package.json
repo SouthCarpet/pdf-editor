@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "test:e2e": "playwright test",
     "gen:bindings": "cargo run --manifest-path src-tauri/Cargo.toml --bin generate_bindings"
   },
   "dependencies": {
@@ -67,11 +68,13 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/react-window": "^2.0.0",
+    "@playwright/test": "^1.50.0",
     "@vitejs/plugin-react": "^4.3.4",
     "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "jsdom": "^29.1.1",
+    "playwright": "^1.50.0",
     "prettier": "^3.8.3",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "tailwindcss": "^4.3.0",
