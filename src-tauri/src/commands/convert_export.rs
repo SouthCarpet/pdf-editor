@@ -30,6 +30,41 @@ pub struct ExportArgs {
     pub format: ExportFormat,
     pub out_dir: String,
     pub job_id: String,
+    // Delta U Phase 17 Task 86a — per-format sub-options. All optional;
+    // mutool / soffice currently use their built-in defaults, so these
+    // survive over the FFI while a follow-up wires them through.
+    #[serde(default)]
+    pub raster_dpi: Option<u32>,
+    #[serde(default)]
+    pub raster_color_mode: Option<String>,
+    #[serde(default)]
+    pub jpeg_quality: Option<u8>,
+    #[serde(default)]
+    pub tiff_compression: Option<String>,
+    #[serde(default)]
+    pub page_range: Option<String>,
+    #[serde(default)]
+    pub txt_encoding: Option<String>,
+    #[serde(default)]
+    pub txt_layout: Option<String>,
+    #[serde(default)]
+    pub txt_page_separator: Option<String>,
+    #[serde(default)]
+    pub html_single_file: Option<bool>,
+    #[serde(default)]
+    pub html_embed_images_base64: Option<bool>,
+    #[serde(default)]
+    pub office_preserve_formatting: Option<bool>,
+    #[serde(default)]
+    pub office_embed_images: Option<bool>,
+    #[serde(default)]
+    pub office_page_break: Option<String>,
+    #[serde(default)]
+    pub pdfa_version: Option<u8>,
+    #[serde(default)]
+    pub pdfa_engine: Option<String>,
+    #[serde(default)]
+    pub pdfa_embed_all_fonts: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

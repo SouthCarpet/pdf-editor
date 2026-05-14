@@ -34,6 +34,27 @@ pub struct CompressArgs {
     pub output: String,
     pub preset: CompressionPresetDto,
     pub job_id: String,
+    // Delta U Phase 17 Task 86a — Custom-path knobs. All optional; the
+    // GhostscriptWrapper currently exposes only preset-driven defaults,
+    // so these survive over FFI but do not yet alter behavior.
+    #[serde(default)]
+    pub custom_quality: Option<u8>,
+    #[serde(default)]
+    pub custom_dpi: Option<u16>,
+    #[serde(default)]
+    pub color_dpi: Option<u16>,
+    #[serde(default)]
+    pub gray_dpi: Option<u16>,
+    #[serde(default)]
+    pub mono_dpi: Option<u16>,
+    #[serde(default)]
+    pub color_mode: Option<String>,
+    #[serde(default)]
+    pub filter: Option<String>,
+    #[serde(default)]
+    pub downsample: Option<String>,
+    #[serde(default)]
+    pub remove_exif: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

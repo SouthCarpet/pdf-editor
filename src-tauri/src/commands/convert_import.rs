@@ -16,6 +16,25 @@ pub struct ImportArgs {
     pub inputs: Vec<String>,
     pub output: String,
     pub job_id: String,
+    // Delta U Phase 17 Task 86a — page size / orientation / margins /
+    // image fit / arrangement. Optional; advisory until image_to_pdf
+    // and the LO export path honor each knob.
+    #[serde(default)]
+    pub page_size: Option<String>,
+    #[serde(default)]
+    pub custom_width_mm: Option<f32>,
+    #[serde(default)]
+    pub custom_height_mm: Option<f32>,
+    #[serde(default)]
+    pub orientation: Option<String>,
+    #[serde(default)]
+    pub margins: Option<String>,
+    #[serde(default)]
+    pub custom_margin_mm: Option<f32>,
+    #[serde(default)]
+    pub image_fit: Option<String>,
+    #[serde(default)]
+    pub arrangement: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

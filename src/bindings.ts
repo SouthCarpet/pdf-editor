@@ -293,6 +293,15 @@ export type CompressArgs = {
 	output: string,
 	preset: CompressionPresetDto,
 	job_id: string,
+	custom_quality?: number | null,
+	custom_dpi?: number | null,
+	color_dpi?: number | null,
+	gray_dpi?: number | null,
+	mono_dpi?: number | null,
+	color_mode?: string | null,
+	filter?: string | null,
+	downsample?: string | null,
+	remove_exif?: boolean | null,
 };
 
 export type CompressResult = {
@@ -311,6 +320,15 @@ export type CropArgs = {
 	auto_detect: boolean,
 	apply_to_all_pages: boolean,
 	job_id: string,
+	aspect_ratio?: string | null,
+	aspect_ratio_w?: number | null,
+	aspect_ratio_h?: number | null,
+	page_size_preset?: string | null,
+	margin_preset?: string | null,
+	margin_custom_mm?: number | null,
+	apply_to?: string | null,
+	apply_range?: string | null,
+	auto_detect_threshold?: number | null,
 };
 
 export type CropResult = {
@@ -330,6 +348,22 @@ export type ExportArgs = {
 	format: ExportFormat,
 	out_dir: string,
 	job_id: string,
+	raster_dpi?: number | null,
+	raster_color_mode?: string | null,
+	jpeg_quality?: number | null,
+	tiff_compression?: string | null,
+	page_range?: string | null,
+	txt_encoding?: string | null,
+	txt_layout?: string | null,
+	txt_page_separator?: string | null,
+	html_single_file?: boolean | null,
+	html_embed_images_base64?: boolean | null,
+	office_preserve_formatting?: boolean | null,
+	office_embed_images?: boolean | null,
+	office_page_break?: string | null,
+	pdfa_version?: number | null,
+	pdfa_engine?: string | null,
+	pdfa_embed_all_fonts?: boolean | null,
 };
 
 export type ExportFormat = "png" | "jpg" | "tiff" | "txt" | "html" | "docx" | "odt" | "rtf" | "epub" | "pdfa";
@@ -375,6 +409,14 @@ export type ImportArgs = {
 	inputs: string[],
 	output: string,
 	job_id: string,
+	page_size?: string | null,
+	custom_width_mm?: number | null,
+	custom_height_mm?: number | null,
+	orientation?: string | null,
+	margins?: string | null,
+	custom_margin_mm?: number | null,
+	image_fit?: string | null,
+	arrangement?: string | null,
 };
 
 export type ImportResult = {
@@ -418,6 +460,13 @@ export type NewProject = {
 	description: string | null,
 };
 
+/**  Delta U (Phase 17 Task 86a) — Compress color-mode knob. */
+export type NodeCompressColorMode = "preserve" | "grayscale" | "monochrome";
+
+export type NodeCompressDownsample = "subsample" | "average" | "bicubic";
+
+export type NodeCompressFilter = "auto" | "jpeg" | "jpeg2000" | "flate";
+
 /**
  *  Compress preset alias used inside the pipeline payload. Mirrors the
  *  `CompressionPresetDto` exported from `commands::compress` but is owned
@@ -433,6 +482,9 @@ export type NodeCompressPreset = "recommended" | "high" | "maximum" |
  */
 "custom";
 
+/**  Delta U — Crop "apply to" radio. */
+export type NodeCropApplyTo = "current" | "all" | "odd" | "even" | "range";
+
 /**  One-per-input failure record returned alongside the report. */
 export type NodeError = {
 	input: string,
@@ -446,14 +498,33 @@ export type NodeError = {
  */
 export type NodeExportFormat = "png" | "jpg" | "tiff" | "txt" | "html" | "docx" | "odt" | "rtf" | "epub" | "pdfa";
 
+export type NodeImportArrangement = "one-per-page" | "grid2x2" | "grid2x3" | "custom";
+
+export type NodeImportImageFit = "fit" | "fill" | "center";
+
+export type NodeImportMargins = "none" | "10mm" | "20mm" | "custom";
+
+export type NodeImportOrientation = "portrait" | "landscape" | "auto";
+
+export type NodeImportPageSize = "a4" | "letter" | "legal" | "auto-fit" | "custom";
+
 export type NodeKind = 
 /**
  *  Compress via Ghostscript. Preset + optional custom_quality (1-100)
  *  + custom_dpi for Custom preset path.
+ * 
+ *  Delta U Phase 17 Task 86a — color_dpi/gray_dpi/mono_dpi/color_mode/
+ *  filter/downsample/remove_exif extend the Custom path; they survive
+ *  over the FFI even if GhostscriptWrapper does not yet honor every
+ *  knob (forward-compat).
  */
-{ type: "compress"; preset: NodeCompressPreset; custom_quality: number | null; custom_dpi: number | null } | 
-/**  Full Optimize pipeline (mirrors `OptimizeArgs`). */
-{ type: "optimize"; linearize: boolean; remove_unused: boolean; subset_fonts: boolean; object_streams: boolean; strip_metadata: boolean; flatten_annotations: boolean; remove_form_data: boolean; make_searchable_ocr: string | null; convert_pdfa: number | null } | 
+{ type: "compress"; preset: NodeCompressPreset; custom_quality: number | null; custom_dpi: number | null; color_dpi?: number | null; gray_dpi?: number | null; mono_dpi?: number | null; color_mode?: NodeCompressColorMode; filter?: NodeCompressFilter; downsample?: NodeCompressDownsample; remove_exif?: boolean } | 
+/**
+ *  Full Optimize pipeline (mirrors `OptimizeArgs`).
+ * 
+ *  Delta U Phase 17 Task 86a — sub-option fields per checkbox.
+ */
+{ type: "optimize"; linearize: boolean; remove_unused: boolean; subset_fonts: boolean; subset_min_percent?: number; object_streams: boolean; object_streams_level?: number; strip_metadata: boolean; strip_metadata_fields?: StripMetadataFieldsDto; flatten_annotations: boolean; flatten_include_forms?: boolean; remove_form_data: boolean; make_searchable_ocr: string | null; ocr_dpi?: number; convert_pdfa: number | null; pdfa_engine?: NodePdfaEngine } | 
 /**
  *  Decrypt via qpdf (Delta D: V=5 in-process AES-256 is deferred —
  *  pipeline currently funnels through the same qpdf-only path as the
@@ -463,15 +534,24 @@ export type NodeKind =
 /**
  *  Convert export — LibreOffice for office targets, mutool for raster,
  *  Ghostscript+LO for PDF/A (Delta E).
+ * 
+ *  Delta U Phase 17 Task 86a — per-format sub-options. They survive
+ *  over the FFI; the executor honors what the underlying sidecars
+ *  support today.
  */
-{ type: "convert"; format: NodeExportFormat; out_dir: string | null } | 
-/**  Convert images / office documents back into a PDF. */
+{ type: "convert"; format: NodeExportFormat; out_dir: string | null; raster_dpi?: number; raster_color_mode?: NodeRasterColorMode; jpeg_quality?: number; tiff_compression?: NodeTiffCompression; page_range?: string; txt_encoding?: NodeTxtEncoding; txt_layout?: NodeTxtLayout; txt_page_separator?: string; html_single_file?: boolean; html_embed_images_base64?: boolean; office_preserve_formatting?: boolean; office_embed_images?: boolean; office_page_break?: NodePageBreakBehavior; pdfa_version?: number; pdfa_engine?: NodePdfaEngine; pdfa_embed_all_fonts?: boolean } | 
+/**
+ *  Convert images / office documents back into a PDF.
+ * 
+ *  Delta U Phase 17 Task 86a — page-size / orientation / margins /
+ *  image-fit / arrangement extra fields.
+ */
 { type: "convert_import"; 
 /**
  *  Empty = use inputs directly; non-empty = additional files merged
  *  in front of inputs.
  */
-extra_inputs: string[] } | 
+extra_inputs: string[]; page_size?: NodeImportPageSize; custom_width_mm?: number | null; custom_height_mm?: number | null; orientation?: NodeImportOrientation; margins?: NodeImportMargins; custom_margin_mm?: number | null; image_fit?: NodeImportImageFit; arrangement?: NodeImportArrangement } | 
 /**  Merge all inputs into a single PDF. */
 { type: "merge" } | 
 /**  Split each input into the given inclusive ranges. */
@@ -486,8 +566,14 @@ extra_inputs: string[] } |
 { type: "organize_reorder"; new_order: number[] } | 
 /**  Insert a blank page after `after_page_index` (0-based). */
 { type: "organize_insert_blank"; after_page_index: number; width: number | null; height: number | null } | 
-/**  Crop via auto-detect or a fixed bbox. */
-{ type: "crop"; bbox: [(number | null), (number | null), (number | null), (number | null)] | null; auto_detect: boolean; apply_to_all_pages: boolean; page_index: number } | 
+/**
+ *  Crop via auto-detect or a fixed bbox.
+ * 
+ *  Delta U Phase 17 Task 86a — aspect_ratio / page_size_preset /
+ *  margin_preset / apply_to (which overrides apply_to_all_pages) /
+ *  auto_detect_threshold extra fields.
+ */
+{ type: "crop"; bbox: [(number | null), (number | null), (number | null), (number | null)] | null; auto_detect: boolean; apply_to_all_pages: boolean; page_index: number; aspect_ratio?: string; aspect_ratio_w?: number | null; aspect_ratio_h?: number | null; page_size_preset?: string; margin_preset?: string; margin_custom_mm?: number | null; apply_to?: NodeCropApplyTo; apply_range?: string; auto_detect_threshold?: number } | 
 /**  OCR add-layer (mirrors a subset of `OcrOptions`). */
 { type: "ocr"; language: string; dpi: number; output: NodeOcrOutputMode; deskew: boolean; despeckle: boolean } | 
 /**  Diagonal text watermark (lopdf overlay). */
@@ -500,6 +586,20 @@ extra_inputs: string[] } |
 
 /**  Mirrors `services::ocr_engine::OcrOutputMode`. */
 export type NodeOcrOutputMode = "searchable_pdf" | "pdf_plus_text" | "text_only";
+
+export type NodePageBreakBehavior = "match-pdf" | "auto" | "continuous";
+
+/**  Delta U — PDF/A engine preference shared by Convert + Optimize nodes. */
+export type NodePdfaEngine = "auto" | "libreoffice" | "ghostscript";
+
+/**  Delta U — Convert raster color mode. */
+export type NodeRasterColorMode = "rgb" | "rgba" | "grayscale" | "mono";
+
+export type NodeTiffCompression = "none" | "lzw" | "deflate" | "jpeg";
+
+export type NodeTxtEncoding = "utf-8" | "utf-16le" | "windows-1250";
+
+export type NodeTxtLayout = "none" | "per-line" | "per-block";
 
 export type NoteIcon = "comment" | "check" | "cross" | "key" | "note" | "insert";
 
@@ -572,6 +672,12 @@ export type OptimizeArgs = {
 	/**  PDF/A version (e.g. 2) when conversion should run; None to skip. */
 	convert_pdfa: number | null,
 	job_id: string,
+	subset_min_percent?: number | null,
+	object_streams_level?: number | null,
+	strip_metadata_fields?: StripMetadataFieldsDto | null,
+	flatten_include_forms?: boolean | null,
+	ocr_dpi?: number | null,
+	pdfa_engine?: string | null,
 };
 
 export type OptimizeResult = {
@@ -750,6 +856,18 @@ export type SplitArgs = {
 
 export type SplitResult = {
 	output_paths: string[],
+};
+
+/**  Delta U — Optimize strip-metadata per-field flags. */
+export type StripMetadataFieldsDto = {
+	title?: boolean,
+	author?: boolean,
+	subject?: boolean,
+	keywords?: boolean,
+	creator?: boolean,
+	producer?: boolean,
+	creation_date?: boolean,
+	mod_date?: boolean,
 };
 
 export type SystemFont = {

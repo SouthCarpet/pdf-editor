@@ -245,12 +245,18 @@ mod tests {
             linearize: lin,
             remove_unused: false,
             subset_fonts: false,
+            subset_min_percent: 95,
             object_streams: false,
+            object_streams_level: 9,
             strip_metadata: strip,
+            strip_metadata_fields: Default::default(),
             flatten_annotations: flatten,
+            flatten_include_forms: false,
             remove_form_data: remove_form,
             make_searchable_ocr: None,
+            ocr_dpi: 300,
             convert_pdfa: pdfa,
+            pdfa_engine: Default::default(),
         }
     }
 
@@ -291,12 +297,32 @@ mod tests {
         assert!(n.preservation().preserves.contains(Artifact::TEXT_LAYER));
     }
 
+    fn convert(format: NodeExportFormat) -> NodeKind {
+        NodeKind::Convert {
+            format,
+            out_dir: None,
+            raster_dpi: 150,
+            raster_color_mode: Default::default(),
+            jpeg_quality: 85,
+            tiff_compression: Default::default(),
+            page_range: "all".into(),
+            txt_encoding: Default::default(),
+            txt_layout: Default::default(),
+            txt_page_separator: "\n".into(),
+            html_single_file: true,
+            html_embed_images_base64: false,
+            office_preserve_formatting: true,
+            office_embed_images: true,
+            office_page_break: Default::default(),
+            pdfa_version: 2,
+            pdfa_engine: Default::default(),
+            pdfa_embed_all_fonts: true,
+        }
+    }
+
     #[test]
     fn convert_raster_strips_everything_pdf() {
-        let n = NodeKind::Convert {
-            format: NodeExportFormat::Png,
-            out_dir: None,
-        };
+        let n = convert(NodeExportFormat::Png);
         let p = n.preservation();
         assert_eq!(p.preserves, Artifact::empty());
         assert!(p.may_strip.contains(Artifact::TEXT_LAYER));
@@ -305,10 +331,7 @@ mod tests {
 
     #[test]
     fn convert_pdfa_preserves_text_and_pdfa() {
-        let n = NodeKind::Convert {
-            format: NodeExportFormat::Pdfa,
-            out_dir: None,
-        };
+        let n = convert(NodeExportFormat::Pdfa);
         let p = n.preservation();
         assert!(p.preserves.contains(Artifact::TEXT_LAYER));
         assert!(p.preserves.contains(Artifact::PDFA_COMPLIANCE));
@@ -344,6 +367,13 @@ mod tests {
             preset: NodeCompressPreset::Recommended,
             custom_quality: None,
             custom_dpi: None,
+            color_dpi: None,
+            gray_dpi: None,
+            mono_dpi: None,
+            color_mode: Default::default(),
+            filter: Default::default(),
+            downsample: Default::default(),
+            remove_exif: false,
         };
         let p = n.preservation();
         assert!(p.preserves.contains(Artifact::TEXT_LAYER));

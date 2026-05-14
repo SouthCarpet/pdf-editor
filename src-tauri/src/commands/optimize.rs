@@ -43,6 +43,21 @@ pub struct OptimizeArgs {
     /// PDF/A version (e.g. 2) when conversion should run; None to skip.
     pub convert_pdfa: Option<u8>,
     pub job_id: String,
+    // Delta U Phase 17 Task 86a — sub-option fields. All optional; the
+    // service currently dispatches on the simple booleans above. The
+    // detail knobs survive over FFI so a follow-up can wire them.
+    #[serde(default)]
+    pub subset_min_percent: Option<u8>,
+    #[serde(default)]
+    pub object_streams_level: Option<u8>,
+    #[serde(default)]
+    pub strip_metadata_fields: Option<crate::pipeline::dag::StripMetadataFieldsDto>,
+    #[serde(default)]
+    pub flatten_include_forms: Option<bool>,
+    #[serde(default)]
+    pub ocr_dpi: Option<u32>,
+    #[serde(default)]
+    pub pdfa_engine: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]

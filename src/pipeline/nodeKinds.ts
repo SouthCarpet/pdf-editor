@@ -16,6 +16,7 @@ import type { SplitOptionsValue } from "@/components/tools/options/SplitOptions"
 import { DEFAULT_SPLIT_OPTIONS } from "@/components/tools/options/SplitOptions";
 import type { ExtractOptionsValue } from "@/components/tools/options/ExtractOptions";
 import { DEFAULT_EXTRACT_OPTIONS } from "@/components/tools/options/ExtractOptions";
+import { DEFAULT_CROP_OPTIONS } from "@/components/tools/options/CropOptions";
 
 export type NodeKindKey =
   | "compress"
@@ -61,6 +62,16 @@ export type NodeKindPayload =
       auto_detect: boolean;
       apply_to_all_pages: boolean;
       page_index: number;
+      // Delta U extension fields (Phase 17 Task 86a).
+      aspect_ratio?: string;
+      aspect_ratio_w?: number;
+      aspect_ratio_h?: number;
+      page_size_preset?: string;
+      margin_preset?: string;
+      margin_custom_mm?: number;
+      apply_to?: "current" | "all" | "odd" | "even" | "range";
+      apply_range?: string;
+      auto_detect_threshold?: number;
     }
   | {
       kind: "ocr";
@@ -172,10 +183,19 @@ export const NODE_KINDS: NodeKindMeta[] = [
     category: "modify",
     defaultPayload: () => ({
       kind: "crop",
-      bbox: null,
-      auto_detect: true,
-      apply_to_all_pages: true,
-      page_index: 0,
+      bbox: DEFAULT_CROP_OPTIONS.bbox,
+      auto_detect: DEFAULT_CROP_OPTIONS.auto_detect,
+      apply_to_all_pages: DEFAULT_CROP_OPTIONS.apply_to_all_pages,
+      page_index: DEFAULT_CROP_OPTIONS.page_index,
+      aspect_ratio: DEFAULT_CROP_OPTIONS.aspect_ratio,
+      aspect_ratio_w: DEFAULT_CROP_OPTIONS.aspect_ratio_w,
+      aspect_ratio_h: DEFAULT_CROP_OPTIONS.aspect_ratio_h,
+      page_size_preset: DEFAULT_CROP_OPTIONS.page_size_preset,
+      margin_preset: DEFAULT_CROP_OPTIONS.margin_preset,
+      margin_custom_mm: DEFAULT_CROP_OPTIONS.margin_custom_mm,
+      apply_to: DEFAULT_CROP_OPTIONS.apply_to,
+      apply_range: DEFAULT_CROP_OPTIONS.apply_range,
+      auto_detect_threshold: DEFAULT_CROP_OPTIONS.auto_detect_threshold,
     }),
     summary: (p) =>
       p.kind === "crop"
@@ -312,6 +332,14 @@ export function payloadToRust(
           payload.options.preset === "custom" ? payload.options.customQuality : null,
         custom_dpi:
           payload.options.preset === "custom" ? payload.options.customDpi : null,
+        // Delta U Phase 17 Task 86a — extra Custom-path knobs.
+        color_dpi: payload.options.colorDpi,
+        gray_dpi: payload.options.grayDpi,
+        mono_dpi: payload.options.monoDpi,
+        color_mode: payload.options.colorMode,
+        filter: payload.options.filter,
+        downsample: payload.options.downsample,
+        remove_exif: payload.options.removeExif,
       };
     case "optimize":
       return {
@@ -319,12 +347,18 @@ export function payloadToRust(
         linearize: payload.options.linearize,
         remove_unused: payload.options.remove_unused,
         subset_fonts: payload.options.subset_fonts,
+        subset_min_percent: payload.options.subset_min_percent,
         object_streams: payload.options.object_streams,
+        object_streams_level: payload.options.object_streams_level,
         strip_metadata: payload.options.strip_metadata,
+        strip_metadata_fields: payload.options.strip_metadata_fields,
         flatten_annotations: payload.options.flatten_annotations,
+        flatten_include_forms: payload.options.flatten_include_forms,
         remove_form_data: payload.options.remove_form_data,
         make_searchable_ocr: payload.options.ocr ? payload.options.ocr_lang : null,
+        ocr_dpi: payload.options.ocr_dpi,
         convert_pdfa: payload.options.pdfa ? payload.options.pdfa_version : null,
+        pdfa_engine: payload.options.pdfa_engine,
       };
     case "unlock":
       return {
@@ -336,6 +370,23 @@ export function payloadToRust(
         type: "convert",
         format: payload.options.format,
         out_dir: payload.out_dir ?? null,
+        // Delta U Phase 17 Task 86a — per-format sub-options.
+        raster_dpi: payload.options.rasterDpi,
+        raster_color_mode: payload.options.rasterColorMode,
+        jpeg_quality: payload.options.jpegQuality,
+        tiff_compression: payload.options.tiffCompression,
+        page_range: payload.options.pageRange,
+        txt_encoding: payload.options.txtEncoding,
+        txt_layout: payload.options.txtLayout,
+        txt_page_separator: payload.options.txtPageSeparator,
+        html_single_file: payload.options.htmlSingleFile,
+        html_embed_images_base64: payload.options.htmlEmbedImagesBase64,
+        office_preserve_formatting: payload.options.officePreserveFormatting,
+        office_embed_images: payload.options.officeEmbedImages,
+        office_page_break: payload.options.officePageBreak,
+        pdfa_version: payload.options.pdfaVersion,
+        pdfa_engine: payload.options.pdfaEngine,
+        pdfa_embed_all_fonts: payload.options.pdfaEmbedAllFonts,
       };
     case "convert_import":
       return {
@@ -375,6 +426,17 @@ export function payloadToRust(
         auto_detect: payload.auto_detect,
         apply_to_all_pages: payload.apply_to_all_pages,
         page_index: payload.page_index,
+        // Delta U Phase 17 Task 86a — extra fields. The serde defaults
+        // on the Rust side cover any field missing here.
+        aspect_ratio: payload.aspect_ratio ?? "free",
+        aspect_ratio_w: payload.aspect_ratio_w ?? 1,
+        aspect_ratio_h: payload.aspect_ratio_h ?? 1,
+        page_size_preset: payload.page_size_preset ?? "custom",
+        margin_preset: payload.margin_preset ?? "none",
+        margin_custom_mm: payload.margin_custom_mm ?? 0,
+        apply_to: payload.apply_to ?? (payload.apply_to_all_pages ? "all" : "current"),
+        apply_range: payload.apply_range ?? "",
+        auto_detect_threshold: payload.auto_detect_threshold ?? 240,
       };
     case "ocr": {
       const outputMap = {

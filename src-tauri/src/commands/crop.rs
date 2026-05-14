@@ -15,7 +15,7 @@ use tauri::State;
 use tempfile::tempdir;
 
 const AUTO_DETECT_DPI: u32 = 100;
-const AUTO_DETECT_THRESHOLD: u8 = 240;
+const DEFAULT_AUTO_DETECT_THRESHOLD: u8 = 240;
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct CropArgs {
@@ -26,6 +26,27 @@ pub struct CropArgs {
     pub auto_detect: bool,
     pub apply_to_all_pages: bool,
     pub job_id: String,
+    // Delta U Phase 17 Task 86a — extra fields. apply_to overrides
+    // apply_to_all_pages when set; auto_detect_threshold replaces the
+    // module-private constant when supplied.
+    #[serde(default)]
+    pub aspect_ratio: Option<String>,
+    #[serde(default)]
+    pub aspect_ratio_w: Option<f32>,
+    #[serde(default)]
+    pub aspect_ratio_h: Option<f32>,
+    #[serde(default)]
+    pub page_size_preset: Option<String>,
+    #[serde(default)]
+    pub margin_preset: Option<String>,
+    #[serde(default)]
+    pub margin_custom_mm: Option<f32>,
+    #[serde(default)]
+    pub apply_to: Option<String>,
+    #[serde(default)]
+    pub apply_range: Option<String>,
+    #[serde(default)]
+    pub auto_detect_threshold: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -43,6 +64,7 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
     let output = PathBuf::from(&args.output);
 
     // 1) Resolve bbox: either supplied or auto-detected via mupdf sidecar.
+    let threshold: u8 = args.auto_detect_threshold.unwrap_or(DEFAULT_AUTO_DETECT_THRESHOLD);
     let bbox: [f32; 4] = if args.auto_detect {
         // Render the page to a scratch PNG using the sidecar; the tempdir is
         // dropped at the end of this function and the PNG is cleaned up.
@@ -55,7 +77,7 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
 
         let png_for_scan = png.clone();
         let detected = tokio::task::spawn_blocking(move || {
-            auto_detect_bbox_from_image(&png_for_scan, AUTO_DETECT_DPI, AUTO_DETECT_THRESHOLD)
+            auto_detect_bbox_from_image(&png_for_scan, AUTO_DETECT_DPI, threshold)
         })
         .await
         .map_err(|e| AppError::Internal { detail: e.to_string() })?

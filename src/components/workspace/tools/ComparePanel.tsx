@@ -9,6 +9,11 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 import type { TextDiffResult, VisualDiffPage } from "@/bindings";
+import {
+  CompareOptions,
+  DEFAULT_COMPARE_OPTIONS,
+  type CompareOptionsValue,
+} from "@/components/tools/options/CompareOptions";
 
 export type CompareMode = "visual" | "text";
 
@@ -36,6 +41,19 @@ export function ComparePanel({
   const { t } = useTranslation("common");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Delta U Compare options surface (Phase 17 Task 86a). The dpi /
+  // tolerance values flow into the compare commands; other knobs are
+  // advisory until the backend honors them (e.g., text-only ignore
+  // case / whitespace).
+  const [opts, setOpts] = useState<CompareOptionsValue>({
+    ...DEFAULT_COMPARE_OPTIONS,
+    mode,
+  });
+  // Keep the parent mode in sync when the option panel changes it.
+  function setOptsAndMode(next: CompareOptionsValue) {
+    setOpts(next);
+    if (next.mode !== mode) setMode(next.mode);
+  }
 
   async function pick(side: "left" | "right") {
     const sel = await openDialog({
@@ -56,8 +74,8 @@ export function ComparePanel({
       const args = {
         left: leftPath,
         right: rightPath,
-        dpi: 100,
-        tolerance: 0.05,
+        dpi: opts.visualDpi,
+        tolerance: opts.visualTolerancePercent / 100,
         job_id: crypto.randomUUID(),
       };
       if (mode === "visual") {
@@ -103,22 +121,7 @@ export function ComparePanel({
         </div>
       </div>
 
-      <div className="flex gap-1 rounded border p-1">
-        <Button
-          size="sm"
-          variant={mode === "visual" ? "default" : "ghost"}
-          onClick={() => setMode("visual")}
-        >
-          Visual
-        </Button>
-        <Button
-          size="sm"
-          variant={mode === "text" ? "default" : "ghost"}
-          onClick={() => setMode("text")}
-        >
-          Text
-        </Button>
-      </div>
+      <CompareOptions value={opts} onChange={setOptsAndMode} mode="standalone" />
 
       <Button
         size="sm"

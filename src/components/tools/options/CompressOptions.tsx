@@ -5,13 +5,15 @@
 //   - Pipeline NodeConfigPanel (Phase 14 Task 75) — embeds this in the
 //     right-hand inspector when a compress node is selected.
 //
-// `mode = "standalone"` shows the "Save as default" hint; `mode =
-// "pipeline-node"` collapses that since pipeline presets persist via
-// pipeline_preset_save_cmd.
-// Re-export so consumers can pull both the component and the value /
-// defaults from the same module (matches the OptimizeOptions /
-// SplitOptions pattern). Necessary for CompressTool's existing import.
-import type { CompressOptionsValue } from "./defaults";
+// Phase 17 Task 86a — when "Custom" is chosen, expose the full Delta U
+// surface: per-class DPI sliders (color / gray / mono), color mode,
+// filter, downsample method, Remove EXIF toggle.
+import type {
+  CompressColorMode,
+  CompressDownsample,
+  CompressFilter,
+  CompressOptionsValue,
+} from "./defaults";
 export { DEFAULT_COMPRESS_OPTIONS } from "./defaults";
 export type { CompressOptionsValue } from "./defaults";
 
@@ -39,6 +41,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
             set("preset", e.target.value as CompressOptionsValue["preset"])
           }
           className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
+          aria-label="Compression preset"
         >
           <option value="recommended">Recommended (balanced)</option>
           <option value="high">High (smaller)</option>
@@ -59,28 +62,117 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               value={value.customQuality}
               onChange={(e) => set("customQuality", Number(e.target.value))}
               className="w-full"
+              aria-label="JPEG quality"
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-muted)]">
-              Resolution (DPI): {value.customDpi}
+              Color image DPI (36-300): {value.colorDpi}
+            </label>
+            <input
+              type="range"
+              min={36}
+              max={300}
+              value={value.colorDpi}
+              onChange={(e) => set("colorDpi", Number(e.target.value))}
+              className="w-full"
+              aria-label="Color image DPI"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[var(--color-muted)]">
+              Grayscale image DPI (36-300): {value.grayDpi}
+            </label>
+            <input
+              type="range"
+              min={36}
+              max={300}
+              value={value.grayDpi}
+              onChange={(e) => set("grayDpi", Number(e.target.value))}
+              className="w-full"
+              aria-label="Grayscale image DPI"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[var(--color-muted)]">
+              Monochrome DPI (72-600): {value.monoDpi}
             </label>
             <input
               type="range"
               min={72}
               max={600}
-              step={6}
-              value={value.customDpi}
-              onChange={(e) => set("customDpi", Number(e.target.value))}
+              value={value.monoDpi}
+              onChange={(e) => set("monoDpi", Number(e.target.value))}
               className="w-full"
+              aria-label="Monochrome DPI"
             />
           </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[var(--color-muted)]">
+              Color mode
+            </label>
+            <select
+              value={value.colorMode}
+              onChange={(e) =>
+                set("colorMode", e.target.value as CompressColorMode)
+              }
+              className="h-8 w-full rounded border px-2 text-xs"
+              aria-label="Color mode"
+            >
+              <option value="preserve">Preserve</option>
+              <option value="grayscale">Convert to Grayscale</option>
+              <option value="monochrome">Convert to Monochrome</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[var(--color-muted)]">
+              Compression filter
+            </label>
+            <select
+              value={value.filter}
+              onChange={(e) =>
+                set("filter", e.target.value as CompressFilter)
+              }
+              className="h-8 w-full rounded border px-2 text-xs"
+              aria-label="Compression filter"
+            >
+              <option value="auto">Auto</option>
+              <option value="jpeg">JPEG</option>
+              <option value="jpeg2000">JPEG 2000</option>
+              <option value="flate">Flate</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-[var(--color-muted)]">
+              Downsample method
+            </label>
+            <select
+              value={value.downsample}
+              onChange={(e) =>
+                set("downsample", e.target.value as CompressDownsample)
+              }
+              className="h-8 w-full rounded border px-2 text-xs"
+              aria-label="Downsample method"
+            >
+              <option value="bicubic">Bicubic</option>
+              <option value="average">Average</option>
+              <option value="subsample">Subsample</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={value.removeExif}
+              onChange={(e) => set("removeExif", e.target.checked)}
+            />
+            Remove EXIF metadata from images
+          </label>
         </div>
       )}
       {mode === "standalone" && (
         <p className="text-xs text-[var(--color-muted)]">
-          Tip: choose Custom to override the JPEG quality / DPI used during
-          downsampling.
+          Tip: choose Custom to override JPEG quality, per-class DPI,
+          compression filter, and downsample method.
         </p>
       )}
     </div>

@@ -226,6 +226,15 @@ async fn run_node(
             preset,
             custom_quality: _,
             custom_dpi: _,
+            // Delta U extension fields — survive over FFI; advisory until
+            // GhostscriptWrapper grows knobs for them.
+            color_dpi: _,
+            gray_dpi: _,
+            mono_dpi: _,
+            color_mode: _,
+            filter: _,
+            downsample: _,
+            remove_exif: _,
         } => {
             // Custom quality/dpi are advisory; GhostscriptWrapper::compress
             // doesn't yet take custom knobs (Phase 9 ships preset-only). The
@@ -246,12 +255,18 @@ async fn run_node(
             linearize,
             remove_unused,
             subset_fonts,
+            subset_min_percent: _,
             object_streams,
+            object_streams_level: _,
             strip_metadata,
+            strip_metadata_fields: _,
             flatten_annotations,
+            flatten_include_forms: _,
             remove_form_data,
             make_searchable_ocr,
+            ocr_dpi: _,
             convert_pdfa,
+            pdfa_engine: _,
         } => {
             let mut outs = Vec::new();
             for (i, src) in inputs.iter().enumerate() {
@@ -371,7 +386,26 @@ async fn run_node(
             }
             Ok(outs)
         }
-        NodeKind::Convert { format, out_dir } => {
+        NodeKind::Convert {
+            format,
+            out_dir,
+            raster_dpi: _,
+            raster_color_mode: _,
+            jpeg_quality: _,
+            tiff_compression: _,
+            page_range: _,
+            txt_encoding: _,
+            txt_layout: _,
+            txt_page_separator: _,
+            html_single_file: _,
+            html_embed_images_base64: _,
+            office_preserve_formatting: _,
+            office_embed_images: _,
+            office_page_break: _,
+            pdfa_version: _,
+            pdfa_engine: _,
+            pdfa_embed_all_fonts: _,
+        } => {
             // Convert produces non-PDF outputs (PNG/JPG/TIFF/TXT/DOCX/...);
             // those don't feed back into a downstream PDF pipeline. We
             // still return them so the caller can collect them in a Save
@@ -476,7 +510,17 @@ async fn run_node(
             }
             Ok(outs)
         }
-        NodeKind::ConvertImport { extra_inputs } => {
+        NodeKind::ConvertImport {
+            extra_inputs,
+            page_size: _,
+            custom_width_mm: _,
+            custom_height_mm: _,
+            orientation: _,
+            margins: _,
+            custom_margin_mm: _,
+            image_fit: _,
+            arrangement: _,
+        } => {
             // Convert non-PDF inputs to PDFs via LibreOffice. Image-to-PDF
             // for bitmaps would be ideal but the existing pipeline routes
             // both office and image inputs through soffice in
@@ -627,10 +671,19 @@ async fn run_node(
             auto_detect,
             apply_to_all_pages,
             page_index,
+            aspect_ratio: _,
+            aspect_ratio_w: _,
+            aspect_ratio_h: _,
+            page_size_preset: _,
+            margin_preset: _,
+            margin_custom_mm: _,
+            apply_to: _,
+            apply_range: _,
+            auto_detect_threshold,
         } => {
             use crate::services::crop::auto_detect_bbox_from_image;
             const AUTO_DETECT_DPI: u32 = 100;
-            const AUTO_DETECT_THRESHOLD: u8 = 240;
+            let auto_threshold: u8 = *auto_detect_threshold;
             let mut outs = Vec::new();
             for (i, src) in inputs.iter().enumerate() {
                 let resolved: [f32; 4] = if *auto_detect {
@@ -646,7 +699,7 @@ async fn run_node(
                         auto_detect_bbox_from_image(
                             &png_clone,
                             AUTO_DETECT_DPI,
-                            AUTO_DETECT_THRESHOLD,
+                            auto_threshold,
                         )
                     })
                     .await

@@ -154,6 +154,37 @@ export function NodeConfigPanel({ node }: Props) {
             auto_detect: config.auto_detect,
             apply_to_all_pages: config.apply_to_all_pages,
             page_index: config.page_index,
+            aspect_ratio: (config.aspect_ratio as
+              | "free"
+              | "1:1"
+              | "4:3"
+              | "16:9"
+              | "a4-portrait"
+              | "a4-landscape"
+              | "letter-portrait"
+              | "letter-landscape"
+              | "custom") ?? "free",
+            aspect_ratio_w: config.aspect_ratio_w ?? 1,
+            aspect_ratio_h: config.aspect_ratio_h ?? 1,
+            page_size_preset: (config.page_size_preset as
+              | "a3"
+              | "a4"
+              | "a5"
+              | "letter"
+              | "legal"
+              | "tabloid"
+              | "custom") ?? "custom",
+            margin_preset: (config.margin_preset as
+              | "none"
+              | "tight"
+              | "standard"
+              | "loose"
+              | "custom") ?? "none",
+            margin_custom_mm: config.margin_custom_mm ?? 0,
+            apply_to: config.apply_to ?? "all",
+            apply_range: config.apply_range ?? "",
+            auto_detect_threshold: config.auto_detect_threshold ?? 240,
+            unit: "pt",
           }}
           onChange={(o) =>
             patch({
@@ -162,6 +193,15 @@ export function NodeConfigPanel({ node }: Props) {
               auto_detect: o.auto_detect,
               apply_to_all_pages: o.apply_to_all_pages,
               page_index: o.page_index,
+              aspect_ratio: o.aspect_ratio,
+              aspect_ratio_w: o.aspect_ratio_w,
+              aspect_ratio_h: o.aspect_ratio_h,
+              page_size_preset: o.page_size_preset,
+              margin_preset: o.margin_preset,
+              margin_custom_mm: o.margin_custom_mm,
+              apply_to: o.apply_to,
+              apply_range: o.apply_range,
+              auto_detect_threshold: o.auto_detect_threshold,
             })
           }
           mode="pipeline-node"
