@@ -83,4 +83,11 @@ custom-protocol = ["tauri/custom-protocol"]
 
 [dev-dependencies]
 tempfile = "3"
+# Phase 17 Task 85 — performance benchmarks.
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+rand = "0.8"
+
+[[bench]]
+name = "pdf_ops"
+harness = false
 
