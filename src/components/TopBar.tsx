@@ -40,7 +40,7 @@ export function TopBar() {
             <Monitor className="h-4 w-4" />
           )}
         </Button>
-        <Link to="/settings">
+        <Link to="/settings" data-onboard="settings">
           <Button variant="ghost" size="icon" aria-label={t("settings")}>
             <Settings className="h-4 w-4" />
           </Button>
