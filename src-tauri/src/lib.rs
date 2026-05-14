@@ -66,5 +66,11 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::autosave::autosave_put,
             commands::autosave::autosave_get,
             commands::autosave::autosave_delete,
+            // Phase 13 Task 70 — OCR
+            commands::ocr::ocr_pdf_cmd,
+            commands::ocr::detect_scanned_pdf,
+            // Phase 13 Task 72 — OCR language management
+            commands::tessdata::list_ocr_languages,
+            commands::tessdata::add_ocr_language,
         ])
 }

@@ -146,6 +146,22 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("autosave_delete", { docPath })),
+	ocrPdfCmd: (args: OcrArgs) => typedError<OcrResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("ocr_pdf_cmd", { args })),
+	detectScannedPdf: (path: string) => typedError<ScanLikelihood, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("detect_scanned_pdf", { path })),
+	listOcrLanguages: () => typedError<string[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("list_ocr_languages")),
+	addOcrLanguage: (sourcePath: string) => typedError<string, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("add_ocr_language", { sourcePath })),
 };
 
 /* Types */
@@ -296,6 +312,52 @@ export type MergeResult = {
 
 export type NoteIcon = "comment" | "check" | "cross" | "key" | "note" | "insert";
 
+export type OcrArgs = {
+	input: string,
+	output: string,
+	options: OcrOptions,
+	job_id: string,
+};
+
+export type OcrOptions = {
+	/**  Tesseract language codes joined by `+` (e.g. "eng+slk+ces"). */
+	language: string,
+	/**
+	 *  Render DPI for the rasterized page handed to tesseract. 300 is
+	 *  the spec default; higher boosts accuracy for small fonts but
+	 *  slows the run linearly.
+	 */
+	dpi: number,
+	/**  Tesseract page segmentation mode (0..13). 3 = "auto" is the default. */
+	psm: number,
+	/**  Tesseract OCR engine mode (0..3). 3 = LSTM is the default on 5.x. */
+	oem: number,
+	/**  Output mode determines the post-OCR write-out shape. */
+	output: OcrOutputMode,
+	deskew: boolean,
+	despeckle: boolean,
+	/**
+	 *  When true, the original rasterized page is preserved under the
+	 *  text layer (highest fidelity). When false, only the text layer is
+	 *  written and the page rasterization is dropped (smallest file).
+	 */
+	preserve_raster: boolean,
+};
+
+export type OcrOutputMode = 
+/**  Inject an invisible text layer into the existing PDF. */
+"searchable_pdf" | 
+/**  Inject a layer AND write the recognized text to a sidecar `.txt`. */
+"pdf_plus_text" | 
+/**  Write only the recognized text to a sidecar `.txt` (PDF unchanged). */
+"text_only";
+
+export type OcrResult = {
+	output_paths: string[],
+	pages_processed: number,
+	characters_recognized: number,
+};
+
 export type OpenedDocument = {
 	path: string,
 	page_count: number,
@@ -380,6 +442,12 @@ export type RotateArgs = {
 	/**  Tuple list (page_number_1based, rotation_degrees). */
 	rotations: ([number, number])[],
 	job_id: string,
+};
+
+export type ScanLikelihood = {
+	is_likely_scanned: boolean,
+	avg_chars_per_page: number | null,
+	total_pages: number,
 };
 
 export type SetFormArgs = {
