@@ -80,6 +80,12 @@ windows = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+# Phase 18 Task 90d — opt-in flag for tests that require real sidecar
+# binaries + generated fixtures (qpdf, ghostscript, mutool, soffice,
+# tesseract, pdfcrack). CI runs the `sidecar-contract` job with this
+# feature on after `scripts/fetch-sidecars.ps1` + `stage-sidecars.ps1`
+# + `generate-fixtures.ps1`. Devs can opt-in locally the same way.
+sidecar-tests = []
 
 [dev-dependencies]
 tempfile = "3"

@@ -32,7 +32,10 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore = "needs real Tesseract + mutool sidecars + Slovak fixture"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "needs real Tesseract + mutool sidecars + Slovak fixture; --features sidecar-tests"
+)]
 async fn ocr_then_edit_preserves_diacritics() {
     let tmp = TempDir::new().unwrap();
     let scanned = PathBuf::from("tests/fixtures/pdfs/scanned.pdf");

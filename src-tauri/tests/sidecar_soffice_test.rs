@@ -3,7 +3,10 @@ use std::path::Path;
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore = "requires real LibreOffice install + generated fixtures"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real LibreOffice install + generated fixtures; --features sidecar-tests"
+)]
 async fn convert_docx_to_pdf() {
     let mgr = SidecarManager::new(2);
     let lo = SofficeWrapper::new(mgr);

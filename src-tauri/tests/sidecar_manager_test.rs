@@ -2,7 +2,10 @@ use pdf_editor_lib::sidecars::manager::{SidecarManager, SidecarRunSpec};
 use std::time::Duration;
 
 #[tokio::test]
-#[ignore = "requires real qpdf binary; run scripts/fetch-sidecars.ps1 first"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real qpdf binary; run scripts/fetch-sidecars.ps1 first, then --features sidecar-tests"
+)]
 async fn run_qpdf_version_via_manager() {
     let mgr = SidecarManager::new(4);
     let spec = SidecarRunSpec {
@@ -18,7 +21,10 @@ async fn run_qpdf_version_via_manager() {
 }
 
 #[tokio::test]
-#[ignore = "requires real pdfcrack binary"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real pdfcrack binary; --features sidecar-tests"
+)]
 async fn timeout_kills_process() {
     let mgr = SidecarManager::new(4);
     let spec = SidecarRunSpec {

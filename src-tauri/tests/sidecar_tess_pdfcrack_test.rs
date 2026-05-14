@@ -5,7 +5,10 @@ use std::path::Path;
 use tempfile::TempDir;
 
 #[tokio::test]
-#[ignore = "requires real tesseract binary + tessdata + image fixture"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real tesseract binary + tessdata + image fixture; --features sidecar-tests"
+)]
 async fn tesseract_ocr_image_returns_text() {
     let mgr = SidecarManager::new(2);
     let t = TesseractWrapper::new(mgr);
@@ -21,7 +24,10 @@ async fn tesseract_ocr_image_returns_text() {
 }
 
 #[tokio::test]
-#[ignore = "requires real pdfcrack binary + password-protected fixture"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real pdfcrack binary + password-protected fixture; --features sidecar-tests"
+)]
 async fn pdfcrack_dictionary_finds_user_password() {
     let mgr = SidecarManager::new(2);
     let p = PdfcrackWrapper::new(mgr);

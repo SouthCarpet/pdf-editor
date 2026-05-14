@@ -5,7 +5,10 @@ use tempfile::TempDir;
 const FIXTURE: &str = "tests/fixtures/pdfs/password-permission.pdf";
 
 #[tokio::test]
-#[ignore = "requires real qpdf binary + generated fixtures"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real qpdf binary + generated fixtures; --features sidecar-tests"
+)]
 async fn qpdf_decrypt_removes_permission_lock() {
     let mgr = SidecarManager::new(2);
     let qpdf = QpdfWrapper::new(mgr);
@@ -19,7 +22,10 @@ async fn qpdf_decrypt_removes_permission_lock() {
 }
 
 #[tokio::test]
-#[ignore = "requires real qpdf binary + generated fixtures"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real qpdf binary + generated fixtures; --features sidecar-tests"
+)]
 async fn qpdf_linearize() {
     let mgr = SidecarManager::new(2);
     let qpdf = QpdfWrapper::new(mgr);

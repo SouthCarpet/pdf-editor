@@ -8,7 +8,10 @@ use tempfile::TempDir;
 const SAMPLE: &str = "tests/fixtures/pdfs/sample.pdf";
 
 #[tokio::test]
-#[ignore = "requires real ghostscript binary + generated fixtures"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real ghostscript binary + generated fixtures; --features sidecar-tests"
+)]
 async fn ghostscript_compresses_with_preset() {
     let mgr = SidecarManager::new(2);
     let gs = GhostscriptWrapper::new(mgr);
@@ -26,7 +29,10 @@ async fn ghostscript_compresses_with_preset() {
 }
 
 #[tokio::test]
-#[ignore = "requires real mutool binary + generated fixtures"]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real mutool binary + generated fixtures; --features sidecar-tests"
+)]
 async fn mupdf_clean_subsets_fonts() {
     let mgr = SidecarManager::new(2);
     let m = MupdfWrapper::new(mgr);
