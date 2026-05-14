@@ -101,6 +101,14 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("compare_text_cmd", { args })),
+	readFormFieldsCmd: (path: string) => typedError<FormField[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("read_form_fields_cmd", { path })),
+	setFormValuesCmd: (args: SetFormArgs) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("set_form_values_cmd", { args })),
 };
 
 /* Types */
@@ -172,6 +180,18 @@ export type ExtractArgs = {
 export type ExtractResult = {
 	output_paths: string[],
 };
+
+export type FormField = {
+	name: string,
+	kind: FormFieldKind,
+	value: string | null,
+	page_index: number,
+	/**  `[x, y, x2, y2]` in PDF points, as authored in `/Rect`. */
+	rect: [(number | null), (number | null), (number | null), (number | null)],
+	options: string[],
+};
+
+export type FormFieldKind = "text" | "checkbox" | "radio" | "choice" | "signature";
 
 export type FrontendErrorPayload = {
 	message: string,
@@ -281,6 +301,13 @@ export type RotateArgs = {
 	output: string,
 	/**  Tuple list (page_number_1based, rotation_degrees). */
 	rotations: ([number, number])[],
+	job_id: string,
+};
+
+export type SetFormArgs = {
+	input: string,
+	output: string,
+	values: { [key in string]: string },
 	job_id: string,
 };
 

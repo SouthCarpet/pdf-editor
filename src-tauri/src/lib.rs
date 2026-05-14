@@ -51,5 +51,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::organize::insert_blank_page_cmd,
             commands::compare::compare_visual_cmd,
             commands::compare::compare_text_cmd,
+            // Phase 12 Task 66 — Edit Tier 1 (AcroForm fill)
+            commands::edit_forms::read_form_fields_cmd,
+            commands::edit_forms::set_form_values_cmd,
         ])
 }

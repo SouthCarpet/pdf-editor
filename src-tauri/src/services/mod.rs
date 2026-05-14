@@ -1,5 +1,6 @@
 pub mod crop;
 pub mod diff_engine;
+pub mod forms;
 pub mod image_to_pdf;
 pub mod ocr_engine;
 pub mod pdf_editor;
