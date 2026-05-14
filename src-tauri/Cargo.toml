@@ -86,6 +86,8 @@ tempfile = "3"
 # Phase 17 Task 85 — performance benchmarks.
 criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
 rand = "0.8"
+# Phase 18 Task 90b — property-based tests for the pdf_editor service.
+proptest = "1"
 
 [[bench]]
 name = "pdf_ops"
