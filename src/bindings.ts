@@ -117,6 +117,23 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("apply_annotations_cmd", { args })),
+	extractRunsCmd: (path: string) => typedError<TextRun[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("extract_runs_cmd", { path })),
+	replaceRunCmd: (args: ReplaceRunArgs) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("replace_run_cmd", { args })),
+	/**
+	 *  Explicit opt-in fallback — used only when the user clicks "redact-style"
+	 *  after seeing a clear EncodingMismatch banner. The frontend never
+	 *  invokes this silently.
+	 */
+	replaceRunRedactionCmd: (args: RedactReplaceArgs) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("replace_run_redaction_cmd", { args })),
 };
 
 /* Types */
@@ -319,10 +336,29 @@ export type RecentFile = {
 	size_bytes: number | null,
 };
 
+export type RedactReplaceArgs = {
+	input: string,
+	output: string,
+	page_index: number,
+	rect: [(number | null), (number | null), (number | null), (number | null)],
+	new_text: string,
+	font_size: number | null,
+	job_id: string,
+};
+
 export type ReorderArgs = {
 	input: string,
 	output: string,
 	new_order: number[],
+	job_id: string,
+};
+
+export type ReplaceRunArgs = {
+	input: string,
+	output: string,
+	page_index: number,
+	operator_index: number,
+	new_text: string,
 	job_id: string,
 };
 
@@ -377,6 +413,29 @@ export type TextDiffChange = {
 
 export type TextDiffResult = {
 	changes: TextDiffChange[],
+};
+
+/**
+ *  Discovered glyph run that the frontend lists as a candidate edit
+ *  target. `bbox` is in PDF points; `operator_index` points back into
+ *  the content stream so the save side can rewrite the exact Tj/TJ.
+ */
+export type TextRun = {
+	page: number,
+	text: string,
+	bbox: [(number | null), (number | null), (number | null), (number | null)],
+	/**
+	 *  Index into the page's `Content { operations }` Vec. Identifies the
+	 *  Tj/TJ this run came from.
+	 */
+	operator_index: number,
+	/**
+	 *  PostScript name of the font this run was drawn with, or
+	 *  "Unknown" if not resolvable.
+	 */
+	font: string,
+	/**  PDF text size in points. */
+	font_size: number | null,
 };
 
 export type TextStyle = {

@@ -58,5 +58,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::fonts::list_fonts_cmd,
             // Phase 12 Task 67 — Edit Tier 2 (annotations)
             commands::edit_annotations::apply_annotations_cmd,
+            // Phase 12 Task 68 — Edit Tier 3 (real inline text edit)
+            commands::edit_text::extract_runs_cmd,
+            commands::edit_text::replace_run_cmd,
+            commands::edit_text::replace_run_redaction_cmd,
         ])
 }

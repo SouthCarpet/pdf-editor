@@ -5,6 +5,7 @@ pub mod convert_import;
 pub mod crop;
 pub mod edit_annotations;
 pub mod edit_forms;
+pub mod edit_text;
 pub mod extract;
 pub mod fonts;
 pub mod hello;
