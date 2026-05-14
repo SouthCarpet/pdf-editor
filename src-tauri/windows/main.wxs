@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Phase 17 Task 89 (Delta I) — WiX 4 template for the PDF Editor MSI.
+
+  Uses the WiX 4 `<Package>` schema (NOT WiX 3 `<Product>`). Tauri
+  resolves this template via `bundle.windows.wix.template`. The
+  UpgradeCode GUID is permanent for the product line; it must NEVER
+  change across releases. Bumping the Version reroutes through
+  MajorUpgrade so the previous install is uninstalled cleanly first.
+
+  Per-user install: ALLUSERS=""/MSIINSTALLPERUSER=1/WixAppFolder=
+  WixPerUserFolder triggers a no-admin-prompt installer that writes
+  under %LOCALAPPDATA%\Programs\PDF Editor and registers HKCU file
+  associations only.
+
+  File associations (.pdf, .pdf-pipeline, .pdf-project) register
+  ProgIDs and `OpenWithProgids` entries under HKCU so Explorer's "Open
+  with" menu lists PDF Editor without overriding the system default
+  for .pdf.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="PDF Editor"
+    Manufacturer="PDF Editor Project"
+    Version="0.1.0"
+    UpgradeCode="7c8d4e2a-9b1f-4d3a-8a6b-1e2f3c4d5e6f">
+
+    <SummaryInformation
+      Description="Localhost-only PDF editor"
+      Manufacturer="PDF Editor Project" />
+
+    <!-- Per-user install (no admin elevation prompt) -->
+    <Property Id="ALLUSERS" Value="" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
+    <Property Id="WixAppFolder" Value="WixPerUserFolder" />
+
+    <MajorUpgrade
+      DowngradeErrorMessage="A newer version of PDF Editor is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="ProductFeature" Title="PDF Editor" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+      <!-- .pdf association (non-default; appears in "Open with" menu) -->
+      <Component Id="FileAssoc.pdf" Guid="*">
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Classes\.pdf\OpenWithProgids"
+          Name="PdfEditor.pdf.1"
+          Type="string"
+          Value="" />
+        <RegistryKey
+          Root="HKCU"
+          Key="Software\Classes\PdfEditor.pdf.1\shell\open\command">
+          <RegistryValue Type="string" Value='"[#exe.PdfEditor]" "%1"' />
+        </RegistryKey>
+      </Component>
+
+      <!-- .pdf-pipeline (custom format owned by PDF Editor) -->
+      <Component Id="FileAssoc.pipeline" Guid="*">
+        <RegistryKey
+          Root="HKCU"
+          Key="Software\Classes\.pdf-pipeline">
+          <RegistryValue Type="string" Value="PdfEditor.pipeline.1" />
+        </RegistryKey>
+        <RegistryKey
+          Root="HKCU"
+          Key="Software\Classes\PdfEditor.pipeline.1\shell\open\command">
+          <RegistryValue Type="string" Value='"[#exe.PdfEditor]" "%1"' />
+        </RegistryKey>
+      </Component>
+
+      <!-- .pdf-project (custom project bundle) -->
+      <Component Id="FileAssoc.project" Guid="*">
+        <RegistryKey
+          Root="HKCU"
+          Key="Software\Classes\.pdf-project">
+          <RegistryValue Type="string" Value="PdfEditor.project.1" />
+        </RegistryKey>
+        <RegistryKey
+          Root="HKCU"
+          Key="Software\Classes\PdfEditor.project.1\shell\open\command">
+          <RegistryValue Type="string" Value='"[#exe.PdfEditor]" "%1"' />
+        </RegistryKey>
+      </Component>
+
+    </ComponentGroup>
+  </Fragment>
+</Wix>

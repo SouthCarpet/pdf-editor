@@ -38,6 +38,7 @@
     ],
     "windows": {
       "wix": {
+        "template": "windows/main.wxs",
         "language": ["en-US"]
       }
     }
