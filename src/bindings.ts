@@ -247,6 +247,14 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("project_list_pipelines", { projectId })),
+	projectExport: (id: number, outputPath: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_export", { id, outputPath })),
+	projectImport: (inputPath: string) => typedError<number, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("project_import", { inputPath })),
 };
 
 /* Types */

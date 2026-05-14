@@ -94,5 +94,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::projects::project_add_pipeline,
             commands::projects::project_remove_pipeline,
             commands::projects::project_list_pipelines,
+            // Phase 15 Task 80 — Project import / export.
+            commands::project_io::project_export,
+            commands::project_io::project_import,
         ])
 }

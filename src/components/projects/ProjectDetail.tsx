@@ -174,9 +174,7 @@ export function ProjectDetail({ projectId }: Props) {
     setRunReport(`Done: ${ok} succeeded, ${fail} failed`);
   }
 
-  // Export/Import are wired in Task 80 — these handlers invoke
-  // commands.projectExport / projectImport which become available after
-  // commands/project_io.rs lands.
+  // Task 80 — Export / Import via the project_io commands.
   async function onExport() {
     if (!project) return;
     const out = await saveDialog({
@@ -184,15 +182,7 @@ export function ProjectDetail({ projectId }: Props) {
       filters: [{ name: "PDF Project", extensions: ["pdf-project", "json"] }],
     });
     if (!out) return;
-    const cmds = commands as unknown as {
-      projectExport?: (id: number, path: string) =>
-        Promise<{ status: "ok"; data: null } | { status: "error"; error: unknown }>;
-    };
-    if (!cmds.projectExport) {
-      setErr("Export not wired in this build");
-      return;
-    }
-    const r = await cmds.projectExport(projectId, out);
+    const r = await commands.projectExport(projectId, out);
     if (r.status === "error") setErr(JSON.stringify(r.error));
   }
 
@@ -202,15 +192,7 @@ export function ProjectDetail({ projectId }: Props) {
       filters: [{ name: "PDF Project", extensions: ["pdf-project", "json"] }],
     });
     if (!picked || Array.isArray(picked)) return;
-    const cmds = commands as unknown as {
-      projectImport?: (path: string) =>
-        Promise<{ status: "ok"; data: number } | { status: "error"; error: unknown }>;
-    };
-    if (!cmds.projectImport) {
-      setErr("Import not wired in this build");
-      return;
-    }
-    const r = await cmds.projectImport(picked as string);
+    const r = await commands.projectImport(picked);
     if (r.status === "ok") {
       await refreshList();
       navigate({ to: "/projects/$id", params: { id: String(r.data) } });
