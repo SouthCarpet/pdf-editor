@@ -13,7 +13,11 @@ export function ProgressList() {
   if (jobs.length === 0) return null;
 
   return (
-    <ul className="divide-y divide-[var(--color-border)] rounded border border-[var(--color-border)]">
+    <ul
+      aria-live="polite"
+      aria-label="Job progress"
+      className="divide-y divide-[var(--color-border)] rounded border border-[var(--color-border)]"
+    >
       {jobs.map((j) => (
         <li key={j.id} className="flex items-center gap-3 p-3">
           {j.status === "running" && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -28,7 +32,14 @@ export function ProgressList() {
               {j.label ?? j.inputPaths.join(", ")}
             </div>
             {j.status === "running" && (
-              <div className="mt-1 h-1 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800">
+              <div
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(j.progress * 100)}
+                aria-label={`${j.toolId} progress`}
+                className="mt-1 h-1 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800"
+              >
                 <div
                   className="h-full bg-neutral-700 dark:bg-neutral-300"
                   style={{ width: `${(j.progress * 100).toFixed(0)}%` }}

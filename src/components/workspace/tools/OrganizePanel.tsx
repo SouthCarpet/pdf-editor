@@ -122,6 +122,23 @@ export function OrganizePanel({ pdf, docPath }: Props) {
     });
     setDragFrom(null);
   }
+  // Phase 17 Task 84 — keyboard-accessible alternative to drag reorder.
+  function moveUp(i: number) {
+    if (i <= 0) return;
+    setPages((prev) => {
+      const next = [...prev];
+      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+      return next;
+    });
+  }
+  function moveDown(i: number) {
+    setPages((prev) => {
+      if (i >= prev.length - 1) return prev;
+      const next = [...prev];
+      [next[i + 1], next[i]] = [next[i], next[i + 1]];
+      return next;
+    });
+  }
 
   async function apply() {
     setBusy(true);
@@ -264,37 +281,67 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 <PdfViewer pdf={pdf} pageIndex={p.originalIndex} zoom={0.18} />
               </div>
             )}
-            <div className="mt-1 flex items-center gap-1">
+            <div className="mt-1 flex flex-wrap items-center gap-1">
               <button
+                type="button"
+                title="Move up"
+                aria-label={t("organize.move_up", { ns: "tools" })}
+                className="rounded px-1 text-xs hover:bg-neutral-200"
+                onClick={() => moveUp(i)}
+                disabled={i === 0}
+              >
+                ↑
+              </button>
+              <button
+                type="button"
+                title="Move down"
+                aria-label={t("organize.move_down", { ns: "tools" })}
+                className="rounded px-1 text-xs hover:bg-neutral-200"
+                onClick={() => moveDown(i)}
+                disabled={i === pages.length - 1}
+              >
+                ↓
+              </button>
+              <button
+                type="button"
                 title="Rotate left"
+                aria-label="Rotate left"
                 className="rounded px-1 text-xs hover:bg-neutral-200"
                 onClick={() => rotate(i, 270)}
               >
                 ⟲
               </button>
               <button
+                type="button"
                 title="Rotate right"
+                aria-label="Rotate right"
                 className="rounded px-1 text-xs hover:bg-neutral-200"
                 onClick={() => rotate(i, 90)}
               >
                 ⟳
               </button>
               <button
+                type="button"
                 title="Rotate 180"
+                aria-label="Rotate 180 degrees"
                 className="rounded px-1 text-xs hover:bg-neutral-200"
                 onClick={() => rotate(i, 180)}
               >
                 ⇅
               </button>
               <button
+                type="button"
                 title={p.deleted ? "Undo delete" : "Delete"}
+                aria-label={p.deleted ? "Undo delete" : "Delete page"}
                 className="rounded px-1 text-xs hover:bg-red-100"
                 onClick={() => toggleDelete(i)}
               >
                 ✕
               </button>
               <button
+                type="button"
                 title="Insert blank after"
+                aria-label="Insert blank page after"
                 className="rounded px-1 text-xs hover:bg-neutral-200"
                 onClick={() => insertBlankAfter(i)}
               >
