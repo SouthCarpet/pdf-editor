@@ -49,3 +49,8 @@ src/routeTree.gen.ts
 .test-output.txt
 .phase12-stash/
 .claude/settings.local.json
+
+# cargo-fuzz (Phase 18 Task 90c) — runtime state; commit only the harness sources.
+src-tauri/fuzz/target/
+src-tauri/fuzz/artifacts/
+src-tauri/fuzz/corpus/
