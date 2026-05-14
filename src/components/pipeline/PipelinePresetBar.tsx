@@ -70,7 +70,6 @@ export function PipelinePresetBar() {
     void Promise.resolve().then(() => {
       void refresh();
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSave() {

@@ -234,7 +234,6 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
       // via Promise.resolve runs after the render commits.
       void Promise.resolve().then(reset);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   if (!isOpen) return null;

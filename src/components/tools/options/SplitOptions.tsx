@@ -6,6 +6,7 @@ export interface SplitOptionsValue {
   ranges: Array<{ from: number; to: number }>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_SPLIT_OPTIONS: SplitOptionsValue = {
   ranges: [{ from: 1, to: 1 }],
 };

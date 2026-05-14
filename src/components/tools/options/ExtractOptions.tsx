@@ -9,6 +9,7 @@ export interface ExtractOptionsValue {
   pageInput: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const DEFAULT_EXTRACT_OPTIONS: ExtractOptionsValue = {
   pageInput: "1",
 };
