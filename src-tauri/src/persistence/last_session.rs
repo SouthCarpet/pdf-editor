@@ -2,7 +2,9 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// Phase 17 Task 87 — exposed to FFI via specta::Type so the TypeScript
+// `SessionSlot` mirrors this row shape verbatim.
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct SessionSlot {
     pub slot: i64,
     pub doc_path: String,

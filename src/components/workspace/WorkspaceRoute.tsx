@@ -35,6 +35,26 @@ export function WorkspaceRoute() {
     if (search.tool) setTool(search.tool);
   }, [search.tool, setTool]);
 
+  // Phase 17 Task 87 — persist last-session slot on doc open + on
+  // unmount. v1 single-slot (slot=0); multi-tab is follow-up.
+  useEffect(() => {
+    if (!path) return;
+    const tool = search.tool ?? "edit";
+    commands
+      .sessionSave({
+        slot: 0,
+        doc_path: path,
+        tool,
+        scroll_y: 0,
+        zoom: 1.0,
+      })
+      .catch(() => {});
+    return () => {
+      // On unmount keep the slot (so a relaunch restores it). The
+      // "Discard" button in SessionRestorePrompt clears explicitly.
+    };
+  }, [path, search.tool]);
+
   const isCompareMode = search.tool === "compare";
 
   // Resolve docId → absolute file path. "new" triggers the picker; anything

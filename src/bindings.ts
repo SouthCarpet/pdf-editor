@@ -259,6 +259,18 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("recovery_attempt", { args })),
+	sessionSave: (slot: SessionSlot) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("session_save", { slot })),
+	sessionList: () => typedError<SessionSlot[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("session_list")),
+	sessionClear: () => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("session_clear")),
 };
 
 /* Types */
@@ -838,6 +850,14 @@ export type ScanLikelihood = {
 	is_likely_scanned: boolean,
 	avg_chars_per_page: number | null,
 	total_pages: number,
+};
+
+export type SessionSlot = {
+	slot: number,
+	doc_path: string,
+	tool: string,
+	scroll_y: number,
+	zoom: number | null,
 };
 
 export type SetFormArgs = {

@@ -21,6 +21,7 @@ pub mod project_io;
 pub mod projects;
 pub mod recovery;
 pub mod render;
+pub mod session;
 pub mod split;
 pub mod tessdata;
 pub mod unlock;

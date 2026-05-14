@@ -99,5 +99,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::project_io::project_import,
             // Phase 16 Task 81 — Recovery wizard (Dict + Brute; Mask Unimplemented).
             commands::recovery::recovery_attempt,
+            // Phase 17 Task 87 — Last session restore.
+            commands::session::session_save,
+            commands::session::session_list,
+            commands::session::session_clear,
         ])
 }
