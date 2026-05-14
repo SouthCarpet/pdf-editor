@@ -59,6 +59,11 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 # Phase 9 Task 53 Optimize tool: pipelines intermediate PDFs through a
 # scoped tempdir before the final copy to `output`.
 tempfile = "3"
+# Phase 14 Task 73 — Delta Y preservation flag set for pipeline nodes.
+bitflags = "2"
+# Phase 14 Task 77 — pipeline_run_on_folder_cmd uses walkdir to discover
+# PDFs in a chosen folder.
+walkdir = "2"
 
 # Delta P: SetUnhandledExceptionFilter for the Windows SEH crash logger
 # (segfault / access violation / stack overflow). Only used on target_os=windows
