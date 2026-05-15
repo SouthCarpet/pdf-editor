@@ -1,0 +1,46 @@
+# Force LF for source files so rustfmt (`newline_style = "Unix"`) passes on
+# the Windows CI runner (default `core.autocrlf` rewrites checkouts to CRLF
+# otherwise). See .vault/process/debug/debug_011_2026-05-15.md.
+
+*.rs        text eol=lf
+*.toml      text eol=lf
+*.json      text eol=lf
+*.jsonc     text eol=lf
+*.md        text eol=lf
+*.yml       text eol=lf
+*.yaml      text eol=lf
+*.ts        text eol=lf
+*.tsx       text eol=lf
+*.js        text eol=lf
+*.jsx       text eol=lf
+*.mjs       text eol=lf
+*.cjs       text eol=lf
+*.css       text eol=lf
+*.scss      text eol=lf
+*.html      text eol=lf
+*.svg       text eol=lf
+
+# PowerShell scripts are Windows-native — keep CRLF (or whatever)
+*.ps1       text
+*.psm1      text
+*.psd1      text
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.pdf       binary
+*.zip       binary
+*.7z        binary
+*.exe       binary
+*.dll       binary
+*.so        binary
+*.dylib     binary
+*.ttf       binary
+*.otf       binary
+*.woff      binary
+*.woff2     binary
