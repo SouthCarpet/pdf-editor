@@ -1,5 +1,6 @@
 use pdf_editor_lib::pipeline::dag::{
-    NodeCompressPreset, NodeKind, Pipeline, PipelineEdge, PipelineNode,
+    NodeCompressColorMode, NodeCompressDownsample, NodeCompressFilter, NodeCompressPreset,
+    NodeKind, NodePdfaEngine, Pipeline, PipelineEdge, PipelineNode, StripMetadataFieldsDto,
 };
 use pdf_editor_lib::pipeline::preservation::Artifact;
 
@@ -17,6 +18,13 @@ fn topo_orders_linear_pipeline() {
                     preset: NodeCompressPreset::Recommended,
                     custom_quality: None,
                     custom_dpi: None,
+                    color_dpi: None,
+                    gray_dpi: None,
+                    mono_dpi: None,
+                    color_mode: NodeCompressColorMode::default(),
+                    filter: NodeCompressFilter::default(),
+                    downsample: NodeCompressDownsample::default(),
+                    remove_exif: false,
                 },
             },
             PipelineNode {
@@ -78,12 +86,18 @@ fn optimize_flatten_strips_annotations() {
         linearize: false,
         remove_unused: false,
         subset_fonts: false,
+        subset_min_percent: 95,
         object_streams: false,
+        object_streams_level: 9,
         strip_metadata: false,
+        strip_metadata_fields: StripMetadataFieldsDto::default(),
         flatten_annotations: true,
+        flatten_include_forms: false,
         remove_form_data: false,
         make_searchable_ocr: None,
+        ocr_dpi: 300,
         convert_pdfa: None,
+        pdfa_engine: NodePdfaEngine::default(),
     };
     assert!(n.preservation().may_strip.contains(Artifact::ANNOTATIONS));
 }
