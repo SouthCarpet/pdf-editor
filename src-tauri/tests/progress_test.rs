@@ -12,7 +12,11 @@ async fn reporter_emits_started_progress_done() {
 
     let mut events = vec![];
     while let Ok(e) = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await {
-        if let Some(e) = e { events.push(e); } else { break; }
+        if let Some(e) = e {
+            events.push(e);
+        } else {
+            break;
+        }
     }
     assert_eq!(events.len(), 4);
     assert!(matches!(events[0], ProgressEvent::Started { .. }));

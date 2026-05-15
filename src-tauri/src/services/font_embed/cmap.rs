@@ -14,9 +14,7 @@ pub fn build_to_unicode_cmap(cid_to_codepoint: &BTreeMap<u16, char>) -> Vec<u8> 
     let mut out = String::new();
     out.push_str("/CIDInit /ProcSet findresource begin\n");
     out.push_str("12 dict begin\nbegincmap\n");
-    out.push_str(
-        "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n",
-    );
+    out.push_str("/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n");
     out.push_str("/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n");
     out.push_str("1 begincodespacerange <0000> <FFFF> endcodespacerange\n");
     let entries: Vec<_> = cid_to_codepoint.iter().collect();
@@ -36,9 +34,7 @@ pub fn build_to_unicode_cmap(cid_to_codepoint: &BTreeMap<u16, char>) -> Vec<u8> 
         }
         out.push_str("endbfchar\n");
     }
-    out.push_str(
-        "endcmap CMapName currentdict /CMap defineresource pop end end\n",
-    );
+    out.push_str("endcmap CMapName currentdict /CMap defineresource pop end end\n");
     out.into_bytes()
 }
 

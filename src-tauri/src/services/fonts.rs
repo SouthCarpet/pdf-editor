@@ -36,7 +36,14 @@ const STANDARD_14: &[(&str, &str, &str, u16, bool, bool)] = &[
     ("Helvetica", "Helvetica", "Regular", 400, false, false),
     ("Helvetica", "Helvetica-Bold", "Bold", 700, false, false),
     ("Helvetica", "Helvetica-Oblique", "Italic", 400, true, false),
-    ("Helvetica", "Helvetica-BoldOblique", "BoldItalic", 700, true, false),
+    (
+        "Helvetica",
+        "Helvetica-BoldOblique",
+        "BoldItalic",
+        700,
+        true,
+        false,
+    ),
     ("Times", "Times-Roman", "Regular", 400, false, false),
     ("Times", "Times-Bold", "Bold", 700, false, false),
     ("Times", "Times-Italic", "Italic", 400, true, false),
@@ -44,7 +51,14 @@ const STANDARD_14: &[(&str, &str, &str, u16, bool, bool)] = &[
     ("Courier", "Courier", "Regular", 400, false, true),
     ("Courier", "Courier-Bold", "Bold", 700, false, true),
     ("Courier", "Courier-Oblique", "Italic", 400, true, true),
-    ("Courier", "Courier-BoldOblique", "BoldItalic", 700, true, true),
+    (
+        "Courier",
+        "Courier-BoldOblique",
+        "BoldItalic",
+        700,
+        true,
+        true,
+    ),
     ("Symbol", "Symbol", "Regular", 400, false, false),
     ("ZapfDingbats", "ZapfDingbats", "Regular", 400, false, false),
 ];
@@ -52,16 +66,18 @@ const STANDARD_14: &[(&str, &str, &str, u16, bool, bool)] = &[
 fn standard_14_fonts() -> Vec<SystemFont> {
     STANDARD_14
         .iter()
-        .map(|(family, ps, style, weight, italic, monospace)| SystemFont {
-            family: (*family).to_string(),
-            postscript_name: (*ps).to_string(),
-            style: (*style).to_string(),
-            weight: *weight,
-            italic: *italic,
-            monospace: *monospace,
-            file_path: String::new(),
-            is_standard_14: true,
-        })
+        .map(
+            |(family, ps, style, weight, italic, monospace)| SystemFont {
+                family: (*family).to_string(),
+                postscript_name: (*ps).to_string(),
+                style: (*style).to_string(),
+                weight: *weight,
+                italic: *italic,
+                monospace: *monospace,
+                file_path: String::new(),
+                is_standard_14: true,
+            },
+        )
         .collect()
 }
 
@@ -122,7 +138,11 @@ fn enumerate_with_font_kit() -> Option<Vec<SystemFont>> {
             }
         }
     }
-    out.sort_by(|a, b| a.family.cmp(&b.family).then(a.postscript_name.cmp(&b.postscript_name)));
+    out.sort_by(|a, b| {
+        a.family
+            .cmp(&b.family)
+            .then(a.postscript_name.cmp(&b.postscript_name))
+    });
     Some(out)
 }
 
@@ -130,10 +150,14 @@ fn enumerate_with_font_kit() -> Option<Vec<SystemFont>> {
 /// in the system enumeration. Standard 14 entries have an empty `file_path`;
 /// callers must check `is_standard_14` before assuming a file exists.
 pub fn find_by_postscript_name(name: &str) -> Option<SystemFont> {
-    list_system_fonts().into_iter().find(|f| f.postscript_name == name)
+    list_system_fonts()
+        .into_iter()
+        .find(|f| f.postscript_name == name)
 }
 
 /// True if `postscript_name` is one of the 14 native PDF fonts.
 pub fn is_standard_14(postscript_name: &str) -> bool {
-    STANDARD_14.iter().any(|(_, ps, _, _, _, _)| *ps == postscript_name)
+    STANDARD_14
+        .iter()
+        .any(|(_, ps, _, _, _, _)| *ps == postscript_name)
 }

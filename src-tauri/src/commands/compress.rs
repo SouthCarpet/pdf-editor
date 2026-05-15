@@ -73,7 +73,9 @@ pub async fn compress_pdf_cmd(
     let input = PathBuf::from(&args.input);
     let output = PathBuf::from(&args.output);
     let before_bytes = std::fs::metadata(&input)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?
+        .map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?
         .len();
 
     let token = state.cancellation.register(&args.job_id);
@@ -84,7 +86,9 @@ pub async fn compress_pdf_cmd(
     state.cancellation.forget(&args.job_id);
 
     let after_bytes = std::fs::metadata(&output)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?
+        .map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?
         .len();
     Ok(CompressResult {
         output_paths: vec![args.output],

@@ -34,6 +34,15 @@ jobs:
           workspaces: src-tauri
       # cargo clippy needs dist/ for tauri::generate_context!()
       - run: pnpm build
+      # tauri-build validates that every bundle.externalBin path exists at
+      # compile time. Sidecars are gitignored, so we create zero-byte stubs.
+      - name: Create sidecar stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
+          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
+            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
@@ -76,6 +85,14 @@ jobs:
       # frontend first so the macro doesn't fail at compile time.
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # tauri-build validates bundle.externalBin paths at compile time.
+      - name: Create sidecar stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
+          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
+            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
   rust-property:
@@ -96,6 +113,13 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Create sidecar stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
+          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
+            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
       - run: cargo test --manifest-path src-tauri/Cargo.toml --test proptest_pdf_editor
 
   frontend-unit:
@@ -131,6 +155,13 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Create sidecar stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
+          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
+            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
       - run: pnpm gen:bindings
       - name: Verify bindings.ts in sync
         shell: pwsh
@@ -201,6 +232,13 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      - name: Create sidecar stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
+          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
+            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
       - run: cargo build --release --manifest-path src-tauri/Cargo.toml
       - shell: pwsh
         run: pwsh scripts/test-privacy.ps1

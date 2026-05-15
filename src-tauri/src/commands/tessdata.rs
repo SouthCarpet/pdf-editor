@@ -19,7 +19,11 @@ pub async fn list_ocr_languages(_state: State<'_, AppState>) -> AppResult<Vec<St
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for e in entries.flatten() {
                 let path = e.path();
-                if path.extension().map(|x| x == "traineddata").unwrap_or(false) {
+                if path
+                    .extension()
+                    .map(|x| x == "traineddata")
+                    .unwrap_or(false)
+                {
                     if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
                         langs.push(stem.to_string());
                     }
@@ -44,7 +48,9 @@ pub async fn add_ocr_language(
             detail: "expected .traineddata file".into(),
         });
     }
-    let dir = tessdata_extra_dir().map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let dir = tessdata_extra_dir().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     std::fs::create_dir_all(&dir)?;
     let file_name = src.file_name().ok_or_else(|| AppError::InvalidArgument {
         detail: "source path has no filename".into(),

@@ -38,8 +38,12 @@ pub async fn extract_pages_cmd(
     let out_for_thread = output.clone();
     tokio::task::spawn_blocking(move || extract_pages(&input, &pages, &out_for_thread))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(ExtractResult {
         output_paths: vec![args.output],

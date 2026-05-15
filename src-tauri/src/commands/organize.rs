@@ -5,9 +5,7 @@
 // `spawn_blocking` because lopdf I/O is synchronous.
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
-use crate::services::pdf_editor::{
-    delete_pages, insert_blank_page, reorder_pages, rotate_pages,
-};
+use crate::services::pdf_editor::{delete_pages, insert_blank_page, reorder_pages, rotate_pages};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::State;
@@ -40,8 +38,12 @@ pub async fn rotate_pages_cmd(
     let rotations = args.rotations.clone();
     tokio::task::spawn_blocking(move || rotate_pages(&input, &rotations, &output))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(OrganizeResult {
         output_paths: vec![args.output],
@@ -70,8 +72,12 @@ pub async fn delete_pages_cmd(
     let pages = args.pages.clone();
     tokio::task::spawn_blocking(move || delete_pages(&input, &pages, &output))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(OrganizeResult {
         output_paths: vec![args.output],
@@ -100,8 +106,12 @@ pub async fn reorder_pages_cmd(
     let order = args.new_order.clone();
     tokio::task::spawn_blocking(move || reorder_pages(&input, &order, &output))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(OrganizeResult {
         output_paths: vec![args.output],
@@ -137,8 +147,12 @@ pub async fn insert_blank_page_cmd(
     let h = args.height;
     tokio::task::spawn_blocking(move || insert_blank_page(&input, after, &output, w, h))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(OrganizeResult {
         output_paths: vec![args.output],

@@ -26,8 +26,12 @@ pub async fn apply_annotations_cmd(
     let a = args.annotations.clone();
     let result = tokio::task::spawn_blocking(move || apply_annotations(&i, &o, &a))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") });
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        });
     state.cancellation.forget(&args.job_id);
     result
 }

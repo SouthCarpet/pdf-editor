@@ -261,20 +261,48 @@ impl Default for StripMetadataFieldsDto {
 
 // ----- Default helpers for `#[serde(default = "...")]` -----
 
-fn default_true() -> bool { true }
-fn default_subset_min_percent() -> u8 { 95 }
-fn default_object_streams_level() -> u8 { 9 }
-fn default_ocr_dpi() -> u32 { 300 }
-fn default_raster_dpi() -> u32 { 150 }
-fn default_jpeg_quality() -> u8 { 85 }
-fn default_page_range() -> String { "all".to_string() }
-fn default_txt_page_separator() -> String { "\n\u{000c}\n".to_string() }
-fn default_pdfa_version() -> u8 { 2 }
-fn default_a4_width_mm() -> f32 { 210.0 }
-fn default_a4_height_mm() -> f32 { 297.0 }
-fn default_margin_mm() -> f32 { 10.0 }
-fn default_one_f32() -> f32 { 1.0 }
-fn default_crop_threshold() -> u8 { 240 }
+fn default_true() -> bool {
+    true
+}
+fn default_subset_min_percent() -> u8 {
+    95
+}
+fn default_object_streams_level() -> u8 {
+    9
+}
+fn default_ocr_dpi() -> u32 {
+    300
+}
+fn default_raster_dpi() -> u32 {
+    150
+}
+fn default_jpeg_quality() -> u8 {
+    85
+}
+fn default_page_range() -> String {
+    "all".to_string()
+}
+fn default_txt_page_separator() -> String {
+    "\n\u{000c}\n".to_string()
+}
+fn default_pdfa_version() -> u8 {
+    2
+}
+fn default_a4_width_mm() -> f32 {
+    210.0
+}
+fn default_a4_height_mm() -> f32 {
+    297.0
+}
+fn default_margin_mm() -> f32 {
+    10.0
+}
+fn default_one_f32() -> f32 {
+    1.0
+}
+fn default_crop_threshold() -> u8 {
+    240
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize, specta::Type)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -334,9 +362,7 @@ pub enum NodeKind {
     /// Decrypt via qpdf (Delta D: V=5 in-process AES-256 is deferred —
     /// pipeline currently funnels through the same qpdf-only path as the
     /// standalone Unlock tool).
-    Unlock {
-        password: Option<String>,
-    },
+    Unlock { password: Option<String> },
     /// Convert export — LibreOffice for office targets, mutool for raster,
     /// Ghostscript+LO for PDF/A (Delta E).
     ///
@@ -407,25 +433,17 @@ pub enum NodeKind {
     /// Merge all inputs into a single PDF.
     Merge {},
     /// Split each input into the given inclusive ranges.
-    Split {
-        ranges: Vec<[u32; 2]>,
-    },
+    Split { ranges: Vec<[u32; 2]> },
     /// Extract the given page numbers (1-based) into a single PDF.
-    Extract {
-        pages: Vec<u32>,
-    },
+    Extract { pages: Vec<u32> },
     /// Rotate per (page, angle) tuples.
     OrganizeRotate {
         rotations: Vec<[i64; 2]>, // [page, degrees]
     },
     /// Delete the given page numbers.
-    OrganizeDelete {
-        pages: Vec<u32>,
-    },
+    OrganizeDelete { pages: Vec<u32> },
     /// Reorder pages to the given 1-based sequence.
-    OrganizeReorder {
-        new_order: Vec<u32>,
-    },
+    OrganizeReorder { new_order: Vec<u32> },
     /// Insert a blank page after `after_page_index` (0-based).
     OrganizeInsertBlank {
         after_page_index: u32,
@@ -470,16 +488,10 @@ pub enum NodeKind {
         despeckle: bool,
     },
     /// Diagonal text watermark (lopdf overlay).
-    Watermark {
-        text: String,
-        opacity: f32,
-    },
+    Watermark { text: String, opacity: f32 },
     /// Save current files into `dir` using `name_template` (supports
     /// `{stem}`, `{i}`, `{date}`, `{tool}` placeholders).
-    Save {
-        dir: String,
-        name_template: String,
-    },
+    Save { dir: String, name_template: String },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]

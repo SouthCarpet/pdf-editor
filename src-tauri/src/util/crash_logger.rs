@@ -38,7 +38,9 @@ pub struct TraceRing(Arc<Mutex<VecDeque<String>>>);
 
 impl TraceRing {
     pub fn new() -> Self {
-        Self(Arc::new(Mutex::new(VecDeque::with_capacity(RING_BUFFER_SIZE))))
+        Self(Arc::new(Mutex::new(VecDeque::with_capacity(
+            RING_BUFFER_SIZE,
+        ))))
     }
 
     pub fn push(&self, line: String) {

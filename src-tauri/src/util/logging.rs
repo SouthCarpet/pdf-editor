@@ -37,11 +37,7 @@ impl<S: Subscriber> Layer<S> for RingLayer {
         // Visitor that flattens each (field, value) pair into the line.
         struct V<'a>(&'a mut String);
         impl<'a> tracing::field::Visit for V<'a> {
-            fn record_debug(
-                &mut self,
-                field: &tracing::field::Field,
-                value: &dyn std::fmt::Debug,
-            ) {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
                 let _ = write!(self.0, "{}={:?} ", field.name(), value);
             }
         }
@@ -66,7 +62,10 @@ pub fn init_logging(logs_dir: &Path, level: &str, ring: TraceRing) -> Result<Wor
     let filter = EnvFilter::try_new(level).unwrap_or_else(|_| EnvFilter::new("info"));
 
     let stdout_layer = fmt::layer().with_target(true).with_ansi(false);
-    let file_layer = fmt::layer().with_writer(file_writer).with_ansi(false).json();
+    let file_layer = fmt::layer()
+        .with_writer(file_writer)
+        .with_ansi(false)
+        .json();
     let ring_layer = RingLayer { ring };
 
     tracing_subscriber::registry()

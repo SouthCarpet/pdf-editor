@@ -24,10 +24,7 @@ pub struct SplitResult {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn split_pdf_cmd(
-    state: State<'_, AppState>,
-    args: SplitArgs,
-) -> AppResult<SplitResult> {
+pub async fn split_pdf_cmd(state: State<'_, AppState>, args: SplitArgs) -> AppResult<SplitResult> {
     if args.ranges.is_empty() {
         return Err(AppError::InvalidArgument {
             detail: "no ranges provided".into(),
@@ -36,17 +33,17 @@ pub async fn split_pdf_cmd(
     let _token = state.cancellation.register(&args.job_id);
     let input = PathBuf::from(&args.input);
     let out_dir = PathBuf::from(&args.out_dir);
-    let ranges: Vec<RangeInclusive<u32>> = args
-        .ranges
-        .iter()
-        .map(|[a, b]| *a..=*b)
-        .collect();
+    let ranges: Vec<RangeInclusive<u32>> = args.ranges.iter().map(|[a, b]| *a..=*b).collect();
 
     let outputs: Vec<PathBuf> =
         tokio::task::spawn_blocking(move || split_pdf(&input, &ranges, &out_dir))
             .await
-            .map_err(|e| AppError::Internal { detail: e.to_string() })?
-            .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+            .map_err(|e| AppError::Internal {
+                detail: e.to_string(),
+            })?
+            .map_err(|e| AppError::Internal {
+                detail: format!("{e:#}"),
+            })?;
 
     state.cancellation.forget(&args.job_id);
     Ok(SplitResult {

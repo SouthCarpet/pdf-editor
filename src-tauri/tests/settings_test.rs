@@ -1,4 +1,6 @@
-use pdf_editor_lib::persistence::settings::{load_settings, save_settings, AppSettings, Theme, Language};
+use pdf_editor_lib::persistence::settings::{
+    load_settings, save_settings, AppSettings, Language, Theme,
+};
 use tempfile::TempDir;
 
 #[tokio::test]

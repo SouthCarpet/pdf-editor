@@ -15,7 +15,9 @@ pub async fn list_fonts_cmd(state: State<'_, AppState>) -> AppResult<Vec<SystemF
         .get_or_try_init(|| async {
             tokio::task::spawn_blocking(list_system_fonts)
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })
         })
         .await?;
     Ok(result.clone())

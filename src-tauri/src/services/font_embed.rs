@@ -27,8 +27,8 @@ use ttf_parser::{Face, GlyphId, Tag};
 // SFNT table tags we copy through unchanged (when present) when emitting
 // the subset.
 const TABLES_PASSTHROUGH: &[&[u8; 4]] = &[
-    b"head", b"hhea", b"maxp", b"hmtx", b"name", b"OS/2", b"post", b"cvt ",
-    b"prep", b"fpgm", b"cmap",
+    b"head", b"hhea", b"maxp", b"hmtx", b"name", b"OS/2", b"post", b"cvt ", b"prep", b"fpgm",
+    b"cmap",
 ];
 
 /// In-memory subsetter for a single TTF font. Tracks the set of characters
@@ -52,8 +52,7 @@ impl FontSubsetter {
 
     /// Same as new_from_path but takes raw bytes (used by tests).
     pub fn new_from_bytes(bytes: Vec<u8>) -> Result<Self> {
-        let face =
-            Face::parse(&bytes, 0).with_context(|| "parse TTF face")?;
+        let face = Face::parse(&bytes, 0).with_context(|| "parse TTF face")?;
         // Read PS name from the `name` table; fall back to "EMBED" if not
         // present.
         let ps_name = face
@@ -135,8 +134,7 @@ impl FontSubsetter {
                         break;
                     }
                     let flags = u16::from_be_bytes([body[pos], body[pos + 1]]);
-                    let comp_gid =
-                        u16::from_be_bytes([body[pos + 2], body[pos + 3]]);
+                    let comp_gid = u16::from_be_bytes([body[pos + 2], body[pos + 3]]);
                     pos += 4;
                     if used.insert(comp_gid) {
                         to_walk.push(comp_gid);
@@ -169,14 +167,17 @@ impl FontSubsetter {
     /// hmtx (length stays = numGlyphs), maxp.numGlyphs all stay the same.
     /// This produces a valid TTF that any conformant reader accepts.
     pub fn build_subset(&self) -> Result<Vec<u8>> {
-        let face =
-            Face::parse(&self.font_data, 0).context("re-parse TTF for subset")?;
+        let face = Face::parse(&self.font_data, 0).context("re-parse TTF for subset")?;
         let raw = face.raw_face();
 
-        let head = raw.table(Tag::from_bytes(b"head")).context("missing head")?;
+        let head = raw
+            .table(Tag::from_bytes(b"head"))
+            .context("missing head")?;
         let glyf = raw.table(Tag::from_bytes(b"glyf"));
         let loca = raw.table(Tag::from_bytes(b"loca"));
-        let maxp = raw.table(Tag::from_bytes(b"maxp")).context("missing maxp")?;
+        let maxp = raw
+            .table(Tag::from_bytes(b"maxp"))
+            .context("missing maxp")?;
 
         // Determine num_glyphs from maxp (offset 4, u16).
         if maxp.len() < 6 {
@@ -281,11 +282,7 @@ impl FontSubsetter {
 
     /// Fallback path for large fonts where the short loca format isn't big
     /// enough. Rewrites head.indexToLocFormat = 1 and emits 4-byte offsets.
-    fn build_subset_long(
-        &self,
-        num_glyphs: u16,
-        used: BTreeSet<u16>,
-    ) -> Result<Vec<u8>> {
+    fn build_subset_long(&self, num_glyphs: u16, used: BTreeSet<u16>) -> Result<Vec<u8>> {
         let face = Face::parse(&self.font_data, 0).context("re-parse TTF")?;
         let raw = face.raw_face();
         let head = raw.table(Tag::from_bytes(b"head")).context("head")?;
@@ -345,10 +342,10 @@ impl FontSubsetter {
         // /FontDescriptor /FontBBox  [xMin yMin xMax yMax] in 1000-units.
         let bbox = face.global_bounding_box();
         let font_bbox = vec![
-            Object::Real((bbox.x_min as f32 * scale) as f32),
-            Object::Real((bbox.y_min as f32 * scale) as f32),
-            Object::Real((bbox.x_max as f32 * scale) as f32),
-            Object::Real((bbox.y_max as f32 * scale) as f32),
+            Object::Real(bbox.x_min as f32 * scale),
+            Object::Real(bbox.y_min as f32 * scale),
+            Object::Real(bbox.x_max as f32 * scale),
+            Object::Real(bbox.y_max as f32 * scale),
         ];
 
         // Build the subsetted TTF byte stream.
@@ -365,11 +362,11 @@ impl FontSubsetter {
         let font_file_id = doc.add_object(Object::Stream(font_file_stream));
 
         // /FontDescriptor dict.
-        let ascent = (face.ascender() as f32 * scale) as f32;
-        let descent = (face.descender() as f32 * scale) as f32;
+        let ascent = face.ascender() as f32 * scale;
+        let descent = face.descender() as f32 * scale;
         let cap_height = face
             .capital_height()
-            .map(|c| (c as f32 * scale) as f32)
+            .map(|c| c as f32 * scale)
             .unwrap_or(ascent);
         let italic_angle: f32 = face.italic_angle().unwrap_or(0.0);
         // Flags: bit 6 (nonsymbolic) for Latin text. For full-Unicode fonts
@@ -397,9 +394,7 @@ impl FontSubsetter {
         let mut widths: Vec<(u16, i64)> = Vec::new();
         for cid in &used {
             let gid = GlyphId(*cid);
-            let advance = face
-                .glyph_hor_advance(gid)
-                .unwrap_or(0);
+            let advance = face.glyph_hor_advance(gid).unwrap_or(0);
             let w = ((advance as f32) * scale) as i64;
             widths.push((*cid, w));
         }
@@ -483,14 +478,8 @@ fn glyph_range(loca: &[u8], loc_format: u16, g: u16) -> (usize, usize) {
         if i + 8 > loca.len() {
             return (0, 0);
         }
-        let s = u32::from_be_bytes([loca[i], loca[i + 1], loca[i + 2], loca[i + 3]])
-            as usize;
-        let e = u32::from_be_bytes([
-            loca[i + 4],
-            loca[i + 5],
-            loca[i + 6],
-            loca[i + 7],
-        ]) as usize;
+        let s = u32::from_be_bytes([loca[i], loca[i + 1], loca[i + 2], loca[i + 3]]) as usize;
+        let e = u32::from_be_bytes([loca[i + 4], loca[i + 5], loca[i + 6], loca[i + 7]]) as usize;
         (s, e)
     }
 }
@@ -584,8 +573,7 @@ fn table_checksum(data: &[u8]) -> u32 {
     let mut sum: u32 = 0;
     let mut i = 0;
     while i + 4 <= data.len() {
-        let v =
-            u32::from_be_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
+        let v = u32::from_be_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
         sum = sum.wrapping_add(v);
         i += 4;
     }

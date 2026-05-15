@@ -9,8 +9,11 @@ async fn db_pool_initializes_and_migrates() {
     let pool = create_pool(&db_path).await.expect("pool");
     run_migrations(&pool).await.expect("migrate");
 
-    let row = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name='recent_files'")
-        .fetch_one(&pool).await.expect("query");
+    let row =
+        sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name='recent_files'")
+            .fetch_one(&pool)
+            .await
+            .expect("query");
     let name: String = row.get(0);
     assert_eq!(name, "recent_files");
 }

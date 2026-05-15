@@ -21,7 +21,14 @@ fn app_error_sidecar_stderr_tail_is_capped_at_500_chars() {
     // type itself accepts the bounded shape so the contract holds at
     // the error-construction site too.
     let big = "x".repeat(10_000);
-    let tail: String = big.chars().rev().take(500).collect::<String>().chars().rev().collect();
+    let tail: String = big
+        .chars()
+        .rev()
+        .take(500)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
     let err = AppError::SidecarFailed {
         tool: "qpdf".into(),
         exit_code: 1,
@@ -31,7 +38,11 @@ fn app_error_sidecar_stderr_tail_is_capped_at_500_chars() {
     // Serialized payload must include only the truncated tail.
     let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
     let stderr = parsed["data"]["stderr_tail"].as_str().unwrap();
-    assert!(stderr.len() <= 500, "stderr_tail must be <= 500 chars, got {}", stderr.len());
+    assert!(
+        stderr.len() <= 500,
+        "stderr_tail must be <= 500 chars, got {}",
+        stderr.len()
+    );
 }
 
 #[tokio::test]

@@ -40,17 +40,31 @@ pub async fn list_recent(pool: &SqlitePool, limit: i64) -> Result<Vec<RecentFile
     .bind(limit)
     .fetch_all(pool)
     .await?;
-    Ok(rows.into_iter().map(|(path, display_name, last_opened_at, page_count, size_bytes)| {
-        RecentFile { path, display_name, last_opened_at, page_count, size_bytes }
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(
+            |(path, display_name, last_opened_at, page_count, size_bytes)| RecentFile {
+                path,
+                display_name,
+                last_opened_at,
+                page_count,
+                size_bytes,
+            },
+        )
+        .collect())
 }
 
 pub async fn remove_recent(pool: &SqlitePool, path: &str) -> Result<()> {
-    sqlx::query("DELETE FROM recent_files WHERE path = ?").bind(path).execute(pool).await?;
+    sqlx::query("DELETE FROM recent_files WHERE path = ?")
+        .bind(path)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 pub async fn clear_recent(pool: &SqlitePool) -> Result<()> {
-    sqlx::query("DELETE FROM recent_files").execute(pool).await?;
+    sqlx::query("DELETE FROM recent_files")
+        .execute(pool)
+        .await?;
     Ok(())
 }

@@ -25,10 +25,7 @@ pub struct MergeResult {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn merge_pdfs_cmd(
-    state: State<'_, AppState>,
-    args: MergeArgs,
-) -> AppResult<MergeResult> {
+pub async fn merge_pdfs_cmd(state: State<'_, AppState>, args: MergeArgs) -> AppResult<MergeResult> {
     if args.inputs.len() < 2 {
         return Err(AppError::InvalidArgument {
             detail: "need at least 2 files".into(),
@@ -40,8 +37,12 @@ pub async fn merge_pdfs_cmd(
     let output_for_thread = output.clone();
     tokio::task::spawn_blocking(move || pdf_editor::merge_pdfs(&inputs, &output_for_thread))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(MergeResult {
         output_paths: vec![args.output],

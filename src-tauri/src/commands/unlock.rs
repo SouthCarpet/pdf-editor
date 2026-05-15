@@ -38,10 +38,7 @@ pub enum UnlockResult {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn detect_pdf_encryption(
-    _state: State<'_, AppState>,
-    input: String,
-) -> AppResult<bool> {
+pub async fn detect_pdf_encryption(_state: State<'_, AppState>, input: String) -> AppResult<bool> {
     let p = PathBuf::from(input);
     tokio::task::spawn_blocking(move || -> AppResult<bool> {
         match lopdf::Document::load(&p) {
@@ -55,13 +52,17 @@ pub async fn detect_pdf_encryption(
                 if msg.contains("password") || msg.contains("encrypt") {
                     Ok(true)
                 } else {
-                    Err(AppError::PdfCorrupted { detail: e.to_string() })
+                    Err(AppError::PdfCorrupted {
+                        detail: e.to_string(),
+                    })
                 }
             }
         }
     })
     .await
-    .map_err(|e| AppError::Internal { detail: e.to_string() })?
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?
 }
 
 #[tauri::command]
@@ -82,16 +83,14 @@ pub async fn unlock_pdf_cmd(
         Ok(_) => Ok(UnlockResult::Ok {
             output_paths: vec![args.output],
         }),
-        Err(AppError::SidecarFailed { ref stderr_tail, .. })
-            if stderr_tail.to_lowercase().contains("invalid password") =>
-        {
+        Err(AppError::SidecarFailed {
+            ref stderr_tail, ..
+        }) if stderr_tail.to_lowercase().contains("invalid password") => {
             Err(AppError::PasswordInvalid)
         }
-        Err(AppError::SidecarFailed { ref stderr_tail, .. })
-            if stderr_tail.to_lowercase().contains("password") =>
-        {
-            Err(AppError::PasswordRequired)
-        }
+        Err(AppError::SidecarFailed {
+            ref stderr_tail, ..
+        }) if stderr_tail.to_lowercase().contains("password") => Err(AppError::PasswordRequired),
         Err(e) => Err(e),
     }
 }

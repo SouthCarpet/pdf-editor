@@ -20,7 +20,10 @@ async fn cancel_unknown_is_noop() {
 async fn token_can_be_awaited() {
     let reg = CancellationRegistry::new();
     let token = reg.register("job-2");
-    let h = tokio::spawn(async move { token.cancelled().await; "cancelled" });
+    let h = tokio::spawn(async move {
+        token.cancelled().await;
+        "cancelled"
+    });
     tokio::time::sleep(Duration::from_millis(10)).await;
     reg.cancel("job-2");
     assert_eq!(h.await.unwrap(), "cancelled");

@@ -52,7 +52,9 @@ pub async fn compare_visual_cmd(
         Ok((l.page_count(), r.page_count()))
     })
     .await
-    .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })??;
 
     let pages = l_pages.max(r_pages);
     let opts = DiffOptions {
@@ -68,13 +70,13 @@ pub async fn compare_visual_cmd(
         // Render each side via the mupdf sidecar. Skip pages that don't
         // exist on a particular side — the PNG simply won't be produced
         // and the diff will be all-changed for that span.
-        if (i as usize) < l_pages {
+        if i < l_pages {
             state
                 .mupdf
                 .render_page_to_png(&left, i as u32, &l_png, opts.dpi, None)
                 .await?;
         }
-        if (i as usize) < r_pages {
+        if i < r_pages {
             state
                 .mupdf
                 .render_page_to_png(&right, i as u32, &r_png, opts.dpi, None)
@@ -93,13 +95,17 @@ pub async fn compare_visual_cmd(
                 (Some(a), Some(b)) => pixel_diff(&a, &b, tolerance),
                 _ => (RgbaImage::new(10, 10), 1.0),
             };
-            diff_img.save(&diff_path_for_thread).map_err(|e| AppError::Internal {
-                detail: format!("save diff: {e}"),
-            })?;
+            diff_img
+                .save(&diff_path_for_thread)
+                .map_err(|e| AppError::Internal {
+                    detail: format!("save diff: {e}"),
+                })?;
             Ok(ratio)
         })
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })??;
 
         results.push(VisualDiffPage {
             page_index: i,
@@ -123,8 +129,12 @@ pub async fn compare_text_cmd(
     let right = PathBuf::from(&args.right);
     let result = tokio::task::spawn_blocking(move || text_diff_pdfs(&left, &right))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     state.cancellation.forget(&args.job_id);
     Ok(result)
 }

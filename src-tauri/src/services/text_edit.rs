@@ -92,13 +92,9 @@ pub fn extract_runs(input: &Path) -> Result<Vec<TextRun>> {
                 }
                 "Tj" => {
                     if let Some(Object::String(bytes, _)) = op.operands.first() {
-                        let decoded = decode_for_display(
-                            &doc,
-                            current_font.as_deref(),
-                            bytes,
-                        );
+                        let decoded = decode_for_display(&doc, current_font.as_deref(), bytes);
                         out.push(TextRun {
-                            page: page_index as u32,
+                            page: page_index,
                             text: decoded,
                             bbox,
                             operator_index: i as u32,
@@ -122,7 +118,7 @@ pub fn extract_runs(input: &Path) -> Result<Vec<TextRun>> {
                             }
                         }
                         out.push(TextRun {
-                            page: page_index as u32,
+                            page: page_index,
                             text: combined,
                             bbox,
                             operator_index: i as u32,
@@ -150,8 +146,9 @@ pub fn replace_run(
     operator_index: u32,
     new_text: &str,
 ) -> AppResult<()> {
-    let mut doc =
-        Document::load(input).map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let mut doc = Document::load(input).map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     let pages = doc.get_pages();
     let page_id = *pages
         .get(&(page_index + 1))
@@ -161,7 +158,9 @@ pub fn replace_run(
 
     let mut content = doc
         .get_and_decode_page_content(page_id)
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
 
     // Walk operations to find the target Tj/TJ AND the most-recent /Tf so
     // we know which font's encoding to invert.
@@ -198,16 +197,17 @@ pub fn replace_run(
     }
 
     // Look up the font dictionary to learn the encoding.
-    let font_obj = current_font_alias
-        .as_ref()
-        .and_then(|alias| {
-            let res = page_resources_font_object(&doc, page_id, alias)?;
-            Some(res)
-        });
+    let font_obj = current_font_alias.as_ref().and_then(|alias| {
+        let res = page_resources_font_object(&doc, page_id, alias)?;
+        Some(res)
+    });
     let new_bytes = encode_for_font(&doc, font_obj, new_text)?;
 
     let new_op = if op.operator == "Tj" {
-        Operation::new("Tj", vec![Object::String(new_bytes, lopdf::StringFormat::Hexadecimal)])
+        Operation::new(
+            "Tj",
+            vec![Object::String(new_bytes, lopdf::StringFormat::Hexadecimal)],
+        )
     } else {
         Operation::new(
             "TJ",
@@ -220,15 +220,20 @@ pub fn replace_run(
     content.operations[target] = new_op;
 
     // Re-encode content stream and replace.
-    let new_bytes_stream = content
-        .encode()
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
-    replace_page_content_stream(&mut doc, page_id, new_bytes_stream)
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let new_bytes_stream = content.encode().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
+    replace_page_content_stream(&mut doc, page_id, new_bytes_stream).map_err(|e| {
+        AppError::Internal {
+            detail: e.to_string(),
+        }
+    })?;
     let _ = current_font_ps; // silence unused-warning; kept for future width remap
 
     doc.compress();
-    doc.save(output).map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    doc.save(output).map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     Ok(())
 }
 
@@ -263,8 +268,7 @@ fn page_resources_font_object(
 /// Map a page's /Resources /Font dictionary into a HashMap<alias, postscript_name>.
 fn page_font_dict(doc: &Document, page_id: ObjectId) -> HashMap<String, String> {
     let mut out = HashMap::new();
-    let Some(page) = doc.get_object(page_id).ok().and_then(|o| o.as_dict().ok())
-    else {
+    let Some(page) = doc.get_object(page_id).ok().and_then(|o| o.as_dict().ok()) else {
         return out;
     };
     let res = match page.get(b"Resources") {
@@ -293,7 +297,10 @@ fn page_font_dict(doc: &Document, page_id: ObjectId) -> HashMap<String, String> 
         let alias = String::from_utf8_lossy(k).to_string();
         let font_dict = match v {
             Object::Dictionary(d) => Some(d.clone()),
-            Object::Reference(r) => doc.get_object(*r).ok().and_then(|o| o.as_dict().ok().cloned()),
+            Object::Reference(r) => doc
+                .get_object(*r)
+                .ok()
+                .and_then(|o| o.as_dict().ok().cloned()),
             _ => None,
         };
         let ps = font_dict
@@ -375,17 +382,12 @@ fn encode_for_font(
 }
 
 /// Type0/Identity-H + /ToUnicode → invert the CMap to UTF-8 → CID.
-fn encode_type0(
-    doc: &Document,
-    font: &lopdf::Dictionary,
-    new_text: &str,
-) -> AppResult<Vec<u8>> {
-    let to_unicode = font
-        .get(b"ToUnicode")
-        .and_then(|o| o.as_reference())
-        .ok();
+fn encode_type0(doc: &Document, font: &lopdf::Dictionary, new_text: &str) -> AppResult<Vec<u8>> {
+    let to_unicode = font.get(b"ToUnicode").and_then(|o| o.as_reference()).ok();
     let to_unicode_bytes = match to_unicode.and_then(|r| doc.get_object(r).ok()) {
-        Some(Object::Stream(s)) => s.decompressed_content().unwrap_or_else(|_| s.content.clone()),
+        Some(Object::Stream(s)) => s
+            .decompressed_content()
+            .unwrap_or_else(|_| s.content.clone()),
         _ => {
             return Err(AppError::EncodingMismatch {
                 detail: "Type0 font has no /ToUnicode CMap; cannot invert".into(),
@@ -450,7 +452,7 @@ fn encode_simple(font: &lopdf::Dictionary, new_text: &str) -> AppResult<Vec<u8>>
 
 fn lookup_to_unicode_map(doc: &Document, ps_name: &str) -> Option<HashMap<u16, char>> {
     // Walk all font objects until we find one with a matching BaseFont.
-    for (_id, obj) in &doc.objects {
+    for obj in doc.objects.values() {
         let Object::Dictionary(d) = obj else { continue };
         let Ok(name) = d.get(b"BaseFont").and_then(|o| o.as_name_str()) else {
             continue;
@@ -583,8 +585,7 @@ fn parse_bfrange_line(line: &str, map: &mut HashMap<u16, char>) {
     } else if let Some(base) = parse_hex_codepoint(parts[2]) {
         // Consecutive: base, base+1, ...
         for (offset, cid) in (start..=end).enumerate() {
-            let cp =
-                char::from_u32(base as u32 + offset as u32).unwrap_or(base);
+            let cp = char::from_u32(base as u32 + offset as u32).unwrap_or(base);
             map.insert(cid, cp);
         }
     }

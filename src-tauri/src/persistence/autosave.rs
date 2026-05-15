@@ -12,11 +12,16 @@ pub async fn put_autosave(pool: &SqlitePool, doc_path: &str, patch_json: &str) -
 
 pub async fn get_autosave(pool: &SqlitePool, doc_path: &str) -> Result<Option<String>> {
     let row = sqlx::query_as::<_, (String,)>("SELECT patch_json FROM autosave WHERE doc_path = ?")
-        .bind(doc_path).fetch_optional(pool).await?;
+        .bind(doc_path)
+        .fetch_optional(pool)
+        .await?;
     Ok(row.map(|(json,)| json))
 }
 
 pub async fn delete_autosave(pool: &SqlitePool, doc_path: &str) -> Result<()> {
-    sqlx::query("DELETE FROM autosave WHERE doc_path = ?").bind(doc_path).execute(pool).await?;
+    sqlx::query("DELETE FROM autosave WHERE doc_path = ?")
+        .bind(doc_path)
+        .execute(pool)
+        .await?;
     Ok(())
 }

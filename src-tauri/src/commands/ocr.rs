@@ -16,9 +16,7 @@ use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
 use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts;
-use crate::services::ocr_engine::{
-    build_text_layer_from_hocr, OcrOptions, OcrOutputMode,
-};
+use crate::services::ocr_engine::{build_text_layer_from_hocr, OcrOptions, OcrOutputMode};
 use lopdf::{dictionary, Document, Object, Stream};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -73,13 +71,15 @@ async fn ocr_pdf(
 ) -> AppResult<OcrResult> {
     // Load doc up-front to enumerate pages + bbox.
     let page_count = {
-        let doc = Document::load(&input)
-            .map_err(|e| AppError::Internal { detail: format!("load: {e}") })?;
+        let doc = Document::load(&input).map_err(|e| AppError::Internal {
+            detail: format!("load: {e}"),
+        })?;
         doc.get_pages().len() as u32
     };
 
-    let tempdir =
-        TempDir::new().map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let tempdir = TempDir::new().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     let mut hocr_per_page: Vec<(u32, String, u32, u32)> = Vec::new(); // page_index, hocr, pixel_w, pixel_h
     let mut total_chars = 0usize;
 
@@ -89,7 +89,13 @@ async fn ocr_pdf(
         }
         let raster_path = tempdir.path().join(format!("page-{page_index}.png"));
         mupdf
-            .render_page_to_png(&input, page_index, &raster_path, options.dpi, Some(cancel.clone()))
+            .render_page_to_png(
+                &input,
+                page_index,
+                &raster_path,
+                options.dpi,
+                Some(cancel.clone()),
+            )
             .await?;
         // Read raster dimensions to map bbox correctly.
         let (pixel_w, pixel_h) = read_png_dimensions(&raster_path).unwrap_or((1, 1));
@@ -102,8 +108,7 @@ async fn ocr_pdf(
 
     // Extract plain text up-front so we can hand `hocr_per_page` to the
     // blocking closure without contending with the immutable borrow.
-    let plain_text =
-        tesseract_text_from_hocrs(&hocr_per_page_text(&hocr_per_page));
+    let plain_text = tesseract_text_from_hocrs(&hocr_per_page_text(&hocr_per_page));
 
     // Inject overlays unless TextOnly mode.
     if !matches!(options.output, OcrOutputMode::TextOnly) {
@@ -115,13 +120,20 @@ async fn ocr_pdf(
             inject_text_layers(&in_clone, &out_clone, &opts_clone, &hocr_clone)
         })
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
     }
 
     // Sidecar .txt path for PdfPlusText / TextOnly.
     let mut output_paths = vec![output.display().to_string()];
-    if matches!(options.output, OcrOutputMode::PdfPlusText | OcrOutputMode::TextOnly) {
+    if matches!(
+        options.output,
+        OcrOutputMode::PdfPlusText | OcrOutputMode::TextOnly
+    ) {
         let txt_path = output.with_extension("txt");
         std::fs::write(&txt_path, plain_text)?;
         output_paths.push(txt_path.display().to_string());
@@ -176,30 +188,34 @@ fn pick_ocr_font() -> Option<crate::services::fonts::SystemFont> {
     {
         return Some(f.clone());
     }
-    if let Some(f) = all.iter().find(|f| {
-        f.family == "Arial" && f.style == "Regular" && !f.is_standard_14
-    }) {
+    if let Some(f) = all
+        .iter()
+        .find(|f| f.family == "Arial" && f.style == "Regular" && !f.is_standard_14)
+    {
         return Some(f.clone());
     }
     // 2. First non-Standard-14 sans-serif Regular face we can identify.
     let known_sans = [
-        "Segoe UI", "Helvetica", "Liberation Sans", "DejaVu Sans",
-        "Noto Sans", "Calibri", "Verdana", "Tahoma",
+        "Segoe UI",
+        "Helvetica",
+        "Liberation Sans",
+        "DejaVu Sans",
+        "Noto Sans",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
     ];
     for fam in known_sans.iter() {
-        if let Some(f) = all.iter().find(|f| {
-            f.family == *fam && f.style == "Regular" && !f.is_standard_14
-        }) {
+        if let Some(f) = all
+            .iter()
+            .find(|f| f.family == *fam && f.style == "Regular" && !f.is_standard_14)
+        {
             return Some(f.clone());
         }
     }
     // 3. Any non-monospace, non-italic, non-Standard-14 face.
     all.into_iter().find(|f| {
-        !f.is_standard_14
-            && !f.italic
-            && !f.monospace
-            && !f.file_path.is_empty()
-            && f.weight <= 500
+        !f.is_standard_14 && !f.italic && !f.monospace && !f.file_path.is_empty() && f.weight <= 500
     })
 }
 
@@ -231,9 +247,16 @@ pub fn inject_text_layers(
         .iter()
         .filter_map(|(page_index, hocr, pixel_w, pixel_h)| {
             let &page_id = pages_map.get(&(page_index + 1))?;
-            let (page_w, page_h) =
-                page_dimensions(&doc, page_id).unwrap_or((612.0, 792.0));
-            Some((*page_index, hocr.clone(), *pixel_w, *pixel_h, page_id, page_w, page_h))
+            let (page_w, page_h) = page_dimensions(&doc, page_id).unwrap_or((612.0, 792.0));
+            Some((
+                *page_index,
+                hocr.clone(),
+                *pixel_w,
+                *pixel_h,
+                page_id,
+                page_w,
+                page_h,
+            ))
         })
         .collect();
 
@@ -286,8 +309,7 @@ pub fn inject_text_layers(
     };
 
     for (page_id, stream_bytes) in stream_specs {
-        let stream_id =
-            doc.add_object(Object::Stream(Stream::new(dictionary! {}, stream_bytes)));
+        let stream_id = doc.add_object(Object::Stream(Stream::new(dictionary! {}, stream_bytes)));
         if let Some(obj) = doc.objects.get_mut(&page_id) {
             if let Ok(d) = obj.as_dict_mut() {
                 let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
@@ -353,7 +375,10 @@ fn ensure_helv_font(page: &mut lopdf::Dictionary, helv_id: lopdf::ObjectId) {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn detect_scanned_pdf(state: State<'_, AppState>, path: String) -> AppResult<ScanLikelihood> {
+pub async fn detect_scanned_pdf(
+    state: State<'_, AppState>,
+    path: String,
+) -> AppResult<ScanLikelihood> {
     let p = PathBuf::from(&path);
     let mupdf = state.mupdf.clone();
     // Extract all text from the document (mutool draw -F text); split on

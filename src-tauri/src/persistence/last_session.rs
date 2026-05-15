@@ -23,14 +23,25 @@ pub async fn save_session_slot(pool: &SqlitePool, s: &SessionSlot) -> Result<()>
 
 pub async fn list_session(pool: &SqlitePool) -> Result<Vec<SessionSlot>> {
     let rows = sqlx::query_as::<_, (i64, String, String, i64, f64)>(
-        "SELECT slot, doc_path, tool, scroll_y, zoom FROM last_session ORDER BY slot"
-    ).fetch_all(pool).await?;
-    Ok(rows.into_iter().map(|(slot, doc_path, tool, scroll_y, zoom)| {
-        SessionSlot { slot, doc_path, tool, scroll_y, zoom }
-    }).collect())
+        "SELECT slot, doc_path, tool, scroll_y, zoom FROM last_session ORDER BY slot",
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|(slot, doc_path, tool, scroll_y, zoom)| SessionSlot {
+            slot,
+            doc_path,
+            tool,
+            scroll_y,
+            zoom,
+        })
+        .collect())
 }
 
 pub async fn clear_session(pool: &SqlitePool) -> Result<()> {
-    sqlx::query("DELETE FROM last_session").execute(pool).await?;
+    sqlx::query("DELETE FROM last_session")
+        .execute(pool)
+        .await?;
     Ok(())
 }

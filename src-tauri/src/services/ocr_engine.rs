@@ -73,11 +73,7 @@ pub const OCR_SIDECAR_THRESHOLD: usize = 10;
 /// Sidecar-only placeholder; the real entrypoint lives in
 /// `commands::ocr::ocr_pdf_cmd` which composes MupdfWrapper +
 /// TesseractWrapper + this module's `build_text_layer_from_hocr`.
-pub fn ocr_pdf_add_text_layer(
-    _input: &Path,
-    _output: &Path,
-    _opts: &OcrOptions,
-) -> Result<()> {
+pub fn ocr_pdf_add_text_layer(_input: &Path, _output: &Path, _opts: &OcrOptions) -> Result<()> {
     Err(anyhow!(
         "ocr_pdf_add_text_layer is sidecar-only on this build; use commands::ocr::ocr_pdf_cmd"
     ))
@@ -241,7 +237,14 @@ pub fn build_text_layer_from_hocr(
     font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
 ) -> Vec<u8> {
     let words = parse_hocr_word(hocr);
-    build_invisible_text_stream(&words, pixel_w, pixel_h, page_w_pt, page_h_pt, font_subsetter)
+    build_invisible_text_stream(
+        &words,
+        pixel_w,
+        pixel_h,
+        page_w_pt,
+        page_h_pt,
+        font_subsetter,
+    )
 }
 
 #[cfg(test)]

@@ -51,7 +51,9 @@ pub async fn load_settings(path: &Path) -> Result<AppSettings> {
     if !path.exists() {
         return Ok(AppSettings::default());
     }
-    let bytes = tokio::fs::read(path).await.with_context(|| format!("read {}", path.display()))?;
+    let bytes = tokio::fs::read(path)
+        .await
+        .with_context(|| format!("read {}", path.display()))?;
     let settings: AppSettings = serde_json::from_slice(&bytes).context("parse settings.json")?;
     Ok(settings)
 }
@@ -61,6 +63,8 @@ pub async fn save_settings(path: &Path, settings: &AppSettings) -> Result<()> {
         tokio::fs::create_dir_all(parent).await.ok();
     }
     let json = serde_json::to_vec_pretty(settings).context("serialize settings")?;
-    tokio::fs::write(path, json).await.with_context(|| format!("write {}", path.display()))?;
+    tokio::fs::write(path, json)
+        .await
+        .with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }

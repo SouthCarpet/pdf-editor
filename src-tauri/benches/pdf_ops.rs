@@ -19,12 +19,18 @@ use pdf_editor_lib::services::pdf_renderer::{render_page_to_png, RenderOptions};
 
 fn fixture(rel: &str) -> Option<PathBuf> {
     let p = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(rel);
-    if p.exists() { Some(p) } else { None }
+    if p.exists() {
+        Some(p)
+    } else {
+        None
+    }
 }
 
 fn bench_merge_10x50pages(c: &mut Criterion) {
     let Some(input) = fixture("tests/fixtures/pdfs/large.pdf") else {
-        eprintln!("[bench] skipping bench_merge_10x50pages — fixture missing (run generate-fixtures.ps1)");
+        eprintln!(
+            "[bench] skipping bench_merge_10x50pages — fixture missing (run generate-fixtures.ps1)"
+        );
         return;
     };
     let tmp = TempDir::new().expect("tempdir");
@@ -51,12 +57,7 @@ fn bench_render_first_page(c: &mut Criterion) {
             // benchmark currently exercises only the error path. When the
             // in-process MuPDF binding lands (Phase 12+ followup), this
             // becomes a real timing.
-            let _ = render_page_to_png(
-                Path::new(&input),
-                0,
-                &out,
-                &RenderOptions { dpi: 150 },
-            );
+            let _ = render_page_to_png(Path::new(&input), 0, &out, &RenderOptions { dpi: 150 });
             black_box(out);
         })
     });

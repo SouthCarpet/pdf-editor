@@ -7,10 +7,15 @@ async fn project_with_files_and_pipelines() {
     let pool = db::create_pool(&tmp.path().join("pr.db")).await.unwrap();
     db::run_migrations(&pool).await.unwrap();
 
-    let pid = create_project(&pool, &NewProject {
-        name: "Faktúry Q1".into(),
-        description: None,
-    }).await.unwrap();
+    let pid = create_project(
+        &pool,
+        &NewProject {
+            name: "Faktúry Q1".into(),
+            description: None,
+        },
+    )
+    .await
+    .unwrap();
 
     add_project_file(&pool, pid, "C:/inv1.pdf").await.unwrap();
     add_project_file(&pool, pid, "C:/inv2.pdf").await.unwrap();
@@ -18,7 +23,9 @@ async fn project_with_files_and_pipelines() {
     let files = list_project_files(&pool, pid).await.unwrap();
     assert_eq!(files.len(), 2);
 
-    remove_project_file(&pool, pid, "C:/inv1.pdf").await.unwrap();
+    remove_project_file(&pool, pid, "C:/inv1.pdf")
+        .await
+        .unwrap();
     assert_eq!(list_project_files(&pool, pid).await.unwrap().len(), 1);
 
     let p = get_project(&pool, pid).await.unwrap().unwrap();

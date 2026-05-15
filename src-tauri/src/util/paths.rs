@@ -10,9 +10,21 @@ pub fn app_data_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
-pub fn settings_path() -> Result<PathBuf> { Ok(app_data_dir()?.join("settings.json")) }
-pub fn db_path()       -> Result<PathBuf> { Ok(app_data_dir()?.join("app.db")) }
-pub fn logs_dir()      -> Result<PathBuf> { Ok(app_data_dir()?.join("logs")) }
-pub fn pipeline_presets_dir() -> Result<PathBuf> { Ok(app_data_dir()?.join("pipeline-presets")) }
-pub fn projects_dir()  -> Result<PathBuf> { Ok(app_data_dir()?.join("projects")) }
-pub fn tessdata_extra_dir() -> Result<PathBuf> { Ok(app_data_dir()?.join("tessdata-extra")) }
+pub fn settings_path() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("settings.json"))
+}
+pub fn db_path() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("app.db"))
+}
+pub fn logs_dir() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("logs"))
+}
+pub fn pipeline_presets_dir() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("pipeline-presets"))
+}
+pub fn projects_dir() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("projects"))
+}
+pub fn tessdata_extra_dir() -> Result<PathBuf> {
+    Ok(app_data_dir()?.join("tessdata-extra"))
+}

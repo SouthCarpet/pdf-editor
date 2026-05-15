@@ -17,7 +17,7 @@ function Confirm-Hash {
     }
     $actual = (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLower()
     if ($actual -ne $Expected.ToLower()) {
-        throw "Hash mismatch for $Path: expected $Expected, got $actual"
+        throw "Hash mismatch for ${Path}: expected $Expected, got $actual"
     }
     Write-Host "  [OK] hash verified"
     return $true

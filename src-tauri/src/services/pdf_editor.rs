@@ -22,14 +22,14 @@ pub fn merge_pdfs(inputs: &[PathBuf], output: &Path) -> Result<()> {
         doc.renumber_objects_with(max_id);
         max_id = doc.max_id + 1;
         documents_objects.extend(doc.objects.clone());
-        pages_by_id.extend(doc.get_pages().into_iter().map(|(_, oid)| (oid, oid)));
+        pages_by_id.extend(doc.get_pages().into_values().map(|oid| (oid, oid)));
     }
 
     let catalog_id = merged.new_object_id();
     let pages_id = merged.new_object_id();
     let mut kids = Vec::new();
 
-    for (_, &page_id) in &pages_by_id {
+    for &page_id in pages_by_id.values() {
         if let Some(obj) = documents_objects.get(&page_id) {
             if let Ok(mut dict) = obj.as_dict().cloned() {
                 dict.set("Parent", pages_id);
@@ -39,9 +39,7 @@ pub fn merge_pdfs(inputs: &[PathBuf], output: &Path) -> Result<()> {
         }
     }
     for (id, obj) in documents_objects {
-        if !merged.objects.contains_key(&id) {
-            merged.objects.insert(id, obj);
-        }
+        merged.objects.entry(id).or_insert(obj);
     }
 
     let count = kids.len() as i64;
@@ -49,12 +47,16 @@ pub fn merge_pdfs(inputs: &[PathBuf], output: &Path) -> Result<()> {
     pages_dict.set("Type", "Pages");
     pages_dict.set("Kids", kids);
     pages_dict.set("Count", count);
-    merged.objects.insert(pages_id, Object::Dictionary(pages_dict));
+    merged
+        .objects
+        .insert(pages_id, Object::Dictionary(pages_dict));
 
     let mut catalog = lopdf::Dictionary::new();
     catalog.set("Type", "Catalog");
     catalog.set("Pages", pages_id);
-    merged.objects.insert(catalog_id, Object::Dictionary(catalog));
+    merged
+        .objects
+        .insert(catalog_id, Object::Dictionary(catalog));
     merged.trailer.set("Root", catalog_id);
     merged.compress();
 
@@ -110,11 +112,7 @@ pub fn delete_pages(input: &Path, pages: &[u32], output: &Path) -> Result<()> {
     Ok(())
 }
 
-pub fn rotate_pages(
-    input: &Path,
-    page_rotations: &[(u32, i64)],
-    output: &Path,
-) -> Result<()> {
+pub fn rotate_pages(input: &Path, page_rotations: &[(u32, i64)], output: &Path) -> Result<()> {
     let mut doc = Document::load(input)?;
     for (page, rotation) in page_rotations {
         let pages = doc.get_pages();

@@ -13,11 +13,7 @@ async fn convert_docx_to_pdf() {
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path();
     let out = lo
-        .convert_to_pdf(
-            Path::new("tests/fixtures/docs/sample.docx"),
-            out_dir,
-            None,
-        )
+        .convert_to_pdf(Path::new("tests/fixtures/docs/sample.docx"), out_dir, None)
         .await
         .expect("convert");
     assert!(out.exists());

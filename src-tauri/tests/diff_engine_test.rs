@@ -10,7 +10,10 @@ fn text_diff_finds_changes_between_versions() {
         Path::new("tests/fixtures/pdfs/sample.pdf"),
     )
     .unwrap();
-    assert!(result.changes.is_empty(), "identical PDFs should have no diff");
+    assert!(
+        result.changes.is_empty(),
+        "identical PDFs should have no diff"
+    );
 }
 
 #[test]

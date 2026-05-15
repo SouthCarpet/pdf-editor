@@ -3,5 +3,9 @@ max_width = 100
 hard_tabs = false
 tab_spaces = 4
 newline_style = "Unix"
-imports_granularity = "Crate"
-group_imports = "StdExternalCrate"
+# `imports_granularity` and `group_imports` are nightly-only rustfmt features.
+# Cannot enable on stable toolchain — would silently warn on every `cargo fmt`
+# and CI fmt-check still passes (the rules just don't apply). Re-enable when
+# rustfmt 2.x ships them on stable, or when the project moves to nightly fmt.
+# imports_granularity = "Crate"
+# group_imports = "StdExternalCrate"

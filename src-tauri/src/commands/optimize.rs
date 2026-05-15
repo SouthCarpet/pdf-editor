@@ -76,12 +76,15 @@ pub async fn optimize_pdf_cmd(
     let input = PathBuf::from(&args.input);
     let output = PathBuf::from(&args.output);
     let before_bytes = std::fs::metadata(&input)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?
+        .map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?
         .len();
     let token = state.cancellation.register(&args.job_id);
 
-    let tmp_dir = tempfile::tempdir()
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+    let tmp_dir = tempfile::tempdir().map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
     let mut current = input.clone();
 
     if args.flatten_annotations {
@@ -132,7 +135,8 @@ pub async fn optimize_pdf_cmd(
 
     if let Some(version) = args.convert_pdfa {
         // Delta E: LibreOffice primary, Ghostscript fallback.
-        let lo_target = "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+        let lo_target =
+            "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
         let lo_attempt = state
             .soffice
             .convert(&current, tmp_dir.path(), lo_target, Some(token.clone()))
@@ -159,13 +163,12 @@ pub async fn optimize_pdf_cmd(
         let strip = args.strip_metadata;
         let removeform = args.remove_form_data;
         tokio::task::spawn_blocking(move || -> AppResult<()> {
-            let mut doc = lopdf::Document::load(&cur)
-                .map_err(|e| AppError::PdfCorrupted { detail: e.to_string() })?;
+            let mut doc = lopdf::Document::load(&cur).map_err(|e| AppError::PdfCorrupted {
+                detail: e.to_string(),
+            })?;
             if strip {
                 doc.trailer.remove(b"Info");
-                if let Ok(catalog_id) =
-                    doc.trailer.get(b"Root").and_then(|o| o.as_reference())
-                {
+                if let Ok(catalog_id) = doc.trailer.get(b"Root").and_then(|o| o.as_reference()) {
                     if let Some(catalog) = doc.objects.get_mut(&catalog_id) {
                         if let Ok(d) = catalog.as_dict_mut() {
                             d.remove(b"Metadata");
@@ -174,9 +177,7 @@ pub async fn optimize_pdf_cmd(
                 }
             }
             if removeform {
-                if let Ok(catalog_id) =
-                    doc.trailer.get(b"Root").and_then(|o| o.as_reference())
-                {
+                if let Ok(catalog_id) = doc.trailer.get(b"Root").and_then(|o| o.as_reference()) {
                     if let Some(catalog) = doc.objects.get_mut(&catalog_id) {
                         if let Ok(d) = catalog.as_dict_mut() {
                             d.remove(b"AcroForm");
@@ -185,21 +186,27 @@ pub async fn optimize_pdf_cmd(
                 }
             }
             doc.compress();
-            doc.save(&next_cloned)
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+            doc.save(&next_cloned).map_err(|e| AppError::Internal {
+                detail: e.to_string(),
+            })?;
             Ok(())
         })
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })??;
         current = next;
     }
 
-    std::fs::copy(&current, &output)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+    std::fs::copy(&current, &output).map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
     state.cancellation.forget(&args.job_id);
 
     let after_bytes = std::fs::metadata(&output)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?
+        .map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?
         .len();
     Ok(OptimizeResult {
         output_paths: vec![args.output],

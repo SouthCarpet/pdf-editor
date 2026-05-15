@@ -8,16 +8,23 @@ pub struct CancellationRegistry {
 }
 
 impl CancellationRegistry {
-    pub fn new() -> Self { Self::default() }
+    pub fn new() -> Self {
+        Self::default()
+    }
 
     pub fn register(&self, job_id: &str) -> CancellationToken {
         let token = CancellationToken::new();
-        self.inner.lock().unwrap().insert(job_id.to_string(), token.clone());
+        self.inner
+            .lock()
+            .unwrap()
+            .insert(job_id.to_string(), token.clone());
         token
     }
 
     pub fn cancel(&self, job_id: &str) {
-        if let Some(t) = self.inner.lock().unwrap().get(job_id) { t.cancel(); }
+        if let Some(t) = self.inner.lock().unwrap().get(job_id) {
+            t.cancel();
+        }
     }
 
     pub fn forget(&self, job_id: &str) {

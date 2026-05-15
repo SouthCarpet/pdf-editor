@@ -12,10 +12,7 @@ use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
-pub async fn open_document(
-    state: State<'_, AppState>,
-    path: String,
-) -> AppResult<OpenedDocument> {
+pub async fn open_document(state: State<'_, AppState>, path: String) -> AppResult<OpenedDocument> {
     let p = PathBuf::from(&path);
     let opened = tokio::task::spawn_blocking(move || inspect_document(&p))
         .await

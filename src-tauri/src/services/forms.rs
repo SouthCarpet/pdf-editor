@@ -53,7 +53,7 @@ pub fn read_form_fields(path: &Path) -> Result<Vec<FormField>> {
         .map(|(n, id)| (id, n.saturating_sub(1)))
         .collect();
 
-    for (_id, obj) in &doc.objects {
+    for obj in doc.objects.values() {
         let Object::Dictionary(d) = obj else { continue };
 
         let is_annot = d

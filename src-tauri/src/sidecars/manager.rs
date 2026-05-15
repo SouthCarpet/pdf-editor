@@ -61,14 +61,14 @@ impl SidecarManager {
     }
 
     pub async fn run(&self, spec: SidecarRunSpec) -> AppResult<SidecarOutput> {
-        let _permit = self
-            .semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|e| AppError::Internal {
-                detail: e.to_string(),
-            })?;
+        let _permit =
+            self.semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
         let binary = self.resolve_binary(&spec.name);
         debug!(?binary, args = ?spec.args, "spawning sidecar");
 

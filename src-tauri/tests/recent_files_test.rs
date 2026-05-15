@@ -1,5 +1,8 @@
 use chrono::Utc;
-use pdf_editor_lib::persistence::{db, recent_files::{add_recent, list_recent, remove_recent, RecentFile}};
+use pdf_editor_lib::persistence::{
+    db,
+    recent_files::{add_recent, list_recent, remove_recent, RecentFile},
+};
 use tempfile::TempDir;
 
 #[tokio::test]
@@ -35,7 +38,8 @@ async fn add_recent_upserts_on_duplicate() {
         path: "C:/dup.pdf".into(),
         display_name: "dup.pdf".into(),
         last_opened_at: Utc::now(),
-        page_count: None, size_bytes: None,
+        page_count: None,
+        size_bytes: None,
     };
     add_recent(&pool, &f).await.unwrap();
     f.page_count = Some(99);

@@ -4,12 +4,8 @@ use tokio::sync::OnceCell;
 
 use crate::services::fonts::SystemFont;
 use crate::sidecars::{
-    ghostscript::GhostscriptWrapper,
-    manager::SidecarManager,
-    mupdf::MupdfWrapper,
-    pdfcrack::PdfcrackWrapper,
-    qpdf::QpdfWrapper,
-    soffice::SofficeWrapper,
+    ghostscript::GhostscriptWrapper, manager::SidecarManager, mupdf::MupdfWrapper,
+    pdfcrack::PdfcrackWrapper, qpdf::QpdfWrapper, soffice::SofficeWrapper,
     tesseract::TesseractWrapper,
 };
 use crate::util::cancellation::CancellationRegistry;

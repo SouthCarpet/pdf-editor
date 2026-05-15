@@ -58,11 +58,7 @@ pub fn render_pages_to_jpegs(
 /// Render to multi-page TIFF via the `mutool` sidecar binary directly. This
 /// path was already CLI-based in the plan (no `mupdf` crate involvement) so
 /// it remains functional even with the crate deferred.
-pub fn render_page_to_tiff_multi(
-    pdf_path: &Path,
-    out: &Path,
-    opts: &RenderOptions,
-) -> Result<()> {
+pub fn render_page_to_tiff_multi(pdf_path: &Path, out: &Path, opts: &RenderOptions) -> Result<()> {
     use std::process::Command;
     let mutool = std::env::current_exe()
         .ok()

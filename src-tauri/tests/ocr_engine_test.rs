@@ -1,6 +1,4 @@
-use pdf_editor_lib::services::ocr_engine::{
-    ocr_pdf_add_text_layer, OcrOptions, OcrOutputMode,
-};
+use pdf_editor_lib::services::ocr_engine::{ocr_pdf_add_text_layer, OcrOptions, OcrOutputMode};
 use pdf_editor_lib::services::text_extractor::extract_text;
 use std::path::Path;
 use tempfile::TempDir;

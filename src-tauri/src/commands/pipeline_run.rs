@@ -70,9 +70,9 @@ impl PipelineProgressEvent {
             },
             ProgressEvent::Done { job_id, result } => Self::Done {
                 job_id,
-                message: result.and_then(|v| match v {
-                    serde_json::Value::String(s) => Some(s),
-                    other => Some(other.to_string()),
+                message: result.map(|v| match v {
+                    serde_json::Value::String(s) => s,
+                    other => other.to_string(),
                 }),
             },
             ProgressEvent::Error {
@@ -160,7 +160,9 @@ pub async fn pipeline_run_cmd(
                 input: args.inputs.first().cloned().unwrap_or_default(),
                 message: format!("{e}"),
             });
-            reporter.error(e.key().to_string(), Some(format!("{e}"))).await;
+            reporter
+                .error(e.key().to_string(), Some(format!("{e}")))
+                .await;
         }
     }
     // Drain remaining events before returning so the channel doesn't
@@ -258,7 +260,7 @@ pub async fn pipeline_run_on_folder_cmd(
         let result = run_pipeline(
             &state,
             &args.pipeline,
-            &[input.clone()],
+            std::slice::from_ref(input),
             &reporter,
             token.clone(),
         )

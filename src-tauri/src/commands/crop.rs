@@ -64,7 +64,9 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
     let output = PathBuf::from(&args.output);
 
     // 1) Resolve bbox: either supplied or auto-detected via mupdf sidecar.
-    let threshold: u8 = args.auto_detect_threshold.unwrap_or(DEFAULT_AUTO_DETECT_THRESHOLD);
+    let threshold: u8 = args
+        .auto_detect_threshold
+        .unwrap_or(DEFAULT_AUTO_DETECT_THRESHOLD);
     let bbox: [f32; 4] = if args.auto_detect {
         // Render the page to a scratch PNG using the sidecar; the tempdir is
         // dropped at the end of this function and the PNG is cleaned up.
@@ -80,8 +82,12 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
             auto_detect_bbox_from_image(&png_for_scan, AUTO_DETECT_DPI, threshold)
         })
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
         [detected.0, detected.1, detected.2, detected.3]
     } else {
         args.bbox.ok_or_else(|| AppError::InvalidArgument {
@@ -121,13 +127,16 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
             }
         }
         doc.compress();
-        doc.save(&output_for_thread).map_err(|e| AppError::Internal {
-            detail: e.to_string(),
-        })?;
+        doc.save(&output_for_thread)
+            .map_err(|e| AppError::Internal {
+                detail: e.to_string(),
+            })?;
         Ok(())
     })
     .await
-    .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })??;
 
     state.cancellation.forget(&args.job_id);
     Ok(CropResult {

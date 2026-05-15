@@ -431,11 +431,13 @@ fn build_annot_dict(
                 });
                 (alias, font_id)
             } else {
-                let sys = find_by_postscript_name(&style.font_postscript_name)
-                    .with_context(|| format!(
-                        "font not installed on this system: {}",
-                        style.font_postscript_name
-                    ))?;
+                let sys =
+                    find_by_postscript_name(&style.font_postscript_name).with_context(|| {
+                        format!(
+                            "font not installed on this system: {}",
+                            style.font_postscript_name
+                        )
+                    })?;
                 if sys.file_path.is_empty() {
                     anyhow::bail!(
                         "font {} has no file path; cannot embed",
@@ -453,11 +455,7 @@ fn build_annot_dict(
             // /DA "default appearance" — names the font, size, and color.
             let da = format!(
                 "/{} {} Tf {} {} {} rg",
-                alias,
-                style.size_pt,
-                style.color[0],
-                style.color[1],
-                style.color[2],
+                alias, style.size_pt, style.color[0], style.color[1], style.color[2],
             );
             d.set("DA", Object::string_literal(da));
 

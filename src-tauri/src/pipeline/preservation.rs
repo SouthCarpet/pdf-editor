@@ -44,7 +44,10 @@ pub struct PreservationContract {
 
 impl PreservationContract {
     pub const fn new(preserves: Artifact, may_strip: Artifact) -> Self {
-        Self { preserves, may_strip }
+        Self {
+            preserves,
+            may_strip,
+        }
     }
 }
 
@@ -72,9 +75,7 @@ impl crate::pipeline::dag::NodeKind {
                 // break PDF/A; linearization is rebuilt by GS internally
                 // but the safe assumption is "no". Embedded fonts may be
                 // re-subset.
-                Artifact::PDFA_COMPLIANCE
-                    | Artifact::LINEARIZATION
-                    | Artifact::EMBEDDED_FONTS,
+                Artifact::PDFA_COMPLIANCE | Artifact::LINEARIZATION | Artifact::EMBEDDED_FONTS,
             ),
             NodeKind::Optimize {
                 flatten_annotations,
@@ -216,9 +217,7 @@ impl crate::pipeline::dag::NodeKind {
                     | Artifact::ANNOTATIONS
                     | Artifact::FORM_FIELDS
                     | Artifact::BOOKMARKS,
-                Artifact::EMBEDDED_FONTS
-                    | Artifact::PDFA_COMPLIANCE
-                    | Artifact::LINEARIZATION,
+                Artifact::EMBEDDED_FONTS | Artifact::PDFA_COMPLIANCE | Artifact::LINEARIZATION,
             ),
             NodeKind::Save { .. } => PreservationContract::new(
                 // A file copy preserves everything bit-for-bit.
@@ -240,7 +239,13 @@ mod tests {
     use super::*;
     use crate::pipeline::dag::{NodeCompressPreset, NodeExportFormat, NodeKind, NodeOcrOutputMode};
 
-    fn optimize(flatten: bool, remove_form: bool, strip: bool, lin: bool, pdfa: Option<u8>) -> NodeKind {
+    fn optimize(
+        flatten: bool,
+        remove_form: bool,
+        strip: bool,
+        lin: bool,
+        pdfa: Option<u8>,
+    ) -> NodeKind {
         NodeKind::Optimize {
             linearize: lin,
             remove_unused: false,
@@ -284,7 +289,10 @@ mod tests {
     #[test]
     fn optimize_pdfa_preserves_pdfa_compliance() {
         let n = optimize(false, false, false, false, Some(2));
-        assert!(n.preservation().preserves.contains(Artifact::PDFA_COMPLIANCE));
+        assert!(n
+            .preservation()
+            .preserves
+            .contains(Artifact::PDFA_COMPLIANCE));
     }
 
     #[test]
@@ -357,7 +365,10 @@ mod tests {
             deskew: false,
             despeckle: false,
         };
-        assert!(n.preservation().may_strip.contains(Artifact::PDFA_COMPLIANCE));
+        assert!(n
+            .preservation()
+            .may_strip
+            .contains(Artifact::PDFA_COMPLIANCE));
         assert!(n.preservation().preserves.contains(Artifact::TEXT_LAYER));
     }
 

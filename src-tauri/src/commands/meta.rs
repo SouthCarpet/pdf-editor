@@ -20,18 +20,19 @@ pub async fn recent_files_list(
 ) -> AppResult<Vec<RecentFile>> {
     recent_files::list_recent(&state.pool, limit)
         .await
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn recent_files_remove(
-    state: State<'_, AppState>,
-    path: String,
-) -> AppResult<()> {
+pub async fn recent_files_remove(state: State<'_, AppState>, path: String) -> AppResult<()> {
     recent_files::remove_recent(&state.pool, &path)
         .await
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })
 }
 
 #[tauri::command]
@@ -66,9 +67,10 @@ pub async fn record_frontend_error(
     use crate::util::crash_logger::write_crash_file;
     use crate::util::paths::logs_dir;
 
-    let dir = logs_dir().map_err(|e| AppError::Internal { detail: e.to_string() })?;
-    let body = serde_json::to_string_pretty(&payload)
-        .unwrap_or_else(|_| "<serialize fail>".into());
+    let dir = logs_dir().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
+    let body = serde_json::to_string_pretty(&payload).unwrap_or_else(|_| "<serialize fail>".into());
     write_crash_file(&dir, "frontend", &body);
     Ok(())
 }
@@ -77,12 +79,16 @@ pub async fn record_frontend_error(
 #[specta::specta]
 pub async fn open_logs_folder() -> AppResult<()> {
     use crate::util::paths::logs_dir;
-    let dir = logs_dir().map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let dir = logs_dir().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     // explorer.exe accepts a directory path directly; spawn instead of
     // status() so we don't block the IPC thread waiting for the window.
     std::process::Command::new("explorer")
         .arg(&dir)
         .spawn()
-        .map_err(|e| AppError::Internal { detail: format!("spawn explorer: {e}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: format!("spawn explorer: {e}"),
+        })?;
     Ok(())
 }

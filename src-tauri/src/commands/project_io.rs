@@ -16,8 +16,8 @@ use crate::persistence::pipeline_presets::{
     create_preset, get_preset, NewPipelinePreset, PipelinePreset,
 };
 use crate::persistence::projects::{
-    add_project_file, add_project_pipeline, create_project, get_project,
-    list_project_files, list_project_pipelines, NewProject, Project,
+    add_project_file, add_project_pipeline, create_project, get_project, list_project_files,
+    list_project_pipelines, NewProject, Project,
 };
 use serde::{Deserialize, Serialize};
 use tauri::State;
@@ -38,7 +38,9 @@ pub async fn project_export(
 ) -> AppResult<()> {
     let project = get_project(&state.pool, id)
         .await?
-        .ok_or_else(|| AppError::InvalidArgument { detail: "no such project".into() })?;
+        .ok_or_else(|| AppError::InvalidArgument {
+            detail: "no such project".into(),
+        })?;
     let files = list_project_files(&state.pool, id).await?;
     let pipeline_ids = list_project_pipelines(&state.pool, id).await?;
     let mut pipelines = Vec::new();
@@ -47,22 +49,26 @@ pub async fn project_export(
             pipelines.push(p);
         }
     }
-    let exp = ProjectExport { project, files, pipelines };
-    let bytes = serde_json::to_vec_pretty(&exp)
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+    let exp = ProjectExport {
+        project,
+        files,
+        pipelines,
+    };
+    let bytes = serde_json::to_vec_pretty(&exp).map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
     tokio::fs::write(&output_path, bytes).await?;
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn project_import(
-    state: State<'_, AppState>,
-    input_path: String,
-) -> AppResult<i64> {
+pub async fn project_import(state: State<'_, AppState>, input_path: String) -> AppResult<i64> {
     let bytes = tokio::fs::read(&input_path).await?;
-    let exp: ProjectExport = serde_json::from_slice(&bytes)
-        .map_err(|e| AppError::InvalidArgument { detail: e.to_string() })?;
+    let exp: ProjectExport =
+        serde_json::from_slice(&bytes).map_err(|e| AppError::InvalidArgument {
+            detail: e.to_string(),
+        })?;
     let new_id = create_project(
         &state.pool,
         &NewProject {

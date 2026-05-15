@@ -106,10 +106,7 @@ impl SofficeWrapper {
             });
         }
 
-        let stem = input
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("out");
+        let stem = input.file_stem().and_then(|s| s.to_str()).unwrap_or("out");
         let candidate = out_dir.join(format!("{stem}.{target_format}"));
         if !candidate.exists() {
             return Err(AppError::Internal {

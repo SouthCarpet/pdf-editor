@@ -6,9 +6,7 @@
 // opt-in fallback — the frontend warns before invoking it.
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
-use crate::services::text_edit::{
-    extract_runs, replace_run, replace_run_via_redaction, TextRun,
-};
+use crate::services::text_edit::{extract_runs, replace_run, replace_run_via_redaction, TextRun};
 use serde::Deserialize;
 use std::path::PathBuf;
 use tauri::State;
@@ -22,8 +20,12 @@ pub async fn extract_runs_cmd(
     let p = PathBuf::from(path);
     tokio::task::spawn_blocking(move || extract_runs(&p))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })
 }
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]
@@ -38,10 +40,7 @@ pub struct ReplaceRunArgs {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn replace_run_cmd(
-    state: State<'_, AppState>,
-    args: ReplaceRunArgs,
-) -> AppResult<()> {
+pub async fn replace_run_cmd(state: State<'_, AppState>, args: ReplaceRunArgs) -> AppResult<()> {
     let _token = state.cancellation.register(&args.job_id);
     let i = PathBuf::from(&args.input);
     let o = PathBuf::from(&args.output);
@@ -50,7 +49,9 @@ pub async fn replace_run_cmd(
     let t = args.new_text.clone();
     let result = tokio::task::spawn_blocking(move || replace_run(&i, &o, p, op, &t))
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
     state.cancellation.forget(&args.job_id);
     result
 }
@@ -82,10 +83,15 @@ pub async fn replace_run_redaction_cmd(
     let r = args.rect;
     let t = args.new_text.clone();
     let f = args.font_size;
-    let result = tokio::task::spawn_blocking(move || replace_run_via_redaction(&i, &o, p, r, &t, f))
-        .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") });
+    let result =
+        tokio::task::spawn_blocking(move || replace_run_via_redaction(&i, &o, p, r, &t, f))
+            .await
+            .map_err(|e| AppError::Internal {
+                detail: e.to_string(),
+            })?
+            .map_err(|e| AppError::Internal {
+                detail: format!("{e:#}"),
+            });
     state.cancellation.forget(&args.job_id);
     result
 }

@@ -32,28 +32,55 @@ pub async fn list_presets(pool: &SqlitePool) -> Result<Vec<PipelinePreset>> {
     let rows = sqlx::query_as::<_, (i64, String, Option<String>, String, DateTime<Utc>, DateTime<Utc>)>(
         "SELECT id, name, description, graph_json, created_at, updated_at FROM pipeline_presets ORDER BY name"
     ).fetch_all(pool).await?;
-    Ok(rows.into_iter().map(|(id, name, description, graph_json, created_at, updated_at)| {
-        PipelinePreset { id, name, description, graph_json, created_at, updated_at }
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(
+            |(id, name, description, graph_json, created_at, updated_at)| PipelinePreset {
+                id,
+                name,
+                description,
+                graph_json,
+                created_at,
+                updated_at,
+            },
+        )
+        .collect())
 }
 
 pub async fn get_preset(pool: &SqlitePool, id: i64) -> Result<Option<PipelinePreset>> {
     let opt = sqlx::query_as::<_, (i64, String, Option<String>, String, DateTime<Utc>, DateTime<Utc>)>(
         "SELECT id, name, description, graph_json, created_at, updated_at FROM pipeline_presets WHERE id = ?"
     ).bind(id).fetch_optional(pool).await?;
-    Ok(opt.map(|(id, name, description, graph_json, created_at, updated_at)| {
-        PipelinePreset { id, name, description, graph_json, created_at, updated_at }
-    }))
+    Ok(opt.map(
+        |(id, name, description, graph_json, created_at, updated_at)| PipelinePreset {
+            id,
+            name,
+            description,
+            graph_json,
+            created_at,
+            updated_at,
+        },
+    ))
 }
 
 pub async fn update_preset(pool: &SqlitePool, p: &PipelinePreset) -> Result<()> {
-    sqlx::query("UPDATE pipeline_presets SET name=?, description=?, graph_json=?, updated_at=? WHERE id=?")
-        .bind(&p.name).bind(&p.description).bind(&p.graph_json).bind(Utc::now()).bind(p.id)
-        .execute(pool).await?;
+    sqlx::query(
+        "UPDATE pipeline_presets SET name=?, description=?, graph_json=?, updated_at=? WHERE id=?",
+    )
+    .bind(&p.name)
+    .bind(&p.description)
+    .bind(&p.graph_json)
+    .bind(Utc::now())
+    .bind(p.id)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
 pub async fn delete_preset(pool: &SqlitePool, id: i64) -> Result<()> {
-    sqlx::query("DELETE FROM pipeline_presets WHERE id = ?").bind(id).execute(pool).await?;
+    sqlx::query("DELETE FROM pipeline_presets WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(())
 }

@@ -80,8 +80,9 @@ pub async fn convert_pdf_export_cmd(
 ) -> AppResult<ExportResult> {
     let input = PathBuf::from(&args.input);
     let out_dir = PathBuf::from(&args.out_dir);
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+    std::fs::create_dir_all(&out_dir).map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
@@ -134,7 +135,9 @@ pub async fn convert_pdf_export_cmd(
             let text = state.mupdf.extract_text(&input).await?;
             tokio::fs::write(&out, text)
                 .await
-                .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                .map_err(|e| AppError::IoError {
+                    detail: e.to_string(),
+                })?;
             Ok(ExportResult {
                 output_paths: vec![out.display().to_string()],
             })
@@ -168,7 +171,8 @@ pub async fn convert_pdf_export_cmd(
         }
         ExportFormat::PdfA => {
             // Delta E: LO primary, GS fallback.
-            let lo_target = "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+            let lo_target =
+                "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
             let lo_attempt = state
                 .soffice
                 .convert(&input, &out_dir, lo_target, Some(token.clone()))

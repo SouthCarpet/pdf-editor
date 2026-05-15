@@ -28,8 +28,7 @@ const EXPECTED_GRAPHEMES: &[char] = &[
     // Slovak
     'á', 'č', 'ď', 'é', 'í', 'ľ', 'ĺ', 'ň', 'ó', 'ô', 'ŕ', 'š', 'ť', 'ú', 'ý', 'ž',
     // Czech-only
-    'ě', 'ř', 'ů',
-    // German
+    'ě', 'ř', 'ů', // German
     'ä', 'ö', 'ü', 'ß',
 ];
 
@@ -105,17 +104,11 @@ async fn ocr_recovers_diacritics_from_scanned_slovak() {
         .expect("render");
 
     let tess = TesseractWrapper::new(mgr);
-    let text = tess
-        .ocr_image(&raster, "slk", None)
-        .await
-        .expect("ocr slk");
+    let text = tess.ocr_image(&raster, "slk", None).await.expect("ocr slk");
     // Tesseract OCR fidelity is imperfect at small sizes — assert at
     // least the lower-frequency diacritics are recovered.
     for &g in &['č', 'š', 'ž', 'á'] {
-        assert!(
-            text.contains(g),
-            "OCR should recover '{g}'; got: {text}"
-        );
+        assert!(text.contains(g), "OCR should recover '{g}'; got: {text}");
     }
     let _ = OcrOptions {
         language: "slk".into(),

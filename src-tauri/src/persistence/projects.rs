@@ -30,65 +30,117 @@ pub async fn list_projects(pool: &SqlitePool) -> Result<Vec<Project>> {
     let rows = sqlx::query_as::<_, (i64, String, Option<String>, DateTime<Utc>, DateTime<Utc>)>(
         "SELECT id, name, description, created_at, updated_at FROM projects ORDER BY updated_at DESC"
     ).fetch_all(pool).await?;
-    Ok(rows.into_iter().map(|(id, name, description, created_at, updated_at)| {
-        Project { id, name, description, created_at, updated_at }
-    }).collect())
+    Ok(rows
+        .into_iter()
+        .map(|(id, name, description, created_at, updated_at)| Project {
+            id,
+            name,
+            description,
+            created_at,
+            updated_at,
+        })
+        .collect())
 }
 
 pub async fn get_project(pool: &SqlitePool, id: i64) -> Result<Option<Project>> {
     let opt = sqlx::query_as::<_, (i64, String, Option<String>, DateTime<Utc>, DateTime<Utc>)>(
-        "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?"
-    ).bind(id).fetch_optional(pool).await?;
-    Ok(opt.map(|(id, name, description, created_at, updated_at)| {
-        Project { id, name, description, created_at, updated_at }
-    }))
+        "SELECT id, name, description, created_at, updated_at FROM projects WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(
+        opt.map(|(id, name, description, created_at, updated_at)| Project {
+            id,
+            name,
+            description,
+            created_at,
+            updated_at,
+        }),
+    )
 }
 
 pub async fn update_project(pool: &SqlitePool, p: &Project) -> Result<()> {
     sqlx::query("UPDATE projects SET name=?, description=?, updated_at=? WHERE id=?")
-        .bind(&p.name).bind(&p.description).bind(Utc::now()).bind(p.id).execute(pool).await?;
+        .bind(&p.name)
+        .bind(&p.description)
+        .bind(Utc::now())
+        .bind(p.id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 pub async fn delete_project(pool: &SqlitePool, id: i64) -> Result<()> {
-    sqlx::query("DELETE FROM projects WHERE id = ?").bind(id).execute(pool).await?;
+    sqlx::query("DELETE FROM projects WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 pub async fn add_project_file(pool: &SqlitePool, project_id: i64, path: &str) -> Result<()> {
-    sqlx::query("INSERT OR IGNORE INTO project_files (project_id, path, added_at) VALUES (?, ?, ?)")
-        .bind(project_id).bind(path).bind(Utc::now()).execute(pool).await?;
+    sqlx::query(
+        "INSERT OR IGNORE INTO project_files (project_id, path, added_at) VALUES (?, ?, ?)",
+    )
+    .bind(project_id)
+    .bind(path)
+    .bind(Utc::now())
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
 pub async fn remove_project_file(pool: &SqlitePool, project_id: i64, path: &str) -> Result<()> {
     sqlx::query("DELETE FROM project_files WHERE project_id = ? AND path = ?")
-        .bind(project_id).bind(path).execute(pool).await?;
+        .bind(project_id)
+        .bind(path)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 pub async fn list_project_files(pool: &SqlitePool, project_id: i64) -> Result<Vec<String>> {
     let rows = sqlx::query_as::<_, (String,)>(
-        "SELECT path FROM project_files WHERE project_id = ? ORDER BY added_at"
-    ).bind(project_id).fetch_all(pool).await?;
+        "SELECT path FROM project_files WHERE project_id = ? ORDER BY added_at",
+    )
+    .bind(project_id)
+    .fetch_all(pool)
+    .await?;
     Ok(rows.into_iter().map(|(p,)| p).collect())
 }
 
-pub async fn add_project_pipeline(pool: &SqlitePool, project_id: i64, preset_id: i64) -> Result<()> {
+pub async fn add_project_pipeline(
+    pool: &SqlitePool,
+    project_id: i64,
+    preset_id: i64,
+) -> Result<()> {
     sqlx::query("INSERT OR IGNORE INTO project_pipelines (project_id, preset_id) VALUES (?, ?)")
-        .bind(project_id).bind(preset_id).execute(pool).await?;
+        .bind(project_id)
+        .bind(preset_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
-pub async fn remove_project_pipeline(pool: &SqlitePool, project_id: i64, preset_id: i64) -> Result<()> {
+pub async fn remove_project_pipeline(
+    pool: &SqlitePool,
+    project_id: i64,
+    preset_id: i64,
+) -> Result<()> {
     sqlx::query("DELETE FROM project_pipelines WHERE project_id = ? AND preset_id = ?")
-        .bind(project_id).bind(preset_id).execute(pool).await?;
+        .bind(project_id)
+        .bind(preset_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
 pub async fn list_project_pipelines(pool: &SqlitePool, project_id: i64) -> Result<Vec<i64>> {
-    let rows = sqlx::query_as::<_, (i64,)>(
-        "SELECT preset_id FROM project_pipelines WHERE project_id = ?"
-    ).bind(project_id).fetch_all(pool).await?;
+    let rows =
+        sqlx::query_as::<_, (i64,)>("SELECT preset_id FROM project_pipelines WHERE project_id = ?")
+            .bind(project_id)
+            .fetch_all(pool)
+            .await?;
     Ok(rows.into_iter().map(|(id,)| id).collect())
 }

@@ -22,7 +22,9 @@ use tauri::State;
 pub async fn session_save(state: State<'_, AppState>, slot: SessionSlot) -> AppResult<()> {
     save_session_slot(&state.pool, &slot)
         .await
-        .map_err(|e| crate::error::AppError::Internal { detail: e.to_string() })?;
+        .map_err(|e| crate::error::AppError::Internal {
+            detail: e.to_string(),
+        })?;
     Ok(())
 }
 
@@ -31,7 +33,9 @@ pub async fn session_save(state: State<'_, AppState>, slot: SessionSlot) -> AppR
 pub async fn session_list(state: State<'_, AppState>) -> AppResult<Vec<SessionSlot>> {
     list_session(&state.pool)
         .await
-        .map_err(|e| crate::error::AppError::Internal { detail: e.to_string() })
+        .map_err(|e| crate::error::AppError::Internal {
+            detail: e.to_string(),
+        })
 }
 
 #[tauri::command]
@@ -39,6 +43,8 @@ pub async fn session_list(state: State<'_, AppState>) -> AppResult<Vec<SessionSl
 pub async fn session_clear(state: State<'_, AppState>) -> AppResult<()> {
     clear_session(&state.pool)
         .await
-        .map_err(|e| crate::error::AppError::Internal { detail: e.to_string() })?;
+        .map_err(|e| crate::error::AppError::Internal {
+            detail: e.to_string(),
+        })?;
     Ok(())
 }

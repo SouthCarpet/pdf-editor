@@ -99,10 +99,12 @@ pub async fn run_pipeline(
     reporter: &ProgressReporter,
     cancel: CancellationToken,
 ) -> AppResult<Vec<PathBuf>> {
-    let order = pipeline
-        .topo_order()
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
-    let scratch = tempfile::tempdir().map_err(|e| AppError::IoError { detail: e.to_string() })?;
+    let order = pipeline.topo_order().map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
+    let scratch = tempfile::tempdir().map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
     let mut current_files: Vec<PathBuf> = inputs.to_vec();
     let total = order.len().max(1) as f32;
 
@@ -131,7 +133,12 @@ pub async fn run_pipeline(
             .ok_or_else(|| AppError::Internal {
                 detail: format!("node {node_id} disappeared after topo sort"),
             })?;
-        let label = format!("node {} of {}: {}", i + 1, order.len(), node_label(&node.kind));
+        let label = format!(
+            "node {} of {}: {}",
+            i + 1,
+            order.len(),
+            node_label(&node.kind)
+        );
         // Delta Y: trace each node's preservation contract so a post-run
         // investigation can reconstruct what was guaranteed kept vs what
         // was permitted to be stripped on a per-step basis.
@@ -144,9 +151,19 @@ pub async fn run_pipeline(
             "pipeline node preservation contract",
         );
         reporter.progress(i as f32 / total, Some(label)).await;
-        current_files = run_node(state, &node.kind, &current_files, scratch.path(), cancel.clone(), i).await?;
+        current_files = run_node(
+            state,
+            &node.kind,
+            &current_files,
+            scratch.path(),
+            cancel.clone(),
+            i,
+        )
+        .await?;
     }
-    reporter.progress(1.0, Some("pipeline complete".into())).await;
+    reporter
+        .progress(1.0, Some("pipeline complete".into()))
+        .await;
     // The TempDir is dropped here, but we may have copied into it. The
     // Save node copies to a user-chosen dir; for inter-stage outputs that
     // are NOT followed by a Save, we materialize a stable copy in a
@@ -195,16 +212,18 @@ fn materialize_final(scratch: &TempDir, current: &[PathBuf]) -> AppResult<Vec<Pa
     let persistent_parent = std::env::temp_dir();
     let stamp = chrono::Utc::now().timestamp_millis();
     let dst_dir = persistent_parent.join(format!("pdf-editor-pipeline-{stamp}"));
-    std::fs::create_dir_all(&dst_dir).map_err(|e| AppError::IoError { detail: e.to_string() })?;
+    std::fs::create_dir_all(&dst_dir).map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
     for src in current {
         if src.starts_with(scratch_root) {
-            let name = src
-                .file_name()
-                .ok_or_else(|| AppError::Internal {
-                    detail: format!("missing file name for {}", src.display()),
-                })?;
+            let name = src.file_name().ok_or_else(|| AppError::Internal {
+                detail: format!("missing file name for {}", src.display()),
+            })?;
             let dst = dst_dir.join(name);
-            std::fs::copy(src, &dst).map_err(|e| AppError::IoError { detail: e.to_string() })?;
+            std::fs::copy(src, &dst).map_err(|e| AppError::IoError {
+                detail: e.to_string(),
+            })?;
             out.push(dst);
         } else {
             out.push(src.clone());
@@ -322,8 +341,7 @@ async fn run_node(
                     current = match lo_attempt {
                         Ok(out) => out,
                         Err(_) => {
-                            let gs_out =
-                                scratch.join(format!("opt_pdfa_{node_idx}_{i}.pdf"));
+                            let gs_out = scratch.join(format!("opt_pdfa_{node_idx}_{i}.pdf"));
                             state
                                 .gs
                                 .convert_to_pdfa(&current, &gs_out, *version, Some(cancel.clone()))
@@ -339,8 +357,10 @@ async fn run_node(
                     let strip = *strip_metadata;
                     let removeform = *remove_form_data;
                     tokio::task::spawn_blocking(move || -> AppResult<()> {
-                        let mut doc = lopdf::Document::load(&cur)
-                            .map_err(|e| AppError::PdfCorrupted { detail: e.to_string() })?;
+                        let mut doc =
+                            lopdf::Document::load(&cur).map_err(|e| AppError::PdfCorrupted {
+                                detail: e.to_string(),
+                            })?;
                         if strip {
                             doc.trailer.remove(b"Info");
                             if let Ok(catalog_id) =
@@ -365,12 +385,15 @@ async fn run_node(
                             }
                         }
                         doc.compress();
-                        doc.save(&next_cloned)
-                            .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                        doc.save(&next_cloned).map_err(|e| AppError::Internal {
+                            detail: e.to_string(),
+                        })?;
                         Ok(())
                     })
                     .await
-                    .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+                    .map_err(|e| AppError::Internal {
+                        detail: e.to_string(),
+                    })??;
                     current = next;
                 }
                 outs.push(current);
@@ -457,7 +480,9 @@ async fn run_node(
                         let text = state.mupdf.extract_text(src).await?;
                         tokio::fs::write(&out, text)
                             .await
-                            .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                            .map_err(|e| AppError::IoError {
+                                detail: e.to_string(),
+                            })?;
                         outs.push(out);
                     }
                     NodeExportFormat::Html => {
@@ -496,8 +521,7 @@ async fn run_node(
                         match lo_attempt {
                             Ok(out) => outs.push(out),
                             Err(_) => {
-                                let gs_out =
-                                    dir.join(format!("{stem}-{idx}-pdfa.pdf"));
+                                let gs_out = dir.join(format!("{stem}-{idx}-pdfa.pdf"));
                                 state
                                     .gs
                                     .convert_to_pdfa(src, &gs_out, 2, Some(cancel.clone()))
@@ -551,8 +575,12 @@ async fn run_node(
             let dst_owned = dst.clone();
             tokio::task::spawn_blocking(move || pdf_editor::merge_pdfs(&inputs_owned, &dst_owned))
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
             Ok(vec![dst])
         }
         NodeKind::Split { ranges } => {
@@ -560,16 +588,19 @@ async fn run_node(
             for (i, src) in inputs.iter().enumerate() {
                 let dir = scratch.join(format!("split_{node_idx}_{i}"));
                 std::fs::create_dir_all(&dir).ok();
-                let r: Vec<RangeInclusive<u32>> =
-                    ranges.iter().map(|[a, b]| *a..=*b).collect();
+                let r: Vec<RangeInclusive<u32>> = ranges.iter().map(|[a, b]| *a..=*b).collect();
                 let src_owned = src.clone();
                 let dir_owned = dir.clone();
                 let parts = tokio::task::spawn_blocking(move || {
                     pdf_editor::split_pdf(&src_owned, &r, &dir_owned)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.extend(parts);
             }
             Ok(outs)
@@ -585,8 +616,12 @@ async fn run_node(
                     pdf_editor::extract_pages(&src_owned, &p, &out_owned)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.push(out);
             }
             Ok(outs)
@@ -603,8 +638,12 @@ async fn run_node(
                     pdf_editor::rotate_pages(&src_owned, &pairs, &out_owned)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.push(out);
             }
             Ok(outs)
@@ -620,8 +659,12 @@ async fn run_node(
                     pdf_editor::delete_pages(&src_owned, &pgs, &out_owned)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.push(out);
             }
             Ok(outs)
@@ -637,8 +680,12 @@ async fn run_node(
                     pdf_editor::reorder_pages(&src_owned, &order, &out_owned)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.push(out);
             }
             Ok(outs)
@@ -660,8 +707,12 @@ async fn run_node(
                     pdf_editor::insert_blank_page(&src_owned, after, &out_owned, w, h)
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
                 outs.push(out);
             }
             Ok(outs)
@@ -687,24 +738,31 @@ async fn run_node(
             let mut outs = Vec::new();
             for (i, src) in inputs.iter().enumerate() {
                 let resolved: [f32; 4] = if *auto_detect {
-                    let inner_tmp = tempfile::tempdir()
-                        .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                    let inner_tmp = tempfile::tempdir().map_err(|e| AppError::IoError {
+                        detail: e.to_string(),
+                    })?;
                     let png = inner_tmp.path().join("p.png");
                     state
                         .mupdf
-                        .render_page_to_png(src, *page_index, &png, AUTO_DETECT_DPI, Some(cancel.clone()))
+                        .render_page_to_png(
+                            src,
+                            *page_index,
+                            &png,
+                            AUTO_DETECT_DPI,
+                            Some(cancel.clone()),
+                        )
                         .await?;
                     let png_clone = png.clone();
                     let detected = tokio::task::spawn_blocking(move || {
-                        auto_detect_bbox_from_image(
-                            &png_clone,
-                            AUTO_DETECT_DPI,
-                            auto_threshold,
-                        )
+                        auto_detect_bbox_from_image(&png_clone, AUTO_DETECT_DPI, auto_threshold)
                     })
                     .await
-                    .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                    .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+                    .map_err(|e| AppError::Internal {
+                        detail: e.to_string(),
+                    })?
+                    .map_err(|e| AppError::Internal {
+                        detail: format!("{e:#}"),
+                    })?;
                     [detected.0, detected.1, detected.2, detected.3]
                 } else {
                     bbox.ok_or_else(|| AppError::InvalidArgument {
@@ -717,8 +775,10 @@ async fn run_node(
                 let target_all = *apply_to_all_pages;
                 let page_idx = *page_index;
                 tokio::task::spawn_blocking(move || -> AppResult<()> {
-                    let mut doc = lopdf::Document::load(&src_owned)
-                        .map_err(|e| AppError::PdfCorrupted { detail: e.to_string() })?;
+                    let mut doc =
+                        lopdf::Document::load(&src_owned).map_err(|e| AppError::PdfCorrupted {
+                            detail: e.to_string(),
+                        })?;
                     let pages = doc.get_pages();
                     let target_pages: Vec<u32> = if target_all {
                         pages.keys().copied().collect()
@@ -741,12 +801,15 @@ async fn run_node(
                         }
                     }
                     doc.compress();
-                    doc.save(&out_owned)
-                        .map_err(|e| AppError::Internal { detail: e.to_string() })?;
+                    doc.save(&out_owned).map_err(|e| AppError::Internal {
+                        detail: e.to_string(),
+                    })?;
                     Ok(())
                 })
                 .await
-                .map_err(|e| AppError::Internal { detail: e.to_string() })??;
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })??;
                 outs.push(out);
             }
             Ok(outs)
@@ -787,11 +850,13 @@ async fn run_node(
                 let dst = scratch.join(format!("ocr_{node_idx}_{idx}.pdf"));
                 let pdf_in = src.clone();
                 let pdf_out = dst.clone();
-                let local_tmp = tempfile::tempdir()
-                    .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                let local_tmp = tempfile::tempdir().map_err(|e| AppError::IoError {
+                    detail: e.to_string(),
+                })?;
                 let doc_pages = {
-                    let doc = Document::load(&pdf_in)
-                        .map_err(|e| AppError::Internal { detail: format!("load: {e}") })?;
+                    let doc = Document::load(&pdf_in).map_err(|e| AppError::Internal {
+                        detail: format!("load: {e}"),
+                    })?;
                     doc.get_pages().len() as u32
                 };
                 let mut hocr_per_page: Vec<(u32, String, u32, u32)> = Vec::new();
@@ -802,7 +867,13 @@ async fn run_node(
                     let raster = local_tmp.path().join(format!("page-{page_index}.png"));
                     state
                         .mupdf
-                        .render_page_to_png(&pdf_in, page_index, &raster, opts.dpi, Some(cancel.clone()))
+                        .render_page_to_png(
+                            &pdf_in,
+                            page_index,
+                            &raster,
+                            opts.dpi,
+                            Some(cancel.clone()),
+                        )
                         .await?;
                     let (px_w, px_h) = read_png_dimensions(&raster).unwrap_or((1, 1));
                     let hocr = state
@@ -820,16 +891,21 @@ async fn run_node(
                         inject_text_layers(&pdf_in_b, &pdf_out_b, &opts_b, &hocr_b)
                     })
                     .await
-                    .map_err(|e| AppError::Internal { detail: e.to_string() })?
-                    .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+                    .map_err(|e| AppError::Internal {
+                        detail: e.to_string(),
+                    })?
+                    .map_err(|e| AppError::Internal {
+                        detail: format!("{e:#}"),
+                    })?;
                     outs.push(dst);
                 } else {
                     // TextOnly: write a sidecar .txt for the .pdf in scratch
                     // and emit the .txt as the "output" of this node.
                     let plain = hocrs_to_text(&hocr_per_page);
                     let txt = scratch.join(format!("ocr_{node_idx}_{idx}.txt"));
-                    std::fs::write(&txt, plain)
-                        .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                    std::fs::write(&txt, plain).map_err(|e| AppError::IoError {
+                        detail: e.to_string(),
+                    })?;
                     outs.push(txt);
                 }
             }
@@ -858,14 +934,8 @@ async fn run_node(
             let tool = "pipeline";
             let mut outs = Vec::new();
             for (i, src) in inputs.iter().enumerate() {
-                let stem = src
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("out");
-                let ext = src
-                    .extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("pdf");
+                let stem = src.file_stem().and_then(|s| s.to_str()).unwrap_or("out");
+                let ext = src.extension().and_then(|s| s.to_str()).unwrap_or("pdf");
                 let mut name = name_template
                     .replace("{stem}", stem)
                     .replace("{i}", &i.to_string())
@@ -876,8 +946,9 @@ async fn run_node(
                     name.push_str(ext);
                 }
                 let dst = PathBuf::from(dir).join(name);
-                std::fs::copy(src, &dst)
-                    .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+                std::fs::copy(src, &dst).map_err(|e| AppError::IoError {
+                    detail: e.to_string(),
+                })?;
                 outs.push(dst);
             }
             Ok(outs)

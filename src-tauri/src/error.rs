@@ -16,7 +16,11 @@ pub enum AppError {
     PasswordInvalid,
 
     #[error("sidecar_failed: {tool} exit {exit_code}")]
-    SidecarFailed { tool: String, exit_code: i32, stderr_tail: String },
+    SidecarFailed {
+        tool: String,
+        exit_code: i32,
+        stderr_tail: String,
+    },
 
     #[error("cancelled")]
     Cancelled,
@@ -97,27 +101,42 @@ impl specta::Type for AppError {
     fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
         use specta::datatype::{Field, Struct};
         Struct::named()
-            .field("key", Field::new(<String as specta::Type>::definition(types)))
+            .field(
+                "key",
+                Field::new(<String as specta::Type>::definition(types)),
+            )
             .field(
                 "data",
-                Field::new(
-                    <specta_typescript::Unknown as specta::Type>::definition(types),
-                ),
+                Field::new(<specta_typescript::Unknown as specta::Type>::definition(
+                    types,
+                )),
             )
             .build()
     }
 }
 
 impl From<std::io::Error> for AppError {
-    fn from(e: std::io::Error) -> Self { AppError::IoError { detail: e.to_string() } }
+    fn from(e: std::io::Error) -> Self {
+        AppError::IoError {
+            detail: e.to_string(),
+        }
+    }
 }
 
 impl From<anyhow::Error> for AppError {
-    fn from(e: anyhow::Error) -> Self { AppError::Internal { detail: format!("{e:#}") } }
+    fn from(e: anyhow::Error) -> Self {
+        AppError::Internal {
+            detail: format!("{e:#}"),
+        }
+    }
 }
 
 impl From<sqlx::Error> for AppError {
-    fn from(e: sqlx::Error) -> Self { AppError::Internal { detail: e.to_string() } }
+    fn from(e: sqlx::Error) -> Self {
+        AppError::Internal {
+            detail: e.to_string(),
+        }
+    }
 }
 
 pub type AppResult<T> = std::result::Result<T, AppError>;

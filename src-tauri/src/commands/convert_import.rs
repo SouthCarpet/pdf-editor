@@ -74,8 +74,12 @@ pub async fn convert_to_pdf_cmd(
             image_to_pdf::images_to_pdf(&inputs_clone, &output_clone, 72.0)
         })
         .await
-        .map_err(|e| AppError::Internal { detail: e.to_string() })?
-        .map_err(|e| AppError::Internal { detail: format!("{e:#}") })?;
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
         state.cancellation.forget(&args.job_id);
         Ok(ImportResult {
             output_paths: vec![args.output],
@@ -88,15 +92,17 @@ pub async fn convert_to_pdf_cmd(
         }
         let token = state.cancellation.register(&args.job_id);
         let parent = output.parent().unwrap_or_else(|| Path::new("."));
-        std::fs::create_dir_all(parent)
-            .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+        std::fs::create_dir_all(parent).map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?;
         let lo_out = state
             .soffice
             .convert_to_pdf(&inputs[0], parent, Some(token))
             .await?;
         if lo_out != output {
-            std::fs::rename(&lo_out, &output)
-                .map_err(|e| AppError::IoError { detail: e.to_string() })?;
+            std::fs::rename(&lo_out, &output).map_err(|e| AppError::IoError {
+                detail: e.to_string(),
+            })?;
         }
         state.cancellation.forget(&args.job_id);
         Ok(ImportResult {
