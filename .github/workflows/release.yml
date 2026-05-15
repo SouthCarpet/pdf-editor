@@ -20,7 +20,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -38,6 +38,10 @@ jobs:
       - shell: pwsh
         run: pwsh scripts/stage-sidecars.ps1
       - run: pnpm install --frozen-lockfile
+      # frontend build first so dist/ exists for tauri::generate_context!() in
+      # main.rs (the generate_bindings binary still depends on the lib which
+      # transitively pulls the tauri-build script).
+      - run: pnpm build
       - run: pnpm gen:bindings
       - run: pnpm tauri build
       - uses: actions/upload-artifact@v4

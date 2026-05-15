@@ -12,7 +12,7 @@ env:
 jobs:
   lint:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -20,7 +20,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
@@ -29,19 +29,15 @@ jobs:
         with:
           toolchain: stable-x86_64-pc-windows-msvc
           components: clippy,rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # cargo clippy needs dist/ for tauri::generate_context!()
+      - run: pnpm build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
   cargo-deny:
-    runs-on: windows-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo install --locked cargo-deny
-      - run: cargo deny --manifest-path src-tauri/Cargo.toml check
-
-  rust-unit:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -50,17 +46,54 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      # Cargo.lock is gitignored; generate it for the audit
+      - run: cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          manifest-path: src-tauri/Cargo.toml
+          command: check
+          arguments: --all-features
 
-  rust-property:
+  rust-unit:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      # tauri::generate_context!() reads dist/ from tauri.conf.json. Build the
+      # frontend first so the macro doesn't fail at compile time.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  rust-property:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: cargo test --manifest-path src-tauri/Cargo.toml --test proptest_pdf_editor
 
   frontend-unit:
@@ -73,14 +106,14 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
   bindings-drift:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -88,13 +121,14 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: pnpm gen:bindings
       - name: Verify bindings.ts in sync
         shell: pwsh
@@ -112,7 +146,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
       - run: node scripts/check-i18n.mjs
 
   sidecar-contract:
@@ -120,6 +154,13 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -129,6 +170,8 @@ jobs:
         with:
           path: src-tauri/sidecars
           key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - shell: pwsh
         run: pwsh scripts/fetch-sidecars.ps1
       - shell: pwsh
@@ -139,14 +182,23 @@ jobs:
 
   privacy:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     needs: [rust-unit]
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 11.0.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: cargo build --release --manifest-path src-tauri/Cargo.toml
       - shell: pwsh
         run: pwsh scripts/test-privacy.ps1
@@ -161,7 +213,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm vitest run a11y
@@ -177,7 +229,7 @@ jobs:
           version: 11.0.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.19
+          node-version: 22.13
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/cache@v4
