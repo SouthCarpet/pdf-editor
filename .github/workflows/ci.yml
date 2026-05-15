@@ -39,7 +39,7 @@ jobs:
 
   cargo-deny:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -48,11 +48,13 @@ jobs:
           workspaces: src-tauri
       # Cargo.lock is gitignored; generate it for the audit
       - run: cargo generate-lockfile --manifest-path src-tauri/Cargo.toml
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      # The EmbarkStudios/cargo-deny-action@v2 is Docker-based (Linux-only).
+      # We're on windows-latest so we install via cargo and run directly.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
         with:
-          manifest-path: src-tauri/Cargo.toml
-          command: check
-          arguments: --all-features
+          tool: cargo-deny
+      - run: cargo deny --manifest-path src-tauri/Cargo.toml check
 
   rust-unit:
     runs-on: windows-latest
