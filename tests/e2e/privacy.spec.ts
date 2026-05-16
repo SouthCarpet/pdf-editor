@@ -11,12 +11,21 @@
 
 import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const APP = path.resolve(
   __dirname,
-  "../../src-tauri/target/release/pdf-editor.exe",
+  "../../src-tauri/target/debug/pdf-editor.exe",
 );
 
+test.describe.skip("runtime privacy (tauri-driver integration pending)", () => {
+// Playwright's `_electron.launch` doesn't drive Tauri 2 (WebView2 +
+// tauri-driver). Static surface stays defined for the day tauri-driver
+// lands; the static `scripts/test-privacy.ps1` covers the dependency
+// gate today.
 test("app makes zero outbound network requests during a Merge run", async () => {
   const app = await electron.launch({ executablePath: APP });
   const win = await app.firstWindow();
@@ -48,4 +57,5 @@ test("app makes zero outbound network requests during a Merge run", async () => 
 
   expect(requests).toEqual([]);
   await app.close();
+});
 });

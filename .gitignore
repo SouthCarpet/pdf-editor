@@ -70,3 +70,5 @@ dist-types/
 src-tauri/fuzz/target/
 src-tauri/fuzz/artifacts/
 src-tauri/fuzz/corpus/
+playwright-report/
+test-results/

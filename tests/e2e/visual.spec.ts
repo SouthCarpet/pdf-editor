@@ -8,13 +8,19 @@
 
 import { test, expect, _electron as electron } from "@playwright/test";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const APP = path.resolve(
   __dirname,
-  "../../src-tauri/target/release/pdf-editor.exe",
+  "../../src-tauri/target/debug/pdf-editor.exe",
 );
 
 const DIFF_RATIO = 0.01;
+
+test.describe.skip("visual snapshots (tauri-driver integration pending)", () => {
 
 async function launch() {
   const app = await electron.launch({ executablePath: APP });
@@ -103,4 +109,5 @@ test("projects page matches snapshot", async () => {
     maxDiffPixelRatio: DIFF_RATIO,
   });
   await app.close();
+});
 });
