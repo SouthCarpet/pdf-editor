@@ -10,7 +10,12 @@
     "fs:allow-read-file",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "**/*.pdf" }, { "path": "**" }]
+      "allow": [
+        { "path": "**/*.pdf" },
+        { "path": "**/*.txt" },
+        { "path": "**/*.lst" },
+        { "path": "**/*.dict" }
+      ]
     }
   ]
 }
