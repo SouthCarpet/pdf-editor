@@ -215,34 +215,11 @@ jobs:
 
   privacy:
     runs-on: windows-latest
-    # `cargo build --release` of the full Tauri shell can take 10-15 min on a
-    # cold runner; combined with pnpm install + pnpm build the 15-min budget
-    # was too tight (cancelled at the deadline in CI #7).
-    timeout-minutes: 40
-    needs: [rust-unit]
+    # test-privacy.ps1 now scans src-tauri/Cargo.toml direct deps. No
+    # release build, no MSVC tools, no Cargo.lock required. Seconds.
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v3
-        with:
-          version: 11.0.3
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.13
-          cache: pnpm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Create sidecar stubs
-        shell: pwsh
-        run: |
-          New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
-          foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
-            New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
-          }
-      - run: cargo build --release --manifest-path src-tauri/Cargo.toml
       - shell: pwsh
         run: pwsh scripts/test-privacy.ps1
 
@@ -281,7 +258,10 @@ jobs:
           key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps
-      - run: pnpm tauri build --debug
+      # `--no-bundle` skips WiX/MSI; Playwright tests the .exe directly,
+      # so we don't need the installer artifact. Avoids opaque candle.exe
+      # failures (Tauri-cli swallows WiX stderr).
+      - run: pnpm tauri build --debug --no-bundle
       - run: pnpm exec playwright test
       - if: always()
         uses: actions/upload-artifact@v4
