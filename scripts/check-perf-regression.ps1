@@ -1,5 +1,5 @@
 #Requires -Version 7
-# Phase 18 Task 90g — performance regression gate.
+# Phase 18 Task 90g  -  performance regression gate.
 #
 # Runs criterion benchmarks and compares median runtimes against
 # `benches/baseline.json`. Fails CI on any > 20% regression. CI populates
@@ -13,7 +13,7 @@ $BaselineFile = Join-Path $ProjectRoot "benches/baseline.json"
 $Threshold = 0.20  # 20% regression budget
 
 if (-not (Test-Path $BaselineFile)) {
-    Write-Host "[INFO] no baseline file at $BaselineFile — first run, nothing to compare"
+    Write-Host "[INFO] no baseline file at $BaselineFile  -  first run, nothing to compare"
     exit 0
 }
 

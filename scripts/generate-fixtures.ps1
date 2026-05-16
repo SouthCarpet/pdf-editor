@@ -1,5 +1,5 @@
 #Requires -Version 7
-# Phase 18 Task 90d — fixture generator for sidecar contract tests.
+# Phase 18 Task 90d  -  fixture generator for sidecar contract tests.
 #
 # Produces deterministic PDF + image + docx fixtures under
 # src-tauri/tests/fixtures/ from the bundled sidecars (already staged
@@ -23,7 +23,7 @@ $Qpdf = Join-Path $Sidecars "qpdf-$Suffix"
 $Gs = Join-Path $Sidecars "gswin64c-$Suffix"
 $Soffice = Join-Path $ProjectRoot "src-tauri/resources/libreoffice/App/libreoffice/program/soffice.exe"
 
-# 1. sample.pdf — single page from a tiny generated PNG
+# 1. sample.pdf  -  single page from a tiny generated PNG
 $png = Join-Path $env:TEMP "_seed.png"
 # pwsh 7+ removed `-Encoding Byte`; use `WriteAllBytes` for raw byte output.
 [System.IO.File]::WriteAllBytes($png, [byte[]]@(
@@ -34,17 +34,17 @@ $png = Join-Path $env:TEMP "_seed.png"
 ))
 & $Mutool convert -F pdf -o (Join-Path $Pdfs "sample.pdf") $png
 
-# 2. password-permission.pdf — owner-only password (Type A: permission lock).
+# 2. password-permission.pdf  -  owner-only password (Type A: permission lock).
 #    AES-256 (V=5) covers the modern encryption path.
 & $Qpdf --encrypt "" "owner" 256 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-permission.pdf")
 
-# 3. password-open.pdf — user password (Type B: open password). Uses
+# 3. password-open.pdf  -  user password (Type B: open password). Uses
 #    128-bit (V=4) encryption because pdfcrack 0.19 only supports V<=4
 #    (V=5/V=6 AES-256 errors with "Standard - 6 not supported").
 #    --allow-weak-crypto is required by qpdf 12.x to emit 128-bit files.
 & $Qpdf --allow-weak-crypto --encrypt "user" "owner" 128 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-open.pdf")
 
-# 4. slovak-utf8.pdf — Slovak + Czech + German diacritics for UTF-8 round-trip
+# 4. slovak-utf8.pdf  -  Slovak + Czech + German diacritics for UTF-8 round-trip
 $html = Join-Path $env:TEMP "_slovak.html"
 @"
 <!doctype html><html><body>
@@ -62,22 +62,22 @@ if (Test-Path $Soffice) {
     }
 }
 
-# 5. scanned.pdf — image-only PDF (no text layer; triggers OCR path)
+# 5. scanned.pdf  -  image-only PDF (no text layer; triggers OCR path)
 & $Mutool convert -F pdf -o (Join-Path $Pdfs "scanned.pdf") $png
 
-# 6. large.pdf — 50 copies of sample.pdf merged (perf bench input)
+# 6. large.pdf  -  50 copies of sample.pdf merged (perf bench input)
 $tmpList = Join-Path $env:TEMP "_largefiles.txt"
 1..50 | ForEach-Object { Join-Path $Pdfs "sample.pdf" } | Set-Content $tmpList
 & $Qpdf --empty --pages "@$tmpList" -- (Join-Path $Pdfs "large.pdf")
 
-# 7. sample.docx — small Word doc for soffice tests
+# 7. sample.docx  -  small Word doc for soffice tests
 if (Test-Path $Soffice) {
     $sampleTxt = Join-Path $Docs "sample.txt"
     "Test Slovak Smoke" | Set-Content $sampleTxt -Encoding UTF8
     & $Soffice --headless --convert-to docx --outdir $Docs $sampleTxt
 }
 
-# 8. word_test.png — Ghostscript-rendered PNG containing the literal text
+# 8. word_test.png  -  Ghostscript-rendered PNG containing the literal text
 #    "TEST" (OCR target). Explicit page size via setpagedevice avoids the
 #    default Letter mapping; bold 60-pt Helvetica positioned mid-page so
 #    Tesseract has a clean target.

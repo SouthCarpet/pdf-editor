@@ -35,7 +35,7 @@ foreach ($prop in $Manifest.PSObject.Properties) {
     Copy-Item -Path $from -Destination $to -Force
     Write-Host "staged $shortName"
 
-    # ghostscript and tesseract drag DLL siblings — copy them alongside the renamed .exe
+    # ghostscript and tesseract drag DLL siblings  -  copy them alongside the renamed .exe
     # so Windows DLL search finds them when the sidecar is spawned.
     $binaryDir = Split-Path -Parent $from
     if ($spec.PSObject.Properties.Name -contains "extra_files") {

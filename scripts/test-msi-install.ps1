@@ -1,5 +1,5 @@
 #Requires -Version 7
-# Phase 18 Task 90l — MSI install smoke test (Windows Sandbox).
+# Phase 18 Task 90l  -  MSI install smoke test (Windows Sandbox).
 #
 # Prerequisites:
 #   - Windows 10/11 Pro or Enterprise edition.
@@ -12,7 +12,7 @@
 # uninstalls and asserts %ProgramFiles%\PDF Editor\ is gone afterwards.
 #
 # CI: only runs on tag pushes (release.yml). Requires a Sandbox-enabled
-# Windows runner image — the standard windows-latest image does NOT
+# Windows runner image  -  the standard windows-latest image does NOT
 # expose Sandbox by default; verify at runtime before depending on this.
 
 $ErrorActionPreference = "Stop"
@@ -20,7 +20,7 @@ $ProjectRoot = Split-Path $PSScriptRoot -Parent
 $MsiDir = Join-Path $ProjectRoot "src-tauri/target/release/bundle/msi"
 
 if (-not (Test-Path $MsiDir)) {
-    Write-Error "MSI bundle directory not found at $MsiDir — run `pnpm tauri build` first"
+    Write-Error "MSI bundle directory not found at $MsiDir  -  run `pnpm tauri build` first"
     exit 2
 }
 
@@ -79,7 +79,7 @@ $wsbFile = Join-Path $wsbDir "smoke.wsb"
 
 Write-Host "[INFO] launching Sandbox: $wsbFile"
 if (-not (Get-Command WindowsSandbox.exe -ErrorAction SilentlyContinue)) {
-    Write-Error "Windows Sandbox not installed — enable it via Optional Features"
+    Write-Error "Windows Sandbox not installed  -  enable it via Optional Features"
     exit 2
 }
 
@@ -87,7 +87,7 @@ Start-Process -FilePath WindowsSandbox.exe -ArgumentList $wsbFile -Wait
 
 $resultPath = Join-Path $wsbDir "result.txt"
 if (-not (Test-Path $resultPath)) {
-    Write-Error "Sandbox did not produce a result.txt — install likely never ran"
+    Write-Error "Sandbox did not produce a result.txt  -  install likely never ran"
     exit 1
 }
 
