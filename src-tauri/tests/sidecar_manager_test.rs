@@ -17,7 +17,10 @@ async fn run_qpdf_version_via_manager() {
     };
     let out = mgr.run(spec).await.expect("ok");
     assert!(out.status.success());
-    assert!(String::from_utf8_lossy(&out.stdout).starts_with("qpdf version"));
+    // qpdf prints `<exe-basename> version X.Y.Z`; with Tauri's externalBin
+    // the basename is `qpdf-x86_64-pc-windows-msvc`, so match the version
+    // substring instead of a strict `qpdf version` prefix.
+    assert!(String::from_utf8_lossy(&out.stdout).contains("version 12."));
 }
 
 #[tokio::test]

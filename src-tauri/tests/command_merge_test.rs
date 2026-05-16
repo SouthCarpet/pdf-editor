@@ -15,6 +15,9 @@ fn merge_two_fixtures() {
     let out = tmp.path().join("merged.pdf");
     let a = PathBuf::from("tests/fixtures/pdfs/sample.pdf");
     merge_pdfs(&[a.clone(), a.clone()], &out).unwrap();
+    // Save a debug copy outside the TempDir so we can inspect it after a failure.
+    let _ = std::fs::copy(&out, std::env::temp_dir().join("merged-probe.pdf"));
     let r = LopdfReader::open(&out).unwrap();
-    assert!(r.page_count() >= 2);
+    let got = r.page_count();
+    assert!(got >= 2, "expected >=2 pages after merging two copies of sample.pdf, got {got}");
 }

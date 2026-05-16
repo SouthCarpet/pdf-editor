@@ -58,6 +58,18 @@ pub fn merge_pdfs(inputs: &[PathBuf], output: &Path) -> Result<()> {
         .objects
         .insert(catalog_id, Object::Dictionary(catalog));
     merged.trailer.set("Root", catalog_id);
+
+    // We inserted objects with IDs greater than merged.max_id (which only counts
+    // ids handed out by new_object_id()). Without updating it lopdf's save()
+    // writes a truncated xref and the Pages Kids array dangles to objects that
+    // re-parse as non-Dictionary, producing a 0-page output.
+    merged.max_id = merged
+        .objects
+        .keys()
+        .map(|(id, _)| *id)
+        .max()
+        .unwrap_or(merged.max_id);
+    merged.renumber_objects();
     merged.compress();
 
     merged

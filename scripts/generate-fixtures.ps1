@@ -20,6 +20,7 @@ New-Item -ItemType Directory -Force $Pdfs, $Docs, $Imgs | Out-Null
 $Suffix = "x86_64-pc-windows-msvc.exe"
 $Mutool = Join-Path $Sidecars "mutool-$Suffix"
 $Qpdf = Join-Path $Sidecars "qpdf-$Suffix"
+$Gs = Join-Path $Sidecars "gswin64c-$Suffix"
 $Soffice = Join-Path $ProjectRoot "src-tauri/resources/libreoffice/App/libreoffice/program/soffice.exe"
 
 # 1. sample.pdf — single page from a tiny generated PNG
@@ -33,11 +34,15 @@ $png = Join-Path $env:TEMP "_seed.png"
 ))
 & $Mutool convert -F pdf -o (Join-Path $Pdfs "sample.pdf") $png
 
-# 2. password-permission.pdf — owner-only password (Type A: permission lock)
+# 2. password-permission.pdf — owner-only password (Type A: permission lock).
+#    AES-256 (V=5) covers the modern encryption path.
 & $Qpdf --encrypt "" "owner" 256 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-permission.pdf")
 
-# 3. password-open.pdf — user password (Type B: open password)
-& $Qpdf --encrypt "user" "owner" 256 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-open.pdf")
+# 3. password-open.pdf — user password (Type B: open password). Uses
+#    128-bit (V=4) encryption because pdfcrack 0.19 only supports V<=4
+#    (V=5/V=6 AES-256 errors with "Standard - 6 not supported").
+#    --allow-weak-crypto is required by qpdf 12.x to emit 128-bit files.
+& $Qpdf --allow-weak-crypto --encrypt "user" "owner" 128 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-open.pdf")
 
 # 4. slovak-utf8.pdf — Slovak + Czech + German diacritics for UTF-8 round-trip
 $html = Join-Path $env:TEMP "_slovak.html"
@@ -72,14 +77,20 @@ if (Test-Path $Soffice) {
     & $Soffice --headless --convert-to docx --outdir $Docs $sampleTxt
 }
 
-# 8. word_test.png — placeholder image. Tesseract test only runs when
-# this fixture is present + OCR-readable; without an image-magick step we
-# leave a 1x1 white PNG so the path resolves cleanly (the test asserts
-# "TEST" in the output and will fail loudly when it should pass — that's
-# the intended behavior until we wire up image generation here).
+# 8. word_test.png — Ghostscript-rendered PNG containing the literal text
+#    "TEST" (OCR target). Explicit page size via setpagedevice avoids the
+#    default Letter mapping; bold 60-pt Helvetica positioned mid-page so
+#    Tesseract has a clean target.
 $wordPng = Join-Path $Imgs "word_test.png"
-if (-not (Test-Path $wordPng)) {
-    Copy-Item $png $wordPng
-}
+$psFile = Join-Path $env:TEMP "_word_test.ps"
+@"
+%!PS-Adobe-3.0
+<< /PageSize [200 100] >> setpagedevice
+/Helvetica-Bold findfont 60 scalefont setfont
+20 30 moveto
+(TEST) show
+showpage
+"@ | Set-Content $psFile -Encoding ASCII
+& $Gs -sDEVICE=png16m -r150 -dNOPAUSE -dBATCH -dQUIET "-sOutputFile=$wordPng" $psFile
 
 Write-Host "[OK] fixtures generated under $Fixtures"

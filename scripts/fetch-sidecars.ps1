@@ -32,16 +32,22 @@ function Expand-Nsis {
     if ($LASTEXITCODE -ne 0) { throw "7-Zip extraction failed for $Installer" }
 }
 
+function Test-NonEmpty {
+    param([string]$Path)
+    return (Test-Path $Path) -and ((Get-Item $Path).Length -gt 0)
+}
+
 function Get-Sidecar {
     param([string]$Name, $Spec)
     Write-Host "==> $Name $($Spec.version)"
     $dest = Join-Path $ProjectRoot $Spec.extract_to
     $finalBinary = Join-Path $dest $Spec.binary
-    if (Test-Path $finalBinary) { Write-Host "  [SKIP] already present"; return }
+    if (Test-NonEmpty $finalBinary) { Write-Host "  [SKIP] already present"; return }
 
     $cacheFile = Join-Path $DownloadCache (Split-Path -Leaf $Spec.url)
-    if (-not (Test-Path $cacheFile)) {
+    if (-not (Test-NonEmpty $cacheFile)) {
         Write-Host "  downloading..."
+        if (Test-Path $cacheFile) { Remove-Item $cacheFile -Force }
         Invoke-WebRequest -Uri $Spec.url -OutFile $cacheFile -UseBasicParsing
     }
     Confirm-Hash -Path $cacheFile -Expected $Spec.sha256
@@ -68,7 +74,8 @@ function Get-Tessdata {
     foreach ($lang in $Spec.languages) {
         $url  = $Spec.url_template -replace '{lang}', $lang
         $file = Join-Path $dest "$lang.traineddata"
-        if (Test-Path $file) { Write-Host "  [SKIP] $lang"; continue }
+        if (Test-NonEmpty $file) { Write-Host "  [SKIP] $lang"; continue }
+        if (Test-Path $file) { Remove-Item $file -Force }
         Write-Host "  downloading $lang..."
         Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
     }

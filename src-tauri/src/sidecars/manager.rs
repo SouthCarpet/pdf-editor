@@ -82,8 +82,29 @@ impl SidecarManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .env_clear()
-            .env("PATH", std::env::var_os("PATH").unwrap_or_default())
             .kill_on_drop(true);
+        // Whitelist of env vars sidecars legitimately need. PATH for binary
+        // resolution; TEMP/TMP because Ghostscript writes temp files and
+        // errors with `Could not open temporary file ''` when they're empty;
+        // SYSTEMROOT/WINDIR for Win32 calls; USERPROFILE/LOCALAPPDATA/APPDATA
+        // for font and config lookup; COMSPEC for shell-spawn fallback.
+        for var in [
+            "PATH",
+            "TEMP",
+            "TMP",
+            "TMPDIR",
+            "SYSTEMROOT",
+            "WINDIR",
+            "USERPROFILE",
+            "LOCALAPPDATA",
+            "APPDATA",
+            "COMSPEC",
+            "HOME",
+        ] {
+            if let Some(val) = std::env::var_os(var) {
+                cmd.env(var, val);
+            }
+        }
 
         let mut child = cmd.spawn().map_err(|e| AppError::SidecarFailed {
             tool: spec.name.clone(),
