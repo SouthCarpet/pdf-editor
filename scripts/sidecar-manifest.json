@@ -1,38 +1,38 @@
 {
   "qpdf": {
     "version": "12.3.2",
-    "url": "https://github.com/qpdf/qpdf/releases/download/v12.3.2/qpdf-12.3.2-bin-mingw64.zip",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "url": "https://github.com/qpdf/qpdf/releases/download/v12.3.2/qpdf-12.3.2-msvc64.zip",
+    "sha256": "8941870a604e7c87ed24566b038d46c24ce76616254d2383c578f60c0677f202",
+    "format": "zip",
     "extract_to": "src-tauri/resources/qpdf",
-    "binary": "qpdf.exe"
+    "binary": "qpdf-12.3.2-msvc64/bin/qpdf.exe",
+    "extra_files_glob": "*.dll"
   },
   "ghostscript": {
-    "version": "10.04.0",
-    "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10040/gs10040w64.exe",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "version": "10.07.0",
+    "url": "https://github.com/ArtifexSoftware/ghostpdl-downloads/releases/download/gs10070/gs10070w64.exe",
+    "sha256": "8af854e2d62f9a3a674331321b347118a83928a3726631e458194121cf3bbeec",
+    "format": "nsis",
     "extract_to": "src-tauri/resources/ghostscript",
-    "binary": "gswin64c.exe"
+    "binary": "bin/gswin64c.exe",
+    "extra_files": ["bin/gsdll64.dll"]
   },
   "mupdf": {
-    "version": "1.24.10",
-    "url": "https://mupdf.com/downloads/archive/mupdf-1.24.10-windows.zip",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "version": "1.27.0",
+    "url": "https://github.com/ArtifexSoftware/mupdf-downloads/releases/download/1.27.0/mupdf-1.27.0-windows.zip",
+    "sha256": "f3e60b630453301914e52fb8ec001f6ab56cdb90daf39e533deae3ff214fcff8",
+    "format": "zip",
     "extract_to": "src-tauri/resources/mupdf",
     "binary": "mutool.exe"
   },
-  "libreoffice": {
-    "version": "24.8.4",
-    "url": "https://download.documentfoundation.org/libreoffice/portable/24.8/LibreOfficePortable_24.8.4_MultilingualStandard.paf.exe",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
-    "extract_to": "src-tauri/resources/libreoffice",
-    "binary": "App/libreoffice/program/soffice.exe"
-  },
   "tesseract": {
-    "version": "5.4.1",
+    "version": "5.4.0.20240606",
     "url": "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "sha256": "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9",
+    "format": "nsis",
     "extract_to": "src-tauri/resources/tesseract",
-    "binary": "tesseract.exe"
+    "binary": "tesseract.exe",
+    "extra_files_glob": "*.dll"
   },
   "tessdata": {
     "version": "tessdata_best",
@@ -41,9 +41,10 @@
     "extract_to": "src-tauri/resources/tessdata"
   },
   "pdfcrack": {
-    "version": "0.20",
-    "url": "https://sourceforge.net/projects/pdfcrack/files/pdfcrack/pdfcrack-0.20/pdfcrack-0.20.tar.gz/download",
-    "sha256": "REPLACE_WITH_ACTUAL_HASH",
+    "version": "0.19",
+    "url": "https://github.com/alitrack/PDFCrack/releases/download/0.19/pdfcrack-v0.19-windows-amd64.zip",
+    "sha256": "7ec3e68d252986d3645123ee67dc59ba882c51567f839cc3f173cb432fd38cfb",
+    "format": "zip",
     "extract_to": "src-tauri/resources/pdfcrack",
     "binary": "pdfcrack.exe"
   }

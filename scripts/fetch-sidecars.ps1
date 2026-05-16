@@ -8,26 +8,35 @@ $Manifest     = Get-Content $ManifestPath -Raw | ConvertFrom-Json
 $DownloadCache = Join-Path $env:LOCALAPPDATA "PdfEditorBuildCache"
 New-Item -Path $DownloadCache -ItemType Directory -Force | Out-Null
 
+$SevenZip = "$env:ProgramFiles\7-Zip\7z.exe"
+
 function Confirm-Hash {
     param([string]$Path, [string]$Expected)
-    if ($Expected -eq "REPLACE_WITH_ACTUAL_HASH") {
-        $actual = (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLower()
-        Write-Warning "[$Path] no pinned hash - record this in sidecar-manifest.json: $actual"
-        return $true
-    }
     $actual = (Get-FileHash -Algorithm SHA256 -Path $Path).Hash.ToLower()
+    if ($Expected -eq "REPLACE_WITH_ACTUAL_HASH") {
+        Write-Warning "[$Path] no pinned hash - record this in sidecar-manifest.json: $actual"
+        return
+    }
     if ($actual -ne $Expected.ToLower()) {
         throw "Hash mismatch for ${Path}: expected $Expected, got $actual"
     }
     Write-Host "  [OK] hash verified"
-    return $true
+}
+
+function Expand-Nsis {
+    param([string]$Installer, [string]$Dest)
+    if (-not (Test-Path $SevenZip)) {
+        throw "7-Zip not found at $SevenZip; required to extract NSIS installers. Install 7-Zip or use a runner image that ships it (windows-latest does)."
+    }
+    & $SevenZip x -y -o"$Dest" $Installer | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "7-Zip extraction failed for $Installer" }
 }
 
 function Get-Sidecar {
     param([string]$Name, $Spec)
     Write-Host "==> $Name $($Spec.version)"
     $dest = Join-Path $ProjectRoot $Spec.extract_to
-    $finalBinary = Join-Path $dest (Split-Path -Leaf $Spec.binary)
+    $finalBinary = Join-Path $dest $Spec.binary
     if (Test-Path $finalBinary) { Write-Host "  [SKIP] already present"; return }
 
     $cacheFile = Join-Path $DownloadCache (Split-Path -Leaf $Spec.url)
@@ -38,12 +47,17 @@ function Get-Sidecar {
     Confirm-Hash -Path $cacheFile -Expected $Spec.sha256
 
     New-Item -Path $dest -ItemType Directory -Force | Out-Null
-    if ($cacheFile.EndsWith(".zip")) {
-        Expand-Archive -Path $cacheFile -DestinationPath $dest -Force
-    } else {
-        Copy-Item -Path $cacheFile -Destination (Join-Path $dest (Split-Path -Leaf $Spec.binary))
+    $format = if ($Spec.PSObject.Properties.Name -contains "format") { $Spec.format } else { "zip" }
+    switch ($format) {
+        "zip"    { Expand-Archive -Path $cacheFile -DestinationPath $dest -Force }
+        "nsis"   { Expand-Nsis -Installer $cacheFile -Dest $dest }
+        "binary" { Copy-Item -Path $cacheFile -Destination (Join-Path $dest (Split-Path -Leaf $Spec.binary)) }
+        default  { throw "Unknown format '$format' for sidecar $Name" }
     }
-    Write-Host "  [OK] extracted to $dest"
+    if (-not (Test-Path $finalBinary)) {
+        throw "Extraction completed but expected binary missing: $finalBinary"
+    }
+    Write-Host "  [OK] $($Spec.binary)"
 }
 
 function Get-Tessdata {

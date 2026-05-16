@@ -24,12 +24,13 @@ $Soffice = Join-Path $ProjectRoot "src-tauri/resources/libreoffice/App/libreoffi
 
 # 1. sample.pdf — single page from a tiny generated PNG
 $png = Join-Path $env:TEMP "_seed.png"
-[byte[]]@(
+# pwsh 7+ removed `-Encoding Byte`; use `WriteAllBytes` for raw byte output.
+[System.IO.File]::WriteAllBytes($png, [byte[]]@(
     0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,
     0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
     0x00,0x00,0x00,0x10,0x00,0x00,0x00,0x10,
     0x08,0x06,0x00,0x00,0x00,0x1F,0xF3,0xFF,0x61
-) | Set-Content -Path $png -Encoding Byte -NoNewline
+))
 & $Mutool convert -F pdf -o (Join-Path $Pdfs "sample.pdf") $png
 
 # 2. password-permission.pdf — owner-only password (Type A: permission lock)
