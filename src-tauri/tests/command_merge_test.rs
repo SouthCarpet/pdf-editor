@@ -19,5 +19,8 @@ fn merge_two_fixtures() {
     let _ = std::fs::copy(&out, std::env::temp_dir().join("merged-probe.pdf"));
     let r = LopdfReader::open(&out).unwrap();
     let got = r.page_count();
-    assert!(got >= 2, "expected >=2 pages after merging two copies of sample.pdf, got {got}");
+    assert!(
+        got >= 2,
+        "expected >=2 pages after merging two copies of sample.pdf, got {got}"
+    );
 }

@@ -13,11 +13,9 @@ async fn convert_docx_to_pdf() {
     // scripts/fetch-sidecars.ps1. Skip gracefully when the resources tree
     // hasn't been staged yet — meaningful once Phase-9 LibreOffice bundling
     // lands in CI.
-    let soffice = Path::new(
-        "../src-tauri/resources/libreoffice/App/libreoffice/program/soffice.exe",
-    );
-    let soffice_alt =
-        Path::new("resources/libreoffice/App/libreoffice/program/soffice.exe");
+    let soffice =
+        Path::new("../src-tauri/resources/libreoffice/App/libreoffice/program/soffice.exe");
+    let soffice_alt = Path::new("resources/libreoffice/App/libreoffice/program/soffice.exe");
     if !soffice.exists() && !soffice_alt.exists() {
         eprintln!(
             "skip: LibreOffice not staged at resources/libreoffice/...; \
@@ -37,7 +35,10 @@ async fn convert_docx_to_pdf() {
     let lo = SofficeWrapper::new(mgr);
     let tmp = TempDir::new().unwrap();
     let out_dir = tmp.path();
-    let out = lo.convert_to_pdf(fixture, out_dir, None).await.expect("convert");
+    let out = lo
+        .convert_to_pdf(fixture, out_dir, None)
+        .await
+        .expect("convert");
     assert!(out.exists());
     assert!(out.extension().unwrap() == "pdf");
 }

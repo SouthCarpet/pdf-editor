@@ -27,6 +27,10 @@ async fn render_first_page_to_png() {
         .await
         .unwrap();
     let bytes = std::fs::read(&png).unwrap();
-    assert!(bytes.len() > 100, "rendered PNG too small: {} bytes", bytes.len());
+    assert!(
+        bytes.len() > 100,
+        "rendered PNG too small: {} bytes",
+        bytes.len()
+    );
     assert_eq!(&bytes[0..4], b"\x89PNG");
 }

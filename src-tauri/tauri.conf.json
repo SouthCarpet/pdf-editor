@@ -28,7 +28,7 @@
   "bundle": {
     "active": true,
     "targets": ["msi"],
-    "icon": ["icons/icon.png"],
+    "icon": ["icons/icon.png", "icons/icon.ico"],
     "externalBin": [
       "sidecars/qpdf",
       "sidecars/gswin64c",

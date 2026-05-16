@@ -215,7 +215,10 @@ jobs:
 
   privacy:
     runs-on: windows-latest
-    timeout-minutes: 15
+    # `cargo build --release` of the full Tauri shell can take 10-15 min on a
+    # cold runner; combined with pnpm install + pnpm build the 15-min budget
+    # was too tight (cancelled at the deadline in CI #7).
+    timeout-minutes: 40
     needs: [rust-unit]
     steps:
       - uses: actions/checkout@v4
