@@ -73,3 +73,7 @@ src-tauri/fuzz/corpus/
 playwright-report/
 test-results/
 scripts/vault/autoresearch-results.tsv
+
+# Python __pycache__ from vault hook scripts (Windows)
+scripts/hooks/vault/__pycache__/
+scripts/vault/__pycache__/
