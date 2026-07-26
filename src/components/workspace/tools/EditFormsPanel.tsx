@@ -1,100 +1,183 @@
-// Phase 12 Task 66 — Edit Tier 1 (AcroForm) panel.
-//
-// Loads form fields via `read_form_fields_cmd` and renders one HTML input
-// per field (text, checkbox, choice, signature). The user mutates values
-// in-place; Save invokes `set_form_values_cmd` to write the changes back
-// to a new file. Values are also autosaved every 5s.
 import { useEffect, useMemo, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { commands, type FormField } from "@/bindings";
+import { commands, type FormField, type FormValueUpdate } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
 
 interface Props {
   docPath: string;
+  onSelectPage?: (pageIndex: number) => void;
 }
 
-export function EditFormsPanel({ docPath }: Props) {
-  const { t } = useTranslation("common");
-  const [fields, setFields] = useState<FormField[] | null>(null);
-  const [values, setValues] = useState<Record<string, string>>({});
+type DraftValues = Record<string, string | null>;
+interface FieldState {
+  path: string;
+  fields: FormField[] | null;
+}
+
+export function EditFormsPanel({ docPath, onSelectPage }: Props) {
+  const { t } = useTranslation("workspace");
+  const [fieldState, setFieldState] = useState<FieldState>({
+    path: docPath,
+    fields: null,
+  });
+  const [initialValues, setInitialValues] = useState<DraftValues>({});
+  const [values, setValues] = useState<DraftValues>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  // Load fields when the document path changes.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const r = await commands.readFormFieldsCmd(docPath);
+    void (async () => {
+      const result = await commands.readFormFieldsCmd(docPath);
       if (cancelled) return;
-      if (r.status === "error") {
-        setErr(JSON.stringify(r.error));
-        setFields([]);
+      if (result.status === "error") {
+        setErr(formatCommandError(result.error));
+        setSaved(false);
+        setFieldState({ path: docPath, fields: [] });
         return;
       }
-      setFields(r.data);
-      // Seed the values map from any existing /V entries.
-      const seed: Record<string, string> = {};
-      for (const f of r.data) if (f.name) seed[f.name] = f.value ?? "";
+      const seed = Object.fromEntries(result.data.map((field) => [field.id, field.value]));
+      setInitialValues(seed);
       setValues(seed);
+      setErr(null);
+      setSaved(false);
+      setFieldState({ path: docPath, fields: result.data });
     })();
     return () => {
       cancelled = true;
     };
   }, [docPath]);
 
-  // Autosave the in-progress edits.
   useAutosave(docPath, { tool: "forms", values }, 5000);
 
-  const fieldCount = fields?.length ?? 0;
-  const summary = useMemo(() => {
-    if (fields === null) return "Loading…";
-    if (fields.length === 0) return "No AcroForm fields detected.";
-    return `${fieldCount} field${fieldCount === 1 ? "" : "s"} detected.`;
-  }, [fields, fieldCount]);
+  const fields = fieldState.path === docPath ? fieldState.fields : null;
+  const dirtyUpdates = useMemo<FormValueUpdate[]>(() => {
+    if (!fields) return [];
+    return fields
+      .filter((field) => values[field.id] !== initialValues[field.id])
+      .map((field) => ({
+        field_id: field.id,
+        value: values[field.id] ?? null,
+      }));
+  }, [fields, initialValues, values]);
+
+  function updateValue(fieldId: string, value: string | null) {
+    setValues((current) => ({ ...current, [fieldId]: value }));
+    setSaved(false);
+  }
 
   async function onSave() {
+    if (dirtyUpdates.length === 0) return;
     setBusy(true);
     setErr(null);
+    setSaved(false);
     try {
-      const out = await save({
+      const output = await save({
         defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
         filters: [{ name: "PDF", extensions: ["pdf"] }],
       });
-      if (!out) return;
-      const r = await commands.setFormValuesCmd({
+      if (!output) return;
+      const result = await commands.setFormValuesCmd({
         input: docPath,
-        output: out,
-        values,
+        output,
+        updates: dirtyUpdates,
         job_id: crypto.randomUUID(),
       });
-      if (r.status === "error") setErr(JSON.stringify(r.error));
+      if (result.status === "error") {
+        setErr(formatCommandError(result.error));
+        return;
+      }
+      setInitialValues(values);
+      setSaved(true);
     } finally {
       setBusy(false);
     }
   }
 
+  if (fields === null) {
+    return (
+      <section aria-labelledby="forms-title" className="space-y-2">
+        <PanelTitle />
+        <p className="text-xs text-[var(--color-muted)]">{t("forms.loading")}</p>
+      </section>
+    );
+  }
+
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium">{t("tools.edit")} — Forms</h3>
-      <p className="text-xs text-[var(--color-muted)]">{summary}</p>
-      <div className="max-h-[480px] space-y-2 overflow-auto">
-        {fields?.map((f, i) => (
-          <FormFieldRow
-            key={`${f.name || "__anon__"}_${i}`}
-            field={f}
-            value={values[f.name] ?? ""}
-            onChange={(v) =>
-              setValues((s) => ({ ...s, [f.name]: v }))
-            }
-          />
-        ))}
-      </div>
-      <Button size="sm" disabled={busy || fieldCount === 0} onClick={onSave}>
-        {busy ? "Saving…" : "Save filled PDF"}
-      </Button>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+    <section aria-labelledby="forms-title" className="space-y-3">
+      <PanelTitle />
+      {fields.length === 0 ? (
+        <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+          <p className="text-xs font-medium">{t("forms.no_fields")}</p>
+          <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+            {t("forms.scanned_explanation")}
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[var(--color-muted)]">
+              {t("forms.field_count", { count: fields.length })}
+            </span>
+            {dirtyUpdates.length > 0 && (
+              <span className="font-medium text-amber-700 dark:text-amber-300">
+                {t("forms.unsaved_count", { count: dirtyUpdates.length })}
+              </span>
+            )}
+          </div>
+
+          <div className="max-h-[480px] divide-y divide-[var(--color-border)] overflow-auto border-y border-[var(--color-border)]">
+            {fields.map((field) => (
+              <FormFieldRow
+                key={field.id}
+                field={field}
+                value={values[field.id] ?? null}
+                onChange={(value) => updateValue(field.id, value)}
+                onSelectPage={onSelectPage}
+              />
+            ))}
+          </div>
+
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={busy || dirtyUpdates.length === 0}
+            onClick={onSave}
+          >
+            {busy ? t("forms.saving") : t("forms.save_copy")}
+          </Button>
+          <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
+            {t("forms.live_form_note")}
+          </p>
+        </>
+      )}
+      {saved && (
+        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-300">
+          {t("forms.saved")}
+        </p>
+      )}
+      {err && (
+        <p role="alert" className="text-xs text-red-600">
+          {err}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PanelTitle() {
+  const { t } = useTranslation("workspace");
+  return (
+    <div>
+      <h3 id="forms-title" className="text-sm font-semibold">
+        {t("forms.title")}
+      </h3>
+      <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-muted)]">
+        {t("forms.description")}
+      </p>
     </div>
   );
 }
@@ -103,37 +186,146 @@ function FormFieldRow({
   field,
   value,
   onChange,
+  onSelectPage,
 }: {
   field: FormField;
-  value: string;
-  onChange: (v: string) => void;
+  value: string | null;
+  onChange: (value: string | null) => void;
+  onSelectPage?: (pageIndex: number) => void;
 }) {
-  // Show "(unnamed)" so anonymous widgets render. They can't roundtrip
-  // through set_form_values_cmd (which keys on name) but the user can at
-  // least see them.
-  const label = field.name || "(unnamed)";
+  const { t } = useTranslation("workspace");
+  const editable = !field.read_only && field.kind !== "signature" && field.kind !== "button";
+  const label = field.name || t("forms.unnamed");
+
+  return (
+    <div className="space-y-2 py-3 first:pt-2 last:pb-2">
+      <div className="flex min-w-0 items-start justify-between gap-2">
+        <label
+          htmlFor={`form-field-${field.id}`}
+          className="min-w-0 truncate text-xs font-medium"
+          title={label}
+        >
+          {label}
+          {field.required && (
+            <span className="ml-0.5 text-red-600" aria-label={t("forms.required")}>
+              *
+            </span>
+          )}
+        </label>
+        {field.page_index !== null && (
+          <button
+            type="button"
+            onClick={() => onSelectPage?.(field.page_index!)}
+            className="shrink-0 text-[10px] text-[var(--color-muted)] underline-offset-2 hover:underline"
+          >
+            {t("forms.page", { page: field.page_index + 1 })}
+          </button>
+        )}
+      </div>
+
+      <FieldControl
+        id={`form-field-${field.id}`}
+        field={field}
+        value={value}
+        editable={editable}
+        onChange={onChange}
+      />
+
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[10px] text-[var(--color-muted)] capitalize">
+          {t(`forms.kind.${field.kind}`)}
+          {field.read_only ? ` · ${t("forms.read_only")}` : ""}
+        </span>
+        {editable && value !== null && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-[10px] font-medium text-red-600 underline-offset-2 hover:underline"
+          >
+            {t("forms.clear")}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FieldControl({
+  id,
+  field,
+  value,
+  editable,
+  onChange,
+}: {
+  id: string;
+  field: FormField;
+  value: string | null;
+  editable: boolean;
+  onChange: (value: string | null) => void;
+}) {
+  const { t } = useTranslation("workspace");
 
   if (field.kind === "checkbox") {
+    const onValue = field.options[0] ?? "Yes";
     return (
-      <label className="flex items-center gap-2 text-xs">
+      <label htmlFor={id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
         <input
+          id={id}
           type="checkbox"
-          checked={value === "Yes" || value === "On" || value === "true"}
-          onChange={(e) => onChange(e.target.checked ? "Yes" : "Off")}
+          disabled={!editable}
+          checked={value !== null && value !== "Off"}
+          onChange={(event) => onChange(event.target.checked ? onValue : null)}
         />
-        <span className="truncate">{label}</span>
+        {value !== null && value !== "Off" ? t("forms.checked") : t("forms.not_checked")}
       </label>
     );
   }
+
+  if (field.kind === "radio" || field.kind === "choice") {
+    const options =
+      value !== null && !field.options.includes(value) ? [value, ...field.options] : field.options;
+    return (
+      <select
+        id={id}
+        disabled={!editable}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value || null)}
+        className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs"
+      >
+        <option value="">{t("forms.no_value")}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
   return (
-    <label className="flex flex-col gap-1 text-xs">
-      <span className="truncate text-[var(--color-muted)]">{label}</span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded border px-2 py-1"
-      />
-    </label>
+    <input
+      id={id}
+      type="text"
+      disabled={!editable}
+      value={value ?? ""}
+      placeholder={value === null ? t("forms.no_value") : undefined}
+      onChange={(event) => onChange(event.target.value)}
+      className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs disabled:opacity-60"
+    />
   );
+}
+
+function formatCommandError(error: unknown): string {
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "data" in error &&
+    typeof error.data === "object" &&
+    error.data !== null &&
+    "detail" in error.data &&
+    typeof error.data.detail === "string"
+  ) {
+    return error.data.detail;
+  }
+  return JSON.stringify(error);
 }

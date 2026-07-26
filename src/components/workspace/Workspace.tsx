@@ -118,7 +118,9 @@ export function Workspace({ pdf, path }: Props) {
           {activeTool === "edit" && (
             <div className="space-y-3">
               <EditSubToolToggle value={editSubTool} onChange={setEditSubTool} />
-              {editSubTool === "forms" && <EditFormsPanel docPath={path} />}
+              {editSubTool === "forms" && (
+                <EditFormsPanel docPath={path} onSelectPage={setActivePage} />
+              )}
               {editSubTool === "annotations" && (
                 <EditAnnotationsPanel
                   docPath={path}

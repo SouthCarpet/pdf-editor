@@ -396,16 +396,26 @@ export type ExtractResult = {
 };
 
 export type FormField = {
+	/**  Indirect object reference encoded as `object:generation`. */
+	id: string,
 	name: string,
 	kind: FormFieldKind,
 	value: string | null,
-	page_index: number,
-	/**  `[x, y, x2, y2]` in PDF points, as authored in `/Rect`. */
+	page_index: number | null,
+	/**  `[x1, y1, x2, y2]` in PDF points, as authored in `/Rect`. */
 	rect: [(number | null), (number | null), (number | null), (number | null)],
 	options: string[],
+	read_only: boolean,
+	required: boolean,
 };
 
-export type FormFieldKind = "text" | "checkbox" | "radio" | "choice" | "signature";
+export type FormFieldKind = "text" | "checkbox" | "radio" | "choice" | "signature" | "button";
+
+export type FormValueUpdate = {
+	field_id: string,
+	/**  `None` clears the field by removing `/V`. */
+	value: string | null,
+};
 
 export type FrontendErrorPayload = {
 	message: string,
@@ -869,7 +879,7 @@ export type SessionSlot = {
 export type SetFormArgs = {
 	input: string,
 	output: string,
-	values: { [key in string]: string },
+	updates: FormValueUpdate[],
 	job_id: string,
 };
 

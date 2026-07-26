@@ -1,0 +1,78 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import i18n from "@/i18n";
+import { EditFormsPanel } from "../EditFormsPanel";
+
+const mocks = vi.hoisted(() => ({
+  readFormFieldsCmd: vi.fn(),
+  setFormValuesCmd: vi.fn(),
+  autosavePut: vi.fn(),
+  save: vi.fn(),
+}));
+
+vi.mock("@/bindings", () => ({
+  commands: {
+    readFormFieldsCmd: mocks.readFormFieldsCmd,
+    setFormValuesCmd: mocks.setFormValuesCmd,
+    autosavePut: mocks.autosavePut,
+  },
+}));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  save: mocks.save,
+}));
+
+describe("EditFormsPanel", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await i18n.changeLanguage("en");
+    mocks.readFormFieldsCmd.mockResolvedValue({
+      status: "ok",
+      data: [
+        {
+          id: "10:0",
+          name: "Applicant",
+          kind: "text",
+          value: "Alice",
+          page_index: 0,
+          rect: [36, 700, 240, 724],
+          options: [],
+          read_only: false,
+          required: true,
+        },
+      ],
+    });
+    mocks.setFormValuesCmd.mockResolvedValue({ status: "ok", data: null });
+    mocks.save.mockResolvedValue("D:\\output\\form.filled.pdf");
+  });
+
+  it("sends an explicit null update when a user clears a filled field", async () => {
+    const user = userEvent.setup();
+    render(<EditFormsPanel docPath={"D:\\input\\form.pdf"} />);
+
+    expect(await screen.findByDisplayValue("Alice")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear value" }));
+    expect(screen.getByLabelText(/Applicant/)).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: "Save filled copy" }));
+
+    await waitFor(() =>
+      expect(mocks.setFormValuesCmd).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: "D:\\input\\form.pdf",
+          output: "D:\\output\\form.filled.pdf",
+          updates: [{ field_id: "10:0", value: null }],
+        })
+      )
+    );
+  });
+
+  it("explains the scanned-form path when no AcroForm fields exist", async () => {
+    mocks.readFormFieldsCmd.mockResolvedValue({ status: "ok", data: [] });
+
+    render(<EditFormsPanel docPath={"D:\\input\\scan.pdf"} />);
+
+    expect(await screen.findByText("No native form fields found")).toBeInTheDocument();
+    expect(screen.getByText(/part of the page image/i)).toBeInTheDocument();
+  });
+});
