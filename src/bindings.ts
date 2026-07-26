@@ -594,7 +594,13 @@ extra_inputs: string[]; page_size?: NodeImportPageSize; custom_width_mm?: number
  *  Save current files into `dir` using `name_template` (supports
  *  `{stem}`, `{i}`, `{date}`, `{tool}` placeholders).
  */
-{ type: "save"; dir: string; name_template: string };
+{ type: "save"; dir: string; name_template: string } | 
+/**
+ *  Open PDF files from disk via the frontend's native picker and feed
+ *  them into the pipeline as source documents. The executor validates
+ *  each path with the same document inspector used by `open_document`.
+ */
+{ type: "open_file"; paths: string[] };
 
 /**  Mirrors `services::ocr_engine::OcrOutputMode`. */
 export type NodeOcrOutputMode = "searchable_pdf" | "pdf_plus_text" | "text_only";

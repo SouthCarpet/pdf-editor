@@ -38,6 +38,11 @@ function s(...items: Artifact[]): Set<Artifact> {
 
 export function preservationFor(payload: NodeKindPayload): PreservationContract {
   switch (payload.kind) {
+    case "open_file":
+      return {
+        preserves: new Set(ALL_ARTIFACTS),
+        may_strip: new Set(),
+      };
     case "compress":
       return {
         preserves: s(

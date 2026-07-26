@@ -15,6 +15,21 @@
   "errors": "Errors",
   "output_paths": "Output files",
   "no_results": "No results yet",
+  "nodes": {
+    "open_file": "Open file"
+  },
+  "editor": {
+    "selection_hint": "Choose a step from Nodes at any time, then connect it top-to-bottom. Select a node to edit its configuration."
+  },
+  "open_file": {
+    "description": "Choose the PDF files this pipeline starts with.",
+    "choose": "Choose PDFs",
+    "empty": "No PDF selected.",
+    "selected_files": "Selected PDF files",
+    "remove": "Remove {{path}}",
+    "run_selected": "Run selected files",
+    "run_hint": "Choose PDFs in the Open file step to start."
+  },
   "artifacts": {
     "annotations": "annotations",
     "form_fields": "form fields",

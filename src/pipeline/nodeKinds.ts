@@ -19,6 +19,7 @@ import { DEFAULT_EXTRACT_OPTIONS } from "@/components/tools/options/ExtractOptio
 import { DEFAULT_CROP_OPTIONS } from "@/components/tools/options/CropOptions";
 
 export type NodeKindKey =
+  | "open_file"
   | "compress"
   | "optimize"
   | "unlock"
@@ -39,6 +40,7 @@ export type NodeKindKey =
 // One union member per NodeKind. The shape is what gets sent to the Rust
 // `Pipeline` payload (after a thin transform in toPipelinePayload below).
 export type NodeKindPayload =
+  | { kind: "open_file"; paths: string[] }
   | { kind: "compress"; options: CompressOptionsValue }
   | { kind: "optimize"; options: OptimizeOptionsValue }
   | { kind: "unlock"; options: UnlockOptionsValue }
@@ -87,12 +89,26 @@ export type NodeKindPayload =
 export interface NodeKindMeta {
   key: NodeKindKey;
   label: string;
+  labelKey?: string;
   category: "input" | "modify" | "convert" | "output";
   defaultPayload: () => NodeKindPayload;
   summary: (payload: NodeKindPayload) => string;
 }
 
 export const NODE_KINDS: NodeKindMeta[] = [
+  {
+    key: "open_file",
+    label: "Open file",
+    labelKey: "nodes.open_file",
+    category: "input",
+    defaultPayload: () => ({ kind: "open_file", paths: [] }),
+    summary: (p) =>
+      p.kind === "open_file"
+        ? p.paths.length === 0
+          ? ""
+          : `${p.paths.length} PDF`
+        : "",
+  },
   {
     key: "merge",
     label: "Merge",
@@ -321,6 +337,11 @@ export function payloadToRust(
   payload: NodeKindPayload,
 ): Record<string, unknown> {
   switch (payload.kind) {
+    case "open_file":
+      return {
+        type: "open_file",
+        paths: payload.paths,
+      };
     case "compress":
       return {
         type: "compress",

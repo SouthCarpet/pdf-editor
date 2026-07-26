@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Channel } from "@tauri-apps/api/core";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   commands,
@@ -59,6 +60,7 @@ function buildPipelinePayload(
 }
 
 export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
+  const { t } = useTranslation("pipeline");
   const nodes = usePipelineStore((s) => s.nodes);
   const edges = usePipelineStore((s) => s.edges);
 
@@ -78,6 +80,22 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         edges.map((e) => ({ source: e.source, target: e.target })),
       ),
     [nodes, edges],
+  );
+  const hasOpenFileNode = nodes.some(
+    (node) => node.data.config.kind === "open_file",
+  );
+  const configuredOpenFilePaths = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          nodes.flatMap((node) =>
+            node.data.config.kind === "open_file"
+              ? node.data.config.paths
+              : [],
+          ),
+        ),
+      ),
+    [nodes],
   );
 
   function reset() {
@@ -136,6 +154,10 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     if (!chosen) return;
     const paths = Array.isArray(chosen) ? chosen : [chosen];
     if (paths.length === 0) return;
+    await runWithFiles(paths);
+  }
+
+  async function runWithFiles(paths: string[]) {
     reset();
     setRunning(true);
     const id = crypto.randomUUID();
@@ -159,6 +181,11 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     } finally {
       setRunning(false);
     }
+  }
+
+  async function runConfiguredFiles() {
+    if (configuredOpenFilePaths.length === 0) return;
+    await runWithFiles(configuredOpenFilePaths);
   }
 
   async function runOnFolder() {
@@ -268,12 +295,29 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         )}
 
         <div className="flex gap-2">
-          <Button onClick={runOnFiles} disabled={running || nodes.length === 0}>
-            Run on files
-          </Button>
-          <Button onClick={runOnFolder} disabled={running || nodes.length === 0}>
-            Run on folder
-          </Button>
+          {hasOpenFileNode ? (
+            <Button
+              onClick={runConfiguredFiles}
+              disabled={running || configuredOpenFilePaths.length === 0}
+            >
+              {t("open_file.run_selected")}
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={runOnFiles}
+                disabled={running || nodes.length === 0}
+              >
+                Run on files
+              </Button>
+              <Button
+                onClick={runOnFolder}
+                disabled={running || nodes.length === 0}
+              >
+                Run on folder
+              </Button>
+            </>
+          )}
           {running && jobId && (
             <Button variant="outline" onClick={handleCancel}>
               Cancel
@@ -311,7 +355,9 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={2} className="p-2 text-center text-[var(--color-muted)]">
-                    Pick files or a folder to start.
+                    {hasOpenFileNode
+                      ? t("open_file.run_hint")
+                      : "Pick files or a folder to start."}
                   </td>
                 </tr>
               ) : (

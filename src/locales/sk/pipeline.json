@@ -15,6 +15,21 @@
   "errors": "Chyby",
   "output_paths": "Výstupné súbory",
   "no_results": "Zatiaľ žiadne výsledky",
+  "nodes": {
+    "open_file": "Otvoriť súbor"
+  },
+  "editor": {
+    "selection_hint": "Krok môžete kedykoľvek vybrať v zozname Uzly a potom ho pripojiť zhora nadol. Výberom uzla upravíte jeho nastavenia."
+  },
+  "open_file": {
+    "description": "Vyberte PDF súbory, ktorými sa má tento pipeline začať.",
+    "choose": "Vybrať PDF súbory",
+    "empty": "Nie je vybratý žiadny PDF súbor.",
+    "selected_files": "Vybraté PDF súbory",
+    "remove": "Odstrániť {{path}}",
+    "run_selected": "Spustiť na vybratých súboroch",
+    "run_hint": "Začnite výberom PDF súborov v kroku Otvoriť súbor."
+  },
   "artifacts": {
     "annotations": "anotácie",
     "form_fields": "polia formulárov",

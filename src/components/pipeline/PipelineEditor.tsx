@@ -7,6 +7,7 @@
 //
 // Top-right toolbar covers run/save/load preset.
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -52,6 +53,7 @@ export function PipelineEditor() {
 }
 
 function InnerEditor() {
+  const { t } = useTranslation("pipeline");
   const nodes = usePipelineStore((s) => s.nodes);
   const edges = usePipelineStore((s) => s.edges);
   const selectedNodeId = usePipelineStore((s) => s.selectedNodeId);
@@ -103,6 +105,7 @@ function InnerEditor() {
         label: kind.label,
       },
     });
+    setSelected(id);
   }
 
   const selectedNode: PipelineEditorNode | undefined = useMemo(
@@ -177,8 +180,7 @@ function InnerEditor() {
         <NodeConfigPanel node={selectedNode} />
       ) : (
         <div className="border-l border-[var(--color-border)] bg-[var(--color-card)] p-3 text-sm text-[var(--color-muted)]">
-          Select a node to edit its configuration. Drag from the palette to
-          add nodes, then connect them top-to-bottom.
+          {t("editor.selection_hint")}
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@
 // Click "Add" to insert a default-config node into the canvas.
 import { Button } from "@/components/ui/button";
 import { NODE_KINDS, type NodeKindMeta } from "@/pipeline/nodeKinds";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   onAdd: (kind: NodeKindMeta) => void;
@@ -24,6 +25,8 @@ const ORDER: NodeKindMeta["category"][] = [
 ];
 
 export function NodePalette({ onAdd }: Props) {
+  const { t } = useTranslation("pipeline");
+
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto border-r border-[var(--color-border)] bg-[var(--color-card)] p-3">
       <h2 className="text-sm font-semibold">Nodes</h2>
@@ -43,7 +46,7 @@ export function NodePalette({ onAdd }: Props) {
                 className="w-full justify-start"
                 onClick={() => onAdd(k)}
               >
-                {k.label}
+                {k.labelKey ? t(k.labelKey) : k.label}
               </Button>
             ))}
           </div>

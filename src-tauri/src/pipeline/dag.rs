@@ -492,6 +492,10 @@ pub enum NodeKind {
     /// Save current files into `dir` using `name_template` (supports
     /// `{stem}`, `{i}`, `{date}`, `{tool}` placeholders).
     Save { dir: String, name_template: String },
+    /// Open PDF files from disk via the frontend's native picker and feed
+    /// them into the pipeline as source documents. The executor validates
+    /// each path with the same document inspector used by `open_document`.
+    OpenFile { paths: Vec<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -547,6 +551,19 @@ pub struct PipelineRunReport {
 }
 
 impl Pipeline {
+    /// Validate constraints that are not expressible through topological
+    /// ordering alone.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        for node in &self.nodes {
+            if matches!(&node.kind, NodeKind::OpenFile { .. })
+                && self.edges.iter().any(|edge| edge.to == node.id)
+            {
+                anyhow::bail!("open_file node {} cannot have incoming edges", node.id);
+            }
+        }
+        Ok(())
+    }
+
     /// Kahn's algorithm topological sort. Returns the node IDs in order
     /// of execution. Bails on cycles (executor would otherwise deadlock).
     pub fn topo_order(&self) -> anyhow::Result<Vec<String>> {

@@ -108,3 +108,70 @@ fn merge_does_not_strip_form_fields() {
     assert!(n.preservation().preserves.contains(Artifact::FORM_FIELDS));
     assert!(!n.preservation().may_strip.contains(Artifact::FORM_FIELDS));
 }
+
+#[test]
+fn open_file_node_orders_before_downstream_steps() {
+    // The "Open file" step (Slovak: "otvorit subor") is an input-category
+    // node like Merge/ConvertImport: it can sit first in the chain and
+    // still topo-sorts like any other node.
+    let p = Pipeline {
+        nodes: vec![
+            PipelineNode {
+                id: "open".into(),
+                kind: NodeKind::OpenFile {
+                    paths: vec!["C:\\docs\\a.pdf".into()],
+                },
+            },
+            PipelineNode {
+                id: "save".into(),
+                kind: NodeKind::Save {
+                    dir: "/tmp".into(),
+                    name_template: "{stem}.pdf".into(),
+                },
+            },
+        ],
+        edges: vec![PipelineEdge {
+            from: "open".into(),
+            to: "save".into(),
+        }],
+    };
+    let order = p.topo_order().unwrap();
+    assert_eq!(order, vec!["open", "save"]);
+}
+
+#[test]
+fn open_file_node_rejects_incoming_edges() {
+    let p = Pipeline {
+        nodes: vec![
+            PipelineNode {
+                id: "merge".into(),
+                kind: NodeKind::Merge {},
+            },
+            PipelineNode {
+                id: "open".into(),
+                kind: NodeKind::OpenFile {
+                    paths: vec!["C:\\docs\\a.pdf".into()],
+                },
+            },
+        ],
+        edges: vec![PipelineEdge {
+            from: "merge".into(),
+            to: "open".into(),
+        }],
+    };
+
+    assert!(p.validate().is_err());
+}
+
+#[test]
+fn open_file_preserves_everything() {
+    let n = NodeKind::OpenFile {
+        paths: vec!["C:\\docs\\a.pdf".into()],
+    };
+    assert!(n.preservation().preserves.contains(Artifact::FORM_FIELDS));
+    assert!(n
+        .preservation()
+        .preserves
+        .contains(Artifact::PDFA_COMPLIANCE));
+    assert!(n.preservation().may_strip.is_empty());
+}

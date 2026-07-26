@@ -230,6 +230,18 @@ impl crate::pipeline::dag::NodeKind {
                     | Artifact::LINEARIZATION,
                 Artifact::empty(),
             ),
+            NodeKind::OpenFile { .. } => PreservationContract::new(
+                // Opening a file from disk is a pure read; nothing is
+                // rewritten, so nothing is stripped.
+                Artifact::TEXT_LAYER
+                    | Artifact::ANNOTATIONS
+                    | Artifact::FORM_FIELDS
+                    | Artifact::BOOKMARKS
+                    | Artifact::EMBEDDED_FONTS
+                    | Artifact::PDFA_COMPLIANCE
+                    | Artifact::LINEARIZATION,
+                Artifact::empty(),
+            ),
         }
     }
 }
@@ -370,6 +382,17 @@ mod tests {
             .may_strip
             .contains(Artifact::PDFA_COMPLIANCE));
         assert!(n.preservation().preserves.contains(Artifact::TEXT_LAYER));
+    }
+
+    #[test]
+    fn open_file_preserves_everything() {
+        let n = NodeKind::OpenFile {
+            paths: vec!["C:\\docs\\a.pdf".into()],
+        };
+        let p = n.preservation();
+        assert_eq!(p.may_strip, Artifact::empty());
+        assert!(p.preserves.contains(Artifact::PDFA_COMPLIANCE));
+        assert!(p.preserves.contains(Artifact::LINEARIZATION));
     }
 
     #[test]

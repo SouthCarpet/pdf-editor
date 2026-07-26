@@ -20,6 +20,7 @@ use crate::pipeline::dag::{
 use crate::pipeline::preservation::Artifact;
 use crate::services::ocr_engine::{OcrOptions, OcrOutputMode};
 use crate::services::pdf_editor;
+use crate::services::workspace::inspect_document;
 use crate::util::progress::ProgressReporter;
 use chrono::Utc;
 use std::collections::HashMap;
@@ -99,6 +100,9 @@ pub async fn run_pipeline(
     reporter: &ProgressReporter,
     cancel: CancellationToken,
 ) -> AppResult<Vec<PathBuf>> {
+    pipeline.validate().map_err(|e| AppError::InvalidArgument {
+        detail: e.to_string(),
+    })?;
     let order = pipeline.topo_order().map_err(|e| AppError::Internal {
         detail: e.to_string(),
     })?;
@@ -191,6 +195,7 @@ fn node_label(kind: &NodeKind) -> &'static str {
         NodeKind::Ocr { .. } => "ocr",
         NodeKind::Watermark { .. } => "watermark",
         NodeKind::Save { .. } => "save",
+        NodeKind::OpenFile { .. } => "open_file",
     }
 }
 
@@ -228,6 +233,35 @@ fn materialize_final(scratch: &TempDir, current: &[PathBuf]) -> AppResult<Vec<Pa
         } else {
             out.push(src.clone());
         }
+    }
+    Ok(out)
+}
+
+/// Validate the `OpenFile` node's configured paths: each must exist on disk
+/// and have a `.pdf` extension (case-insensitive). Pulled out of `run_node`
+/// so it is unit-testable without an `AppState`.
+pub(crate) fn resolve_open_file_paths(paths: &[String]) -> AppResult<Vec<PathBuf>> {
+    if paths.is_empty() {
+        return Err(AppError::InvalidArgument {
+            detail: "open_file: no file selected".into(),
+        });
+    }
+
+    let mut out = Vec::with_capacity(paths.len());
+    for p in paths {
+        let path = PathBuf::from(p);
+        let is_pdf = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("pdf"))
+            .unwrap_or(false);
+        if !is_pdf {
+            return Err(AppError::InvalidArgument {
+                detail: format!("open_file: {p} is not a .pdf file"),
+            });
+        }
+        inspect_document(&path)?;
+        out.push(path);
     }
     Ok(out)
 }
@@ -928,6 +962,11 @@ async fn run_node(
                 feature: "pipeline.watermark (awaits Watermark tool font picker)".into(),
             })
         }
+        NodeKind::OpenFile { paths } => {
+            // This node is an explicit source. Configured paths replace
+            // ambient command inputs instead of being appended to them.
+            resolve_open_file_paths(paths)
+        }
         NodeKind::Save { dir, name_template } => {
             std::fs::create_dir_all(dir).ok();
             let date = Utc::now().format("%Y-%m-%d").to_string();
@@ -976,6 +1015,110 @@ fn read_png_dimensions(path: &Path) -> Option<(u32, u32)> {
     let w = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]);
     let h = u32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]);
     Some((w, h))
+}
+
+#[cfg(test)]
+mod open_file_tests {
+    use super::{resolve_open_file_paths, run_pipeline};
+    use crate::app_state::AppState;
+    use crate::pipeline::dag::{NodeKind, Pipeline, PipelineNode};
+    use crate::util::progress::ProgressReporter;
+    use sqlx::sqlite::SqlitePoolOptions;
+    use tokio::sync::mpsc;
+    use tokio_util::sync::CancellationToken;
+
+    fn open_file_pipeline(paths: Vec<String>) -> Pipeline {
+        Pipeline {
+            nodes: vec![PipelineNode {
+                id: "open".into(),
+                kind: NodeKind::OpenFile { paths },
+            }],
+            edges: Vec::new(),
+        }
+    }
+
+    fn test_state() -> AppState {
+        let pool = SqlitePoolOptions::new()
+            .connect_lazy("sqlite::memory:")
+            .unwrap();
+        AppState::new(pool)
+    }
+
+    fn test_reporter() -> ProgressReporter {
+        let (tx, _rx) = mpsc::channel(8);
+        ProgressReporter::new("open-file-test".into(), tx)
+    }
+
+    #[test]
+    fn resolves_existing_pdf() {
+        let pdf =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pdfs/sample.pdf");
+        let out = resolve_open_file_paths(&[pdf.display().to_string()]).unwrap();
+        assert_eq!(out, vec![pdf]);
+    }
+
+    #[test]
+    fn missing_file_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("missing.pdf");
+        let err = resolve_open_file_paths(&[missing.display().to_string()])
+            .expect_err("missing file must error");
+        assert_eq!(err.key(), "file_not_found");
+    }
+
+    #[test]
+    fn non_pdf_extension_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let txt = tmp.path().join("a.txt");
+        std::fs::File::create(&txt).unwrap();
+        let err = resolve_open_file_paths(&[txt.display().to_string()])
+            .expect_err("non-pdf extension must error");
+        assert_eq!(err.key(), "invalid_argument");
+    }
+
+    #[test]
+    fn empty_selection_errors() {
+        let err = resolve_open_file_paths(&[]).expect_err("empty selection must error");
+        assert_eq!(err.key(), "invalid_argument");
+    }
+
+    #[tokio::test]
+    async fn executor_uses_open_file_node_as_source() {
+        let pdf =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pdfs/sample.pdf");
+        let pipeline = open_file_pipeline(vec![pdf.display().to_string()]);
+
+        let out = run_pipeline(
+            &test_state(),
+            &pipeline,
+            &[],
+            &test_reporter(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(out, vec![pdf]);
+    }
+
+    #[tokio::test]
+    async fn executor_reports_missing_open_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("missing.pdf");
+        let pipeline = open_file_pipeline(vec![missing.display().to_string()]);
+
+        let err = run_pipeline(
+            &test_state(),
+            &pipeline,
+            &[],
+            &test_reporter(),
+            CancellationToken::new(),
+        )
+        .await
+        .expect_err("missing open-file source must fail");
+
+        assert_eq!(err.key(), "file_not_found");
+    }
 }
 
 // Delta W: page_dimensions + ensure_helv_font now live in commands::ocr.rs

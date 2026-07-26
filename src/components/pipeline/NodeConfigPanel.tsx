@@ -5,6 +5,8 @@
 // "pipeline-node"`. No duplicated UI — patches the node's `data.config`
 // through `usePipelineStore.setNodeConfig`.
 import { open } from "@tauri-apps/plugin-dialog";
+import { FileText, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CompressOptions } from "@/components/tools/options/CompressOptions";
@@ -37,6 +39,7 @@ interface Props {
 }
 
 export function NodeConfigPanel({ node }: Props) {
+  const { t } = useTranslation("pipeline");
   const meta = nodeKindByKey(node.data.kind);
   const setNodeConfig = usePipelineStore((s) => s.setNodeConfig);
   const removeNode = usePipelineStore((s) => s.removeNode);
@@ -50,7 +53,9 @@ export function NodeConfigPanel({ node }: Props) {
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">{meta.label}</h2>
+        <h2 className="text-sm font-semibold">
+          {meta.labelKey ? t(meta.labelKey) : meta.label}
+        </h2>
         <Button variant="ghost" size="sm" onClick={() => removeNode(node.id)}>
           Remove
         </Button>
@@ -58,6 +63,9 @@ export function NodeConfigPanel({ node }: Props) {
 
       {/* Delta U: dispatch to the SAME Options component the standalone
           tool uses. mode="pipeline-node" hides the standalone-only hint. */}
+      {config.kind === "open_file" && (
+        <OpenFileConfig config={config} patch={patch} />
+      )}
       {config.kind === "compress" && (
         <CompressOptions
           value={config.options}
@@ -242,6 +250,71 @@ export function NodeConfigPanel({ node }: Props) {
 interface KConf<K extends NodeKindPayload["kind"]> {
   config: Extract<NodeKindPayload, { kind: K }>;
   patch: (next: NodeKindPayload) => void;
+}
+
+function OpenFileConfig({ config, patch }: KConf<"open_file">) {
+  const { t } = useTranslation("pipeline");
+
+  async function pickFiles() {
+    const selected = await open({
+      multiple: true,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
+    if (!selected) return;
+    const paths = Array.isArray(selected) ? selected : [selected];
+    patch({
+      ...config,
+      paths: Array.from(new Set([...config.paths, ...paths])),
+    });
+  }
+
+  function removePath(path: string) {
+    patch({ ...config, paths: config.paths.filter((item) => item !== path) });
+  }
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-[var(--color-muted)]">
+        {t("open_file.description")}
+      </p>
+      <Button
+        variant="outline"
+        className="w-full transition-transform duration-150 ease-out active:scale-[0.96]"
+        onClick={pickFiles}
+      >
+        {t("open_file.choose")}
+      </Button>
+      {config.paths.length === 0 ? (
+        <p className="rounded-md bg-neutral-100 p-3 text-xs text-[var(--color-muted)]">
+          {t("open_file.empty")}
+        </p>
+      ) : (
+        <ul className="space-y-2" aria-label={t("open_file.selected_files")}>
+          {config.paths.map((path) => (
+            <li
+              key={path}
+              className="flex min-w-0 items-center gap-2 rounded-md bg-neutral-100 p-2"
+            >
+              <FileText className="size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-xs" title={path}>
+                {path}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0 transition-transform duration-150 ease-out active:scale-[0.96]"
+                aria-label={t("open_file.remove", { path })}
+                onClick={() => removePath(path)}
+              >
+                <X className="size-4" aria-hidden="true" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function WatermarkConfig({ config, patch }: KConf<"watermark">) {
