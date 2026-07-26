@@ -7,7 +7,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { FileUp, FolderOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useOpenFiles } from "@/components/opening/openFilesContext";
 import { useProjectsStore } from "@/stores/projectsStore";
 
 export function ProjectList() {
@@ -16,6 +18,7 @@ export function ProjectList() {
   const loading = useProjectsStore((s) => s.loading);
   const refresh = useProjectsStore((s) => s.refresh);
   const createProject = useProjectsStore((s) => s.create);
+  const { browseForPdfs } = useOpenFiles();
   const navigate = useNavigate();
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState("");
@@ -45,16 +48,33 @@ export function ProjectList() {
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t("tools.projects")}</h1>
-        <Button onClick={() => setShowNew(true)}>+ New</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void browseForPdfs()}>
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {t("browse")}
+          </Button>
+          <Button onClick={() => setShowNew(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            {t("projects.new")}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4 rounded-lg border-2 border-dashed border-[var(--color-border)] px-5 py-4">
+        <FileUp className="h-7 w-7 shrink-0 text-[var(--color-muted)]" />
+        <div>
+          <p className="font-medium">{t("projects.open_title")}</p>
+          <p className="mt-0.5 text-sm text-[var(--color-muted)]">
+            {t("projects.open_description")}
+          </p>
+        </div>
       </div>
 
       {loading && projects.length === 0 && (
-        <p className="text-sm text-[var(--color-muted)]">Loading…</p>
+        <p className="text-sm text-[var(--color-muted)]">{t("loading")}</p>
       )}
       {!loading && projects.length === 0 && (
-        <p className="text-sm text-[var(--color-muted)]">
-          No projects yet. Click + New to create one.
-        </p>
+        <p className="text-sm text-[var(--color-muted)]">{t("projects.empty")}</p>
       )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -81,12 +101,12 @@ export function ProjectList() {
       {showNew && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="w-96 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">New project</h2>
+            <h2 className="text-lg font-semibold">{t("projects.new")}</h2>
             <input
               className="mt-3 block w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
+              placeholder={t("projects.name")}
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") onCreate();
@@ -98,7 +118,7 @@ export function ProjectList() {
                 {t("cancel")}
               </Button>
               <Button onClick={onCreate} disabled={busy || !name.trim()}>
-                {busy ? "Creating…" : "Create"}
+                {busy ? t("projects.creating") : t("projects.create")}
               </Button>
             </div>
           </div>

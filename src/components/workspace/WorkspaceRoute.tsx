@@ -10,7 +10,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
+import { Button } from "@/components/ui/button";
 import type { TextDiffResult, VisualDiffPage } from "@/bindings";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
@@ -21,10 +23,12 @@ import { ComparePanel } from "./tools/ComparePanel";
 import { Workspace } from "./Workspace";
 
 export function WorkspaceRoute() {
+  const { t } = useTranslation("common");
   const { docId } = useParams({ from: "/workspace/$docId" });
   const search = useSearch({ from: "/workspace/$docId" });
   const navigate = useNavigate();
   const addDoc = useDocuments((s) => s.add);
+  const setActiveDoc = useDocuments((s) => s.setActive);
   const setTool = useWorkspace((s) => s.setTool);
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -97,24 +101,36 @@ export function WorkspaceRoute() {
     };
 
     async function loadAndRegister(p: string) {
-      const opened = await commands.openDocument(p);
-      if (opened.status === "error") throw opened.error;
-      const doc = opened.data;
-      addDoc({
-        id: doc.path,
-        path: doc.path,
-        pageCount: doc.page_count,
-        dirty: false,
-      });
-      if (!cancelled) setPath(doc.path);
+      await Promise.resolve();
+      const cached = useDocuments.getState().documents.get(p);
+      let resolvedPath: string;
+      if (cached) {
+        resolvedPath = cached.path;
+        setActiveDoc(cached.id);
+      } else {
+        const opened = await commands.openDocument(p);
+        if (opened.status === "error") throw opened.error;
+        const doc = opened.data;
+        resolvedPath = doc.path;
+        addDoc({
+          id: doc.path,
+          path: doc.path,
+          pageCount: doc.page_count,
+          dirty: false,
+        });
+      }
+      if (!cancelled) {
+        setError(null);
+        setPath(resolvedPath);
+      }
       // Phase 13 Task 71 — kick off scan detection in the background.
-      const detect = await commands.detectScannedPdf(doc.path);
+      const detect = await commands.detectScannedPdf(resolvedPath);
       if (cancelled) return;
       if (detect.status === "ok" && detect.data.is_likely_scanned) {
         setScanDialogOpen(true);
       }
     }
-  }, [docId, navigate, addDoc, search, isCompareMode]);
+  }, [docId, navigate, addDoc, setActiveDoc, search, isCompareMode]);
 
   async function onRunOcr(sel: OcrSelections) {
     if (!path) return;
@@ -145,7 +161,12 @@ export function WorkspaceRoute() {
 
   if (error) {
     return (
-      <div className="p-6 text-red-600">Failed to open document: {error}</div>
+      <div className="space-y-3 p-6">
+        <p className="text-red-600">{t("opening.failed_document", { error })}</p>
+        <Button onClick={() => navigate({ to: "/projects" })}>
+          {t("projects.back_to_projects")}
+        </Button>
+      </div>
     );
   }
   if (isCompareMode) {
@@ -178,7 +199,7 @@ function CompareWorkspace() {
   const ready = leftPath && rightPath;
 
   return (
-    <div className="flex h-[calc(100vh-3rem)]">
+    <div className="flex h-full min-h-0">
       <main className="flex-1 overflow-hidden">
         {ready ? (
           <CompareViewer

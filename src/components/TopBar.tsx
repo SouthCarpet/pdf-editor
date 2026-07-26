@@ -1,6 +1,6 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Moon, Sun, Monitor, Settings } from "lucide-react";
+import { ArrowLeft, Home, Moon, Sun, Monitor, Settings } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useAppStore } from "@/stores/appStore";
 import { Button } from "@/components/ui/button";
@@ -8,14 +8,40 @@ import { Button } from "@/components/ui/button";
 export function TopBar() {
   const { t } = useTranslation("common");
   const { theme, setTheme } = useTheme();
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
   const lang = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
-      <Link to="/" className="text-lg font-semibold">
-        {t("app_name")}
-      </Link>
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          aria-label={t("back")}
+          title={t("back")}
+          onClick={() => router.history.back()}
+          disabled={!canGoBack}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          title={t("home")}
+        >
+          <Link to="/projects" aria-label={t("home")}>
+            <Home className="h-4 w-4" />
+          </Link>
+        </Button>
+        <Link to="/" className="ml-2 text-lg font-semibold">
+          {t("app_name")}
+        </Link>
+      </div>
       <div className="flex items-center gap-2">
         <Button
           variant="ghost"

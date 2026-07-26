@@ -10,13 +10,9 @@ interface Props {
   children?: ReactNode;
 }
 
-// File picker dropzone. The "Open" button uses Tauri's native dialog plugin
-// (always works). Drag-and-drop currently relies on `dataTransfer.files[i].path`
-// — only Tauri's drag-drop event payload populates that field; browser-side
-// DnD on Tauri 2 surfaces empty paths.
-// TODO(phase-19): wire Tauri's `webview.onDragDropEvent` to receive OS paths
-// and forward them via `onFiles` (this current implementation is the fallback
-// path used during development inside the browser preview).
+// Context-specific picker/dropzone used by tools and project attachments.
+// Browser drag events are a development-preview fallback. Native OS drops are
+// handled app-wide by OpenFilesProvider through Tauri's onDragDropEvent API.
 export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, children }: Props) {
   const { t } = useTranslation("common");
   const [hover, setHover] = useState(false);

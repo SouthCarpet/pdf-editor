@@ -41,6 +41,7 @@ export function ProjectDetail({ projectId }: Props) {
   const [allPresets, setAllPresets] = useState<PipelinePreset[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [missing, setMissing] = useState(false);
   const [runReport, setRunReport] = useState<string | null>(null);
 
   // Inline editing of name/description.
@@ -50,11 +51,18 @@ export function ProjectDetail({ projectId }: Props) {
 
   const reload = useCallback(async () => {
     const p = await commands.projectGet(projectId);
-    if (p.status === "ok" && p.data) {
-      setProject(p.data);
-      setEditName(p.data.name);
-      setEditDescription(p.data.description ?? "");
-      setDirty(false);
+    if (p.status === "ok") {
+      if (p.data) {
+        setProject(p.data);
+        setEditName(p.data.name);
+        setEditDescription(p.data.description ?? "");
+        setDirty(false);
+        setMissing(false);
+      } else {
+        setMissing(true);
+      }
+    } else {
+      setErr(t("projects.load_failed"));
     }
     const f = await commands.projectListFiles(projectId);
     if (f.status === "ok") setFiles(f.data);
@@ -65,7 +73,7 @@ export function ProjectDetail({ projectId }: Props) {
       const byId = new Map<number, PipelinePreset>(ps.data.map((x) => [x.id, x]));
       setAttached(ids.data.map((id) => byId.get(id)).filter((x): x is PipelinePreset => !!x));
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     // Defer to a microtask so the lint rule about setState-in-effect
@@ -203,10 +211,15 @@ export function ProjectDetail({ projectId }: Props) {
 
   if (!project) {
     return (
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-4xl space-y-3">
         <p className="text-sm text-[var(--color-muted)]">
-          {err ?? "Loading project…"}
+          {err ?? (missing ? t("projects.not_found") : t("projects.loading"))}
         </p>
+        {(err || missing) && (
+          <Button onClick={() => navigate({ to: "/projects" })}>
+            {t("projects.back_to_projects")}
+          </Button>
+        )}
       </div>
     );
   }

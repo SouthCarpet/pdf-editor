@@ -68,7 +68,7 @@ export function Workspace({ pdf, path }: Props) {
   }, [pdf, activePage, zoom]);
 
   return (
-    <div className="flex h-[calc(100vh-3rem)] flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <WorkspaceTopBar />
       <div className="flex flex-1 overflow-hidden">
         <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]">
