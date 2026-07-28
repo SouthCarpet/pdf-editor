@@ -85,5 +85,31 @@
     "restore_prompt": "Obnoviť predchádzajúcu reláciu ({{count}})?",
     "restore": "Obnoviť",
     "discard": "Zahodiť"
+  },
+  "ocr_scan": {
+    "title": "Toto PDF vyzerá ako sken",
+    "description": "Nenašiel sa žiadny označiteľný text. Spustiť OCR a umožniť vyhľadávanie?",
+    "languages": "Jazyky",
+    "render_dpi": "DPI vykreslenia",
+    "psm": "Režim segmentácie strany (PSM)",
+    "psm_auto": "3: Plne automatický (predvolené)",
+    "psm_block": "6: Jednotný blok textu",
+    "psm_line": "7: Jeden riadok textu",
+    "psm_sparse": "11: Riedky text",
+    "psm_sparse_osd": "12: Riedky text s OSD",
+    "later": "Neskôr",
+    "run": "Spustiť OCR"
+  },
+  "ocr_result": {
+    "title": "OCR je dokončené",
+    "failed_title": "OCR zlyhalo",
+    "summary": "{{pages}} strán, {{characters}} rozpoznaných znakov",
+    "confidence": "Priemerná spoľahlivosť: {{value}} %",
+    "confidence_unavailable": "Spoľahlivosť nebola dostupná.",
+    "low_confidence": "Skontrolujte strany s nízkou spoľahlivosťou",
+    "page_badge": "Strana {{page}}: {{value}} %",
+    "cache_hits": "{{count}} strán bolo použitých z vyrovnávacej pamäte OCR",
+    "close": "Zavrieť výsledok OCR",
+    "failed": "OCR zlyhalo: {{error}}"
   }
 }

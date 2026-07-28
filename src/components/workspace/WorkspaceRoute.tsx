@@ -11,9 +11,10 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
+import { X } from "lucide-react";
 import { commands } from "@/bindings";
 import { Button } from "@/components/ui/button";
-import type { TextDiffResult, VisualDiffPage } from "@/bindings";
+import type { OcrResult, TextDiffResult, VisualDiffPage } from "@/bindings";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
@@ -33,6 +34,8 @@ export function WorkspaceRoute() {
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
+  const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
 
   // Apply the tool search param exactly once on first mount.
   useEffect(() => {
@@ -140,7 +143,9 @@ export function WorkspaceRoute() {
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
     if (!out) return;
-    await commands.ocrPdfCmd({
+    setOcrError(null);
+    setOcrResult(null);
+    const result = await commands.ocrPdfCmd({
       input: path,
       output: out,
       options: {
@@ -155,6 +160,11 @@ export function WorkspaceRoute() {
       },
       job_id: crypto.randomUUID(),
     });
+    if (result.status === "ok") {
+      setOcrResult(result.data);
+    } else {
+      setOcrError(JSON.stringify(result.error));
+    }
   }
 
   const pdfDoc = usePdfDocument(path);
@@ -183,6 +193,83 @@ export function WorkspaceRoute() {
         onClose={() => setScanDialogOpen(false)}
         onRunOcr={onRunOcr}
       />
+      {(ocrResult || ocrError) && (
+        <div
+          role={ocrError ? "alert" : "status"}
+          aria-live={ocrError ? "assertive" : "polite"}
+          className="fixed right-5 bottom-5 z-50 w-[min(420px,calc(100vw-2.5rem))] rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xl"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-balance">
+                {t(ocrError ? "ocr_result.failed_title" : "ocr_result.title")}
+              </h2>
+              {ocrResult && (
+                <p className="mt-1 text-xs text-[var(--color-muted)] tabular-nums">
+                  {t("ocr_result.summary", {
+                    pages: ocrResult.pages_processed,
+                    characters: ocrResult.characters_recognized,
+                  })}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              aria-label={t("ocr_result.close")}
+              onClick={() => {
+                setOcrResult(null);
+                setOcrError(null);
+              }}
+              className="-m-2 inline-flex size-10 items-center justify-center rounded-md text-[var(--color-muted)] transition-transform duration-150 ease-out hover:text-[var(--color-foreground)] active:scale-[0.96]"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
+          </div>
+          {ocrError && (
+            <p className="mt-3 text-xs text-red-600">
+              {t("ocr_result.failed", { error: ocrError })}
+            </p>
+          )}
+          {ocrResult && (
+            <div className="mt-3 space-y-2 text-xs">
+              <p className="tabular-nums">
+                {ocrResult.average_confidence == null
+                  ? t("ocr_result.confidence_unavailable")
+                  : t("ocr_result.confidence", {
+                      value: ocrResult.average_confidence.toFixed(1),
+                    })}
+              </p>
+              {ocrResult.low_confidence_pages.length > 0 && (
+                <div>
+                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                    {t("ocr_result.low_confidence")}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {ocrResult.page_confidences
+                      .filter((page) => page.low_confidence)
+                      .map((page) => (
+                        <span
+                          key={page.page_number}
+                          className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900 tabular-nums dark:bg-amber-950 dark:text-amber-200"
+                        >
+                          {t("ocr_result.page_badge", {
+                            page: page.page_number,
+                            value: page.confidence?.toFixed(1) ?? "?",
+                          })}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              )}
+              {ocrResult.cache_hits > 0 && (
+                <p className="text-[var(--color-muted)]">
+                  {t("ocr_result.cache_hits", { count: ocrResult.cache_hits })}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

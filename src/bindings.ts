@@ -671,10 +671,21 @@ export type OcrOutputMode =
 /**  Write only the recognized text to a sidecar `.txt` (PDF unchanged). */
 "text_only";
 
+export type OcrPageConfidence = {
+	page_number: number,
+	confidence: number | null,
+	low_confidence: boolean,
+};
+
 export type OcrResult = {
 	output_paths: string[],
 	pages_processed: number,
 	characters_recognized: number,
+	average_confidence: number | null,
+	page_confidences: OcrPageConfidence[],
+	low_confidence_pages: number[],
+	cache_hits: number,
+	engine: string,
 };
 
 export type OpenedDocument = {

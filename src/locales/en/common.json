@@ -85,5 +85,31 @@
     "restore_prompt": "Restore your previous session ({{count}})?",
     "restore": "Restore",
     "discard": "Discard"
+  },
+  "ocr_scan": {
+    "title": "This PDF looks like a scan",
+    "description": "No selectable text was found. Run OCR to make it searchable?",
+    "languages": "Languages",
+    "render_dpi": "Render DPI",
+    "psm": "Page segmentation mode (PSM)",
+    "psm_auto": "3: Fully automatic (default)",
+    "psm_block": "6: Uniform block of text",
+    "psm_line": "7: Single text line",
+    "psm_sparse": "11: Sparse text",
+    "psm_sparse_osd": "12: Sparse text with OSD",
+    "later": "Later",
+    "run": "Run OCR"
+  },
+  "ocr_result": {
+    "title": "OCR complete",
+    "failed_title": "OCR failed",
+    "summary": "{{pages}} pages, {{characters}} recognized characters",
+    "confidence": "Average confidence: {{value}}%",
+    "confidence_unavailable": "Confidence was not available.",
+    "low_confidence": "Review low-confidence pages",
+    "page_badge": "Page {{page}}: {{value}}%",
+    "cache_hits": "{{count}} pages reused from the OCR cache",
+    "close": "Close OCR result",
+    "failed": "OCR failed: {{error}}"
   }
 }

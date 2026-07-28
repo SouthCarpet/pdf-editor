@@ -5,6 +5,7 @@
 // languages, render DPI, and PSM, then trigger an OCR run that
 // re-injects an invisible text layer into the open document.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { commands } from "@/bindings";
@@ -22,7 +23,8 @@ interface Props {
 }
 
 export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
-  const [available, setAvailable] = useState<string[]>(["eng", "slk", "ces", "deu"]);
+  const { t } = useTranslation("common");
+  const [available, setAvailable] = useState<string[]>(["eng", "slk", "ces", "deu", "pol"]);
   const [selected, setSelected] = useState<string[]>(["eng"]);
   const [dpi, setDpi] = useState(300);
   const [psm, setPsm] = useState(3);
@@ -43,9 +45,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
   if (!open) return null;
 
   const toggle = (l: string) => {
-    setSelected((prev) =>
-      prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l],
-    );
+    setSelected((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
   };
 
   const run = () => {
@@ -55,20 +55,30 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="w-[480px] space-y-3 rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900">
-        <h2 className="text-lg font-semibold">This PDF looks like a scan</h2>
-        <p className="text-sm text-[var(--color-muted)]">
-          No selectable text was found. Run OCR to make it searchable?
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ocr-scan-title"
+        aria-describedby="ocr-scan-description"
+        className="w-[480px] space-y-3 rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900"
+      >
+        <h2 id="ocr-scan-title" className="text-lg font-semibold text-balance">
+          {t("ocr_scan.title")}
+        </h2>
+        <p id="ocr-scan-description" className="text-sm text-pretty text-[var(--color-muted)]">
+          {t("ocr_scan.description")}
         </p>
 
         <div>
-          <p className="mb-1 text-xs font-medium">Languages</p>
+          <p className="mb-1 text-xs font-medium">{t("ocr_scan.languages")}</p>
           <div className="flex flex-wrap gap-1">
             {available.map((l) => (
               <button
+                type="button"
                 key={l}
+                aria-pressed={selected.includes(l)}
                 onClick={() => toggle(l)}
-                className={`rounded border px-2 py-1 text-xs ${
+                className={`min-h-10 rounded border px-3 py-1 text-xs transition-transform duration-150 ease-out active:scale-[0.96] ${
                   selected.includes(l)
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
                     : "border-[var(--color-border)]"
@@ -82,33 +92,33 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
 
         <div>
           <div className="flex items-center justify-between text-xs">
-            <span>Render DPI</span>
+            <span>{t("ocr_scan.render_dpi")}</span>
             <span className="tabular-nums">{dpi}</span>
           </div>
           <Slider value={[dpi]} min={150} max={600} step={25} onValueChange={(v) => setDpi(v[0])} />
         </div>
 
         <label className="block text-xs">
-          <span className="text-[var(--color-muted)]">Page segmentation mode (PSM)</span>
+          <span className="text-[var(--color-muted)]">{t("ocr_scan.psm")}</span>
           <select
             value={psm}
             onChange={(e) => setPsm(Number(e.target.value))}
-            className="mt-1 block w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
+            className="mt-1 block min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
           >
-            <option value={3}>3 — Fully automatic (default)</option>
-            <option value={6}>6 — Uniform block of text</option>
-            <option value={7}>7 — Single text line</option>
-            <option value={11}>11 — Sparse text</option>
-            <option value={12}>12 — Sparse text with OSD</option>
+            <option value={3}>{t("ocr_scan.psm_auto")}</option>
+            <option value={6}>{t("ocr_scan.psm_block")}</option>
+            <option value={7}>{t("ocr_scan.psm_line")}</option>
+            <option value={11}>{t("ocr_scan.psm_sparse")}</option>
+            <option value={12}>{t("ocr_scan.psm_sparse_osd")}</option>
           </select>
         </label>
 
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose}>
-            Later
+            {t("ocr_scan.later")}
           </Button>
           <Button onClick={run} disabled={selected.length === 0}>
-            Run OCR
+            {t("ocr_scan.run")}
           </Button>
         </div>
       </div>
