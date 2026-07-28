@@ -8,7 +8,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 
-const BUILTIN = new Set(["eng", "slk", "ces", "deu"]);
+const BUILTIN = new Set(["eng", "slk", "ces", "deu", "pol"]);
 
 export function OcrLanguagesSettings() {
   const [langs, setLangs] = useState<string[]>([]);

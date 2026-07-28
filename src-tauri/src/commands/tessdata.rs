@@ -14,7 +14,13 @@ use tauri::State;
 #[tauri::command]
 #[specta::specta]
 pub async fn list_ocr_languages(_state: State<'_, AppState>) -> AppResult<Vec<String>> {
-    let mut langs: Vec<String> = vec!["eng".into(), "slk".into(), "ces".into(), "deu".into()];
+    let mut langs: Vec<String> = vec![
+        "eng".into(),
+        "slk".into(),
+        "ces".into(),
+        "deu".into(),
+        "pol".into(),
+    ];
     if let Ok(dir) = tessdata_extra_dir() {
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for e in entries.flatten() {

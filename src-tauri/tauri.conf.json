@@ -36,6 +36,10 @@
       "sidecars/tesseract",
       "sidecars/pdfcrack"
     ],
+    "resources": [
+      "resources/tessdata/*.traineddata",
+      "resources/ocr/PROVENANCE.md"
+    ],
     "windows": {
       "wix": {
         "template": "windows/main.wxs",
