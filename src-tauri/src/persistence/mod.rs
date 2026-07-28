@@ -2,6 +2,7 @@ pub mod autosave;
 pub mod db;
 pub mod jobs_history;
 pub mod last_session;
+pub mod ocr_cache;
 pub mod pipeline_presets;
 pub mod projects;
 pub mod recent_files;
