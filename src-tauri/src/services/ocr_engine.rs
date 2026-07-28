@@ -12,9 +12,13 @@
 //   - build_text_layer_from_hocr(): full-pipeline helper used by the
 //     commands::ocr handler.
 
+use crate::error::AppResult;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use std::future::Future;
 use std::path::Path;
+use std::pin::Pin;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct OcrOptions {
@@ -69,6 +73,48 @@ impl Default for OcrOptions {
 /// build everything routes through the sidecar. Kept public so command
 /// handlers don't change shape when the in-process path is re-enabled.
 pub const OCR_SIDECAR_THRESHOLD: usize = 10;
+pub const LOW_CONFIDENCE_THRESHOLD: f32 = 80.0;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WordBox {
+    pub text: String,
+    pub bbox: [i32; 4],
+    pub confidence: Option<f32>,
+    pub paragraph_index: u32,
+    pub line_index: u32,
+    pub reading_order: u32,
+}
+
+pub type HocrWord = WordBox;
+
+#[derive(Debug, Clone)]
+pub struct OcrRecognitionOptions {
+    pub psm: u8,
+    pub oem: u8,
+    pub cancellation: Option<CancellationToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OcrBackendCapabilities {
+    pub id: &'static str,
+    pub display_name: &'static str,
+    pub supported_languages: &'static [&'static str],
+    pub supports_multi_language: bool,
+    pub provides_word_confidence: bool,
+}
+
+pub type OcrBackendFuture<'a> = Pin<Box<dyn Future<Output = AppResult<Vec<WordBox>>> + Send + 'a>>;
+
+pub trait OcrBackend: Send + Sync {
+    fn capabilities(&self) -> OcrBackendCapabilities;
+
+    fn recognize<'a>(
+        &'a self,
+        image: &'a Path,
+        lang: &'a str,
+        opts: &'a OcrRecognitionOptions,
+    ) -> OcrBackendFuture<'a>;
+}
 
 /// Sidecar-only placeholder; the real entrypoint lives in
 /// `commands::ocr::ocr_pdf_cmd` which composes MupdfWrapper +
@@ -79,48 +125,74 @@ pub fn ocr_pdf_add_text_layer(_input: &Path, _output: &Path, _opts: &OcrOptions)
     ))
 }
 
-/// Parsed hOCR word: text and its bounding box in pixel coordinates
-/// (relative to the rasterized page that tesseract saw).
-#[derive(Debug, Clone)]
-pub struct HocrWord {
-    pub text: String,
-    pub bbox: [i32; 4],
-}
-
-/// Pull every `ocrx_word` span out of a tesseract hOCR document. We do a
-/// minimal regex-free parse: scan for the `bbox` token and the inner
-/// text, ignoring confidence and other attributes.
+/// Pull every `ocrx_word` span out of a Tesseract hOCR document while
+/// retaining its paragraph, line, precise bbox, reading order, and x_wconf.
 pub fn parse_hocr_word(hocr: &str) -> Vec<HocrWord> {
     let mut out = Vec::new();
-    let mut rest = hocr;
-    while let Some(pos) = rest.find("class='ocrx_word'") {
-        // Look back for the start of the span tag.
-        let span_start = rest[..pos].rfind("<span").unwrap_or(0);
-        // Look forward for the closing > of the opening tag.
-        let after_tag = match rest[pos..].find('>') {
-            Some(p) => pos + p + 1,
-            None => break,
+    let mut cursor = 0usize;
+    let mut paragraph_index = 0u32;
+    let mut line_index = 0u32;
+    let mut next_paragraph = 0u32;
+    let mut next_line = 0u32;
+    let mut has_paragraph = false;
+    let mut has_line = false;
+
+    while let Some(relative_start) = hocr[cursor..].find('<') {
+        let tag_start = cursor + relative_start;
+        let Some(relative_end) = hocr[tag_start..].find('>') else {
+            break;
         };
-        // Read the text until the matching </span>.
-        let text_end = match rest[after_tag..].find("</span>") {
-            Some(p) => after_tag + p,
-            None => break,
-        };
-        let text = rest[after_tag..text_end].trim().to_string();
-        // Find the bbox attribute inside the opening tag.
-        let tag = &rest[span_start..after_tag];
-        let bbox = parse_bbox(tag);
-        if let Some(b) = bbox {
-            if !text.is_empty() {
-                out.push(HocrWord {
-                    text: html_unescape(&text),
-                    bbox: b,
-                });
+        let tag_end = tag_start + relative_end + 1;
+        let tag = &hocr[tag_start..tag_end];
+
+        if tag_has_class(tag, "ocr_par") {
+            paragraph_index = next_paragraph;
+            next_paragraph += 1;
+            has_paragraph = true;
+            has_line = false;
+        } else if tag_has_class(tag, "ocr_line") {
+            if !has_paragraph {
+                paragraph_index = next_paragraph;
+                next_paragraph += 1;
+                has_paragraph = true;
             }
+            line_index = next_line;
+            next_line += 1;
+            has_line = true;
+        } else if tag_has_class(tag, "ocrx_word") {
+            if !has_paragraph {
+                paragraph_index = next_paragraph;
+                next_paragraph += 1;
+                has_paragraph = true;
+            }
+            if !has_line {
+                line_index = next_line;
+                next_line += 1;
+                has_line = true;
+            }
+            let Some(relative_text_end) = hocr[tag_end..].find("</span>") else {
+                break;
+            };
+            let text_end = tag_end + relative_text_end;
+            let text = html_unescape(hocr[tag_end..text_end].trim());
+            if let Some(bbox) = parse_bbox(tag) {
+                if !text.is_empty() {
+                    out.push(HocrWord {
+                        text,
+                        bbox,
+                        confidence: parse_confidence(tag),
+                        paragraph_index,
+                        line_index,
+                        reading_order: out.len() as u32,
+                    });
+                }
+            }
+            cursor = text_end + "</span>".len();
+            continue;
         }
-        rest = &rest[text_end + "</span>".len()..];
+        cursor = tag_end;
     }
-    out
+    words_in_reading_order(&out)
 }
 
 fn parse_bbox(tag: &str) -> Option<[i32; 4]> {
@@ -140,12 +212,129 @@ fn parse_bbox(tag: &str) -> Option<[i32; 4]> {
     Some([nums[0], nums[1], nums[2], nums[3]])
 }
 
+fn parse_confidence(tag: &str) -> Option<f32> {
+    let i = tag.find("x_wconf ")?;
+    let token = tag[i + "x_wconf ".len()..]
+        .split(|c: char| c.is_whitespace() || c == ';' || c == '"' || c == '\'' || c == '>')
+        .find(|s| !s.is_empty())?;
+    token
+        .parse::<f32>()
+        .ok()
+        .map(|value| value.clamp(0.0, 100.0))
+}
+
+fn tag_has_class(tag: &str, wanted: &str) -> bool {
+    let Some(class_pos) = tag.find("class=") else {
+        return false;
+    };
+    let after = &tag[class_pos + "class=".len()..];
+    let Some(quote) = after.chars().next() else {
+        return false;
+    };
+    if quote != '\'' && quote != '"' {
+        return false;
+    }
+    let value = &after[quote.len_utf8()..];
+    let Some(end) = value.find(quote) else {
+        return false;
+    };
+    value[..end].split_whitespace().any(|class| class == wanted)
+}
+
 fn html_unescape(s: &str) -> String {
     s.replace("&amp;", "&")
         .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+pub fn words_in_reading_order(words: &[WordBox]) -> Vec<WordBox> {
+    let mut ordered = words.to_vec();
+    ordered.sort_by_key(|word| {
+        (
+            word.paragraph_index,
+            word.line_index,
+            word.bbox[0],
+            word.reading_order,
+        )
+    });
+    for (index, word) in ordered.iter_mut().enumerate() {
+        word.reading_order = index as u32;
+    }
+    ordered
+}
+
+pub fn words_to_hocr(words: &[WordBox]) -> String {
+    let ordered = words_in_reading_order(words);
+    let mut out = String::from("<html><body>");
+    let mut current_paragraph = None;
+    let mut current_line = None;
+
+    for word in ordered {
+        if current_paragraph != Some(word.paragraph_index) {
+            if current_line.take().is_some() {
+                out.push_str("</span>");
+            }
+            if current_paragraph.take().is_some() {
+                out.push_str("</p>");
+            }
+            out.push_str(&format!(
+                "<p class='ocr_par' id='par_{}'>",
+                word.paragraph_index
+            ));
+            current_paragraph = Some(word.paragraph_index);
+        }
+        if current_line != Some(word.line_index) {
+            if current_line.take().is_some() {
+                out.push_str("</span>");
+            }
+            out.push_str(&format!(
+                "<span class='ocr_line' id='line_{}'>",
+                word.line_index
+            ));
+            current_line = Some(word.line_index);
+        }
+        let confidence = word
+            .confidence
+            .map(|value| format!("; x_wconf {}", value.round() as u32))
+            .unwrap_or_default();
+        out.push_str(&format!(
+            "<span class='ocrx_word' title='bbox {} {} {} {}{}'>{}</span>",
+            word.bbox[0],
+            word.bbox[1],
+            word.bbox[2],
+            word.bbox[3],
+            confidence,
+            html_escape(&word.text)
+        ));
+    }
+    if current_line.is_some() {
+        out.push_str("</span>");
+    }
+    if current_paragraph.is_some() {
+        out.push_str("</p>");
+    }
+    out.push_str("</body></html>");
+    out
+}
+
+pub fn average_confidence(words: &[WordBox]) -> Option<f32> {
+    let (sum, count) = words
+        .iter()
+        .filter_map(|word| word.confidence)
+        .fold((0.0f32, 0usize), |(sum, count), confidence| {
+            (sum + confidence, count + 1)
+        });
+    (count > 0).then(|| sum / count as f32)
 }
 
 /// Build a PDF content stream that paints invisible text (`3 Tr`)
@@ -170,6 +359,7 @@ pub fn build_invisible_text_stream(
     page_h_pt: f32,
     font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
 ) -> Vec<u8> {
+    let ordered = words_in_reading_order(words);
     let mut out = String::new();
     out.push_str("BT\n");
     out.push_str("3 Tr\n"); // invisible (neither stroke nor fill)
@@ -186,10 +376,10 @@ pub fn build_invisible_text_stream(
         let _ = sub; // borrow check: re-borrowed below as &mut
     }
     if let Some(sub) = font_subsetter {
-        for w in words {
+        for w in &ordered {
             sub.add_text(&w.text);
         }
-        for w in words {
+        for w in &ordered {
             let x = w.bbox[0] as f32 * sx;
             let y = page_h_pt - w.bbox[3] as f32 * sy;
             let h = (w.bbox[3] - w.bbox[1]).max(1) as f32 * sy;
@@ -203,7 +393,7 @@ pub fn build_invisible_text_stream(
             out.push_str("> Tj\n");
         }
     } else {
-        for w in words {
+        for w in &ordered {
             let x = w.bbox[0] as f32 * sx;
             let y = page_h_pt - w.bbox[3] as f32 * sy;
             let h = (w.bbox[3] - w.bbox[1]).max(1) as f32 * sy;
@@ -218,6 +408,25 @@ pub fn build_invisible_text_stream(
     }
     out.push_str("ET\n");
     out.into_bytes()
+}
+
+pub fn words_to_plain_text(words: &[WordBox]) -> String {
+    let ordered = words_in_reading_order(words);
+    let mut out = String::new();
+    let mut previous: Option<(u32, u32)> = None;
+    for word in ordered {
+        match previous {
+            Some((paragraph, _)) if paragraph != word.paragraph_index => {
+                out.push_str("\n\n");
+            }
+            Some((_, line)) if line != word.line_index => out.push('\n'),
+            Some(_) => out.push(' '),
+            None => {}
+        }
+        out.push_str(&word.text);
+        previous = Some((word.paragraph_index, word.line_index));
+    }
+    out
 }
 
 /// Compose `parse_hocr_word` + `build_invisible_text_stream` and return
@@ -261,6 +470,7 @@ mod tests {
         assert_eq!(words.len(), 1);
         assert_eq!(words[0].text, "Hello");
         assert_eq!(words[0].bbox, [10, 20, 100, 50]);
+        assert_eq!(words[0].confidence, Some(95.0));
     }
 
     #[test]
@@ -274,6 +484,39 @@ mod tests {
         assert_eq!(words.len(), 3);
         assert_eq!(words[0].text, "Foo");
         assert_eq!(words[2].text, "&");
+        assert_eq!(words[0].confidence, None);
+    }
+
+    #[test]
+    fn groups_fixture_in_paragraph_line_reading_order() {
+        let hocr = include_str!("../../tests/fixtures/ocr/grouped.hocr");
+        let words = parse_hocr_word(hocr);
+        let text = words_to_plain_text(&words);
+
+        assert_eq!(text, "Hello world\nSecond line\n\nParagraph");
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| (word.paragraph_index, word.line_index))
+                .collect::<Vec<_>>(),
+            vec![(0, 0), (0, 0), (0, 1), (0, 1), (1, 2)]
+        );
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.reading_order)
+                .collect::<Vec<_>>(),
+            vec![0, 1, 2, 3, 4]
+        );
+        assert_eq!(average_confidence(&words), Some(87.6));
+    }
+
+    #[test]
+    fn hocr_cache_roundtrip_retains_word_metadata() {
+        let hocr = include_str!("../../tests/fixtures/ocr/grouped.hocr");
+        let words = parse_hocr_word(hocr);
+        let cached = words_to_hocr(&words);
+        assert_eq!(parse_hocr_word(&cached), words);
     }
 
     #[test]
@@ -281,6 +524,10 @@ mod tests {
         let words = vec![HocrWord {
             text: "Hello".into(),
             bbox: [10, 20, 100, 50],
+            confidence: Some(95.0),
+            paragraph_index: 0,
+            line_index: 0,
+            reading_order: 0,
         }];
         // Standard 14 fallback path (no subsetter).
         let bytes = build_invisible_text_stream(&words, 1000, 1000, 612.0, 792.0, None);
@@ -289,5 +536,55 @@ mod tests {
         assert!(s.contains("3 Tr"));
         assert!(s.contains("(Hello) Tj"));
         assert!(s.contains("ET"));
+    }
+
+    struct FixtureTesseractBackend {
+        words: Vec<WordBox>,
+    }
+
+    impl OcrBackend for FixtureTesseractBackend {
+        fn capabilities(&self) -> OcrBackendCapabilities {
+            OcrBackendCapabilities {
+                id: "tesseract",
+                display_name: "Tesseract",
+                supported_languages: &["eng", "slk", "ces", "deu", "pol"],
+                supports_multi_language: true,
+                provides_word_confidence: true,
+            }
+        }
+
+        fn recognize<'a>(
+            &'a self,
+            _image: &'a Path,
+            _lang: &'a str,
+            _opts: &'a OcrRecognitionOptions,
+        ) -> OcrBackendFuture<'a> {
+            Box::pin(async move { Ok(self.words.clone()) })
+        }
+    }
+
+    #[tokio::test]
+    async fn backend_trait_text_layer_is_deterministic() {
+        let backend: Box<dyn OcrBackend> = Box::new(FixtureTesseractBackend {
+            words: parse_hocr_word(include_str!("../../tests/fixtures/ocr/grouped.hocr")),
+        });
+        let options = OcrRecognitionOptions {
+            psm: 3,
+            oem: 3,
+            cancellation: None,
+        };
+        let first = backend
+            .recognize(Path::new("fixture.png"), "eng", &options)
+            .await
+            .unwrap();
+        let second = backend
+            .recognize(Path::new("fixture.png"), "eng", &options)
+            .await
+            .unwrap();
+        assert_eq!(
+            build_invisible_text_stream(&first, 1000, 1400, 612.0, 792.0, None),
+            build_invisible_text_stream(&second, 1000, 1400, 612.0, 792.0, None)
+        );
+        assert_eq!(backend.capabilities().id, "tesseract");
     }
 }

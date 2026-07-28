@@ -1,0 +1,21 @@
+<html>
+  <body>
+    <div class="ocr_page" title="bbox 0 0 1000 1400">
+      <p class="ocr_par" id="par_1">
+        <span class="ocr_line" id="line_1">
+          <span class="ocrx_word" title="bbox 140 100 210 130; x_wconf 87">world</span>
+          <span class="ocrx_word" title="bbox 20 100 120 130; x_wconf 96">Hello</span>
+        </span>
+        <span class="ocr_line" id="line_2">
+          <span class="ocrx_word" title="bbox 20 150 130 180; x_wconf 75">Second</span>
+          <span class="ocrx_word" title="bbox 150 150 210 180; x_wconf 81">line</span>
+        </span>
+      </p>
+      <p class="ocr_par" id="par_2">
+        <span class="ocr_line" id="line_3">
+          <span class="ocrx_word" title="bbox 20 250 180 280; x_wconf 99">Paragraph</span>
+        </span>
+      </p>
+    </div>
+  </body>
+</html>
