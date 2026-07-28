@@ -36,7 +36,7 @@ async fn tesseract_trait_text_layer_is_deterministic() {
     let backend: &dyn OcrBackend = &backend;
     let image = Path::new("tests/fixtures/images/word_test.png");
     let options = OcrRecognitionOptions {
-        psm: 3,
+        psm: 7,
         oem: 3,
         cancellation: None,
     };
