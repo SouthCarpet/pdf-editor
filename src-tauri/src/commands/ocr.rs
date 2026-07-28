@@ -14,14 +14,23 @@
 
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
+use crate::persistence::ocr_cache::{self, CachedOcrPage, OcrCacheKey};
 use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts;
-use crate::services::ocr_engine::{build_text_layer_from_hocr, OcrOptions, OcrOutputMode};
+use crate::services::ocr_engine::{
+    average_confidence, build_invisible_text_stream, parse_hocr_word, words_to_hocr,
+    words_to_plain_text, OcrBackend, OcrOptions, OcrOutputMode, OcrRecognitionOptions, WordBox,
+    LOW_CONFIDENCE_THRESHOLD,
+};
 use lopdf::{dictionary, Document, Object, Stream};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use sqlx::SqlitePool;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tauri::State;
-use tempfile::TempDir;
 
 #[derive(Debug, Clone, Deserialize, specta::Type)]
 pub struct OcrArgs {
@@ -36,6 +45,27 @@ pub struct OcrResult {
     pub output_paths: Vec<String>,
     pub pages_processed: u32,
     pub characters_recognized: usize,
+    pub average_confidence: Option<f32>,
+    pub page_confidences: Vec<OcrPageConfidence>,
+    pub low_confidence_pages: Vec<u32>,
+    pub cache_hits: u32,
+    pub engine: String,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct OcrPageConfidence {
+    pub page_number: u32,
+    pub confidence: Option<f32>,
+    pub low_confidence: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct RecognizedOcrPage {
+    pub page_index: u32,
+    pub words: Vec<WordBox>,
+    pub pixel_width: u32,
+    pub pixel_height: u32,
+    pub cache_hit: bool,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -53,9 +83,10 @@ pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult
     let out_path = PathBuf::from(&args.output);
     let opts = args.options.clone();
     let mupdf = state.mupdf.clone();
-    let tesseract = state.tesseract.clone();
+    let backend: Arc<dyn OcrBackend> = state.tesseract.clone();
+    let pool = state.pool.clone();
 
-    let result = ocr_pdf(in_path, out_path.clone(), opts, mupdf, tesseract, token).await;
+    let result = ocr_pdf(in_path, out_path.clone(), opts, mupdf, backend, pool, token).await;
     state.cancellation.forget(&args.job_id);
     let processed = result?;
     Ok(processed)
@@ -65,8 +96,9 @@ async fn ocr_pdf(
     input: PathBuf,
     output: PathBuf,
     options: OcrOptions,
-    mupdf: std::sync::Arc<crate::sidecars::mupdf::MupdfWrapper>,
-    tesseract: std::sync::Arc<crate::sidecars::tesseract::TesseractWrapper>,
+    mupdf: Arc<crate::sidecars::mupdf::MupdfWrapper>,
+    backend: Arc<dyn OcrBackend>,
+    pool: SqlitePool,
     cancel: tokio_util::sync::CancellationToken,
 ) -> AppResult<OcrResult> {
     // Load doc up-front to enumerate pages + bbox.
@@ -77,47 +109,32 @@ async fn ocr_pdf(
         doc.get_pages().len() as u32
     };
 
-    let tempdir = TempDir::new().map_err(|e| AppError::Internal {
-        detail: e.to_string(),
-    })?;
-    let mut hocr_per_page: Vec<(u32, String, u32, u32)> = Vec::new(); // page_index, hocr, pixel_w, pixel_h
-    let mut total_chars = 0usize;
-
-    for page_index in 0..page_count {
-        if cancel.is_cancelled() {
-            return Err(AppError::Cancelled);
-        }
-        let raster_path = tempdir.path().join(format!("page-{page_index}.png"));
-        mupdf
-            .render_page_to_png(
-                &input,
-                page_index,
-                &raster_path,
-                options.dpi,
-                Some(cancel.clone()),
-            )
-            .await?;
-        // Read raster dimensions to map bbox correctly.
-        let (pixel_w, pixel_h) = read_png_dimensions(&raster_path).unwrap_or((1, 1));
-        let hocr = tesseract
-            .ocr_image_with_hocr(&raster_path, &options.language, Some(cancel.clone()))
-            .await?;
-        total_chars += hocr.matches("ocrx_word").count();
-        hocr_per_page.push((page_index, hocr, pixel_w, pixel_h));
-    }
-
-    // Extract plain text up-front so we can hand `hocr_per_page` to the
-    // blocking closure without contending with the immutable borrow.
-    let plain_text = tesseract_text_from_hocrs(&hocr_per_page_text(&hocr_per_page));
+    let engine = backend.capabilities().id.to_string();
+    let pages = recognize_pdf_pages(
+        &input,
+        page_count,
+        &options,
+        mupdf,
+        backend,
+        pool,
+        cancel.clone(),
+    )
+    .await?;
+    let plain_text = recognized_pages_to_text(&pages);
+    let total_chars = pages
+        .iter()
+        .flat_map(|page| page.words.iter())
+        .map(|word| word.text.chars().count())
+        .sum();
 
     // Inject overlays unless TextOnly mode.
     if !matches!(options.output, OcrOutputMode::TextOnly) {
         let in_clone = input.clone();
         let out_clone = output.clone();
         let opts_clone = options.clone();
-        let hocr_clone = hocr_per_page;
+        let pages_clone = pages.clone();
         tokio::task::spawn_blocking(move || {
-            inject_text_layers(&in_clone, &out_clone, &opts_clone, &hocr_clone)
+            inject_word_layers(&in_clone, &out_clone, &opts_clone, &pages_clone)
         })
         .await
         .map_err(|e| AppError::Internal {
@@ -139,31 +156,201 @@ async fn ocr_pdf(
         output_paths.push(txt_path.display().to_string());
     }
 
+    let page_confidences: Vec<OcrPageConfidence> = pages
+        .iter()
+        .map(|page| {
+            let confidence = average_confidence(&page.words);
+            OcrPageConfidence {
+                page_number: page.page_index + 1,
+                confidence,
+                low_confidence: confidence
+                    .map(|value| value < LOW_CONFIDENCE_THRESHOLD)
+                    .unwrap_or(false),
+            }
+        })
+        .collect();
+    let all_words: Vec<WordBox> = pages
+        .iter()
+        .flat_map(|page| page.words.iter().cloned())
+        .collect();
+
     Ok(OcrResult {
         output_paths,
         pages_processed: page_count,
         characters_recognized: total_chars,
+        average_confidence: average_confidence(&all_words),
+        low_confidence_pages: page_confidences
+            .iter()
+            .filter(|page| page.low_confidence)
+            .map(|page| page.page_number)
+            .collect(),
+        page_confidences,
+        cache_hits: pages.iter().filter(|page| page.cache_hit).count() as u32,
+        engine,
     })
 }
 
-fn hocr_per_page_text(entries: &[(u32, String, u32, u32)]) -> Vec<String> {
-    entries.iter().map(|(_, h, _, _)| h.clone()).collect()
+pub(crate) async fn recognize_pdf_pages(
+    input: &Path,
+    page_count: u32,
+    options: &OcrOptions,
+    mupdf: Arc<crate::sidecars::mupdf::MupdfWrapper>,
+    backend: Arc<dyn OcrBackend>,
+    pool: SqlitePool,
+    cancel: tokio_util::sync::CancellationToken,
+) -> AppResult<Vec<RecognizedOcrPage>> {
+    let hash_path = input.to_path_buf();
+    let file_sha256 = tokio::task::spawn_blocking(move || sha256_file(&hash_path))
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
+    let engine = backend.capabilities().id.to_string();
+    let mut pages = Vec::with_capacity(page_count as usize);
+    let mut misses = Vec::new();
+
+    for page_index in 0..page_count {
+        if cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        let key = OcrCacheKey {
+            file_sha256: file_sha256.clone(),
+            page_index,
+            dpi: options.dpi,
+            language: options.language.clone(),
+            engine: engine.clone(),
+        };
+        match ocr_cache::get(&pool, &key).await {
+            Ok(Some(cached)) => pages.push(RecognizedOcrPage {
+                page_index,
+                words: parse_hocr_word(&cached.hocr),
+                pixel_width: cached.pixel_width,
+                pixel_height: cached.pixel_height,
+                cache_hit: true,
+            }),
+            Ok(None) => misses.push(page_index),
+            Err(error) => {
+                tracing::warn!(
+                    target: "ocr",
+                    page_index,
+                    "OCR cache read failed; recomputing page: {error:#}"
+                );
+                misses.push(page_index);
+            }
+        }
+    }
+
+    if !misses.is_empty() {
+        let tempdir = tempfile::tempdir().map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
+        let temp_root = tempdir.path().to_path_buf();
+        let input = input.to_path_buf();
+        let options = options.clone();
+        let runtime = tokio::runtime::Handle::current();
+        let computed = tokio::task::spawn_blocking(move || {
+            misses
+                .into_par_iter()
+                .map(|page_index| {
+                    if cancel.is_cancelled() {
+                        return Err(AppError::Cancelled);
+                    }
+                    let raster_path = temp_root.join(format!("page-{page_index}.png"));
+                    let key = OcrCacheKey {
+                        file_sha256: file_sha256.clone(),
+                        page_index,
+                        dpi: options.dpi,
+                        language: options.language.clone(),
+                        engine: engine.clone(),
+                    };
+                    runtime.block_on(async {
+                        mupdf
+                            .render_page_to_png(
+                                &input,
+                                page_index,
+                                &raster_path,
+                                options.dpi,
+                                Some(cancel.clone()),
+                            )
+                            .await?;
+                        let (pixel_width, pixel_height) =
+                            read_png_dimensions(&raster_path).unwrap_or((1, 1));
+                        let recognition_options = OcrRecognitionOptions {
+                            psm: options.psm,
+                            oem: options.oem,
+                            cancellation: Some(cancel.clone()),
+                        };
+                        let words = backend
+                            .recognize(&raster_path, &options.language, &recognition_options)
+                            .await?;
+                        let cached = CachedOcrPage {
+                            hocr: words_to_hocr(&words),
+                            pixel_width,
+                            pixel_height,
+                        };
+                        if let Err(error) = ocr_cache::put(&pool, &key, &cached).await {
+                            tracing::warn!(
+                                target: "ocr",
+                                page_index,
+                                "OCR cache write failed: {error:#}"
+                            );
+                        }
+                        Ok(RecognizedOcrPage {
+                            page_index,
+                            words,
+                            pixel_width,
+                            pixel_height,
+                            cache_hit: false,
+                        })
+                    })
+                })
+                .collect::<Vec<AppResult<RecognizedOcrPage>>>()
+        })
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
+        for page in computed {
+            pages.push(page?);
+        }
+    }
+
+    pages.sort_by_key(|page| page.page_index);
+    Ok(pages)
 }
 
-fn tesseract_text_from_hocrs(hocrs: &[String]) -> String {
-    use crate::services::ocr_engine::parse_hocr_word;
+pub(crate) fn recognized_pages_to_text(pages: &[RecognizedOcrPage]) -> String {
     let mut out = String::new();
-    for h in hocrs {
-        let words = parse_hocr_word(h);
-        let joined: Vec<String> = words.into_iter().map(|w| w.text).collect();
-        out.push_str(&joined.join(" "));
+    for page in pages {
+        out.push_str(&words_to_plain_text(&page.words));
         out.push('\n');
     }
     out
 }
 
+fn sha256_file(path: &Path) -> anyhow::Result<String> {
+    let file = std::fs::File::open(path)?;
+    let mut reader = std::io::BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
+}
+
 fn read_png_dimensions(path: &Path) -> Option<(u32, u32)> {
-    use std::io::Read;
     let mut f = std::fs::File::open(path).ok()?;
     let mut buf = [0u8; 24];
     f.read_exact(&mut buf).ok()?;
@@ -234,8 +421,29 @@ fn pick_ocr_font() -> Option<crate::services::fonts::SystemFont> {
 pub fn inject_text_layers(
     input: &Path,
     output: &Path,
-    _opts: &OcrOptions,
+    opts: &OcrOptions,
     hocrs: &[(u32, String, u32, u32)],
+) -> anyhow::Result<()> {
+    let pages: Vec<RecognizedOcrPage> = hocrs
+        .iter()
+        .map(
+            |(page_index, hocr, pixel_width, pixel_height)| RecognizedOcrPage {
+                page_index: *page_index,
+                words: parse_hocr_word(hocr),
+                pixel_width: *pixel_width,
+                pixel_height: *pixel_height,
+                cache_hit: false,
+            },
+        )
+        .collect();
+    inject_word_layers(input, output, opts, &pages)
+}
+
+pub(crate) fn inject_word_layers(
+    input: &Path,
+    output: &Path,
+    _opts: &OcrOptions,
+    pages: &[RecognizedOcrPage],
 ) -> anyhow::Result<()> {
     let mut doc = Document::load(input)?;
     let pages_map = doc.get_pages();
@@ -243,16 +451,16 @@ pub fn inject_text_layers(
     // Pre-compute page dimensions so we can register every word with the
     // subsetter before emitting any content stream. write_to_pdf needs the
     // full used_chars set to produce a minimal subset.
-    let page_specs: Vec<(u32, String, u32, u32, lopdf::ObjectId, f32, f32)> = hocrs
+    let page_specs: Vec<(u32, Vec<WordBox>, u32, u32, lopdf::ObjectId, f32, f32)> = pages
         .iter()
-        .filter_map(|(page_index, hocr, pixel_w, pixel_h)| {
-            let &page_id = pages_map.get(&(page_index + 1))?;
+        .filter_map(|page| {
+            let &page_id = pages_map.get(&(page.page_index + 1))?;
             let (page_w, page_h) = page_dimensions(&doc, page_id).unwrap_or((612.0, 792.0));
             Some((
-                *page_index,
-                hocr.clone(),
-                *pixel_w,
-                *pixel_h,
+                page.page_index,
+                page.words.clone(),
+                page.pixel_width,
+                page.pixel_height,
                 page_id,
                 page_w,
                 page_h,
@@ -277,9 +485,9 @@ pub fn inject_text_layers(
 
     // Build all content streams first so the subsetter sees every char.
     let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
-    for (_, hocr, pixel_w, pixel_h, page_id, page_w, page_h) in &page_specs {
-        let bytes = build_text_layer_from_hocr(
-            hocr,
+    for (_, words, pixel_w, pixel_h, page_id, page_w, page_h) in &page_specs {
+        let bytes = build_invisible_text_stream(
+            words,
             *pixel_w,
             *pixel_h,
             *page_w,

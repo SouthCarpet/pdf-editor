@@ -858,8 +858,12 @@ async fn run_node(
             // Mirror commands::ocr::ocr_pdf logic via the same service
             // composition. Delegates to commands::ocr::inject_text_layers so
             // the Delta W Type0 CIDFont path is the only OCR layer path.
-            use crate::commands::ocr::inject_text_layers;
+            use crate::commands::ocr::{
+                inject_word_layers, recognize_pdf_pages, recognized_pages_to_text,
+            };
+            use crate::services::ocr_engine::OcrBackend;
             use lopdf::Document;
+            use std::sync::Arc;
 
             let opts = OcrOptions {
                 language: language.clone(),
@@ -884,45 +888,30 @@ async fn run_node(
                 let dst = scratch.join(format!("ocr_{node_idx}_{idx}.pdf"));
                 let pdf_in = src.clone();
                 let pdf_out = dst.clone();
-                let local_tmp = tempfile::tempdir().map_err(|e| AppError::IoError {
-                    detail: e.to_string(),
-                })?;
                 let doc_pages = {
                     let doc = Document::load(&pdf_in).map_err(|e| AppError::Internal {
                         detail: format!("load: {e}"),
                     })?;
                     doc.get_pages().len() as u32
                 };
-                let mut hocr_per_page: Vec<(u32, String, u32, u32)> = Vec::new();
-                for page_index in 0..doc_pages {
-                    if cancel.is_cancelled() {
-                        return Err(AppError::Cancelled);
-                    }
-                    let raster = local_tmp.path().join(format!("page-{page_index}.png"));
-                    state
-                        .mupdf
-                        .render_page_to_png(
-                            &pdf_in,
-                            page_index,
-                            &raster,
-                            opts.dpi,
-                            Some(cancel.clone()),
-                        )
-                        .await?;
-                    let (px_w, px_h) = read_png_dimensions(&raster).unwrap_or((1, 1));
-                    let hocr = state
-                        .tesseract
-                        .ocr_image_with_hocr(&raster, &opts.language, Some(cancel.clone()))
-                        .await?;
-                    hocr_per_page.push((page_index, hocr, px_w, px_h));
-                }
+                let backend: Arc<dyn OcrBackend> = state.tesseract.clone();
+                let pages = recognize_pdf_pages(
+                    &pdf_in,
+                    doc_pages,
+                    &opts,
+                    state.mupdf.clone(),
+                    backend,
+                    state.pool.clone(),
+                    cancel.clone(),
+                )
+                .await?;
                 if !matches!(opts.output, OcrOutputMode::TextOnly) {
                     let pdf_in_b = pdf_in.clone();
                     let pdf_out_b = pdf_out.clone();
-                    let hocr_b = hocr_per_page.clone();
+                    let pages_b = pages.clone();
                     let opts_b = opts.clone();
                     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-                        inject_text_layers(&pdf_in_b, &pdf_out_b, &opts_b, &hocr_b)
+                        inject_word_layers(&pdf_in_b, &pdf_out_b, &opts_b, &pages_b)
                     })
                     .await
                     .map_err(|e| AppError::Internal {
@@ -935,7 +924,7 @@ async fn run_node(
                 } else {
                     // TextOnly: write a sidecar .txt for the .pdf in scratch
                     // and emit the .txt as the "output" of this node.
-                    let plain = hocrs_to_text(&hocr_per_page);
+                    let plain = recognized_pages_to_text(&pages);
                     let txt = scratch.join(format!("ocr_{node_idx}_{idx}.txt"));
                     std::fs::write(&txt, plain).map_err(|e| AppError::IoError {
                         detail: e.to_string(),
@@ -993,28 +982,6 @@ async fn run_node(
             Ok(outs)
         }
     }
-}
-
-fn hocrs_to_text(entries: &[(u32, String, u32, u32)]) -> String {
-    use crate::services::ocr_engine::parse_hocr_word;
-    let mut out = String::new();
-    for (_, h, _, _) in entries {
-        let words = parse_hocr_word(h);
-        let joined: Vec<String> = words.into_iter().map(|w| w.text).collect();
-        out.push_str(&joined.join(" "));
-        out.push('\n');
-    }
-    out
-}
-
-fn read_png_dimensions(path: &Path) -> Option<(u32, u32)> {
-    use std::io::Read;
-    let mut f = std::fs::File::open(path).ok()?;
-    let mut buf = [0u8; 24];
-    f.read_exact(&mut buf).ok()?;
-    let w = u32::from_be_bytes([buf[16], buf[17], buf[18], buf[19]]);
-    let h = u32::from_be_bytes([buf[20], buf[21], buf[22], buf[23]]);
-    Some((w, h))
 }
 
 #[cfg(test)]
