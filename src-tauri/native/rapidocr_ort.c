@@ -51,7 +51,10 @@ __declspec(dllexport) int rapid_ort_runtime_create(
   }
   *out_runtime = NULL;
 
-  HMODULE module = LoadLibraryExW(dll_path, NULL, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
+  HMODULE module = LoadLibraryExW(
+      dll_path,
+      NULL,
+      LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
   if (module == NULL) {
     return set_error(error, error_capacity, "could not load the vendored onnxruntime.dll");
   }

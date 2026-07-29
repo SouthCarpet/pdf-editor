@@ -9,6 +9,8 @@ pub mod ocr_engine;
 pub mod pdf_editor;
 pub mod pdf_reader;
 pub mod pdf_renderer;
+#[cfg(windows)]
+pub mod rapidocr;
 pub mod text_edit;
 pub mod text_extractor;
 pub mod text_style;
