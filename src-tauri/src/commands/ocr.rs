@@ -19,8 +19,8 @@ use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts;
 use crate::services::ocr_engine::{
     average_confidence, build_invisible_text_stream, parse_hocr_word, words_to_hocr,
-    words_to_plain_text, OcrBackend, OcrOptions, OcrOutputMode, OcrRecognitionOptions, WordBox,
-    LOW_CONFIDENCE_THRESHOLD,
+    words_to_plain_text, OcrBackend, OcrEngine, OcrOptions, OcrOutputMode, OcrRecognitionOptions,
+    WordBox, LOW_CONFIDENCE_THRESHOLD,
 };
 use lopdf::{dictionary, Document, Object, Stream};
 use rayon::prelude::*;
@@ -50,6 +50,17 @@ pub struct OcrResult {
     pub low_confidence_pages: Vec<u32>,
     pub cache_hits: u32,
     pub engine: String,
+    pub backend_notice: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, specta::Type)]
+pub struct OcrBackendInfo {
+    pub id: String,
+    pub display_name: String,
+    pub supported_languages: Vec<String>,
+    pub supports_multi_language: bool,
+    pub available: bool,
+    pub unavailable_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -77,16 +88,97 @@ pub struct ScanLikelihood {
 
 #[tauri::command]
 #[specta::specta]
+pub fn list_ocr_backends(state: State<'_, AppState>) -> Vec<OcrBackendInfo> {
+    let tesseract = state.tesseract.capabilities();
+    let mut backends = vec![OcrBackendInfo {
+        id: tesseract.id.into(),
+        display_name: tesseract.display_name.into(),
+        supported_languages: tesseract
+            .supported_languages
+            .iter()
+            .map(|language| (*language).to_string())
+            .collect(),
+        supports_multi_language: tesseract.supports_multi_language,
+        available: true,
+        unavailable_reason: None,
+    }];
+
+    #[cfg(windows)]
+    {
+        use crate::services::rapidocr::RAPID_OCR_LANGUAGES;
+        backends.push(OcrBackendInfo {
+            id: "rapidocr".into(),
+            display_name: "RapidOCR".into(),
+            supported_languages: RAPID_OCR_LANGUAGES
+                .iter()
+                .map(|language| (*language).to_string())
+                .collect(),
+            supports_multi_language: true,
+            available: state.rapidocr.backend.is_some(),
+            unavailable_reason: state.rapidocr.unavailable_reason.clone(),
+        });
+    }
+    backends
+}
+
+#[tauri::command]
+#[specta::specta]
 pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult<OcrResult> {
     let token = state.cancellation.register(&args.job_id);
     let in_path = PathBuf::from(&args.input);
     let out_path = PathBuf::from(&args.output);
     let opts = args.options.clone();
     let mupdf = state.mupdf.clone();
-    let backend: Arc<dyn OcrBackend> = state.tesseract.clone();
+    let (backend, fallback, backend_notice): (
+        Arc<dyn OcrBackend>,
+        Option<Arc<dyn OcrBackend>>,
+        Option<String>,
+    ) = match opts.engine {
+        OcrEngine::Tesseract => (state.tesseract.clone(), None, None),
+        OcrEngine::RapidOcr => {
+            #[cfg(windows)]
+            {
+                if let Some(rapidocr) = state.rapidocr.backend.clone() {
+                    (rapidocr, Some(state.tesseract.clone()), None)
+                } else {
+                    (
+                        state.tesseract.clone(),
+                        None,
+                        Some(format!(
+                            "RapidOCR is unavailable: {}. Tesseract was used.",
+                            state
+                                .rapidocr
+                                .unavailable_reason
+                                .as_deref()
+                                .unwrap_or("vendored runtime could not be loaded")
+                        )),
+                    )
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                (
+                    state.tesseract.clone(),
+                    None,
+                    Some("RapidOCR is unavailable on this platform. Tesseract was used.".into()),
+                )
+            }
+        }
+    };
     let pool = state.pool.clone();
 
-    let result = ocr_pdf(in_path, out_path.clone(), opts, mupdf, backend, pool, token).await;
+    let result = ocr_pdf(
+        in_path,
+        out_path.clone(),
+        opts,
+        mupdf,
+        backend,
+        fallback,
+        backend_notice,
+        pool,
+        token,
+    )
+    .await;
     state.cancellation.forget(&args.job_id);
     let processed = result?;
     Ok(processed)
@@ -98,6 +190,8 @@ async fn ocr_pdf(
     options: OcrOptions,
     mupdf: Arc<crate::sidecars::mupdf::MupdfWrapper>,
     backend: Arc<dyn OcrBackend>,
+    fallback: Option<Arc<dyn OcrBackend>>,
+    mut backend_notice: Option<String>,
     pool: SqlitePool,
     cancel: tokio_util::sync::CancellationToken,
 ) -> AppResult<OcrResult> {
@@ -109,17 +203,45 @@ async fn ocr_pdf(
         doc.get_pages().len() as u32
     };
 
-    let engine = backend.capabilities().id.to_string();
-    let pages = recognize_pdf_pages(
+    let primary_engine = backend.capabilities().id.to_string();
+    let primary = recognize_pdf_pages(
         &input,
         page_count,
         &options,
-        mupdf,
+        mupdf.clone(),
         backend,
-        pool,
+        pool.clone(),
         cancel.clone(),
     )
-    .await?;
+    .await;
+    let (pages, engine) = match primary {
+        Ok(pages) => (pages, primary_engine),
+        Err(AppError::Cancelled) => return Err(AppError::Cancelled),
+        Err(error) => {
+            let Some(fallback) = fallback else {
+                return Err(error);
+            };
+            tracing::warn!(
+                target: "ocr",
+                "RapidOCR recognition failed; retrying the document with Tesseract: {error}"
+            );
+            backend_notice = Some(format!(
+                "RapidOCR failed: {error}. Tesseract was used for this document."
+            ));
+            let fallback_engine = fallback.capabilities().id.to_string();
+            let pages = recognize_pdf_pages(
+                &input,
+                page_count,
+                &options,
+                mupdf,
+                fallback,
+                pool,
+                cancel.clone(),
+            )
+            .await?;
+            (pages, fallback_engine)
+        }
+    };
     let plain_text = recognized_pages_to_text(&pages);
     let total_chars = pages
         .iter()
@@ -187,6 +309,7 @@ async fn ocr_pdf(
         page_confidences,
         cache_hits: pages.iter().filter(|page| page.cache_hit).count() as u32,
         engine,
+        backend_notice,
     })
 }
 

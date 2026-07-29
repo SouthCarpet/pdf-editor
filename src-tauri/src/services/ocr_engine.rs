@@ -22,6 +22,10 @@ use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct OcrOptions {
+    /// OCR backend. Tesseract remains the default for compatibility and for
+    /// custom `.traineddata` languages.
+    #[serde(default)]
+    pub engine: OcrEngine,
     /// Tesseract language codes joined by `+` (e.g. "eng+slk+ces").
     pub language: String,
     /// Render DPI for the rasterized page handed to tesseract. 300 is
@@ -53,9 +57,19 @@ pub enum OcrOutputMode {
     TextOnly,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OcrEngine {
+    #[default]
+    Tesseract,
+    #[serde(rename = "rapidocr")]
+    RapidOcr,
+}
+
 impl Default for OcrOptions {
     fn default() -> Self {
         Self {
+            engine: OcrEngine::Tesseract,
             language: "eng".into(),
             dpi: 300,
             psm: 3,

@@ -371,6 +371,7 @@ mod tests {
     #[test]
     fn ocr_strips_pdfa_compliance() {
         let n = NodeKind::Ocr {
+            engine: Default::default(),
             language: "eng".into(),
             dpi: 300,
             output: NodeOcrOutputMode::SearchablePdf,

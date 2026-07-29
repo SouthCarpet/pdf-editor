@@ -24,6 +24,7 @@ async fn ocr_makes_scanned_pdf_searchable() {
     let tess = TesseractWrapper::new(mgr.clone());
 
     let opts = OcrOptions {
+        engine: Default::default(),
         language: "eng".into(),
         dpi: 300,
         psm: 3,

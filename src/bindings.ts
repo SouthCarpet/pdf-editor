@@ -154,6 +154,7 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("detect_scanned_pdf", { path })),
+	listOcrBackends: () => __TAURI_INVOKE<OcrBackendInfo[]>("list_ocr_backends"),
 	listOcrLanguages: () => typedError<string[], {
 	key: string,
 	data: unknown,
@@ -597,7 +598,7 @@ extra_inputs: string[]; page_size?: NodeImportPageSize; custom_width_mm?: number
  */
 { type: "crop"; bbox: [(number | null), (number | null), (number | null), (number | null)] | null; auto_detect: boolean; apply_to_all_pages: boolean; page_index: number; aspect_ratio?: string; aspect_ratio_w?: number | null; aspect_ratio_h?: number | null; page_size_preset?: string; margin_preset?: string; margin_custom_mm?: number | null; apply_to?: NodeCropApplyTo; apply_range?: string; auto_detect_threshold?: number } | 
 /**  OCR add-layer (mirrors a subset of `OcrOptions`). */
-{ type: "ocr"; language: string; dpi: number; output: NodeOcrOutputMode; deskew: boolean; despeckle: boolean } | 
+{ type: "ocr"; engine?: NodeOcrEngine; language: string; dpi: number; output: NodeOcrOutputMode; deskew: boolean; despeckle: boolean } | 
 /**  Diagonal text watermark (lopdf overlay). */
 { type: "watermark"; text: string; opacity: number | null } | 
 /**
@@ -611,6 +612,8 @@ extra_inputs: string[]; page_size?: NodeImportPageSize; custom_width_mm?: number
  *  each path with the same document inspector used by `open_document`.
  */
 { type: "open_file"; paths: string[] };
+
+export type NodeOcrEngine = "tesseract" | "rapidocr";
 
 /**  Mirrors `services::ocr_engine::OcrOutputMode`. */
 export type NodeOcrOutputMode = "searchable_pdf" | "pdf_plus_text" | "text_only";
@@ -638,7 +641,23 @@ export type OcrArgs = {
 	job_id: string,
 };
 
+export type OcrBackendInfo = {
+	id: string,
+	display_name: string,
+	supported_languages: string[],
+	supports_multi_language: boolean,
+	available: boolean,
+	unavailable_reason: string | null,
+};
+
+export type OcrEngine = "tesseract" | "rapidocr";
+
 export type OcrOptions = {
+	/**
+	 *  OCR backend. Tesseract remains the default for compatibility and for
+	 *  custom `.traineddata` languages.
+	 */
+	engine?: OcrEngine,
 	/**  Tesseract language codes joined by `+` (e.g. "eng+slk+ces"). */
 	language: string,
 	/**
@@ -686,6 +705,7 @@ export type OcrResult = {
 	low_confidence_pages: number[],
 	cache_hits: number,
 	engine: string,
+	backend_notice: string | null,
 };
 
 export type OpenedDocument = {

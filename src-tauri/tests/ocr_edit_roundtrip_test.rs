@@ -48,6 +48,7 @@ async fn ocr_then_edit_preserves_diacritics() {
 
     // 1. Run OCR (Slovak).
     let opts = OcrOptions {
+        engine: Default::default(),
         language: "slk".into(),
         dpi: 300,
         psm: 3,

@@ -18,7 +18,7 @@ use crate::pipeline::dag::{
     NodeExportFormat, NodeKind, NodeOcrOutputMode, Pipeline, PreservationWarning,
 };
 use crate::pipeline::preservation::Artifact;
-use crate::services::ocr_engine::{OcrOptions, OcrOutputMode};
+use crate::services::ocr_engine::{OcrEngine, OcrOptions, OcrOutputMode};
 use crate::services::pdf_editor;
 use crate::services::workspace::inspect_document;
 use crate::util::progress::ProgressReporter;
@@ -849,6 +849,7 @@ async fn run_node(
             Ok(outs)
         }
         NodeKind::Ocr {
+            engine,
             language,
             dpi,
             output,
@@ -866,6 +867,10 @@ async fn run_node(
             use std::sync::Arc;
 
             let opts = OcrOptions {
+                engine: match engine {
+                    crate::pipeline::dag::NodeOcrEngine::Tesseract => OcrEngine::Tesseract,
+                    crate::pipeline::dag::NodeOcrEngine::RapidOcr => OcrEngine::RapidOcr,
+                },
                 language: language.clone(),
                 dpi: *dpi,
                 psm: 3,
@@ -894,8 +899,24 @@ async fn run_node(
                     })?;
                     doc.get_pages().len() as u32
                 };
-                let backend: Arc<dyn OcrBackend> = state.tesseract.clone();
-                let pages = recognize_pdf_pages(
+                let (backend, fallback): (Arc<dyn OcrBackend>, Option<Arc<dyn OcrBackend>>) =
+                    match opts.engine {
+                        OcrEngine::Tesseract => (state.tesseract.clone(), None),
+                        OcrEngine::RapidOcr => {
+                            #[cfg(windows)]
+                            {
+                                match state.rapidocr.backend.clone() {
+                                    Some(rapidocr) => (rapidocr, Some(state.tesseract.clone())),
+                                    None => (state.tesseract.clone(), None),
+                                }
+                            }
+                            #[cfg(not(windows))]
+                            {
+                                (state.tesseract.clone(), None)
+                            }
+                        }
+                    };
+                let primary_pages = recognize_pdf_pages(
                     &pdf_in,
                     doc_pages,
                     &opts,
@@ -904,7 +925,30 @@ async fn run_node(
                     state.pool.clone(),
                     cancel.clone(),
                 )
-                .await?;
+                .await;
+                let pages = match primary_pages {
+                    Ok(pages) => pages,
+                    Err(AppError::Cancelled) => return Err(AppError::Cancelled),
+                    Err(error) => {
+                        let Some(fallback) = fallback else {
+                            return Err(error);
+                        };
+                        tracing::warn!(
+                            target: "ocr",
+                            "RapidOCR pipeline node failed; retrying with Tesseract: {error}"
+                        );
+                        recognize_pdf_pages(
+                            &pdf_in,
+                            doc_pages,
+                            &opts,
+                            state.mupdf.clone(),
+                            fallback,
+                            state.pool.clone(),
+                            cancel.clone(),
+                        )
+                        .await?
+                    }
+                };
                 if !matches!(opts.output, OcrOutputMode::TextOnly) {
                     let pdf_in_b = pdf_in.clone();
                     let pdf_out_b = pdf_out.clone();

@@ -137,6 +137,7 @@ async fn ocr_recovers_diacritics_from_scanned_slovak() {
         assert!(text.contains(g), "OCR should recover '{g}'; got: {text}");
     }
     let _ = OcrOptions {
+        engine: Default::default(),
         language: "slk".into(),
         dpi: 300,
         psm: 3,

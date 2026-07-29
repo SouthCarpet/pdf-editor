@@ -70,6 +70,15 @@ pub enum NodeOcrOutputMode {
     TextOnly,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, specta::Type, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum NodeOcrEngine {
+    #[default]
+    Tesseract,
+    #[serde(rename = "rapidocr")]
+    RapidOcr,
+}
+
 /// Delta U (Phase 17 Task 86a) — Compress color-mode knob.
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, specta::Type, Default)]
 #[serde(rename_all = "lowercase")]
@@ -481,6 +490,8 @@ pub enum NodeKind {
     },
     /// OCR add-layer (mirrors a subset of `OcrOptions`).
     Ocr {
+        #[serde(default)]
+        engine: NodeOcrEngine,
         language: String,
         dpi: u32,
         output: NodeOcrOutputMode,
