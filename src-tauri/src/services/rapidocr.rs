@@ -732,13 +732,9 @@ mod tests {
     #[test]
     fn registry_rejects_hash_mismatch() {
         let temp = tempfile::tempdir().unwrap();
-        let path = temp.path().join("asset.bin");
+        let path = temp.path().join(DET_MODEL_FILE);
         std::fs::write(&path, b"tampered").unwrap();
-        let error = verify_file_hash(
-            &path,
-            "0000000000000000000000000000000000000000000000000000000000000000",
-        )
-        .unwrap_err();
+        let error = verify_registry(temp.path()).unwrap_err();
         assert!(error.contains("failed SHA-256 verification"));
         assert!(error.contains("expected"));
         assert!(error.contains("got"));
