@@ -31,6 +31,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::meta::record_frontend_error,
             commands::meta::open_logs_folder,
             commands::update::check_for_update,
+            commands::update::launch_update,
             // Phase 9 — Form-style tools (Tasks 49-56)
             commands::merge::merge_pdfs_cmd,
             commands::split::split_pdf_cmd,

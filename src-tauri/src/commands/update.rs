@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use tauri::AppHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
 pub struct VersionCheck {
@@ -126,6 +127,37 @@ pub async fn check_for_update() -> VersionCheck {
                 Err(format!("update check task failed: {error}")),
             )
         })
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn launch_update(app: AppHandle) -> Result<(), String> {
+    let exe = std::env::current_exe()
+        .map_err(|error| format!("could not resolve application path: {error}"))?;
+    let debug_manifest_dir = cfg!(debug_assertions).then(|| Path::new(env!("CARGO_MANIFEST_DIR")));
+    let repo_root = repo_root_for_exe(&exe, debug_manifest_dir)?;
+    let update_script = repo_root.join("scripts").join("update-pdf-editor.bat");
+
+    if !update_script.is_file() {
+        return Err(format!(
+            "update script does not exist: {}",
+            update_script.display()
+        ));
+    }
+
+    #[cfg(windows)]
+    Command::new("cmd")
+        .args(["/D", "/C", "start", ""])
+        .arg(&update_script)
+        .current_dir(&repo_root)
+        .spawn()
+        .map_err(|error| format!("could not start update script: {error}"))?;
+
+    #[cfg(not(windows))]
+    return Err("local updates are only supported on Windows".to_owned());
+
+    app.exit(0);
+    Ok(())
 }
 
 #[cfg(test)]

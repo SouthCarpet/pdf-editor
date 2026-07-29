@@ -26,6 +26,7 @@ export const commands = {
 	data: unknown,
 }>(__TAURI_INVOKE("open_logs_folder")),
 	checkForUpdate: () => __TAURI_INVOKE<VersionCheck>("check_for_update"),
+	launchUpdate: () => typedError<null, string>(__TAURI_INVOKE("launch_update")),
 	mergePdfsCmd: (args: MergeArgs) => typedError<MergeResult, {
 	key: string,
 	data: unknown,

@@ -23,3 +23,20 @@ body {
   font-family: var(--font-sans);
   margin: 0;
 }
+
+@keyframes update-notice-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-0.25rem);
+  }
+}
+
+.update-notice-enter {
+  animation: update-notice-enter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-notice-enter {
+    animation: none;
+  }
+}
