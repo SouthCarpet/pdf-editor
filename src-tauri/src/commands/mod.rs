@@ -25,4 +25,5 @@ pub mod session;
 pub mod split;
 pub mod tessdata;
 pub mod unlock;
+pub mod update;
 pub mod workspace;

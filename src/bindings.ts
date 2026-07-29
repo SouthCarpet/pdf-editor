@@ -25,6 +25,7 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("open_logs_folder")),
+	checkForUpdate: () => __TAURI_INVOKE<VersionCheck>("check_for_update"),
 	mergePdfsCmd: (args: MergeArgs) => typedError<MergeResult, {
 	key: string,
 	data: unknown,
@@ -1026,6 +1027,15 @@ export type UnlockArgs = {
 };
 
 export type UnlockResult = { type: "ok"; output_paths: string[] } | { type: "password_required" };
+
+export type VersionCheck = {
+	embedded_commit: string,
+	embedded_dirty: boolean,
+	repo_head: string | null,
+	dirty: boolean,
+	behind: boolean,
+	error: string | null,
+};
 
 export type VisualDiffPage = {
 	page_index: number,
