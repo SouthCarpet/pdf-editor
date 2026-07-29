@@ -25,14 +25,8 @@ import {
   ReorderPagesOptions,
   InsertBlankOptions,
 } from "@/components/tools/options/OrganizeOptions";
-import {
-  usePipelineStore,
-  type PipelineEditorNode,
-} from "@/stores/pipelineStore";
-import {
-  nodeKindByKey,
-  type NodeKindPayload,
-} from "@/pipeline/nodeKinds";
+import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
+import { nodeKindByKey, type NodeKindPayload } from "@/pipeline/nodeKinds";
 
 interface Props {
   node: PipelineEditorNode;
@@ -53,9 +47,7 @@ export function NodeConfigPanel({ node }: Props) {
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">
-          {meta.labelKey ? t(meta.labelKey) : meta.label}
-        </h2>
+        <h2 className="text-sm font-semibold">{meta.labelKey ? t(meta.labelKey) : meta.label}</h2>
         <Button variant="ghost" size="sm" onClick={() => removeNode(node.id)}>
           Remove
         </Button>
@@ -63,9 +55,7 @@ export function NodeConfigPanel({ node }: Props) {
 
       {/* Delta U: dispatch to the SAME Options component the standalone
           tool uses. mode="pipeline-node" hides the standalone-only hint. */}
-      {config.kind === "open_file" && (
-        <OpenFileConfig config={config} patch={patch} />
-      )}
+      {config.kind === "open_file" && <OpenFileConfig config={config} patch={patch} />}
       {config.kind === "compress" && (
         <CompressOptions
           value={config.options}
@@ -94,9 +84,7 @@ export function NodeConfigPanel({ node }: Props) {
           mode="pipeline-node"
         />
       )}
-      {config.kind === "convert_import" && (
-        <ConvertImportOptions mode="pipeline-node" />
-      )}
+      {config.kind === "convert_import" && <ConvertImportOptions mode="pipeline-node" />}
       {config.kind === "merge" && <MergeOptions mode="pipeline-node" />}
       {config.kind === "split" && (
         <SplitOptions
@@ -115,9 +103,7 @@ export function NodeConfigPanel({ node }: Props) {
       {config.kind === "organize_rotate" && (
         <RotatePagesOptions
           value={{ rotations: config.rotations }}
-          onChange={(o) =>
-            patch({ kind: "organize_rotate", rotations: o.rotations })
-          }
+          onChange={(o) => patch({ kind: "organize_rotate", rotations: o.rotations })}
           mode="pipeline-node"
         />
       )}
@@ -131,9 +117,7 @@ export function NodeConfigPanel({ node }: Props) {
       {config.kind === "organize_reorder" && (
         <ReorderPagesOptions
           value={{ new_order: config.new_order }}
-          onChange={(o) =>
-            patch({ kind: "organize_reorder", new_order: o.new_order })
-          }
+          onChange={(o) => patch({ kind: "organize_reorder", new_order: o.new_order })}
           mode="pipeline-node"
         />
       )}
@@ -162,32 +146,31 @@ export function NodeConfigPanel({ node }: Props) {
             auto_detect: config.auto_detect,
             apply_to_all_pages: config.apply_to_all_pages,
             page_index: config.page_index,
-            aspect_ratio: (config.aspect_ratio as
-              | "free"
-              | "1:1"
-              | "4:3"
-              | "16:9"
-              | "a4-portrait"
-              | "a4-landscape"
-              | "letter-portrait"
-              | "letter-landscape"
-              | "custom") ?? "free",
+            aspect_ratio:
+              (config.aspect_ratio as
+                | "free"
+                | "1:1"
+                | "4:3"
+                | "16:9"
+                | "a4-portrait"
+                | "a4-landscape"
+                | "letter-portrait"
+                | "letter-landscape"
+                | "custom") ?? "free",
             aspect_ratio_w: config.aspect_ratio_w ?? 1,
             aspect_ratio_h: config.aspect_ratio_h ?? 1,
-            page_size_preset: (config.page_size_preset as
-              | "a3"
-              | "a4"
-              | "a5"
-              | "letter"
-              | "legal"
-              | "tabloid"
-              | "custom") ?? "custom",
-            margin_preset: (config.margin_preset as
-              | "none"
-              | "tight"
-              | "standard"
-              | "loose"
-              | "custom") ?? "none",
+            page_size_preset:
+              (config.page_size_preset as
+                | "a3"
+                | "a4"
+                | "a5"
+                | "letter"
+                | "legal"
+                | "tabloid"
+                | "custom") ?? "custom",
+            margin_preset:
+              (config.margin_preset as "none" | "tight" | "standard" | "loose" | "custom") ??
+              "none",
             margin_custom_mm: config.margin_custom_mm ?? 0,
             apply_to: config.apply_to ?? "all",
             apply_range: config.apply_range ?? "",
@@ -218,6 +201,7 @@ export function NodeConfigPanel({ node }: Props) {
       {config.kind === "ocr" && (
         <OcrOptions
           value={{
+            engine: config.engine ?? "tesseract",
             language: config.language,
             dpi: config.dpi,
             output: config.output,
@@ -227,6 +211,7 @@ export function NodeConfigPanel({ node }: Props) {
           onChange={(o) =>
             patch({
               kind: "ocr",
+              engine: o.engine,
               language: o.language,
               dpi: o.dpi,
               output: o.output,
@@ -237,12 +222,8 @@ export function NodeConfigPanel({ node }: Props) {
           mode="pipeline-node"
         />
       )}
-      {config.kind === "watermark" && (
-        <WatermarkConfig config={config} patch={patch} />
-      )}
-      {config.kind === "save" && (
-        <SaveConfig config={config} patch={patch} />
-      )}
+      {config.kind === "watermark" && <WatermarkConfig config={config} patch={patch} />}
+      {config.kind === "save" && <SaveConfig config={config} patch={patch} />}
     </div>
   );
 }
@@ -274,9 +255,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
 
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-[var(--color-muted)]">
-        {t("open_file.description")}
-      </p>
+      <p className="text-xs text-[var(--color-muted)]">{t("open_file.description")}</p>
       <Button
         variant="outline"
         className="w-full transition-transform duration-150 ease-out active:scale-[0.96]"
@@ -326,9 +305,8 @@ function WatermarkConfig({ config, patch }: KConf<"watermark">) {
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
       <p className="rounded bg-amber-50 p-2 text-xs text-amber-800">
-        Watermark execution is unimplemented in the executor (awaits the
-        Watermark tool font picker so we do not silently fall back to
-        Standard 14). The node persists in the graph; running it
+        Watermark execution is unimplemented in the executor (awaits the Watermark tool font picker
+        so we do not silently fall back to Standard 14). The node persists in the graph; running it
         surfaces a clear error.
       </p>
       <label className="block">
@@ -347,9 +325,7 @@ function WatermarkConfig({ config, patch }: KConf<"watermark">) {
           max={1}
           step={0.05}
           value={config.opacity}
-          onChange={(e) =>
-            patch({ ...config, opacity: Number(e.target.value) })
-          }
+          onChange={(e) => patch({ ...config, opacity: Number(e.target.value) })}
           className="ml-2 w-32 align-middle"
         />
       </label>
@@ -385,9 +361,7 @@ function SaveConfig({ config, patch }: KConf<"save">) {
         <Input
           type="text"
           value={config.name_template}
-          onChange={(e) =>
-            patch({ ...config, name_template: e.target.value })
-          }
+          onChange={(e) => patch({ ...config, name_template: e.target.value })}
           placeholder="{stem}_{date}.pdf"
         />
         <p className="mt-1 text-xs text-[var(--color-muted)]">

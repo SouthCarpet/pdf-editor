@@ -149,6 +149,7 @@ export function WorkspaceRoute() {
       input: path,
       output: out,
       options: {
+        engine: sel.engine,
         language: sel.languages.join("+"),
         dpi: sel.dpi,
         psm: sel.psm,
@@ -232,6 +233,15 @@ export function WorkspaceRoute() {
           )}
           {ocrResult && (
             <div className="mt-3 space-y-2 text-xs">
+              <p>{t("ocr_result.engine", { engine: ocrResult.engine })}</p>
+              {ocrResult.backend_notice && (
+                <p
+                  title={ocrResult.backend_notice}
+                  className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+                >
+                  {t("ocr_result.fallback")}
+                </p>
+              )}
               <p className="tabular-nums">
                 {ocrResult.average_confidence == null
                   ? t("ocr_result.confidence_unavailable")

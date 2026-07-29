@@ -9,8 +9,10 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { commands } from "@/bindings";
+import { type OcrEngineId, useOcrBackends } from "@/hooks/useOcrBackends";
 
 export type OcrSelections = {
+  engine: OcrEngineId;
   languages: string[];
   dpi: number;
   psm: number;
@@ -24,10 +26,23 @@ interface Props {
 
 export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
   const { t } = useTranslation("common");
-  const [available, setAvailable] = useState<string[]>(["eng", "slk", "ces", "deu", "pol"]);
+  const [tesseractLanguages, setTesseractLanguages] = useState<string[]>([
+    "eng",
+    "slk",
+    "ces",
+    "deu",
+    "pol",
+  ]);
   const [selected, setSelected] = useState<string[]>(["eng"]);
+  const [engine, setEngine] = useState<OcrEngineId>("tesseract");
   const [dpi, setDpi] = useState(300);
   const [psm, setPsm] = useState(3);
+  const backends = useOcrBackends(open);
+  const selectedBackend = backends.find((backend) => backend.id === engine);
+  const available =
+    engine === "rapidocr" && selectedBackend
+      ? selectedBackend.supported_languages
+      : tesseractLanguages;
 
   useEffect(() => {
     if (!open) return;
@@ -35,12 +50,24 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
     (async () => {
       const r = await commands.listOcrLanguages();
       if (cancelled) return;
-      if (r.status === "ok") setAvailable(r.data);
+      if (r.status === "ok" && engine === "tesseract") setTesseractLanguages(r.data);
     })();
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [engine, open]);
+
+  const selectEngine = (nextEngine: OcrEngineId) => {
+    setEngine(nextEngine);
+    if (nextEngine === "rapidocr") {
+      const supportedLanguages =
+        backends.find((backend) => backend.id === nextEngine)?.supported_languages ?? [];
+      setSelected((current) => {
+        const supported = current.filter((language) => supportedLanguages.includes(language));
+        return supported.length > 0 ? supported : ["eng"];
+      });
+    }
+  };
 
   if (!open) return null;
 
@@ -50,7 +77,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
 
   const run = () => {
     if (selected.length === 0) return;
-    onRunOcr({ languages: selected, dpi, psm });
+    onRunOcr({ engine, languages: selected, dpi, psm });
   };
 
   return (
@@ -60,7 +87,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
         aria-modal="true"
         aria-labelledby="ocr-scan-title"
         aria-describedby="ocr-scan-description"
-        className="w-[480px] space-y-3 rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900"
+        className="max-h-[calc(100vh-2rem)] w-[480px] space-y-3 overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900"
       >
         <h2 id="ocr-scan-title" className="text-lg font-semibold text-balance">
           {t("ocr_scan.title")}
@@ -68,6 +95,37 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
         <p id="ocr-scan-description" className="text-sm text-pretty text-[var(--color-muted)]">
           {t("ocr_scan.description")}
         </p>
+
+        <label className="block text-xs">
+          <span className="font-medium">{t("ocr_scan.engine")}</span>
+          <select
+            value={engine}
+            onChange={(event) => selectEngine(event.target.value as OcrEngineId)}
+            className="mt-1 block min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
+          >
+            <option value="tesseract">{t("ocr_scan.engine_tesseract")}</option>
+            <option value="rapidocr">{t("ocr_scan.engine_rapidocr")}</option>
+          </select>
+        </label>
+        {selectedBackend && !selectedBackend.available && (
+          <div
+            role="status"
+            className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+          >
+            <p>
+              {t("ocr_scan.engine_unavailable", {
+                engine: selectedBackend.display_name,
+              })}
+            </p>
+            {selectedBackend.unavailable_reason && (
+              <p className="mt-1 text-[11px] break-words opacity-80">
+                {t("ocr_scan.engine_unavailable_reason", {
+                  reason: selectedBackend.unavailable_reason,
+                })}
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="mb-1 text-xs font-medium">{t("ocr_scan.languages")}</p>
@@ -103,6 +161,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
           <select
             value={psm}
             onChange={(e) => setPsm(Number(e.target.value))}
+            disabled={engine === "rapidocr"}
             className="mt-1 block min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
           >
             <option value={3}>{t("ocr_scan.psm_auto")}</option>

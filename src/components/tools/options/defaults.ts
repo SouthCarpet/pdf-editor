@@ -9,6 +9,7 @@
 // "Advanced" disclosures so the existing happy-path UX stays one click
 // from the top.
 import type { CompressionPresetDto, ExportFormat } from "@/bindings";
+import type { OcrEngineId } from "@/hooks/useOcrBackends";
 
 // ----- Compress -----
 
@@ -177,12 +178,7 @@ export const DEFAULT_CONVERT_EXPORT_OPTIONS: ConvertExportOptionsValue = {
 
 // ----- Convert Import -----
 
-export type ImportPageSize =
-  | "a4"
-  | "letter"
-  | "legal"
-  | "auto-fit"
-  | "custom";
+export type ImportPageSize = "a4" | "letter" | "legal" | "auto-fit" | "custom";
 export type ImportOrientation = "portrait" | "landscape" | "auto";
 export type ImportMargins = "none" | "10mm" | "20mm" | "custom";
 export type ImportImageFit = "fit" | "fill" | "center";
@@ -243,14 +239,7 @@ export type AspectRatio =
   | "letter-landscape"
   | "custom";
 
-export type PageSizePreset =
-  | "a3"
-  | "a4"
-  | "a5"
-  | "letter"
-  | "legal"
-  | "tabloid"
-  | "custom";
+export type PageSizePreset = "a3" | "a4" | "a5" | "letter" | "legal" | "tabloid" | "custom";
 
 export type MarginPreset = "none" | "tight" | "standard" | "loose" | "custom";
 
@@ -298,6 +287,7 @@ export const DEFAULT_CROP_OPTIONS: CropOptionsValue = {
 export type OcrOutputMode = "searchable_pdf" | "pdf_plus_text" | "text_only";
 
 export interface OcrOptionsValue {
+  engine: OcrEngineId;
   language: string;
   dpi: number;
   output: OcrOutputMode;
@@ -306,6 +296,7 @@ export interface OcrOptionsValue {
 }
 
 export const DEFAULT_OCR_OPTIONS: OcrOptionsValue = {
+  engine: "tesseract",
   language: "eng",
   dpi: 300,
   output: "searchable_pdf",

@@ -77,6 +77,7 @@ export type NodeKindPayload =
     }
   | {
       kind: "ocr";
+      engine?: "tesseract" | "rapidocr";
       language: string;
       dpi: number;
       output: "searchable_pdf" | "pdf_plus_text" | "text_only";
@@ -103,11 +104,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
     category: "input",
     defaultPayload: () => ({ kind: "open_file", paths: [] }),
     summary: (p) =>
-      p.kind === "open_file"
-        ? p.paths.length === 0
-          ? ""
-          : `${p.paths.length} PDF`
-        : "",
+      p.kind === "open_file" ? (p.paths.length === 0 ? "" : `${p.paths.length} PDF`) : "",
   },
   {
     key: "merge",
@@ -131,8 +128,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
       kind: "compress",
       options: DEFAULT_COMPRESS_OPTIONS,
     }),
-    summary: (p) =>
-      p.kind === "compress" ? `preset: ${p.options.preset}` : "",
+    summary: (p) => (p.kind === "compress" ? `preset: ${p.options.preset}` : ""),
   },
   {
     key: "optimize",
@@ -163,11 +159,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
       options: DEFAULT_UNLOCK_OPTIONS,
     }),
     summary: (p) =>
-      p.kind === "unlock"
-        ? p.options.password
-          ? "password set"
-          : "(try without password)"
-        : "",
+      p.kind === "unlock" ? (p.options.password ? "password set" : "(try without password)") : "",
   },
   {
     key: "split",
@@ -190,8 +182,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
       kind: "extract",
       options: DEFAULT_EXTRACT_OPTIONS,
     }),
-    summary: (p) =>
-      p.kind === "extract" ? `pages: ${p.options.pageInput}` : "",
+    summary: (p) => (p.kind === "extract" ? `pages: ${p.options.pageInput}` : ""),
   },
   {
     key: "crop",
@@ -273,16 +264,14 @@ export const NODE_KINDS: NodeKindMeta[] = [
     category: "modify",
     defaultPayload: () => ({
       kind: "ocr",
+      engine: "tesseract",
       language: "eng",
       dpi: 300,
       output: "searchable_pdf",
       deskew: true,
       despeckle: false,
     }),
-    summary: (p) =>
-      p.kind === "ocr"
-        ? `${p.language} @ ${p.dpi} DPI (${p.output})`
-        : "",
+    summary: (p) => (p.kind === "ocr" ? `${p.language} @ ${p.dpi} DPI (${p.output})` : ""),
   },
   {
     key: "convert",
@@ -299,10 +288,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
     label: "Watermark",
     category: "modify",
     defaultPayload: () => ({ kind: "watermark", text: "DRAFT", opacity: 0.4 }),
-    summary: (p) =>
-      p.kind === "watermark"
-        ? `"${p.text}" @ ${Math.round(p.opacity * 100)}%`
-        : "",
+    summary: (p) => (p.kind === "watermark" ? `"${p.text}" @ ${Math.round(p.opacity * 100)}%` : ""),
   },
   {
     key: "save",
@@ -314,11 +300,7 @@ export const NODE_KINDS: NodeKindMeta[] = [
       name_template: "{stem}_processed.pdf",
     }),
     summary: (p) =>
-      p.kind === "save"
-        ? p.dir
-          ? `${p.dir} / ${p.name_template}`
-          : "(no dir)"
-        : "",
+      p.kind === "save" ? (p.dir ? `${p.dir} / ${p.name_template}` : "(no dir)") : "",
   },
 ];
 
@@ -333,9 +315,7 @@ export function nodeKindByKey(key: NodeKindKey): NodeKindMeta {
  * The Rust side uses snake_case keys and the `type` tag on each variant
  * (see `pipeline::dag::NodeKind`).
  */
-export function payloadToRust(
-  payload: NodeKindPayload,
-): Record<string, unknown> {
+export function payloadToRust(payload: NodeKindPayload): Record<string, unknown> {
   switch (payload.kind) {
     case "open_file":
       return {
@@ -345,14 +325,9 @@ export function payloadToRust(
     case "compress":
       return {
         type: "compress",
-        preset:
-          payload.options.preset === "custom"
-            ? "custom"
-            : payload.options.preset,
-        custom_quality:
-          payload.options.preset === "custom" ? payload.options.customQuality : null,
-        custom_dpi:
-          payload.options.preset === "custom" ? payload.options.customDpi : null,
+        preset: payload.options.preset === "custom" ? "custom" : payload.options.preset,
+        custom_quality: payload.options.preset === "custom" ? payload.options.customQuality : null,
+        custom_dpi: payload.options.preset === "custom" ? payload.options.customDpi : null,
         // Delta U Phase 17 Task 86a — extra Custom-path knobs.
         color_dpi: payload.options.colorDpi,
         gray_dpi: payload.options.grayDpi,
@@ -467,13 +442,14 @@ export function payloadToRust(
       } as const;
       return {
         type: "ocr",
+        engine: payload.engine ?? "tesseract",
         language: payload.language,
         dpi: payload.dpi,
         // Serde tag rename_all = "snake_case" on the Rust enum gives us:
         // SearchablePdf -> "searchable_pdf"
-        output: Object.entries(outputMap).find(
-          ([, v]) => v === outputMap[payload.output],
-        )?.[0] ?? payload.output,
+        output:
+          Object.entries(outputMap).find(([, v]) => v === outputMap[payload.output])?.[0] ??
+          payload.output,
         deskew: payload.deskew,
         despeckle: payload.despeckle,
       };

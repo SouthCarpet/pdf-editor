@@ -89,6 +89,11 @@
   "ocr_scan": {
     "title": "Toto PDF vyzerá ako sken",
     "description": "Nenašiel sa žiadny označiteľný text. Spustiť OCR a umožniť vyhľadávanie?",
+    "engine": "OCR engine",
+    "engine_tesseract": "Tesseract",
+    "engine_rapidocr": "RapidOCR",
+    "engine_unavailable": "{{engine}} nie je dostupný. Namiesto neho sa použije Tesseract.",
+    "engine_unavailable_reason": "Dôvod: {{reason}}",
     "languages": "Jazyky",
     "render_dpi": "DPI vykreslenia",
     "psm": "Režim segmentácie strany (PSM)",
@@ -109,7 +114,22 @@
     "low_confidence": "Skontrolujte strany s nízkou spoľahlivosťou",
     "page_badge": "Strana {{page}}: {{value}} %",
     "cache_hits": "{{count}} strán bolo použitých z vyrovnávacej pamäte OCR",
+    "engine": "Použitý engine: {{engine}}",
+    "fallback": "RapidOCR nebol dostupný alebo zlyhal. Použil sa Tesseract.",
     "close": "Zavrieť výsledok OCR",
     "failed": "OCR zlyhalo: {{error}}"
+  },
+  "ocr_options": {
+    "engine": "OCR engine",
+    "language": "Jazyk",
+    "language_hint_tesseract": "Kódy Tesseract je možné spojiť znakom +, napríklad eng+slk.",
+    "language_hint_rapidocr": "Pribalený latinský model podporuje angličtinu, slovenčinu, češtinu, nemčinu a poľštinu.",
+    "dpi": "DPI",
+    "output": "Výstupný režim",
+    "output_searchable": "PDF s možnosťou vyhľadávania",
+    "output_pdf_text": "PDF + vedľajší súbor .txt",
+    "output_text": "Iba text",
+    "deskew": "Vyrovnať naklonené skeny",
+    "despeckle": "Odstrániť škvrny"
   }
 }

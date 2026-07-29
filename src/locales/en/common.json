@@ -89,6 +89,11 @@
   "ocr_scan": {
     "title": "This PDF looks like a scan",
     "description": "No selectable text was found. Run OCR to make it searchable?",
+    "engine": "OCR engine",
+    "engine_tesseract": "Tesseract",
+    "engine_rapidocr": "RapidOCR",
+    "engine_unavailable": "{{engine}} is unavailable. Tesseract will be used instead.",
+    "engine_unavailable_reason": "Reason: {{reason}}",
     "languages": "Languages",
     "render_dpi": "Render DPI",
     "psm": "Page segmentation mode (PSM)",
@@ -109,7 +114,22 @@
     "low_confidence": "Review low-confidence pages",
     "page_badge": "Page {{page}}: {{value}}%",
     "cache_hits": "{{count}} pages reused from the OCR cache",
+    "engine": "Engine used: {{engine}}",
+    "fallback": "RapidOCR was unavailable or failed. Tesseract was used.",
     "close": "Close OCR result",
     "failed": "OCR failed: {{error}}"
+  },
+  "ocr_options": {
+    "engine": "OCR engine",
+    "language": "Language",
+    "language_hint_tesseract": "Tesseract codes can be joined with +, for example eng+slk.",
+    "language_hint_rapidocr": "The bundled Latin model covers English, Slovak, Czech, German, and Polish.",
+    "dpi": "DPI",
+    "output": "Output mode",
+    "output_searchable": "Searchable PDF",
+    "output_pdf_text": "PDF + .txt sidecar",
+    "output_text": "Text only",
+    "deskew": "Deskew (correct tilted scans)",
+    "despeckle": "Despeckle (remove specks)"
   }
 }
