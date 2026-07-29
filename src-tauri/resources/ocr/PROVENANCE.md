@@ -32,6 +32,27 @@ exact converter and converter version are not embedded in the files or stated
 by the pinned RapidOCR registry. Fidelity is therefore unestablished,
 third-party conversion, byte-hash only. No local conversion was performed.
 
+## ONNX Runtime
+
+ONNX Runtime is pinned to 1.22.1. The DLL and C API header are extracted
+unchanged from Microsoft's official Windows x64 release archive:
+https://github.com/microsoft/onnxruntime/releases/download/v1.22.1/onnxruntime-win-x64-1.22.1.zip
+
+The archive SHA-256 is
+`855276cd4be3cda14fe636c69eb038d75bf5bcd552bda1193a5d79c51f436dfe`
+and its size is 73,731,806 bytes.
+
+| File | SHA-256 | Size | License |
+|---|---|---:|---|
+| `onnxruntime.dll` | `7788f3f38e9a339003f7d7e1bf47f928287cf409bb5273273149e1282fbf503f` | 12,416,032 bytes | MIT |
+| `include/onnxruntime_c_api.h` | `ed5c8a336708866d21e0c3f5374229e6753088046fcbf69f81394fcbfd730609` | 281,604 bytes | MIT |
+| `LICENSE-ONNXRUNTIME-MIT.txt` | `c250d6278f0b47a6439fb7592b08b58a55eb9f535aa49a1db63211c3f982b674` | 1,094 bytes | MIT |
+
+The application compiles a local C shim against the vendored header and loads
+only the fixed-path, hash-verified DLL. The CPU execution provider is the sole
+provider configured. No crate build script, application startup path, or
+inference path accesses the network.
+
 ## RapidOCR language verification
 
 The official PaddleOCR PP-OCRv5 multilingual documentation lists Czech,
@@ -41,4 +62,3 @@ covers all five required languages: English, Slovak, Czech, German, and Polish.
 
 Source, section 5:
 https://github.com/PaddlePaddle/PaddleOCR/blob/main/docs/version3.x/algorithm/PP-OCRv5/PP-OCRv5_multi_languages.en.md
-

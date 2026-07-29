@@ -38,7 +38,10 @@
     ],
     "resources": [
       "resources/tessdata/*.traineddata",
-      "resources/ocr/PROVENANCE.md"
+      "resources/ocr/*.onnx",
+      "resources/ocr/*.dll",
+      "resources/ocr/*.txt",
+      "resources/ocr/*.md"
     ],
     "windows": {
       "wix": {

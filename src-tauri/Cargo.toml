@@ -18,6 +18,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # Delta J: pin Tauri core to 2.11.x. tauri-build follows a separate release
 # train (2.x where x = minor cadence) and is pinned to its highest 2.6.x.
 tauri-build = { version = "2", features = [] }
+cc = "=1.2.62"
 
 [dependencies]
 # Delta J: pin Tauri core to 2.11.x (verified-stable). Plugins follow their
