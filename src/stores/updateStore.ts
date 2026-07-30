@@ -6,6 +6,8 @@ type UpdateState = {
   checking: boolean;
   checkedAt: number | null;
   dismissed: boolean;
+  launching: boolean;
+  launchError: string | null;
   check: (force?: boolean) => Promise<void>;
   dismiss: () => void;
   launch: () => Promise<void>;
@@ -18,6 +20,8 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   checking: false,
   checkedAt: null,
   dismissed: false,
+  launching: false,
+  launchError: null,
   check: async (force = false) => {
     if (get().checking || (!force && startupCheckStarted)) return;
     startupCheckStarted = true;
@@ -43,6 +47,18 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   },
   dismiss: () => set({ dismissed: true }),
   launch: async () => {
-    await commands.launchUpdate();
+    set({ launching: true, launchError: null });
+    try {
+      const result = await commands.launchUpdate();
+      if (result.status === "error") {
+        set({ launching: false, launchError: String(result.error), dismissed: false });
+      }
+    } catch (error) {
+      set({
+        launching: false,
+        launchError: error instanceof Error ? error.message : String(error),
+        dismissed: false,
+      });
+    }
   },
 }));

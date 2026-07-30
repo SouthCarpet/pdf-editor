@@ -19,6 +19,14 @@
   "loading": "Načítava sa",
   "settings": "Nastavenia",
   "language": "Jazyk",
+  "update": {
+    "available": "Je dostupná novšia lokálna zostava.",
+    "check_unavailable": "Kontrola aktualizácie nie je dostupná: {{reason}}",
+    "launch_failed": "Aktualizátor sa nepodarilo spustiť: {{reason}}",
+    "action": "Aktualizovať",
+    "starting": "Spúšťa sa…",
+    "dismiss": "Zavrieť oznámenie o aktualizácii"
+  },
   "theme": {
     "label": "Téma",
     "light": "Svetlá",

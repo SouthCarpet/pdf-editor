@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 
 export function GeneralSettings() {
-  const { t, i18n } = useTranslation("common");
+  const { t, i18n } = useTranslation(["common", "settings"]);
   const { theme, setTheme } = useTheme();
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
@@ -67,13 +67,13 @@ export function GeneralSettings() {
             checked={privacyStrict}
             onChange={(e) => setPrivacy(e.target.checked)}
           />
-          Strict privacy mode (block all network calls)
+          {t("settings:strict_privacy")}
         </label>
       </div>
 
       <div>
         <Button variant="outline" onClick={handleOpenLogs}>
-          Open logs folder
+          {t("settings:open_logs")}
         </Button>
       </div>
     </div>
