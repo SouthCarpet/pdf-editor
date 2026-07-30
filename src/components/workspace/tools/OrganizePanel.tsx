@@ -262,7 +262,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => onDrop(i)}
             className={cn(
-              "relative flex flex-col items-center rounded border bg-white p-1 text-xs shadow-sm",
+              "relative flex flex-col items-center rounded border bg-[var(--color-card)] p-1 text-xs shadow-sm",
               p.deleted && "opacity-30 line-through",
               dragFrom === i && "ring-2 ring-blue-500",
             )}
@@ -286,7 +286,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Move up"
                 aria-label={t("organize.move_up", { ns: "tools" })}
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => moveUp(i)}
                 disabled={i === 0}
               >
@@ -296,7 +296,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Move down"
                 aria-label={t("organize.move_down", { ns: "tools" })}
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => moveDown(i)}
                 disabled={i === pages.length - 1}
               >
@@ -306,7 +306,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Rotate left"
                 aria-label="Rotate left"
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => rotate(i, 270)}
               >
                 ⟲
@@ -315,7 +315,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Rotate right"
                 aria-label="Rotate right"
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => rotate(i, 90)}
               >
                 ⟳
@@ -324,7 +324,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Rotate 180"
                 aria-label="Rotate 180 degrees"
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => rotate(i, 180)}
               >
                 ⇅
@@ -333,7 +333,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title={p.deleted ? "Undo delete" : "Delete"}
                 aria-label={p.deleted ? "Undo delete" : "Delete page"}
-                className="rounded px-1 text-xs hover:bg-red-100"
+                className="rounded px-1 text-xs hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
                 onClick={() => toggleDelete(i)}
               >
                 ✕
@@ -342,7 +342,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                 type="button"
                 title="Insert blank after"
                 aria-label="Insert blank page after"
-                className="rounded px-1 text-xs hover:bg-neutral-200"
+                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
                 onClick={() => insertBlankAfter(i)}
               >
                 +

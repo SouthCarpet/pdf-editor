@@ -79,7 +79,7 @@ export function ColorPicker({
             <button
               type="button"
               onClick={() => onChange("transparent")}
-              className="block w-full rounded border border-[var(--color-border)] p-1 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="block w-full rounded border border-[var(--color-border)] p-1 text-xs hover:bg-[var(--color-control-hover)]"
             >
               No fill (transparent)
             </button>

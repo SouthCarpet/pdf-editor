@@ -56,7 +56,7 @@ export function ConvertExportOptions({ value, onChange }: Props) {
       <select
         value={value.format}
         onChange={(e) => set("format", e.target.value as ExportFormat)}
-        className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
+        className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
         aria-label="Output format"
       >
         {FORMATS.map((opt) => (

@@ -40,7 +40,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
           onChange={(e) =>
             set("preset", e.target.value as CompressOptionsValue["preset"])
           }
-          className="h-10 w-full rounded-md border border-neutral-200 bg-white px-3 text-sm"
+          className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
           aria-label="Compression preset"
         >
           <option value="recommended">Recommended (balanced)</option>

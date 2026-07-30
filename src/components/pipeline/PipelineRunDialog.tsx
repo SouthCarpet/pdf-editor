@@ -267,7 +267,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
 
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
-      <div className="flex h-[80vh] w-[640px] flex-col gap-3 rounded-md bg-white p-4 shadow-lg">
+      <div className="flex h-[80vh] w-[640px] flex-col gap-3 rounded-md bg-[var(--color-card)] p-4 text-[var(--color-foreground)] shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Run pipeline</h2>
           <Button

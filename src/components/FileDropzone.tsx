@@ -39,9 +39,9 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
 
   return (
     <div
-      className={`flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors ${
+      className={`flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed bg-[var(--color-dropzone)] p-8 text-[var(--color-foreground)] transition-colors ${
         hover
-          ? "border-neutral-700 bg-neutral-100 dark:bg-neutral-900"
+          ? "border-[var(--color-dropzone-border-active)] bg-[var(--color-dropzone-active)]"
           : "border-[var(--color-border)]"
       }`}
       onDragOver={(e) => {
@@ -51,9 +51,7 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
       onDragLeave={() => setHover(false)}
       onDrop={onDrop}
     >
-      {children ?? (
-        <p className="text-sm text-[var(--color-muted)]">Drag files here</p>
-      )}
+      {children ?? <p className="text-sm text-[var(--color-placeholder)]">Drag files here</p>}
       <Button variant="outline" onClick={pick}>
         {t("open")}
       </Button>

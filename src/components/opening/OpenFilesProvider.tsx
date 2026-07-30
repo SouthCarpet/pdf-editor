@@ -199,7 +199,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       {children}
 
       {dropActive && (
-        <div className="pointer-events-none fixed inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-neutral-700 bg-[var(--color-card)]/95">
+        <div className="pointer-events-none fixed inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-[var(--color-dropzone-border-active)] bg-[var(--color-dropzone)]/95 text-[var(--color-foreground)]">
           <div className="flex flex-col items-center gap-3 text-center">
             <FileUp className="h-9 w-9" />
             <div>
@@ -230,7 +230,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
               <div className="grid gap-2">
                 <button
                   type="button"
-                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] p-4 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] p-4 text-left transition-colors hover:bg-[var(--color-control-hover)]"
                   onClick={() => void onOpenTabs()}
                   disabled={busy}
                 >
@@ -244,7 +244,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
                 </button>
                 <button
                   type="button"
-                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] p-4 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                  className="flex items-start gap-3 rounded-lg border border-[var(--color-border)] p-4 text-left transition-colors hover:bg-[var(--color-control-hover)]"
                   onClick={() => setStep("merge")}
                   disabled={busy}
                 >
@@ -285,8 +285,8 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
                         aria-pressed={placement === value}
                         className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                           placement === value
-                            ? "border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900"
-                            : "border-[var(--color-border)] hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                            ? "border-[var(--color-accent)] bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                            : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]"
                         }`}
                         onClick={() => setPlacement(value)}
                       >
@@ -376,7 +376,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
           <span>{error}</span>
           <button
             type="button"
-            className="rounded p-1 hover:bg-red-100 dark:hover:bg-red-900"
+            className="rounded p-1 hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
             aria-label={t("close")}
             onClick={() => setError(null)}
           >

@@ -131,7 +131,7 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search fonts…"
-            className="w-full border-b border-[var(--color-border)] bg-transparent px-2 py-1 text-sm outline-none"
+            className="w-full border-b border-[var(--color-border)] bg-transparent px-2 py-1 text-sm text-[var(--color-control-foreground)] placeholder:text-[var(--color-placeholder)] outline-none"
           />
           <div className="max-h-80 overflow-y-auto">
             {fonts === null && (
@@ -236,8 +236,9 @@ function FontRow({ font, active, onClick }: { font: SystemFont; active: boolean;
       type="button"
       onClick={onClick}
       className={cn(
-        "block w-full truncate px-2 py-1 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800",
-        active && "bg-blue-50 dark:bg-blue-950",
+        "block w-full truncate px-2 py-1 text-left text-sm hover:bg-[var(--color-control-hover)]",
+        active &&
+          "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]",
       )}
       style={{ fontFamily: `"${font.family}", sans-serif` }}
       title={font.postscript_name}

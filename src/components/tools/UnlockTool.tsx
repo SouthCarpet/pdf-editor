@@ -124,7 +124,7 @@ export function UnlockTool() {
         </Button>
         {stage.kind === "prompt" && (
           <button
-            className="text-xs text-blue-600 underline hover:text-blue-700"
+            className="text-xs text-[var(--color-accent)] underline hover:text-[var(--color-accent-hover)]"
             onClick={() => setRecoveryWarningOpen(true)}
           >
             Forgot the password? Try recovery →

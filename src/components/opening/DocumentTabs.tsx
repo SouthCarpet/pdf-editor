@@ -77,7 +77,7 @@ export function DocumentTabs() {
             </button>
             <button
               type="button"
-              className="mr-1 rounded p-1 hover:bg-neutral-200 dark:hover:bg-neutral-800"
+              className="mr-1 rounded p-1 hover:bg-[var(--color-control-active)]"
               aria-label={t("opening.close_document", { name })}
               onClick={() => closeTab(document.id)}
             >

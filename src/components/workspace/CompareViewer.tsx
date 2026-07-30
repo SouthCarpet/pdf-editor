@@ -61,7 +61,7 @@ export function CompareViewer({ leftPath, rightPath, mode, visualResult, textRes
       </div>
       <div ref={scrollerRef} className="flex flex-1 overflow-auto">
         <div className="flex flex-1 items-start justify-center gap-3 p-4">
-          <div className="rounded border bg-white p-2 shadow-sm">
+          <div className="rounded border bg-[var(--color-card)] p-2 shadow-sm">
             <div className="mb-1 text-xs text-[var(--color-muted)]">Left</div>
             {page < left.numPages ? (
               <PdfViewer pdf={left.pdf} pageIndex={page} zoom={0.8} />
@@ -70,7 +70,7 @@ export function CompareViewer({ leftPath, rightPath, mode, visualResult, textRes
             )}
           </div>
           {mode === "visual" && visualResult ? (
-            <div className="rounded border bg-white p-2 shadow-sm">
+            <div className="rounded border bg-[var(--color-card)] p-2 shadow-sm">
               <div className="mb-1 text-xs text-[var(--color-muted)]">Diff</div>
               {visualResult[page] ? (
                 <img
@@ -83,7 +83,7 @@ export function CompareViewer({ leftPath, rightPath, mode, visualResult, textRes
               )}
             </div>
           ) : null}
-          <div className="rounded border bg-white p-2 shadow-sm">
+          <div className="rounded border bg-[var(--color-card)] p-2 shadow-sm">
             <div className="mb-1 text-xs text-[var(--color-muted)]">Right</div>
             {page < right.numPages ? (
               <PdfViewer pdf={right.pdf} pageIndex={page} zoom={0.8} />

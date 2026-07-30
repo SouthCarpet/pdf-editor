@@ -87,7 +87,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
         aria-modal="true"
         aria-labelledby="ocr-scan-title"
         aria-describedby="ocr-scan-description"
-        className="max-h-[calc(100vh-2rem)] w-[480px] space-y-3 overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-neutral-900"
+        className="max-h-[calc(100vh-2rem)] w-[480px] space-y-3 overflow-y-auto rounded-lg bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl"
       >
         <h2 id="ocr-scan-title" className="text-lg font-semibold text-balance">
           {t("ocr_scan.title")}
