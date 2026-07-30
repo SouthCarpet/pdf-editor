@@ -73,6 +73,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ocr::ocr_pdf_cmd,
             commands::ocr::detect_scanned_pdf,
             commands::ocr::list_ocr_backends,
+            commands::ocr_edit::list_ocr_page_words_cmd,
+            commands::ocr_edit::edit_ocr_page_words_cmd,
             // Phase 13 Task 72 — OCR language management
             commands::tessdata::list_ocr_languages,
             commands::tessdata::add_ocr_language,

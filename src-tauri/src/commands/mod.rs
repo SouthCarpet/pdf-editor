@@ -13,6 +13,7 @@ pub mod hello;
 pub mod merge;
 pub mod meta;
 pub mod ocr;
+pub mod ocr_edit;
 pub mod optimize;
 pub mod organize;
 pub mod pipeline_presets;

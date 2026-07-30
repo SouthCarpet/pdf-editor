@@ -67,6 +67,22 @@ pub async fn put(pool: &SqlitePool, key: &OcrCacheKey, page: &CachedOcrPage) -> 
     put_with_limit(pool, key, page, OCR_CACHE_MAX_ROWS).await
 }
 
+pub async fn invalidate(pool: &SqlitePool, key: &OcrCacheKey) -> Result<bool> {
+    let result = sqlx::query(
+        "DELETE FROM ocr_hocr_cache
+         WHERE file_sha256 = ?1 AND page_index = ?2 AND dpi = ?3
+           AND language = ?4 AND engine = ?5",
+    )
+    .bind(&key.file_sha256)
+    .bind(i64::from(key.page_index))
+    .bind(i64::from(key.dpi))
+    .bind(&key.language)
+    .bind(&key.engine)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 async fn put_with_limit(
     pool: &SqlitePool,
     key: &OcrCacheKey,
@@ -207,5 +223,24 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn invalidates_only_the_exact_page_and_engine_row() {
+        let pool = pool().await;
+        let target = key(2, 300, "eng", "rapidocr");
+        let other_engine = key(2, 300, "eng", "tesseract");
+        let other_page = key(3, 300, "eng", "rapidocr");
+        put(&pool, &target, &page("target")).await.unwrap();
+        put(&pool, &other_engine, &page("other-engine"))
+            .await
+            .unwrap();
+        put(&pool, &other_page, &page("other-page")).await.unwrap();
+
+        assert!(invalidate(&pool, &target).await.unwrap());
+        assert!(get(&pool, &target).await.unwrap().is_none());
+        assert!(get(&pool, &other_engine).await.unwrap().is_some());
+        assert!(get(&pool, &other_page).await.unwrap().is_some());
+        assert!(!invalidate(&pool, &target).await.unwrap());
     }
 }

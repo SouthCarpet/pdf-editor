@@ -77,6 +77,7 @@ pub(crate) struct RecognizedOcrPage {
     pub pixel_width: u32,
     pub pixel_height: u32,
     pub cache_hit: bool,
+    pub cache_key: Option<OcrCacheKey>,
 }
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
@@ -353,6 +354,7 @@ pub(crate) async fn recognize_pdf_pages(
                 pixel_width: cached.pixel_width,
                 pixel_height: cached.pixel_height,
                 cache_hit: true,
+                cache_key: Some(key),
             }),
             Ok(None) => misses.push(page_index),
             Err(error) => {
@@ -427,6 +429,7 @@ pub(crate) async fn recognize_pdf_pages(
                             pixel_width,
                             pixel_height,
                             cache_hit: false,
+                            cache_key: Some(key),
                         })
                     })
                 })
@@ -556,6 +559,7 @@ pub fn inject_text_layers(
                 pixel_width: *pixel_width,
                 pixel_height: *pixel_height,
                 cache_hit: false,
+                cache_key: None,
             },
         )
         .collect();
@@ -574,7 +578,16 @@ pub(crate) fn inject_word_layers(
     // Pre-compute page dimensions so we can register every word with the
     // subsetter before emitting any content stream. write_to_pdf needs the
     // full used_chars set to produce a minimal subset.
-    let page_specs: Vec<(u32, Vec<WordBox>, u32, u32, lopdf::ObjectId, f32, f32)> = pages
+    let page_specs: Vec<(
+        u32,
+        Vec<WordBox>,
+        u32,
+        u32,
+        lopdf::ObjectId,
+        f32,
+        f32,
+        Option<OcrCacheKey>,
+    )> = pages
         .iter()
         .filter_map(|page| {
             let &page_id = pages_map.get(&(page.page_index + 1))?;
@@ -587,6 +600,7 @@ pub(crate) fn inject_word_layers(
                 page_id,
                 page_w,
                 page_h,
+                page.cache_key.clone(),
             ))
         })
         .collect();
@@ -608,7 +622,7 @@ pub(crate) fn inject_word_layers(
 
     // Build all content streams first so the subsetter sees every char.
     let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
-    for (_, words, pixel_w, pixel_h, page_id, page_w, page_h) in &page_specs {
+    for (_, words, pixel_w, pixel_h, page_id, page_w, page_h, _) in &page_specs {
         let bytes = build_invisible_text_stream(
             words,
             *pixel_w,
@@ -639,8 +653,32 @@ pub(crate) fn inject_word_layers(
         Some(helv_id)
     };
 
-    for (page_id, stream_bytes) in stream_specs {
-        let stream_id = doc.add_object(Object::Stream(Stream::new(dictionary! {}, stream_bytes)));
+    for ((_, words, pixel_w, pixel_h, page_id, _, _, cache_key), (_, stream_bytes)) in
+        page_specs.iter().zip(stream_specs)
+    {
+        let mut stream_dict = dictionary! {
+            "AnimusOcrLayer" => true,
+            "AnimusOcrVersion" => 1,
+            "AnimusOcrWords" => Object::string_literal(serde_json::to_string(words)?),
+            "AnimusPixelWidth" => i64::from(*pixel_w),
+            "AnimusPixelHeight" => i64::from(*pixel_h),
+        };
+        if let Some(key) = cache_key {
+            stream_dict.set(
+                "AnimusSourceSha256",
+                Object::string_literal(key.file_sha256.clone()),
+            );
+            stream_dict.set("AnimusOcrDpi", i64::from(key.dpi));
+            stream_dict.set(
+                "AnimusOcrLanguage",
+                Object::string_literal(key.language.clone()),
+            );
+            stream_dict.set(
+                "AnimusOcrEngine",
+                Object::string_literal(key.engine.clone()),
+            );
+        }
+        let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, stream_bytes)));
         if let Some(obj) = doc.objects.get_mut(&page_id) {
             if let Ok(d) = obj.as_dict_mut() {
                 let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {

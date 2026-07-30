@@ -157,6 +157,14 @@ export const commands = {
 	data: unknown,
 }>(__TAURI_INVOKE("detect_scanned_pdf", { path })),
 	listOcrBackends: () => __TAURI_INVOKE<OcrBackendInfo[]>("list_ocr_backends"),
+	listOcrPageWordsCmd: (path: string, pageIndex: number) => typedError<OcrPageWords, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("list_ocr_page_words_cmd", { path, pageIndex })),
+	editOcrPageWordsCmd: (args: EditOcrWordsArgs) => typedError<EditOcrWordsResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("edit_ocr_page_words_cmd", { args })),
 	listOcrLanguages: () => typedError<string[], {
 	key: string,
 	data: unknown,
@@ -356,6 +364,21 @@ export type DeletePagesArgs = {
 	output: string,
 	pages: number[],
 	job_id: string,
+};
+
+export type EditOcrWordsArgs = {
+	input: string,
+	output: string,
+	page_index: number,
+	word_ids: number[],
+	replacement: string | null,
+};
+
+export type EditOcrWordsResult = {
+	output_path: string,
+	removed_word_ids: number[],
+	skipped_word_ids: number[],
+	cache_invalidated: boolean,
 };
 
 export type ExportArgs = {
@@ -698,6 +721,12 @@ export type OcrPageConfidence = {
 	low_confidence: boolean,
 };
 
+export type OcrPageWords = {
+	words: OcrSelectableWord[],
+	layer_identified: boolean,
+	notice: string | null,
+};
+
 export type OcrResult = {
 	output_paths: string[],
 	pages_processed: number,
@@ -708,6 +737,14 @@ export type OcrResult = {
 	cache_hits: number,
 	engine: string,
 	backend_notice: string | null,
+};
+
+export type OcrSelectableWord = {
+	id: number,
+	text: string,
+	/**  Normalized top-left coordinates: [x0, y0, x1, y1]. */
+	bbox: [(number | null), (number | null), (number | null), (number | null)],
+	confidence: number | null,
 };
 
 export type OpenedDocument = {
