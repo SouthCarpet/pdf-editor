@@ -51,7 +51,7 @@
     "description": "Edit or clear live PDF form values without flattening the document.",
     "loading": "Reading form fields...",
     "no_fields": "No native form fields found",
-    "scanned_explanation": "Values on a scanned or flattened form are part of the page image. OCR can make them searchable. Region editing is not available yet because it must remove matching invisible text and add a redaction-style patch safely.",
+    "scanned_explanation": "Values on a scanned or flattened form are part of the page image. Run OCR, then use the OCR tool to select, erase, or replace words from this app's OCR layer.",
     "field_count": "{{count}} fields",
     "field_count_one": "{{count}} field",
     "field_count_other": "{{count}} fields",
@@ -78,6 +78,25 @@
       "signature": "signature",
       "button": "button"
     }
+  },
+  "ocr_edit": {
+    "title": "Scanned text",
+    "description": "Select words from a pipeline-created OCR layer, then erase them or replace them with visible text.",
+    "loading": "Reading OCR words...",
+    "no_layer": "No editable OCR layer created by this app was identified on this page.",
+    "word_count": "{{count}} OCR words",
+    "word_count_one": "{{count}} OCR word",
+    "word_count_other": "{{count}} OCR words",
+    "selected_count": "{{count}} selected",
+    "selection_help": "Click words to toggle them. Drag across the page to select several words.",
+    "erase": "Erase selected words",
+    "replacement_text": "Replacement text",
+    "replace": "Replace selected words",
+    "saving": "Saving...",
+    "saved_erase": "Erased copy saved. The matching invisible OCR spans were removed.",
+    "saved_replacement": "Replacement copy saved. The matching invisible OCR spans were removed.",
+    "saved_patch_only": "Copy saved. Span removal was skipped because the OCR spans could not be identified with certainty. The white patch was added.",
+    "undo_note": "The original file stays unchanged. Reload it to discard this saved-copy edit."
   },
   "edit_text": {
     "title": "Text",

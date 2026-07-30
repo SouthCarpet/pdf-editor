@@ -9,7 +9,9 @@
 import type * as pdfjs from "pdfjs-dist";
 import { useEffect, useState } from "react";
 import { Rect } from "react-konva";
+import { commands, type OcrSelectableWord } from "@/bindings";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
@@ -21,6 +23,7 @@ import { EditSubToolToggle } from "./tools/EditSubToolToggle";
 import { EditTextPanel } from "./tools/EditTextPanel";
 import { ExtractPanel } from "./tools/ExtractPanel";
 import { OrganizePanel } from "./tools/OrganizePanel";
+import { OcrEditPanel } from "./tools/OcrEditPanel";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
@@ -47,6 +50,20 @@ export function Workspace({ pdf, path }: Props) {
   // Crop rectangle lives at the workspace level so it can be shared
   // between the Konva overlay and the CropPanel.
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, width: 0, height: 0 });
+  const ocrPageKey = `${path}\u0000${activePage}`;
+  const [ocrPageState, setOcrPageState] = useState<{
+    key: string;
+    words: OcrSelectableWord[];
+    notice: string | null;
+  }>({ key: "", words: [], notice: null });
+  const [ocrSelection, setOcrSelection] = useState<{ key: string; ids: Set<number> }>({
+    key: "",
+    ids: new Set(),
+  });
+  const ocrWords = ocrPageState.key === ocrPageKey ? ocrPageState.words : [];
+  const ocrLayerNotice = ocrPageState.key === ocrPageKey ? ocrPageState.notice : null;
+  const ocrWordsLoading = activeTool === "ocr" && ocrPageState.key !== ocrPageKey;
+  const selectedOcrWordIds = ocrSelection.key === ocrPageKey ? ocrSelection.ids : new Set<number>();
 
   // Clamp active page when the document changes (defensive).
   useEffect(() => {
@@ -66,6 +83,26 @@ export function Workspace({ pdf, path }: Props) {
       cancelled = true;
     };
   }, [pdf, activePage, zoom]);
+
+  useEffect(() => {
+    if (activeTool !== "ocr") return;
+    let cancelled = false;
+    void commands.listOcrPageWordsCmd(path, activePage).then((result) => {
+      if (cancelled) return;
+      if (result.status === "error") {
+        setOcrPageState({ key: ocrPageKey, words: [], notice: "error" });
+      } else {
+        setOcrPageState({
+          key: ocrPageKey,
+          words: result.data.words,
+          notice: result.data.layer_identified ? null : result.data.notice,
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTool, activePage, ocrPageKey, path]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -99,6 +136,15 @@ export function Workspace({ pdf, path }: Props) {
                 />
               </OverlayCanvas>
             )}
+            {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (
+              <OcrSelectionOverlay
+                width={pageSize.width}
+                height={pageSize.height}
+                words={ocrWords}
+                selectedIds={selectedOcrWordIds}
+                onSelectionChange={(ids) => setOcrSelection({ key: ocrPageKey, ids })}
+              />
+            )}
           </div>
         </main>
         <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
@@ -112,8 +158,17 @@ export function Workspace({ pdf, path }: Props) {
             />
           )}
           {activeTool === "organize" && <OrganizePanel pdf={pdf} docPath={path} />}
-          {activeTool === "extract" && (
-            <ExtractPanel docPath={path} pageCount={pdf.numPages} />
+          {activeTool === "extract" && <ExtractPanel docPath={path} pageCount={pdf.numPages} />}
+          {activeTool === "ocr" && (
+            <OcrEditPanel
+              docPath={path}
+              pageIndex={activePage}
+              words={ocrWords}
+              selectedIds={selectedOcrWordIds}
+              loading={ocrWordsLoading}
+              layerNotice={ocrLayerNotice}
+              onClearSelection={() => setOcrSelection({ key: ocrPageKey, ids: new Set() })}
+            />
           )}
           {activeTool === "edit" && (
             <div className="space-y-3">

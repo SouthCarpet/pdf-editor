@@ -51,7 +51,7 @@
     "description": "Upravte alebo vymažte hodnoty živého PDF formulára bez zlúčenia dokumentu.",
     "loading": "Načítavajú sa formulárové polia...",
     "no_fields": "Nenašli sa natívne formulárové polia",
-    "scanned_explanation": "Hodnoty v naskenovanom alebo zlúčenom formulári sú súčasťou obrázka strany. OCR ich môže sprístupniť na vyhľadávanie. Úprava oblasti zatiaľ nie je dostupná, pretože musí bezpečne odstrániť zodpovedajúci neviditeľný text a pridať prekrytie podobné redakcii.",
+    "scanned_explanation": "Hodnoty v naskenovanom alebo zlúčenom formulári sú súčasťou obrázka strany. Spustite OCR a potom pomocou nástroja OCR vyberte, vymažte alebo nahraďte slová z vrstvy OCR tejto aplikácie.",
     "field_count": "{{count}} polí",
     "field_count_one": "{{count}} pole",
     "field_count_few": "{{count}} polia",
@@ -80,6 +80,26 @@
       "signature": "podpis",
       "button": "tlačidlo"
     }
+  },
+  "ocr_edit": {
+    "title": "Naskenovaný text",
+    "description": "Vyberte slová z vrstvy OCR vytvorenej touto aplikáciou a potom ich vymažte alebo nahraďte viditeľným textom.",
+    "loading": "Načítavajú sa slová OCR...",
+    "no_layer": "Na tejto strane sa nenašla upraviteľná vrstva OCR vytvorená touto aplikáciou.",
+    "word_count": "{{count}} slov OCR",
+    "word_count_one": "{{count}} slovo OCR",
+    "word_count_few": "{{count}} slová OCR",
+    "word_count_other": "{{count}} slov OCR",
+    "selected_count": "Vybrané: {{count}}",
+    "selection_help": "Kliknutím prepínate výber slov. Potiahnutím cez stranu vyberiete viac slov.",
+    "erase": "Vymazať vybrané slová",
+    "replacement_text": "Náhradný text",
+    "replace": "Nahradiť vybrané slová",
+    "saving": "Ukladá sa...",
+    "saved_erase": "Kópia s vymazaním bola uložená. Zodpovedajúce neviditeľné úseky OCR boli odstránené.",
+    "saved_replacement": "Kópia s náhradou bola uložená. Zodpovedajúce neviditeľné úseky OCR boli odstránené.",
+    "saved_patch_only": "Kópia bola uložená. Odstránenie úsekov sa preskočilo, pretože úseky OCR nebolo možné spoľahlivo identifikovať. Biele prekrytie bolo pridané.",
+    "undo_note": "Pôvodný súbor zostane nezmenený. Opätovným načítaním zahodíte úpravu uloženej kópie."
   },
   "edit_text": {
     "title": "Text",

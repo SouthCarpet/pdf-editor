@@ -3,7 +3,7 @@
 // document store; this one is wiped on app reload.
 import { create } from "zustand";
 
-export type WorkspaceTool = "edit" | "organize" | "crop" | "extract" | "compare";
+export type WorkspaceTool = "edit" | "organize" | "crop" | "extract" | "ocr" | "compare";
 export type EditSubTool = "forms" | "annotations" | "text";
 
 interface WorkspaceState {

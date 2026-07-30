@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useWorkspace, type WorkspaceTool } from "@/stores/workspaceStore";
 
-const TOOLS: WorkspaceTool[] = ["edit", "organize", "crop", "extract", "compare"];
+const TOOLS: WorkspaceTool[] = ["edit", "organize", "crop", "extract", "ocr", "compare"];
 
 export function WorkspaceTopBar() {
   const { t } = useTranslation("common");

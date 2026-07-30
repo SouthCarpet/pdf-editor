@@ -86,6 +86,7 @@
     "unlock": "Unlock",
     "optimize": "Optimize",
     "extract": "Extract Pages",
+    "ocr": "OCR",
     "pipeline": "Pipeline",
     "projects": "Projects"
   },
