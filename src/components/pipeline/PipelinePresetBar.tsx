@@ -185,7 +185,7 @@ export function PipelinePresetBar() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
-          {error && <p className="text-xs text-red-600">{error}</p>}
+          {error && <p className="text-xs text-[var(--color-danger-text)]">{error}</p>}
           <div className="flex justify-end gap-2">
             <Button
               size="sm"
@@ -211,7 +211,7 @@ export function PipelinePresetBar() {
             presets.map((p) => (
               <div
                 key={p.id}
-                className="flex items-start justify-between gap-2 rounded p-2 hover:bg-neutral-100"
+                className="flex items-start justify-between gap-2 rounded p-2 hover:bg-[var(--color-control-hover)]"
               >
                 <div className="flex-1">
                   <div className="text-sm font-medium">{p.name}</div>
@@ -242,7 +242,7 @@ export function PipelinePresetBar() {
               </div>
             ))
           )}
-          {error && <p className="px-2 text-xs text-red-600">{error}</p>}
+          {error && <p className="px-2 text-xs text-[var(--color-danger-text)]">{error}</p>}
         </div>
       )}
     </div>

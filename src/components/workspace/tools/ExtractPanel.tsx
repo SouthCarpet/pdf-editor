@@ -83,7 +83,7 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
         {Array.from({ length: pageCount }, (_, i) => (
           <label
             key={i}
-            className="flex cursor-pointer flex-col items-center gap-1 rounded px-1 py-2 hover:bg-neutral-100"
+            className="flex cursor-pointer flex-col items-center gap-1 rounded px-1 py-2 hover:bg-[var(--color-control-hover)]"
           >
             <input
               type="checkbox"
@@ -97,7 +97,7 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
       <Button size="sm" disabled={selected.size === 0 || busy} onClick={extract}>
         {busy ? "Extracting…" : `Extract ${selected.size}`}
       </Button>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

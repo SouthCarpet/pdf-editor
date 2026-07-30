@@ -13,7 +13,7 @@ export default function App() {
       >
         Say hello
       </Button>
-      <p className="mt-2 text-sm text-neutral-700">{reply}</p>
+      <p className="mt-2 text-sm text-[var(--color-muted)]">{reply}</p>
     </div>
   );
 }

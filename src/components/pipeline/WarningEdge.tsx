@@ -62,7 +62,7 @@ export function WarningEdge(props: EdgeProps) {
               transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
               pointerEvents: "all",
             }}
-            className="rounded-full bg-amber-100 p-1 text-amber-700 ring-1 ring-amber-300 shadow"
+            className="rounded-full bg-[var(--color-warning-soft)] p-1 text-[var(--color-warning-soft-foreground)] ring-1 ring-[var(--color-warning)] shadow"
             title={`Downstream will strip: ${warnings
               .map(artifactLabel)
               .join(", ")}`}

@@ -22,10 +22,12 @@ export function ProgressList() {
         <li key={j.id} className="flex items-center gap-3 p-3">
           {j.status === "running" && <Loader2 className="h-4 w-4 animate-spin" />}
           {j.status === "done" && (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <CheckCircle2 className="h-4 w-4 text-[var(--color-success-text)]" />
           )}
-          {j.status === "error" && <XCircle className="h-4 w-4 text-red-600" />}
-          {j.status === "cancelled" && <X className="h-4 w-4 text-neutral-500" />}
+          {j.status === "error" && <XCircle className="h-4 w-4 text-[var(--color-danger-text)]" />}
+          {j.status === "cancelled" && (
+            <X className="h-4 w-4 text-[var(--color-muted)]" />
+          )}
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{j.toolId}</div>
             <div className="truncate text-xs text-[var(--color-muted)]">
@@ -38,16 +40,16 @@ export function ProgressList() {
                 aria-valuemax={100}
                 aria-valuenow={Math.round(j.progress * 100)}
                 aria-label={`${j.toolId} progress`}
-                className="mt-1 h-1 w-full overflow-hidden rounded bg-neutral-200 dark:bg-neutral-800"
+                className="mt-1 h-1 w-full overflow-hidden rounded bg-[var(--color-control-active)]"
               >
                 <div
-                  className="h-full bg-neutral-700 dark:bg-neutral-300"
+                  className="h-full bg-[var(--color-muted)]"
                   style={{ width: `${(j.progress * 100).toFixed(0)}%` }}
                 />
               </div>
             )}
             {j.status === "error" && j.error && (
-              <div className="mt-1 text-xs text-red-600">
+              <div className="mt-1 text-xs text-[var(--color-danger-text)]">
                 {t(`errors:${j.error.key}`, { ...j.error })}
               </div>
             )}

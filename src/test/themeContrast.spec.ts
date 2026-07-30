@@ -47,7 +47,13 @@ const requiredPairs = [
   ["accent-foreground", "accent"],
   ["accent-soft-foreground", "accent-soft"],
   ["danger-foreground", "danger"],
+  ["danger-text", "background"],
   ["danger-soft-foreground", "danger-soft"],
+  ["warning-foreground", "warning"],
+  ["warning", "background"],
+  ["warning-soft-foreground", "warning-soft"],
+  ["success-text", "background"],
+  ["success-soft-foreground", "success-soft"],
   ["foreground", "dropzone"],
   ["placeholder", "dropzone"],
 ] as const;

@@ -83,7 +83,7 @@ export function ProjectList() {
             key={p.id}
             to="/projects/$id"
             params={{ id: String(p.id) }}
-            className="block rounded border border-[var(--color-border)] bg-[var(--color-card)] p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+            className="block rounded border border-[var(--color-border)] bg-[var(--color-card)] p-4 hover:bg-[var(--color-control-hover)]"
           >
             <div className="font-medium">{p.name}</div>
             {p.description && (
@@ -99,7 +99,7 @@ export function ProjectList() {
       </div>
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
           <div className="w-96 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-xl">
             <h2 className="text-lg font-semibold">{t("projects.new")}</h2>
             <input

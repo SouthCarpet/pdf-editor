@@ -51,7 +51,7 @@ export function SessionRestorePrompt() {
   return (
     <div
       role="alert"
-      className="mx-4 mt-2 flex items-center justify-between gap-2 rounded border border-blue-300 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100"
+      className="mx-4 mt-2 flex items-center justify-between gap-2 rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm text-[var(--color-accent-soft-foreground)]"
     >
       <span>
         {t("session.restore_prompt", {

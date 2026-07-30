@@ -18,7 +18,7 @@ function Fallback({ error, resetErrorBoundary }: FallbackProps) {
   return (
     <div
       role="alert"
-      className="rounded border border-red-200 bg-red-50 p-4 text-red-900 dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+      className="rounded border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-4 text-[var(--color-danger-soft-foreground)]"
     >
       <h2 className="font-semibold">{t("boundary_title")}</h2>
       <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap text-xs">

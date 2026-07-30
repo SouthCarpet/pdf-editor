@@ -28,8 +28,8 @@ export function EditSubToolToggle({ value, onChange }: Props) {
           className={cn(
             "flex-1 rounded px-2 py-1 text-xs",
             value === o.id
-              ? "bg-blue-500 text-white"
-              : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+              : "hover:bg-[var(--color-control-hover)]"
           )}
         >
           {t(o.labelKey)}

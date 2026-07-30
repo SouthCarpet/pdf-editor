@@ -81,7 +81,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
       <div
         role="dialog"
         aria-modal="true"
@@ -110,7 +110,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
         {selectedBackend && !selectedBackend.available && (
           <div
             role="status"
-            className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+            className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning-soft-foreground)]"
           >
             <p>
               {t("ocr_scan.engine_unavailable", {
@@ -138,7 +138,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
                 onClick={() => toggle(l)}
                 className={`min-h-10 rounded border px-3 py-1 text-xs transition-transform duration-150 ease-out active:scale-[0.96] ${
                   selected.includes(l)
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
+                    ? "border-[var(--color-focus)] bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
                     : "border-[var(--color-border)]"
                 }`}
               >

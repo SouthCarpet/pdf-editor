@@ -17,18 +17,18 @@ export function RecoveryWarningModal({ open, onConfirm, onCancel }: Props) {
   const { t } = useTranslation("common");
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-[28rem] rounded-lg border border-yellow-500 bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl">
-        <h2 className="text-lg font-semibold text-yellow-700 dark:text-yellow-400">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
+      <div className="w-[28rem] rounded-lg border border-[var(--color-warning)] bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl">
+        <h2 className="text-lg font-semibold text-[var(--color-warning)]">
           Password recovery
         </h2>
-        <p className="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
           Use this feature only on PDFs you legally own. You are responsible
           for compliance with your local laws (e.g. EU InfoSoc Directive,
           US DMCA section 1201). Recovery on third-party documents may be
           illegal.
         </p>
-        <p className="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
           For AES-256 encrypted PDFs (PDF 2.0), brute-force can take years.
           Use Dictionary mode first.
         </p>

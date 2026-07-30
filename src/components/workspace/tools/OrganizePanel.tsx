@@ -354,7 +354,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
       <Button size="sm" onClick={apply} disabled={!dirty || busy}>
         {busy ? "Working…" : "Apply changes"}
       </Button>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

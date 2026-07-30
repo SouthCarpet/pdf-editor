@@ -21,12 +21,22 @@
   --color-danger: #b91c1c;
   --color-danger-hover: #991b1b;
   --color-danger-foreground: #ffffff;
+  --color-danger-text: #b91c1c;
   --color-danger-soft: #fee2e2;
   --color-danger-soft-foreground: #991b1b;
+  --color-warning: #b45309;
+  --color-warning-hover: #92400e;
+  --color-warning-foreground: #ffffff;
+  --color-warning-soft: #fef3c7;
+  --color-warning-soft-foreground: #78350f;
+  --color-success-text: #166534;
+  --color-success-soft: #dcfce7;
+  --color-success-soft-foreground: #14532d;
   --color-dropzone: #ffffff;
   --color-dropzone-active: #f5f5f5;
   --color-dropzone-border-active: #525252;
   --color-overlay: rgb(0 0 0 / 0.8);
+  --color-overlay-soft: rgb(0 0 0 / 0.4);
   --color-selection: #dbeafe;
   --color-selection-foreground: #172554;
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235f5f5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -52,13 +62,23 @@
   --color-danger: #dc2626;
   --color-danger-hover: #b91c1c;
   --color-danger-foreground: #ffffff;
+  --color-danger-text: #f87171;
   --color-danger-soft: #450a0a;
   --color-danger-soft-foreground: #fecaca;
+  --color-warning: #fbbf24;
+  --color-warning-hover: #f59e0b;
+  --color-warning-foreground: #111111;
+  --color-warning-soft: #451a03;
+  --color-warning-soft-foreground: #fde68a;
+  --color-success-text: #86efac;
+  --color-success-soft: #052e16;
+  --color-success-soft-foreground: #bbf7d0;
   --color-dropzone: #171717;
   --color-dropzone-active: #262626;
   --color-dropzone-border-active: #d4d4d4;
   --color-selection: #1e3a8a;
   --color-selection-foreground: #dbeafe;
+  --color-overlay-soft: rgb(0 0 0 / 0.6);
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 

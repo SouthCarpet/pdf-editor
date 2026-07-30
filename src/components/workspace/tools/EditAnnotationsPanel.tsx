@@ -313,8 +313,8 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
             className={cn(
               "rounded border px-2 py-1 text-xs",
               mode === m.id
-                ? "border-blue-500 bg-blue-50 dark:bg-blue-950"
-                : "border-[var(--color-border)] hover:bg-neutral-100 dark:hover:bg-neutral-800",
+                ? "border-[var(--color-focus)] bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
+                : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]",
             )}
           >
             {m.label}
@@ -347,7 +347,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
               </span>
               <button
                 onClick={() => removeAnnotation(docPath, a.__clientId)}
-                className="text-red-600 hover:underline"
+                className="text-[var(--color-danger-text)] hover:underline"
                 aria-label="Remove"
               >
                 ×
@@ -368,7 +368,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
           {busy ? "Saving…" : `Apply ${annotations.length}`}
         </Button>
       </div>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

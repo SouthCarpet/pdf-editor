@@ -158,7 +158,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
           Apply crop
         </Button>
       </div>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

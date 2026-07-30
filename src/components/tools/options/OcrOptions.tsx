@@ -37,7 +37,7 @@ export function OcrOptions({ value, onChange }: Props) {
         </select>
       </label>
       {backend && !backend.available && (
-        <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+        <p className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-2 py-1.5 text-xs text-[var(--color-warning-soft-foreground)]">
           {t("ocr_scan.engine_unavailable", { engine: backend.display_name })}
         </p>
       )}

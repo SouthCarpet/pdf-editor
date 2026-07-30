@@ -264,7 +264,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
         {t("open_file.choose")}
       </Button>
       {config.paths.length === 0 ? (
-        <p className="rounded-md bg-neutral-100 p-3 text-xs text-[var(--color-muted)]">
+        <p className="rounded-md bg-[var(--color-control-hover)] p-3 text-xs text-[var(--color-muted)]">
           {t("open_file.empty")}
         </p>
       ) : (
@@ -272,7 +272,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
           {config.paths.map((path) => (
             <li
               key={path}
-              className="flex min-w-0 items-center gap-2 rounded-md bg-neutral-100 p-2"
+              className="flex min-w-0 items-center gap-2 rounded-md bg-[var(--color-control-hover)] p-2"
             >
               <FileText className="size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-xs" title={path}>
@@ -304,7 +304,7 @@ function WatermarkConfig({ config, patch }: KConf<"watermark">) {
   // Unimplemented sentinel is replaced with a real run path.
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
-      <p className="rounded bg-amber-50 p-2 text-xs text-amber-800">
+      <p className="rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
         Watermark execution is unimplemented in the executor (awaits the Watermark tool font picker
         so we do not silently fall back to Standard 14). The node persists in the graph; running it
         surfaces a clear error.

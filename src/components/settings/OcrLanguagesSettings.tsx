@@ -77,7 +77,7 @@ export function OcrLanguagesSettings() {
       <Button onClick={addLang} variant="outline" size="sm" disabled={busy}>
         {t(busy ? "ocr_adding_language" : "ocr_add_language")}
       </Button>
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
       {rapidocr && (
         <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
           <p className="text-xs font-medium">
@@ -94,7 +94,7 @@ export function OcrLanguagesSettings() {
             ))}
           </div>
           {!rapidocr.available && rapidocr.unavailable_reason && (
-            <p className="text-xs break-words text-amber-700 dark:text-amber-400">
+            <p className="text-xs break-words text-[var(--color-warning)]">
               {t("ocr_backend_unavailable", {
                 reason: rapidocr.unavailable_reason,
               })}

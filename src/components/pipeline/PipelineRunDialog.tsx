@@ -266,7 +266,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-overlay-soft)]">
       <div className="flex h-[80vh] w-[640px] flex-col gap-3 rounded-md bg-[var(--color-card)] p-4 text-[var(--color-foreground)] shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold">Run pipeline</h2>
@@ -281,7 +281,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         </div>
 
         {warnings.length > 0 && (
-          <div className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+          <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
             <strong>Preservation warnings ({warnings.length})</strong>:
             <ul className="ml-4 list-disc">
               {warnings.map((w) => (
@@ -327,9 +327,9 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
 
         {progress && (
           <div className="space-y-1">
-            <div className="h-2 w-full rounded bg-neutral-200">
+            <div className="h-2 w-full rounded bg-[var(--color-control-active)]">
               <div
-                className="h-2 rounded bg-blue-500 transition-all"
+                className="h-2 rounded bg-[var(--color-accent)] transition-all"
                 style={{ width: `${Math.round(progress.ratio * 100)}%` }}
               />
             </div>
@@ -338,14 +338,14 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         )}
 
         {error && (
-          <p className="rounded border border-red-300 bg-red-50 p-2 text-xs text-red-700">
+          <p className="rounded border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-2 text-xs text-[var(--color-danger-soft-foreground)]">
             {error}
           </p>
         )}
 
         <div className="flex-1 overflow-y-auto rounded border">
           <table className="w-full text-xs">
-            <thead className="bg-neutral-100">
+            <thead className="bg-[var(--color-control-hover)]">
               <tr>
                 <th className="p-1 text-left">File</th>
                 <th className="p-1 text-left">Status</th>
@@ -384,9 +384,9 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         {report && (
           <div className="flex items-center justify-between text-xs">
             <p>
-              <span className="text-green-700">{report.success} ok</span>
+              <span className="text-[var(--color-success-text)]">{report.success} ok</span>
               {" / "}
-              <span className="text-red-700">{report.failed} failed</span>
+              <span className="text-[var(--color-danger-text)]">{report.failed} failed</span>
               {" / "}
               <span>{report.output_paths.length} outputs</span>
             </p>
@@ -407,10 +407,13 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
 
 function StatusBadge({ state }: { state: RowState["status"] }) {
   const cls = {
-    queued: "bg-neutral-200 text-neutral-700",
-    running: "bg-blue-100 text-blue-700",
-    ok: "bg-green-100 text-green-700",
-    failed: "bg-red-100 text-red-700",
+    queued:
+      "bg-[var(--color-control-active)] text-[var(--color-control-foreground)]",
+    running:
+      "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]",
+    ok: "bg-[var(--color-success-soft)] text-[var(--color-success-soft-foreground)]",
+    failed:
+      "bg-[var(--color-danger-soft)] text-[var(--color-danger-soft-foreground)]",
   }[state];
   return <span className={`rounded px-1.5 py-0.5 ${cls}`}>{state}</span>;
 }

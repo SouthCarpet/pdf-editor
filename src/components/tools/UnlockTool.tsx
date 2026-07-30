@@ -94,7 +94,7 @@ export function UnlockTool() {
         <p className="text-sm text-[var(--color-muted)]">Inspecting…</p>
       )}
       {stage.kind === "ready" && !stage.encrypted && (
-        <p className="text-sm text-green-700">This PDF is not encrypted.</p>
+        <p className="text-sm text-[var(--color-success-text)]">This PDF is not encrypted.</p>
       )}
       {showPrompt && (
         <div className="space-y-2">
@@ -108,12 +108,12 @@ export function UnlockTool() {
         </div>
       )}
       {stage.kind === "error" && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-[var(--color-danger-text)]">
           {t(`errors:${stage.key}`, stage.detail ? { detail: stage.detail } : undefined)}
         </p>
       )}
       {stage.kind === "done" && (
-        <p className="text-sm text-green-700">Saved to {stage.outputs[0]}</p>
+        <p className="text-sm text-[var(--color-success-text)]">Saved to {stage.outputs[0]}</p>
       )}
       <div className="flex items-center gap-2">
         <Button

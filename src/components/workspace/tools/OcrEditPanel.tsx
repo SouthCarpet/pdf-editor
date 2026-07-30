@@ -76,14 +76,14 @@ export function OcrEditPanel({
       {loading ? (
         <p className="text-xs text-[var(--color-muted)]">{t("ocr_edit.loading")}</p>
       ) : layerNotice ? (
-        <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+        <p role="status" className="text-xs text-[var(--color-warning)]">
           {t("ocr_edit.no_layer")}
         </p>
       ) : (
         <>
           <div className="flex items-center justify-between text-xs">
             <span>{t("ocr_edit.word_count", { count: words.length })}</span>
-            <span className="font-medium text-blue-700 dark:text-blue-300">
+            <span className="font-medium text-[var(--color-accent-soft-foreground)]">
               {t("ocr_edit.selected_count", { count: selectedIds.size })}
             </span>
           </div>
@@ -121,12 +121,12 @@ export function OcrEditPanel({
         </>
       )}
       {notice && (
-        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-300">
+        <p role="status" className="text-xs text-[var(--color-success-text)]">
           {notice}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
           {error}
         </p>
       )}

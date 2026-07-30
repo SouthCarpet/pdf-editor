@@ -156,8 +156,8 @@ export function EditTextPanel({ docPath }: Props) {
           <button
             key={`${r.page}-${r.operator_index}`}
             onClick={() => setSelectedIndex(i)}
-            className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 ${
-              selectedIndex === i ? "bg-blue-50 dark:bg-blue-950" : ""
+            className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-[var(--color-control-hover)] ${
+              selectedIndex === i ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]" : ""
             }`}
             title={r.font}
           >
@@ -185,7 +185,7 @@ export function EditTextPanel({ docPath }: Props) {
             {busy ? "Applying…" : "Apply (preserve styling)"}
           </Button>
           {showRedactionFallback && (
-            <div className="rounded border border-amber-400 bg-amber-50 p-2 text-[11px] text-amber-900">
+            <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-[11px] text-[var(--color-warning-soft-foreground)]">
               <p className="font-medium">Cannot invert this font's encoding.</p>
               <p>
                 The font does not expose a /ToUnicode CMap and is not in
@@ -224,7 +224,7 @@ export function EditTextPanel({ docPath }: Props) {
               Add new text…
             </Button>
           ) : (
-            <div className="rounded border border-blue-400 bg-blue-50 p-2 text-[11px] text-blue-900 dark:bg-blue-950 dark:text-blue-200">
+            <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">
               <p className="font-medium">No editable text here</p>
               <p className="mb-2">
                 Switch to Annotations to add a new FreeText box.
@@ -252,7 +252,7 @@ export function EditTextPanel({ docPath }: Props) {
         </div>
       )}
 
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

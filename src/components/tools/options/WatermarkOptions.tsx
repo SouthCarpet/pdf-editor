@@ -26,7 +26,7 @@ export function WatermarkOptions({ value, onChange, mode = "standalone" }: Props
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
       {mode === "pipeline-node" && (
-        <p className="rounded bg-amber-50 p-2 text-xs text-amber-800">
+        <p className="rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
           Watermark execution is unimplemented in the pipeline executor
           (awaits the standalone Watermark tool font picker). The node
           persists in the graph; running it surfaces a clear error.

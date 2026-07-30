@@ -18,7 +18,7 @@ export function UpdateNotice() {
 
   return (
     <div
-      className="update-notice-enter flex min-h-11 shrink-0 items-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+      className="update-notice-enter flex min-h-11 shrink-0 items-center gap-3 border-b border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-4 py-2 text-[var(--color-warning-soft-foreground)]"
       role="status"
     >
       <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -32,7 +32,7 @@ export function UpdateNotice() {
       {!unavailable && !launchError && (
         <Button
           disabled={launching}
-          className="gap-2 bg-amber-950 text-amber-50 hover:bg-amber-900 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-200"
+          className="gap-2 bg-[var(--color-warning)] text-[var(--color-warning-foreground)] hover:bg-[var(--color-warning-hover)]"
           onClick={() => void launch()}
         >
           <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -42,7 +42,7 @@ export function UpdateNotice() {
       <Button
         variant="ghost"
         size="icon"
-        className="shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900"
+        className="shrink-0 hover:bg-[var(--color-warning-soft)]"
         aria-label={t("update.dismiss")}
         onClick={dismiss}
       >

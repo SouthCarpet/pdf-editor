@@ -123,7 +123,7 @@ export function EditFormsPanel({ docPath, onSelectPage }: Props) {
               {t("forms.field_count", { count: fields.length })}
             </span>
             {dirtyUpdates.length > 0 && (
-              <span className="font-medium text-amber-700 dark:text-amber-300">
+              <span className="font-medium text-[var(--color-warning)]">
                 {t("forms.unsaved_count", { count: dirtyUpdates.length })}
               </span>
             )}
@@ -155,12 +155,12 @@ export function EditFormsPanel({ docPath, onSelectPage }: Props) {
         </>
       )}
       {saved && (
-        <p role="status" className="text-xs text-emerald-700 dark:text-emerald-300">
+        <p role="status" className="text-xs text-[var(--color-success-text)]">
           {t("forms.saved")}
         </p>
       )}
       {err && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
           {err}
         </p>
       )}
@@ -207,7 +207,7 @@ function FormFieldRow({
         >
           {label}
           {field.required && (
-            <span className="ml-0.5 text-red-600" aria-label={t("forms.required")}>
+            <span className="ml-0.5 text-[var(--color-danger-text)]" aria-label={t("forms.required")}>
               *
             </span>
           )}
@@ -240,7 +240,7 @@ function FormFieldRow({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-[10px] font-medium text-red-600 underline-offset-2 hover:underline"
+            className="text-[10px] font-medium text-[var(--color-danger-text)] underline-offset-2 hover:underline"
           >
             {t("forms.clear")}
           </button>

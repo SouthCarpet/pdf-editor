@@ -57,7 +57,7 @@ export function DocumentTabs() {
             className={`flex h-8 max-w-56 shrink-0 items-center rounded-t-md border border-b-0 ${
               active
                 ? "border-[var(--color-border)] bg-[var(--color-background)]"
-                : "border-transparent text-[var(--color-muted)] hover:bg-neutral-100 dark:hover:bg-neutral-900"
+                : "border-transparent text-[var(--color-muted)] hover:bg-[var(--color-control-hover)]"
             }`}
           >
             <button
@@ -70,7 +70,7 @@ export function DocumentTabs() {
               <span className="truncate">{name}</span>
               {document.dirty && (
                 <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-900 dark:bg-neutral-100"
+                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-foreground)]"
                   aria-label={t("opening.unsaved_changes")}
                 />
               )}

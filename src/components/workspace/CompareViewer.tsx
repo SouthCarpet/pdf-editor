@@ -103,12 +103,14 @@ export function CompareViewer({ leftPath, rightPath, mode, visualResult, textRes
               {textResult.changes.map((c, i) => (
                 <li key={i}>
                   {c.kind === "delete" && (
-                    <span className="bg-red-100 px-1 text-red-800 line-through">
+                    <span className="bg-[var(--color-danger-soft)] px-1 text-[var(--color-danger-soft-foreground)] line-through">
                       {c.left}
                     </span>
                   )}
                   {c.kind === "insert" && (
-                    <span className="bg-green-100 px-1 text-green-800">{c.right}</span>
+                    <span className="bg-[var(--color-success-soft)] px-1 text-[var(--color-success-soft-foreground)]">
+                      {c.right}
+                    </span>
                   )}
                 </li>
               ))}

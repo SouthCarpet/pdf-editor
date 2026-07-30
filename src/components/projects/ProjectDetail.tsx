@@ -371,7 +371,7 @@ export function ProjectDetail({ projectId }: Props) {
         )}
       </section>
 
-      {err && <p className="text-xs text-red-600">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>
   );
 }

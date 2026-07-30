@@ -173,7 +173,7 @@ export function WorkspaceRoute() {
   if (error) {
     return (
       <div className="space-y-3 p-6">
-        <p className="text-red-600">{t("opening.failed_document", { error })}</p>
+        <p className="text-[var(--color-danger-text)]">{t("opening.failed_document", { error })}</p>
         <Button onClick={() => navigate({ to: "/projects" })}>
           {t("projects.back_to_projects")}
         </Button>
@@ -227,7 +227,7 @@ export function WorkspaceRoute() {
             </button>
           </div>
           {ocrError && (
-            <p className="mt-3 text-xs text-red-600">
+            <p className="mt-3 text-xs text-[var(--color-danger-text)]">
               {t("ocr_result.failed", { error: ocrError })}
             </p>
           )}
@@ -237,7 +237,7 @@ export function WorkspaceRoute() {
               {ocrResult.backend_notice && (
                 <p
                   title={ocrResult.backend_notice}
-                  className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100"
+                  className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-2 py-1.5 text-[var(--color-warning-soft-foreground)]"
                 >
                   {t("ocr_result.fallback")}
                 </p>
@@ -251,7 +251,7 @@ export function WorkspaceRoute() {
               </p>
               {ocrResult.low_confidence_pages.length > 0 && (
                 <div>
-                  <p className="font-medium text-amber-700 dark:text-amber-400">
+                  <p className="font-medium text-[var(--color-warning)]">
                     {t("ocr_result.low_confidence")}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
@@ -260,7 +260,7 @@ export function WorkspaceRoute() {
                       .map((page) => (
                         <span
                           key={page.page_number}
-                          className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-900 tabular-nums dark:bg-amber-950 dark:text-amber-200"
+                          className="rounded-full bg-[var(--color-warning-soft)] px-2 py-0.5 text-[var(--color-warning-soft-foreground)] tabular-nums"
                         >
                           {t("ocr_result.page_badge", {
                             page: page.page_number,

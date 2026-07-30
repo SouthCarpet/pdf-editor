@@ -38,7 +38,7 @@ export function ExtractOptions({ value, onChange }: Props) {
         placeholder="1,3,5-7"
       />
       {!valid && value.pageInput.length > 0 && (
-        <p className="text-xs text-red-600">Invalid page list.</p>
+        <p className="text-xs text-[var(--color-danger-text)]">Invalid page list.</p>
       )}
     </div>
   );

@@ -371,7 +371,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       {error && (
         <div
           role="alert"
-          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 shadow-lg dark:border-red-900 dark:bg-red-950 dark:text-red-100"
+          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-soft-foreground)] shadow-lg"
         >
           <span>{error}</span>
           <button

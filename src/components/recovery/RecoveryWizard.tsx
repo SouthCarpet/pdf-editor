@@ -285,8 +285,8 @@ export function RecoveryWizard({ inputPath }: Props) {
             disabled={running}
             className={`flex-1 rounded px-3 py-2 text-sm capitalize ${
               tab === id
-                ? "bg-blue-500 text-white"
-                : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                : "hover:bg-[var(--color-control-hover)]"
             }`}
           >
             {id}
@@ -333,7 +333,7 @@ export function RecoveryWizard({ inputPath }: Props) {
             )}
           </div>
           {preview.length > 0 && (
-            <pre className="max-h-32 overflow-auto rounded bg-neutral-50 p-2 font-mono text-[11px] dark:bg-neutral-900">
+            <pre className="max-h-32 overflow-auto rounded bg-[var(--color-control)] p-2 font-mono text-[11px]">
               {preview.join("\n")}
             </pre>
           )}
@@ -342,7 +342,7 @@ export function RecoveryWizard({ inputPath }: Props) {
 
       {tab === "mask" && (
         <div className="space-y-3 rounded border border-[var(--color-border)] p-4">
-          <div className="rounded border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-3 text-xs text-[var(--color-warning-soft-foreground)]">
             <p className="font-medium">Mask attack coming in v1.1.</p>
             <p>
               pdfcrack lacks first-class mask support and a faithful mask
@@ -377,7 +377,7 @@ export function RecoveryWizard({ inputPath }: Props) {
                   onClick={() =>
                     setMaskTokens((t) => t.filter((_, idx) => idx !== i))
                   }
-                  className="rounded bg-blue-100 px-2 py-1 text-xs hover:bg-red-100 dark:bg-blue-950"
+                  className="rounded bg-[var(--color-accent-soft)] px-2 py-1 text-xs text-[var(--color-accent-soft-foreground)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
                   title="Click to remove"
                 >
                   {tok}
@@ -483,7 +483,7 @@ export function RecoveryWizard({ inputPath }: Props) {
           <>
             <div className="text-sm text-[var(--color-muted)]">
               {result?.password ? (
-                <span className="font-medium text-green-700">
+                <span className="font-medium text-[var(--color-success-text)]">
                   Password found: {result.password}
                 </span>
               ) : result ? (
@@ -511,7 +511,7 @@ export function RecoveryWizard({ inputPath }: Props) {
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-[var(--color-danger-text)]">{error}</p>}
     </div>
   );
 }
