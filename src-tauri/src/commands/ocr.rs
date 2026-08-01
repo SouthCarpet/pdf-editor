@@ -18,10 +18,11 @@ use crate::persistence::ocr_cache::{self, CachedOcrPage, OcrCacheKey};
 use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts;
 use crate::services::ocr_engine::{
-    average_confidence, build_invisible_text_stream, parse_hocr_word, words_to_hocr,
+    average_confidence, build_invisible_text_stream_with_font, parse_hocr_word, words_to_hocr,
     words_to_plain_text, OcrBackend, OcrEngine, OcrOptions, OcrOutputMode, OcrRecognitionOptions,
     WordBox, LOW_CONFIDENCE_THRESHOLD,
 };
+use crate::services::ocr_geometry::{add_page_font_resource, page_geometry, OcrPageGeometry};
 use lopdf::{dictionary, Document, Object, Stream};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -584,26 +585,32 @@ pub(crate) fn inject_word_layers(
         u32,
         u32,
         lopdf::ObjectId,
-        f32,
-        f32,
+        OcrPageGeometry,
         Option<OcrCacheKey>,
     )> = pages
         .iter()
-        .filter_map(|page| {
-            let &page_id = pages_map.get(&(page.page_index + 1))?;
-            let (page_w, page_h) = page_dimensions(&doc, page_id).unwrap_or((612.0, 792.0));
-            Some((
+        .map(|page| -> anyhow::Result<_> {
+            let &page_id = pages_map.get(&(page.page_index + 1)).ok_or_else(|| {
+                anyhow::anyhow!("OCR page {} does not exist", page.page_index + 1)
+            })?;
+            if page_has_pipeline_ocr_layer(&doc, page_id)? {
+                return Err(anyhow::anyhow!(
+                    "page {} already contains a pipeline-owned OCR layer; refusing to append a duplicate",
+                    page.page_index + 1
+                ));
+            }
+            let geometry = page_geometry(&doc, page_id)?;
+            Ok((
                 page.page_index,
                 page.words.clone(),
                 page.pixel_width,
                 page.pixel_height,
                 page_id,
-                page_w,
-                page_h,
+                geometry,
                 page.cache_key.clone(),
             ))
         })
-        .collect();
+        .collect::<anyhow::Result<_>>()?;
 
     // Pick + load the embedded font once.
     let picked = pick_ocr_font();
@@ -622,16 +629,18 @@ pub(crate) fn inject_word_layers(
 
     // Build all content streams first so the subsetter sees every char.
     let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
-    for (_, words, pixel_w, pixel_h, page_id, page_w, page_h, _) in &page_specs {
-        let bytes = build_invisible_text_stream(
+    for (_, words, pixel_w, pixel_h, page_id, geometry, _) in &page_specs {
+        let (display_width, display_height) = geometry.display_dimensions();
+        let bytes = build_invisible_text_stream_with_font(
             words,
             *pixel_w,
             *pixel_h,
-            *page_w,
-            *page_h,
+            display_width,
+            display_height,
+            b"AnimusOcrF",
             subsetter.as_mut(),
         );
-        stream_specs.push((*page_id, bytes));
+        stream_specs.push((*page_id, geometry.wrap_display_content(bytes)));
     }
 
     // Emit the font ONCE, then register /F1 on each touched page.
@@ -653,7 +662,7 @@ pub(crate) fn inject_word_layers(
         Some(helv_id)
     };
 
-    for ((_, words, pixel_w, pixel_h, page_id, _, _, cache_key), (_, stream_bytes)) in
+    for ((_, words, pixel_w, pixel_h, page_id, _, cache_key), (_, stream_bytes)) in
         page_specs.iter().zip(stream_specs)
     {
         let mut stream_dict = dictionary! {
@@ -679,20 +688,17 @@ pub(crate) fn inject_word_layers(
             );
         }
         let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, stream_bytes)));
-        if let Some(obj) = doc.objects.get_mut(&page_id) {
-            if let Ok(d) = obj.as_dict_mut() {
-                let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
-                    Ok(Object::Reference(r)) => vec![Object::Reference(r)],
-                    Ok(Object::Array(a)) => a,
-                    _ => Vec::new(),
-                };
-                contents.push(Object::Reference(stream_id));
-                d.set("Contents", contents);
-                if let Some(fid) = font_obj_id {
-                    ensure_helv_font(d, fid);
-                }
-            }
+        if let Some(fid) = font_obj_id {
+            add_page_font_resource(&mut doc, *page_id, b"AnimusOcrF", fid)?;
         }
+        let page = doc.get_object_mut(*page_id)?.as_dict_mut()?;
+        let mut contents: Vec<Object> = match page.get(b"Contents").cloned() {
+            Ok(Object::Array(items)) => items,
+            Ok(existing) => vec![existing],
+            Err(_) => Vec::new(),
+        };
+        contents.push(Object::Reference(stream_id));
+        page.set("Contents", contents);
     }
 
     doc.compress();
@@ -700,46 +706,39 @@ pub(crate) fn inject_word_layers(
     Ok(())
 }
 
-fn page_dimensions(doc: &Document, page_id: lopdf::ObjectId) -> Option<(f32, f32)> {
-    let page = doc.get_object(page_id).ok()?.as_dict().ok()?;
-    let mbox = page.get(b"MediaBox").ok()?.as_array().ok()?;
-    if mbox.len() != 4 {
-        return None;
-    }
-    let get = |i: usize| -> f32 {
-        match &mbox[i] {
-            Object::Integer(n) => *n as f32,
-            Object::Real(f) => *f,
-            _ => 0.0,
-        }
+fn page_has_pipeline_ocr_layer(doc: &Document, page_id: lopdf::ObjectId) -> anyhow::Result<bool> {
+    let page = doc.get_object(page_id)?.as_dict()?;
+    let Some(contents) = page.get(b"Contents").ok() else {
+        return Ok(false);
     };
-    Some((get(2) - get(0), get(3) - get(1)))
-}
-
-fn ensure_helv_font(page: &mut lopdf::Dictionary, helv_id: lopdf::ObjectId) {
-    let res = match page.get_mut(b"Resources") {
-        Ok(Object::Dictionary(r)) => r,
-        _ => {
-            page.set("Resources", Object::Dictionary(lopdf::Dictionary::new()));
-            match page.get_mut(b"Resources") {
-                Ok(Object::Dictionary(r)) => r,
-                _ => return,
+    // /Contents is legally a stream, an array of streams, or an INDIRECT
+    // REFERENCE to either. Resolving only the array entries and not the
+    // /Contents value itself let `/Contents 5 0 R -> [6 0 R 7 0 R]` slip past
+    // this guard entirely, which is the duplicate-layer case it exists to
+    // prevent.
+    let resolved = match contents {
+        Object::Reference(id) => doc.get_object(*id)?,
+        object => object,
+    };
+    let items: Vec<&Object> = match resolved {
+        Object::Array(items) => items.iter().collect(),
+        object => vec![object],
+    };
+    for item in items {
+        let object = match item {
+            Object::Reference(id) => doc.get_object(*id)?,
+            object => object,
+        };
+        if let Object::Stream(stream) = object {
+            if matches!(
+                stream.dict.get(b"AnimusOcrLayer"),
+                Ok(Object::Boolean(true))
+            ) {
+                return Ok(true);
             }
         }
-    };
-    let fonts = match res.get_mut(b"Font") {
-        Ok(Object::Dictionary(f)) => f,
-        _ => {
-            res.set("Font", Object::Dictionary(lopdf::Dictionary::new()));
-            match res.get_mut(b"Font") {
-                Ok(Object::Dictionary(f)) => f,
-                _ => return,
-            }
-        }
-    };
-    if fonts.get(b"F1").is_err() {
-        fonts.set("F1", Object::Reference(helv_id));
     }
+    Ok(false)
 }
 
 #[tauri::command]

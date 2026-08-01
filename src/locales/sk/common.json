@@ -140,5 +140,9 @@
     "output_text": "Iba text",
     "deskew": "Vyrovnať naklonené skeny",
     "despeckle": "Odstrániť škvrny"
+  },
+  "split_options": {
+    "range_start_aria": "Rozsah {{index}}, prvá strana",
+    "range_end_aria": "Rozsah {{index}}, posledná strana"
   }
 }

@@ -140,5 +140,9 @@
     "output_text": "Text only",
     "deskew": "Deskew (correct tilted scans)",
     "despeckle": "Despeckle (remove specks)"
+  },
+  "split_options": {
+    "range_start_aria": "Range {{index}} start page",
+    "range_end_aria": "Range {{index}} end page"
   }
 }

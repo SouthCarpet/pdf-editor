@@ -7,6 +7,7 @@ pub mod forms;
 pub mod image_to_pdf;
 pub mod ocr_edit;
 pub mod ocr_engine;
+pub(crate) mod ocr_geometry;
 pub mod pdf_editor;
 pub mod pdf_reader;
 pub mod pdf_renderer;

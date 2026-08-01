@@ -1,5 +1,6 @@
 use crate::persistence::ocr_cache::OcrCacheKey;
 use crate::services::ocr_engine::WordBox;
+use crate::services::ocr_geometry::{add_page_font_resource, page_geometry, OcrPageGeometry};
 use anyhow::{anyhow, Context, Result};
 use lopdf::content::{Content, Operation};
 use lopdf::{dictionary, Document, Object, ObjectId, Stream};
@@ -99,9 +100,16 @@ pub fn mutate_page_words(
         return Err(anyhow!("one or more selected OCR words no longer exist"));
     }
 
-    let (page_width, page_height) = page_dimensions(&doc, page_id)?;
-    let patch_rect = union_word_boxes(&chosen, pixel_width, pixel_height, page_width, page_height)
-        .context("selected OCR word boxes have no area")?;
+    let geometry = page_geometry(&doc, page_id)?;
+    let (display_width, display_height) = geometry.display_dimensions();
+    let display_rect = union_word_boxes_in_display(
+        &chosen,
+        pixel_width,
+        pixel_height,
+        display_width,
+        display_height,
+    )
+    .context("selected OCR word boxes have no area")?;
 
     let removed = {
         let stream = doc
@@ -116,16 +124,28 @@ pub fn mutate_page_words(
         (Vec::new(), selected_word_ids.to_vec())
     };
 
-    append_page_stream(&mut doc, page_id, patch_stream(patch_rect)?)?;
+    append_page_stream(
+        &mut doc,
+        page_id,
+        transform_stream_for_page(patch_stream(display_rect)?, geometry),
+    )?;
     if let Some(text) = replacement.filter(|text| !text.is_empty()) {
+        let font_name = available_replacement_font_name(&doc, page_id)?;
         let font_id = doc.add_object(dictionary! {
             "Type" => "Font",
             "Subtype" => "Type1",
             "BaseFont" => "Helvetica",
             "Encoding" => "WinAnsiEncoding",
         });
-        ensure_page_font(&mut doc, page_id, b"AnimusOcrReplaceF", font_id)?;
-        append_page_stream(&mut doc, page_id, replacement_stream(patch_rect, text)?)?;
+        add_page_font_resource(&mut doc, page_id, &font_name, font_id)?;
+        append_page_stream(
+            &mut doc,
+            page_id,
+            transform_stream_for_page(
+                replacement_stream(display_rect, text, &font_name)?,
+                geometry,
+            ),
+        )?;
     }
     doc.compress();
     doc.save(output)?;
@@ -137,12 +157,29 @@ pub fn mutate_page_words(
     })
 }
 
-pub fn union_word_boxes(
+pub(crate) fn union_word_boxes(
     words: &[WordBox],
     pixel_width: u32,
     pixel_height: u32,
-    page_width: f32,
-    page_height: f32,
+    geometry: OcrPageGeometry,
+) -> Option<[f32; 4]> {
+    let (display_width, display_height) = geometry.display_dimensions();
+    union_word_boxes_in_display(
+        words,
+        pixel_width,
+        pixel_height,
+        display_width,
+        display_height,
+    )
+    .map(|rect| geometry.display_rect_to_page(rect))
+}
+
+fn union_word_boxes_in_display(
+    words: &[WordBox],
+    pixel_width: u32,
+    pixel_height: u32,
+    display_width: f32,
+    display_height: f32,
 ) -> Option<[f32; 4]> {
     if words.is_empty() || pixel_width == 0 || pixel_height == 0 {
         return None;
@@ -154,11 +191,11 @@ pub fn union_word_boxes(
     if x1 <= x0 || bottom <= top {
         return None;
     }
-    let sx = page_width / pixel_width as f32;
-    let sy = page_height / pixel_height as f32;
+    let sx = display_width / pixel_width as f32;
+    let sy = display_height / pixel_height as f32;
     Some([
         x0 * sx,
-        page_height - bottom * sy,
+        display_height - bottom * sy,
         (x1 - x0) * sx,
         (bottom - top) * sy,
     ])
@@ -220,21 +257,74 @@ fn latest_ocr_stream(doc: &Document, page_id: ObjectId) -> Result<Option<(Object
     let page = doc.get_object(page_id)?.as_dict()?;
     let mut references = Vec::new();
     match page.get(b"Contents") {
-        Ok(Object::Reference(id)) => references.push(*id),
+        // A single reference is the common case, but it may point at an ARRAY
+        // of stream references rather than at a stream. Without resolving that
+        // one extra level such a page reports "no OCR layer" and the
+        // multiple-layer guard below never gets to run.
+        Ok(Object::Reference(id)) => match doc.get_object(*id) {
+            Ok(Object::Array(items)) => {
+                for item in items {
+                    match item {
+                        Object::Reference(inner) => references.push(*inner),
+                        Object::Stream(stream)
+                            if matches!(
+                                stream.dict.get(OCR_LAYER_MARKER),
+                                Ok(Object::Boolean(true))
+                            ) =>
+                        {
+                            return Err(anyhow!(
+                                "pipeline-owned OCR layer is inline and cannot be edited safely"
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => references.push(*id),
+        },
         Ok(Object::Array(items)) => {
-            references.extend(items.iter().filter_map(|item| item.as_reference().ok()));
+            for item in items {
+                match item {
+                    Object::Reference(id) => references.push(*id),
+                    Object::Stream(stream)
+                        if matches!(
+                            stream.dict.get(OCR_LAYER_MARKER),
+                            Ok(Object::Boolean(true))
+                        ) =>
+                    {
+                        return Err(anyhow!(
+                            "pipeline-owned OCR layer is inline and cannot be edited safely"
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(Object::Stream(stream))
+            if matches!(stream.dict.get(OCR_LAYER_MARKER), Ok(Object::Boolean(true))) =>
+        {
+            return Err(anyhow!(
+                "pipeline-owned OCR layer is inline and cannot be edited safely"
+            ));
         }
         _ => {}
     }
-    for id in references.into_iter().rev() {
-        let Ok(Object::Stream(stream)) = doc.get_object(id) else {
+    let mut identified = Vec::new();
+    for id in references {
+        let Object::Stream(stream) = doc.get_object(id)? else {
             continue;
         };
         if matches!(stream.dict.get(OCR_LAYER_MARKER), Ok(Object::Boolean(true))) {
-            return Ok(Some((id, stream)));
+            identified.push((id, stream));
         }
     }
-    Ok(None)
+    match identified.len() {
+        0 => Ok(None),
+        1 => Ok(identified.pop()),
+        count => Err(anyhow!(
+            "page contains {count} pipeline-owned OCR layers; refusing to choose one silently"
+        )),
+    }
 }
 
 fn stream_words(stream: &Stream) -> Result<Vec<WordBox>> {
@@ -294,25 +384,6 @@ fn page_id(doc: &Document, page_index: u32) -> Result<ObjectId> {
         .context("page not found")
 }
 
-fn page_dimensions(doc: &Document, page_id: ObjectId) -> Result<(f32, f32)> {
-    let page = doc.get_object(page_id)?.as_dict()?;
-    let media_box = page.get(b"MediaBox")?.as_array()?;
-    if media_box.len() != 4 {
-        return Err(anyhow!("page MediaBox is invalid"));
-    }
-    let number = |object: &Object| -> Result<f32> {
-        match object {
-            Object::Integer(value) => Ok(*value as f32),
-            Object::Real(value) => Ok(*value),
-            _ => Err(anyhow!("page MediaBox contains a non-number")),
-        }
-    };
-    Ok((
-        number(&media_box[2])? - number(&media_box[0])?,
-        number(&media_box[3])? - number(&media_box[1])?,
-    ))
-}
-
 fn patch_stream(rect: [f32; 4]) -> Result<Stream> {
     let [x, y, width, height] = rect;
     let content = Content {
@@ -333,7 +404,7 @@ fn patch_stream(rect: [f32; 4]) -> Result<Stream> {
     ))
 }
 
-fn replacement_stream(rect: [f32; 4], text: &str) -> Result<Stream> {
+fn replacement_stream(rect: [f32; 4], text: &str, font_name: &[u8]) -> Result<Stream> {
     let [x, y, _, height] = rect;
     let font_size = (height * 0.85).max(1.0);
     let baseline = y + (height - font_size).max(0.0);
@@ -344,10 +415,7 @@ fn replacement_stream(rect: [f32; 4], text: &str) -> Result<Stream> {
             Operation::new("BT", vec![]),
             Operation::new(
                 "Tf",
-                vec![
-                    Object::Name(b"AnimusOcrReplaceF".to_vec()),
-                    font_size.into(),
-                ],
+                vec![Object::Name(font_name.to_vec()), font_size.into()],
             ),
             Operation::new(
                 "Tm",
@@ -374,38 +442,44 @@ fn replacement_stream(rect: [f32; 4], text: &str) -> Result<Stream> {
     ))
 }
 
+fn transform_stream_for_page(mut stream: Stream, geometry: OcrPageGeometry) -> Stream {
+    // set_content, not a raw `stream.content = ...` write: lopdf only updates
+    // /Length in Stream::new and set_content. wrap_display_content always grows
+    // the buffer (a `q ... cm` prologue plus a trailing `Q`), so a raw write
+    // leaves /Length short and any Length-respecting reader, lopdf included,
+    // truncates the stream: the balancing Q is dropped and the rotation CTM
+    // leaks into the next appended stream.
+    let content = std::mem::take(&mut stream.content);
+    stream.set_content(geometry.wrap_display_content(content));
+    stream
+}
+
 fn append_page_stream(doc: &mut Document, page_id: ObjectId, stream: Stream) -> Result<()> {
     let stream_id = doc.add_object(Object::Stream(stream));
     let page = doc.get_object_mut(page_id)?.as_dict_mut()?;
     let mut contents = match page.get(b"Contents").cloned() {
-        Ok(Object::Reference(id)) => vec![Object::Reference(id)],
         Ok(Object::Array(items)) => items,
-        _ => Vec::new(),
+        Ok(existing) => vec![existing],
+        Err(_) => Vec::new(),
     };
     contents.push(Object::Reference(stream_id));
     page.set("Contents", contents);
     Ok(())
 }
 
-fn ensure_page_font(
-    doc: &mut Document,
-    page_id: ObjectId,
-    name: &[u8],
-    font_id: ObjectId,
-) -> Result<()> {
-    let page = doc.get_object_mut(page_id)?.as_dict_mut()?;
-    let resources = page
-        .get_mut(b"Resources")
-        .and_then(Object::as_dict_mut)
-        .map_err(|_| anyhow!("pipeline-owned OCR page resources are not directly editable"))?;
-    if resources.get(b"Font").and_then(Object::as_dict).is_err() {
-        resources.set("Font", Object::Dictionary(lopdf::Dictionary::new()));
+fn available_replacement_font_name(doc: &Document, page_id: ObjectId) -> Result<Vec<u8>> {
+    let fonts = doc.get_page_fonts(page_id)?;
+    for suffix in 1..=10_000 {
+        let name = if suffix == 1 {
+            b"AnimusOcrReplaceF".to_vec()
+        } else {
+            format!("AnimusOcrReplaceF{suffix}").into_bytes()
+        };
+        if !fonts.contains_key(&name) {
+            return Ok(name);
+        }
     }
-    resources
-        .get_mut(b"Font")?
-        .as_dict_mut()?
-        .set(name, Object::Reference(font_id));
-    Ok(())
+    Err(anyhow!("no available pipeline OCR replacement font name"))
 }
 
 #[cfg(test)]
@@ -429,11 +503,34 @@ mod tests {
             &[word(0, [100, 200, 300, 260]), word(1, [320, 190, 500, 270])],
             1000,
             2000,
-            500.0,
-            1000.0,
+            OcrPageGeometry {
+                origin_x: 0.0,
+                origin_y: 0.0,
+                width: 500.0,
+                height: 1000.0,
+                rotation: 0,
+            },
         )
         .unwrap();
         assert_eq!(rect, [50.0, 865.0, 200.0, 40.0]);
+    }
+
+    #[test]
+    fn union_preserves_media_box_origin() {
+        let rect = union_word_boxes(
+            &[word(0, [100, 200, 300, 260])],
+            1000,
+            2000,
+            OcrPageGeometry {
+                origin_x: 25.0,
+                origin_y: -10.0,
+                width: 500.0,
+                height: 1000.0,
+                rotation: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(rect, [75.0, 860.0, 100.0, 30.0]);
     }
 
     #[test]
@@ -489,5 +586,96 @@ mod tests {
         assert!(!remove_selected_spans(&mut stream, &words, &HashSet::from([0])).unwrap());
         assert_eq!(stream.content, original);
         assert_eq!(stream_words(&stream).unwrap(), words);
+    }
+
+    #[test]
+    fn multiple_pipeline_layers_fail_loud_instead_of_selecting_the_latest() {
+        let mut doc = Document::with_version("1.7");
+        let first = doc.add_object(Stream::new(
+            dictionary! { "AnimusOcrLayer" => true },
+            Vec::new(),
+        ));
+        let second = doc.add_object(Stream::new(
+            dictionary! { "AnimusOcrLayer" => true },
+            Vec::new(),
+        ));
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Contents" => vec![Object::Reference(first), Object::Reference(second)],
+        });
+
+        let error = latest_ocr_stream(&doc, page_id).unwrap_err().to_string();
+
+        assert!(error.contains("2 pipeline-owned OCR layers"));
+    }
+
+    #[test]
+    fn rotated_replacement_stream_uses_display_to_page_transform() {
+        let geometry = OcrPageGeometry {
+            origin_x: 10.0,
+            origin_y: 20.0,
+            width: 200.0,
+            height: 100.0,
+            rotation: 90,
+        };
+        let stream = transform_stream_for_page(
+            replacement_stream([10.0, 30.0, 20.0, 40.0], "replacement", b"TestF").unwrap(),
+            geometry,
+        );
+        let content = Content::decode(&stream.content).unwrap();
+
+        assert_eq!(content.operations[0].operator, "q");
+        assert_eq!(content.operations[1].operator, "cm");
+        assert_eq!(
+            content.operations[1].operands,
+            vec![
+                0.into(),
+                1.into(),
+                (-1).into(),
+                0.into(),
+                210.into(),
+                20.into()
+            ]
+        );
+    }
+
+    /// Transforming a stream must keep /Length in sync with the wrapped bytes.
+    /// The transform grows the buffer, and lopdf's writer emits the dict
+    /// verbatim, so a stale /Length silently truncates the stream on read:
+    /// the white patch may not draw at all and the unbalanced `q` leaks the
+    /// page CTM into the next appended stream. Both mutation paths are
+    /// covered because patch and replacement streams are built separately.
+    #[test]
+    fn transformed_streams_keep_length_in_sync_with_content() {
+        let geometry = OcrPageGeometry {
+            origin_x: 10.0,
+            origin_y: 20.0,
+            width: 200.0,
+            height: 100.0,
+            rotation: 90,
+        };
+
+        for (label, built) in [
+            ("patch", patch_stream([10.0, 30.0, 20.0, 40.0]).unwrap()),
+            (
+                "replacement",
+                replacement_stream([10.0, 30.0, 20.0, 40.0], "replacement", b"TestF").unwrap(),
+            ),
+        ] {
+            let before = built.dict.get(b"Length").unwrap().as_i64().unwrap();
+            let stream = transform_stream_for_page(built, geometry);
+            let declared = stream.dict.get(b"Length").unwrap().as_i64().unwrap();
+
+            assert_eq!(
+                declared,
+                stream.content.len() as i64,
+                "{label} stream declares /Length {declared} but carries {} bytes",
+                stream.content.len()
+            );
+            assert!(
+                declared > before,
+                "{label} wrap must grow the stream; /Length went {before} -> {declared}"
+            );
+        }
     }
 }

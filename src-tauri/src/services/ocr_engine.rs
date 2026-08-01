@@ -373,11 +373,34 @@ pub fn build_invisible_text_stream(
     page_h_pt: f32,
     font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
 ) -> Vec<u8> {
+    build_invisible_text_stream_with_font(
+        words,
+        pixel_w,
+        pixel_h,
+        page_w_pt,
+        page_h_pt,
+        b"F1",
+        font_subsetter,
+    )
+}
+
+pub(crate) fn build_invisible_text_stream_with_font(
+    words: &[HocrWord],
+    pixel_w: u32,
+    pixel_h: u32,
+    page_w_pt: f32,
+    page_h_pt: f32,
+    font_resource_name: &[u8],
+    font_subsetter: Option<&mut crate::services::font_embed::FontSubsetter>,
+) -> Vec<u8> {
     let ordered = words_in_reading_order(words);
     let mut out = String::new();
     out.push_str("BT\n");
     out.push_str("3 Tr\n"); // invisible (neither stroke nor fill)
-    out.push_str("/F1 1 Tf\n"); // font + size 1 (we scale via Tm)
+    out.push_str(&format!(
+        "/{} 1 Tf\n",
+        String::from_utf8_lossy(font_resource_name)
+    )); // font + size 1 (we scale via Tm)
 
     let sx = page_w_pt / pixel_w as f32;
     let sy = page_h_pt / pixel_h as f32;

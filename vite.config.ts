@@ -12,6 +12,30 @@ export default defineConfig({
     alias: { "@": path.resolve(__dirname, "./src") },
   },
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return;
+          if (id.includes("pdfjs-dist")) return "pdfjs";
+          if (id.includes("@xyflow")) return "xyflow";
+          if (id.includes("konva")) return "canvas";
+          if (id.includes("@radix-ui")) return "radix";
+          if (id.includes("@tanstack")) return "tanstack";
+          if (id.includes("@tauri-apps")) return "tauri";
+          if (id.includes("i18next")) return "i18n";
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/scheduler/")
+          ) {
+            return "react";
+          }
+          return "vendor";
+        },
+      },
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

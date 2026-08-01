@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -12,11 +12,6 @@ import "@/i18n";
 import { useJobsStore } from "@/stores/jobsStore";
 import { ProgressList } from "../ProgressList";
 
-// ProgressList consumes a Zustand store via an inline-array selector. We
-// verify the empty render path here (it returns null and adds nothing
-// to the DOM); the per-row content + progressbar shape is covered by
-// jobsStore.test.ts (data feeding the component) and the a11y suite
-// (which mounts the component under the full app provider stack).
 function renderWithProviders(node: React.ReactNode) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -48,6 +43,23 @@ describe("ProgressList", () => {
     await waitFor(() => {
       expect(screen.queryByRole("list")).toBeNull();
     });
+  });
+
+  it("renders a populated store without an unstable snapshot update loop", async () => {
+    useJobsStore.getState().start("j1", "merge", ["a.pdf"]);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    renderWithProviders(<ProgressList />);
+
+    expect(await screen.findByText("merge")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        consoleError.mock.calls.some((call) =>
+          call.some((argument) => String(argument).includes("Maximum update depth exceeded")),
+        ),
+      ).toBe(false);
+    });
+    consoleError.mockRestore();
   });
 
   it("the underlying jobs map drives the row count", () => {

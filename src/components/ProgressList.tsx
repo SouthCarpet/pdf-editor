@@ -9,7 +9,11 @@ import { useJobsStore } from "@/stores/jobsStore";
 // FileDropzone so the user sees in-flight + recent runs.
 export function ProgressList() {
   const { t } = useTranslation();
-  const jobs = useJobsStore((s) => Array.from(s.jobs.values()));
+  // Select the stable Map snapshot. Returning Array.from(...) from the
+  // selector creates a fresh snapshot for every useSyncExternalStore read,
+  // which React 19 retries until it hits maximum update depth.
+  const jobsById = useJobsStore((s) => s.jobs);
+  const jobs = Array.from(jobsById.values());
   if (jobs.length === 0) return null;
 
   return (

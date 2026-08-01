@@ -14,8 +14,9 @@
 // Shared top bar: while running, shows "Time spent / Estimated remaining"
 // and a Stop button that calls cancel_job.
 import { useEffect, useMemo, useState } from "react";
+import { tempDir } from "@tauri-apps/api/path";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { commands, type RecoveryResult } from "@/bindings";
@@ -196,10 +197,8 @@ export function RecoveryWizard({ inputPath }: Props) {
       // naming.
       const r = await fetch(top1kUrl);
       const txt = await r.text();
-      const { tempDir } = await import("@tauri-apps/api/path");
       const dir = await tempDir();
       const tmp = `${dir}/recovery-top-1k-${crypto.randomUUID()}.txt`;
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
       await writeTextFile(tmp, txt);
       path = tmp;
     } else if (customWordlistPath) {

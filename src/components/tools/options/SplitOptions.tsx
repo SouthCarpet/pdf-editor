@@ -1,4 +1,5 @@
 // Delta U: reusable Split options panel.
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function SplitOptions({ value, onChange }: Props) {
+  const { t } = useTranslation();
   const ranges = value.ranges;
   function setRanges(next: SplitOptionsValue["ranges"]) {
     onChange({ ranges: next });
@@ -29,6 +31,7 @@ export function SplitOptions({ value, onChange }: Props) {
           <Input
             type="number"
             min={1}
+            aria-label={t("split_options.range_start_aria", { index: i + 1 })}
             value={r.from}
             className="w-24"
             onChange={(e) =>
@@ -43,6 +46,7 @@ export function SplitOptions({ value, onChange }: Props) {
           <Input
             type="number"
             min={1}
+            aria-label={t("split_options.range_end_aria", { index: i + 1 })}
             value={r.to}
             className="w-24"
             onChange={(e) =>

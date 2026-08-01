@@ -2,6 +2,9 @@
 target/
 **/*.rs.bk
 Cargo.lock
+# Scratch target dirs from one-off builds. These do not match `target/`, so a
+# 1.5 GB one sat untracked and uncovered for three days (found 2026-08-01).
+.cargo-target-*/
 
 # Node
 node_modules/
