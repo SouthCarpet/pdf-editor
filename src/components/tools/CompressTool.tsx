@@ -78,7 +78,7 @@ export function CompressTool() {
   return (
     <ToolPage
       title={t("tools.compress")}
-      description="Reduce PDF size with Ghostscript."
+      description={t("tools:compress.description")}
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}

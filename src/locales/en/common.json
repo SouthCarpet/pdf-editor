@@ -144,5 +144,6 @@
   "split_options": {
     "range_start_aria": "Range {{index}} start page",
     "range_end_aria": "Range {{index}} end page"
-  }
+  },
+  "drop_files": "Drag files here"
 }

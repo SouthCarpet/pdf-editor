@@ -30,12 +30,12 @@ describe("dark theme token coverage", () => {
       "bg-[var(--color-control)]",
       "placeholder:text-[var(--color-placeholder)]",
     );
-    expect(screen.getByText("Drag files here")).toHaveClass(
-      "text-[var(--color-placeholder)]",
-    );
-    expect(screen.getByText("Drag files here").parentElement).toHaveClass(
-      "bg-[var(--color-dropzone)]",
-    );
+    // Located by test id, not by copy: this test is about theme tokens, and
+    // it broke the moment the placeholder went through t() (plan 029), which
+    // is a copy change that says nothing about theming.
+    const placeholder = screen.getByTestId("dropzone-placeholder");
+    expect(placeholder).toHaveClass("text-[var(--color-placeholder)]");
+    expect(placeholder.parentElement).toHaveClass("bg-[var(--color-dropzone)]");
   });
 
   it("keeps native selects on themed surfaces under the dark root class", () => {

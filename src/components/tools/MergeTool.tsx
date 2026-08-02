@@ -26,7 +26,10 @@ export function MergeTool() {
   }
 
   return (
-    <ToolPage title={t("tools.merge")} description="Combine multiple PDFs into one.">
+    <ToolPage
+      title={t("tools.merge")}
+      description={t("tools:merge.description")}
+    >
       <FileDropzone onFiles={(p) => setFiles((prev) => [...prev, ...p])} multiple />
       <div className="space-y-2">
         {files.map((f, i) => (

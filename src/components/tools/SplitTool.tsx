@@ -39,7 +39,7 @@ export function SplitTool() {
   return (
     <ToolPage
       title={t("tools.split")}
-      description="Split a PDF into multiple files by page ranges."
+      description={t("tools:split.description")}
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}

@@ -50,7 +50,7 @@ export function OptimizeTool() {
   return (
     <ToolPage
       title={t("tools.optimize")}
-      description="Run a pipeline of optimisations against the PDF."
+      description={t("tools:optimize.description")}
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}

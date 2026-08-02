@@ -8,6 +8,7 @@
 // Phase 17 Task 86a — when "Custom" is chosen, expose the full Delta U
 // surface: per-class DPI sliders (color / gray / mono), color mode,
 // filter, downsample method, Remove EXIF toggle.
+import { useTranslation } from "react-i18next";
 import type {
   CompressColorMode,
   CompressDownsample,
@@ -24,6 +25,7 @@ interface Props {
 }
 
 export function CompressOptions({ value, onChange, mode = "standalone" }: Props) {
+  const { t } = useTranslation("tools");
   function set<K extends keyof CompressOptionsValue>(
     key: K,
     next: CompressOptionsValue[K],
@@ -34,19 +36,21 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <label className="text-sm text-[var(--color-muted)]">Preset</label>
+        <label className="text-sm text-[var(--color-muted)]">
+          {t("compress.preset")}
+        </label>
         <select
           value={value.preset}
           onChange={(e) =>
             set("preset", e.target.value as CompressOptionsValue["preset"])
           }
           className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
-          aria-label="Compression preset"
+          aria-label={t("compress.preset")}
         >
-          <option value="recommended">Recommended (balanced)</option>
-          <option value="high">High (smaller)</option>
-          <option value="maximum">Maximum (smallest)</option>
-          <option value="custom">Custom</option>
+          <option value="recommended">{t("compress.preset_recommended")}</option>
+          <option value="high">{t("compress.preset_high")}</option>
+          <option value="maximum">{t("compress.preset_maximum")}</option>
+          <option value="custom">{t("compress.preset_custom")}</option>
         </select>
       </div>
       {showCustom && (
@@ -170,10 +174,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
         </div>
       )}
       {mode === "standalone" && (
-        <p className="text-xs text-[var(--color-muted)]">
-          Tip: choose Custom to override JPEG quality, per-class DPI,
-          compression filter, and downsample method.
-        </p>
+        <p className="text-xs text-[var(--color-muted)]">{t("compress.tip")}</p>
       )}
     </div>
   );

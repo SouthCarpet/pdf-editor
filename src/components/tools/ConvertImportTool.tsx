@@ -46,7 +46,7 @@ export function ConvertImportTool() {
   return (
     <ToolPage
       title={t("tools.convert_import")}
-      description="Convert images or office documents into a PDF."
+      description={t("tools:convert_import.description")}
     >
       <FileDropzone
         onFiles={(p) => setFiles((prev) => [...prev, ...p])}

@@ -51,7 +51,14 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
       onDragLeave={() => setHover(false)}
       onDrop={onDrop}
     >
-      {children ?? <p className="text-sm text-[var(--color-placeholder)]">Drag files here</p>}
+      {children ?? (
+        <p
+          data-testid="dropzone-placeholder"
+          className="text-sm text-[var(--color-placeholder)]"
+        >
+          {t("drop_files")}
+        </p>
+      )}
       <Button variant="outline" onClick={pick}>
         {t("open")}
       </Button>

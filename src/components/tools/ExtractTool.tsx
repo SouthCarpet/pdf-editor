@@ -46,7 +46,7 @@ export function ExtractTool() {
   return (
     <ToolPage
       title={t("tools.extract")}
-      description="Extract selected pages into a new PDF."
+      description={t("tools:extract.description")}
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}

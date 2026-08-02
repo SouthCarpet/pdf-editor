@@ -34,7 +34,7 @@ export function ConvertExportTool() {
   return (
     <ToolPage
       title={t("tools.convert_export")}
-      description="Export the PDF to images, text, office formats, or PDF/A."
+      description={t("tools:convert_export.description")}
     >
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}

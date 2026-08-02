@@ -86,7 +86,7 @@ export function UnlockTool() {
   return (
     <ToolPage
       title={t("tools.unlock")}
-      description="Remove a password from a PDF (requires the owner password)."
+      description={t("tools:unlock.description")}
     >
       <FileDropzone onFiles={onFile} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
