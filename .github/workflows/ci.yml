@@ -34,14 +34,27 @@ jobs:
           workspaces: src-tauri
       # cargo clippy needs dist/ for tauri::generate_context!()
       - run: pnpm build
-      # tauri-build validates that every bundle.externalBin path exists at
-      # compile time. Sidecars are gitignored, so we create zero-byte stubs.
-      - name: Create sidecar stubs
+      # tauri-build validates that every bundle.externalBin path and every
+      # bundle.resources glob resolves at compile time. Both sets contain
+      # gitignored entries, so we create zero-byte stubs.
+      - name: Create sidecar and bundle-resource stubs
         shell: pwsh
         run: |
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # tauri-build resolves every bundle.resources glob too, and fails the
+          # build when one matches nothing. resources/tessdata/ is gitignored
+          # (58 MB of OCR models), so on a fresh checkout that glob was empty
+          # and all four Rust jobs died inside the build script with a message
+          # that named neither the config key nor the workflow gap.
+          # resources/ocr/* is tracked in git, so only tessdata needs a stub.
+          # Guarded instead of -Force: New-Item -Force truncates an existing
+          # file, and a restored cache could hold a real model.
+          New-Item -Path src-tauri/resources/tessdata -ItemType Directory -Force | Out-Null
+          if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
+            New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
           }
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
@@ -85,13 +98,26 @@ jobs:
       # frontend first so the macro doesn't fail at compile time.
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      # tauri-build validates bundle.externalBin paths at compile time.
-      - name: Create sidecar stubs
+      # tauri-build validates bundle.externalBin paths and bundle.resources
+      # globs at compile time.
+      - name: Create sidecar and bundle-resource stubs
         shell: pwsh
         run: |
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # tauri-build resolves every bundle.resources glob too, and fails the
+          # build when one matches nothing. resources/tessdata/ is gitignored
+          # (58 MB of OCR models), so on a fresh checkout that glob was empty
+          # and all four Rust jobs died inside the build script with a message
+          # that named neither the config key nor the workflow gap.
+          # resources/ocr/* is tracked in git, so only tessdata needs a stub.
+          # Guarded instead of -Force: New-Item -Force truncates an existing
+          # file, and a restored cache could hold a real model.
+          New-Item -Path src-tauri/resources/tessdata -ItemType Directory -Force | Out-Null
+          if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
+            New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
           }
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
@@ -113,12 +139,24 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Create sidecar stubs
+      - name: Create sidecar and bundle-resource stubs
         shell: pwsh
         run: |
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # tauri-build resolves every bundle.resources glob too, and fails the
+          # build when one matches nothing. resources/tessdata/ is gitignored
+          # (58 MB of OCR models), so on a fresh checkout that glob was empty
+          # and all four Rust jobs died inside the build script with a message
+          # that named neither the config key nor the workflow gap.
+          # resources/ocr/* is tracked in git, so only tessdata needs a stub.
+          # Guarded instead of -Force: New-Item -Force truncates an existing
+          # file, and a restored cache could hold a real model.
+          New-Item -Path src-tauri/resources/tessdata -ItemType Directory -Force | Out-Null
+          if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
+            New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
           }
       - run: cargo test --manifest-path src-tauri/Cargo.toml --test proptest_pdf_editor
 
@@ -155,12 +193,24 @@ jobs:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
-      - name: Create sidecar stubs
+      - name: Create sidecar and bundle-resource stubs
         shell: pwsh
         run: |
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # tauri-build resolves every bundle.resources glob too, and fails the
+          # build when one matches nothing. resources/tessdata/ is gitignored
+          # (58 MB of OCR models), so on a fresh checkout that glob was empty
+          # and all four Rust jobs died inside the build script with a message
+          # that named neither the config key nor the workflow gap.
+          # resources/ocr/* is tracked in git, so only tessdata needs a stub.
+          # Guarded instead of -Force: New-Item -Force truncates an existing
+          # file, and a restored cache could hold a real model.
+          New-Item -Path src-tauri/resources/tessdata -ItemType Directory -Force | Out-Null
+          if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
+            New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
           }
       - run: pnpm gen:bindings
       - name: Verify bindings.ts in sync
