@@ -80,3 +80,6 @@ scripts/vault/autoresearch-results.tsv
 # Python __pycache__ from vault hook scripts (Windows)
 scripts/hooks/vault/__pycache__/
 scripts/vault/__pycache__/
+
+# Playwright verification screenshots from agent runs
+output/
