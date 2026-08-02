@@ -18,8 +18,9 @@ import skWorkspace from "@/locales/sk/workspace.json";
 import skPipeline from "@/locales/sk/pipeline.json";
 import skRecovery from "@/locales/sk/recovery.json";
 import skSettings from "@/locales/sk/settings.json";
+import { useAppStore, type Language } from "@/stores/appStore";
 
-void i18n
+const initialization = i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
@@ -49,17 +50,20 @@ void i18n
         settings: skSettings,
       },
     },
-    ns: [
-      "common",
-      "dashboard",
-      "errors",
-      "tools",
-      "workspace",
-      "pipeline",
-      "recovery",
-      "settings",
-    ],
+    ns: ["common", "dashboard", "errors", "tools", "workspace", "pipeline", "recovery", "settings"],
     defaultNS: "common",
   });
+
+void initialization.then(() => {
+  const detected: Language = i18n.resolvedLanguage === "sk" ? "sk" : "en";
+  if (useAppStore.getState().language !== detected) {
+    useAppStore.setState({ language: detected });
+  }
+  useAppStore.subscribe((state, previous) => {
+    if (state.language !== previous.language && i18n.resolvedLanguage !== state.language) {
+      void i18n.changeLanguage(state.language);
+    }
+  });
+});
 
 export default i18n;

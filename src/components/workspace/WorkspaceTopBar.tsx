@@ -1,4 +1,4 @@
-// Tool picker top bar — placed at the top of the Workspace and lets the
+// Tool picker top bar - placed at the top of the Workspace and lets the
 // user flip between the "workspace tools" (Edit / Organize / Crop /
 // Extract / Compare). Form-style tools (Merge, Split, Compress, ...) live
 // in their own routes under /tools and don't belong here.

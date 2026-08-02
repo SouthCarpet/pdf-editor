@@ -1,4 +1,4 @@
-// FontPicker (Delta U) — system font combobox with grouped sections,
+// FontPicker (Delta U) - system font combobox with grouped sections,
 // self-preview, B/I/U/S toggles, size input + slider, and alignment.
 //
 // The picker loads the system font list once on mount via `list_fonts_cmd`

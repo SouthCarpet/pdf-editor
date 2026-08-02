@@ -1,8 +1,8 @@
-// Phase 14 Task 75 — Pipeline NodeConfigPanel (Delta U keystone).
+// Phase 14 Task 75: Pipeline NodeConfigPanel (Delta U keystone).
 //
 // When a node is selected on the canvas, this panel renders the SAME
 // options component as the matching standalone tool, in `mode =
-// "pipeline-node"`. No duplicated UI — patches the node's `data.config`
+// "pipeline-node"`. No duplicated UI - patches the node's `data.config`
 // through `usePipelineStore.setNodeConfig`.
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileText, X } from "lucide-react";
@@ -26,7 +26,8 @@ import {
   InsertBlankOptions,
 } from "@/components/tools/options/OrganizeOptions";
 import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
-import { nodeKindByKey, type NodeKindPayload } from "@/pipeline/nodeKinds";
+import type { NodeKindPayload } from "@/pipeline/nodeKinds";
+import { translateNodeLabel } from "@/pipeline/nodeLabels";
 
 interface Props {
   node: PipelineEditorNode;
@@ -34,7 +35,6 @@ interface Props {
 
 export function NodeConfigPanel({ node }: Props) {
   const { t } = useTranslation("pipeline");
-  const meta = nodeKindByKey(node.data.kind);
   const setNodeConfig = usePipelineStore((s) => s.setNodeConfig);
   const removeNode = usePipelineStore((s) => s.removeNode);
 
@@ -47,9 +47,9 @@ export function NodeConfigPanel({ node }: Props) {
   return (
     <div className="flex h-full flex-col gap-3 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold">{meta.labelKey ? t(meta.labelKey) : meta.label}</h2>
+        <h2 className="text-sm font-semibold">{translateNodeLabel(t, node.data.kind)}</h2>
         <Button variant="ghost" size="sm" onClick={() => removeNode(node.id)}>
-          Remove
+          {t("common:remove")}
         </Button>
       </div>
 

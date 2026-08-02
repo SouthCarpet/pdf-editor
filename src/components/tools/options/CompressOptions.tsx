@@ -1,11 +1,11 @@
 // Delta U: reusable Compress options panel.
 //
 // Used by:
-//   - CompressTool (standalone tool page) — wraps this in <ToolPage>
-//   - Pipeline NodeConfigPanel (Phase 14 Task 75) — embeds this in the
+//   - CompressTool (standalone tool page) - wraps this in <ToolPage>
+//   - Pipeline NodeConfigPanel (Phase 14 Task 75) - embeds this in the
 //     right-hand inspector when a compress node is selected.
 //
-// Phase 17 Task 86a — when "Custom" is chosen, expose the full Delta U
+// Phase 17 Task 86a - when "Custom" is chosen, expose the full Delta U
 // surface: per-class DPI sliders (color / gray / mono), color mode,
 // filter, downsample method, Remove EXIF toggle.
 import { useTranslation } from "react-i18next";
@@ -26,24 +26,17 @@ interface Props {
 
 export function CompressOptions({ value, onChange, mode = "standalone" }: Props) {
   const { t } = useTranslation("tools");
-  function set<K extends keyof CompressOptionsValue>(
-    key: K,
-    next: CompressOptionsValue[K],
-  ) {
+  function set<K extends keyof CompressOptionsValue>(key: K, next: CompressOptionsValue[K]) {
     onChange({ ...value, [key]: next });
   }
   const showCustom = value.preset === "custom";
   return (
     <div className="space-y-3">
       <div className="space-y-1">
-        <label className="text-sm text-[var(--color-muted)]">
-          {t("compress.preset")}
-        </label>
+        <label className="text-sm text-[var(--color-muted)]">{t("compress.preset")}</label>
         <select
           value={value.preset}
-          onChange={(e) =>
-            set("preset", e.target.value as CompressOptionsValue["preset"])
-          }
+          onChange={(e) => set("preset", e.target.value as CompressOptionsValue["preset"])}
           className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
           aria-label={t("compress.preset")}
         >
@@ -112,31 +105,23 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              Color mode
-            </label>
+            <label className="text-xs text-[var(--color-muted)]">{t("compress.color_mode")}</label>
             <select
               value={value.colorMode}
-              onChange={(e) =>
-                set("colorMode", e.target.value as CompressColorMode)
-              }
+              onChange={(e) => set("colorMode", e.target.value as CompressColorMode)}
               className="h-8 w-full rounded border px-2 text-xs"
               aria-label={t("compress.color_mode")}
             >
-              <option value="preserve">Preserve</option>
-              <option value="grayscale">Convert to Grayscale</option>
-              <option value="monochrome">Convert to Monochrome</option>
+              <option value="preserve">{t("compress.color_preserve")}</option>
+              <option value="grayscale">{t("compress.color_grayscale")}</option>
+              <option value="monochrome">{t("compress.color_monochrome")}</option>
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              Compression filter
-            </label>
+            <label className="text-xs text-[var(--color-muted)]">{t("compress.filter")}</label>
             <select
               value={value.filter}
-              onChange={(e) =>
-                set("filter", e.target.value as CompressFilter)
-              }
+              onChange={(e) => set("filter", e.target.value as CompressFilter)}
               className="h-8 w-full rounded border px-2 text-xs"
               aria-label={t("compress.filter")}
             >
@@ -147,20 +132,16 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              Downsample method
-            </label>
+            <label className="text-xs text-[var(--color-muted)]">{t("compress.downsample")}</label>
             <select
               value={value.downsample}
-              onChange={(e) =>
-                set("downsample", e.target.value as CompressDownsample)
-              }
+              onChange={(e) => set("downsample", e.target.value as CompressDownsample)}
               className="h-8 w-full rounded border px-2 text-xs"
               aria-label={t("compress.downsample")}
             >
-              <option value="bicubic">Bicubic</option>
-              <option value="average">Average</option>
-              <option value="subsample">Subsample</option>
+              <option value="bicubic">{t("compress.downsample_bicubic")}</option>
+              <option value="average">{t("compress.downsample_average")}</option>
+              <option value="subsample">{t("compress.downsample_subsample")}</option>
             </select>
           </div>
           <label className="flex items-center gap-2 text-xs">
@@ -169,7 +150,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               checked={value.removeExif}
               onChange={(e) => set("removeExif", e.target.checked)}
             />
-            Remove EXIF metadata from images
+            {t("compress.remove_exif")}
           </label>
         </div>
       )}

@@ -1,4 +1,4 @@
-// ColorPicker (Delta U) — wraps react-colorful's HexAlphaColorPicker inside
+// ColorPicker (Delta U) - wraps react-colorful's HexAlphaColorPicker inside
 // a Popover. Supports an optional "transparent" sentinel value and a
 // per-tool recent-colors row backed by localStorage.
 import { useState } from "react";

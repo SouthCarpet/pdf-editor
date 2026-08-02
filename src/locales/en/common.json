@@ -7,7 +7,6 @@
   "save": "Save",
   "save_as": "Save As",
   "cancel": "Cancel",
-  "ok": "OK",
   "delete": "Delete",
   "remove": "Remove",
   "add": "Add",
@@ -145,5 +144,14 @@
     "range_start_aria": "Range {{index}} start page",
     "range_end_aria": "Range {{index}} end page"
   },
-  "drop_files": "Drag files here"
+  "drop_files": "Drag files here",
+  "onboarding": {
+    "welcome": "Welcome to PDF Editor. Fully offline, with every tool running locally.",
+    "tools": "Choose any tile to start a tool.",
+    "settings": "Theme and language settings are here.",
+    "drag_tip": "Tip: drag a PDF onto any tool tile to open it there.",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done"
+  }
 }

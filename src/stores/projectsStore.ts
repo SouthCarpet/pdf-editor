@@ -1,4 +1,4 @@
-// Phase 15 Task 79 — projects zustand store.
+// Phase 15 Task 79 - projects zustand store.
 //
 // Thin frontend cache for the project list + per-project files / pipelines.
 // We hit the backend via the generated commands every time the user opens a

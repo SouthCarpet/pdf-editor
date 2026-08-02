@@ -15,6 +15,7 @@
   "extract": {
     "description": "Extract specific pages into a new PDF.",
     "pages_label": "Pages (e.g. 1,3,5-7)",
+    "invalid_pages": "Enter a valid page list.",
     "run": "Extract"
   },
   "compress": {
@@ -71,6 +72,10 @@
     "pdfa_engine_auto": "Auto",
     "pdfa_engine_libreoffice": "LibreOffice",
     "pdfa_engine_ghostscript": "Ghostscript",
+    "advanced": "Advanced",
+    "hide_advanced": "Hide",
+    "expand_options": "Expand {{label}} options",
+    "collapse_options": "Collapse {{label}} options",
     "run": "Optimize"
   },
   "unlock": {
@@ -82,6 +87,16 @@
   "convert_export": {
     "description": "Export a PDF to images, text, office formats, or PDF/A.",
     "format": "Output format",
+    "format_png": "PNG (one per page)",
+    "format_jpg": "JPG (one per page)",
+    "format_tiff": "TIFF (multi-page)",
+    "format_txt": "Plain text (.txt)",
+    "format_html": "HTML",
+    "format_docx": "Word (.docx)",
+    "format_odt": "OpenDocument Text (.odt)",
+    "format_rtf": "Rich Text (.rtf)",
+    "format_epub": "EPUB",
+    "format_pdfa": "PDF/A",
     "raster_dpi": "Resolution (DPI)",
     "raster_quality": "Quality",
     "raster_color_mode": "Color mode",
@@ -91,6 +106,8 @@
     "raster_color_monochrome": "Monochrome (1-bit)",
     "tiff_compression": "TIFF compression",
     "page_range": "Page range",
+    "page_range_all": "all",
+    "page_range_placeholder": "all, current, or 1-5,8",
     "txt_encoding": "Encoding",
     "txt_layout": "Layout preservation",
     "txt_layout_none": "None",
@@ -102,6 +119,9 @@
     "office_preserve_formatting": "Preserve formatting",
     "office_embed_images": "Embed images",
     "office_page_breaks": "Page break behavior",
+    "page_break_match": "Match PDF",
+    "page_break_auto": "Automatic",
+    "page_break_continuous": "Continuous",
     "pdfa_version": "PDF/A version",
     "pdfa_engine": "Engine",
     "pdfa_embed_fonts": "Embed all fonts",

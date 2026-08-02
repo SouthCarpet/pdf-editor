@@ -1,4 +1,4 @@
-// Phase 17 Task 87 — Last session restore prompt.
+// Phase 17 Task 87 - Last session restore prompt.
 //
 // On mount, list the persisted SessionSlot rows. If any exist, surface
 // a small banner with Restore / Discard. Restore navigates to the

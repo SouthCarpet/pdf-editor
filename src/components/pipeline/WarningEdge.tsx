@@ -1,4 +1,4 @@
-// Phase 14 Task 75 — Delta Y warning edge.
+// Phase 14 Task 75 - Delta Y warning edge.
 //
 // Custom xyflow edge component. Draws the default bezier line, then
 // overlays a small caution badge in the middle when the edge's

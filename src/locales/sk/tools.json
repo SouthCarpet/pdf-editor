@@ -15,6 +15,7 @@
   "extract": {
     "description": "Extrahovať vybrané strany do nového PDF.",
     "pages_label": "Strany (napr. 1,3,5-7)",
+    "invalid_pages": "Zadajte platný zoznam strán.",
     "run": "Extrahovať"
   },
   "compress": {
@@ -71,6 +72,10 @@
     "pdfa_engine_auto": "Auto",
     "pdfa_engine_libreoffice": "LibreOffice",
     "pdfa_engine_ghostscript": "Ghostscript",
+    "advanced": "Pokročilé",
+    "hide_advanced": "Skryť",
+    "expand_options": "Rozbaliť možnosti {{label}}",
+    "collapse_options": "Zbaliť možnosti {{label}}",
     "run": "Optimalizovať"
   },
   "unlock": {
@@ -82,6 +87,16 @@
   "convert_export": {
     "description": "Exportovať PDF do obrázkov, textu, kancelárskych formátov alebo PDF/A.",
     "format": "Výstupný formát",
+    "format_png": "PNG (jeden na stranu)",
+    "format_jpg": "JPG (jeden na stranu)",
+    "format_tiff": "TIFF (viacstranový)",
+    "format_txt": "Obyčajný text (.txt)",
+    "format_html": "HTML",
+    "format_docx": "Word (.docx)",
+    "format_odt": "OpenDocument Text (.odt)",
+    "format_rtf": "Rich Text (.rtf)",
+    "format_epub": "EPUB",
+    "format_pdfa": "PDF/A",
     "raster_dpi": "Rozlíšenie (DPI)",
     "raster_quality": "Kvalita",
     "raster_color_mode": "Farebný režim",
@@ -91,6 +106,8 @@
     "raster_color_monochrome": "Monochromatický (1-bit)",
     "tiff_compression": "TIFF kompresia",
     "page_range": "Rozsah strán",
+    "page_range_all": "všetky",
+    "page_range_placeholder": "všetky, aktuálna alebo 1-5,8",
     "txt_encoding": "Kódovanie",
     "txt_layout": "Zachovanie rozloženia",
     "txt_layout_none": "Žiadne",
@@ -102,6 +119,9 @@
     "office_preserve_formatting": "Zachovať formátovanie",
     "office_embed_images": "Vložiť obrázky",
     "office_page_breaks": "Správanie zalomenia strán",
+    "page_break_match": "Podľa PDF",
+    "page_break_auto": "Automaticky",
+    "page_break_continuous": "Súvisle",
     "pdfa_version": "Verzia PDF/A",
     "pdfa_engine": "Engine",
     "pdfa_embed_fonts": "Vložiť všetky fonty",

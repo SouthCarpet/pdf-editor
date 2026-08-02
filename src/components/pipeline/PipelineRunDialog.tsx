@@ -1,4 +1,4 @@
-// Phase 14 Task 77 — Pipeline run dialog.
+// Phase 14 Task 77 - Pipeline run dialog.
 //
 // Two modes: "Run on files" (multi-select PDFs) and "Run on folder"
 // (folder picker). Both build the pipeline JSON from the current
@@ -228,7 +228,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         })),
       );
     } else {
-      // Folder mode — show one row per output + one per error
+      // Folder mode - show one row per output + one per error
       const okRows: RowState[] = r.output_paths.map((p) => ({
         path: p,
         status: "ok",

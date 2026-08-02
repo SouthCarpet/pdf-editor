@@ -1,4 +1,4 @@
-// Phase 17 Task 84 + Phase 18 Task 90h — WCAG 2.1 AA pass.
+// Phase 17 Task 84 + Phase 18 Task 90h - WCAG 2.1 AA pass.
 //
 // Renders each route's primary component in jsdom under a minimal
 // provider stack (TanStack Router memory history + QueryClient + i18n)

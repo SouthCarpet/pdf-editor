@@ -18,18 +18,13 @@ export function MergeTool() {
       defaultPath: "merged.pdf",
     });
     if (!out) return;
-    await run(
-      "merge_pdfs_cmd",
-      { args: { inputs: files, output: out, jobId: "" } },
-      files,
-    ).catch(() => {});
+    await run("merge_pdfs_cmd", { args: { inputs: files, output: out, jobId: "" } }, files).catch(
+      () => {}
+    );
   }
 
   return (
-    <ToolPage
-      title={t("tools.merge")}
-      description={t("tools:merge.description")}
-    >
+    <ToolPage title={t("tools.merge")} description={t("tools:merge.description")}>
       <FileDropzone onFiles={(p) => setFiles((prev) => [...prev, ...p])} multiple />
       <div className="space-y-2">
         {files.map((f, i) => (
@@ -50,7 +45,7 @@ export function MergeTool() {
       </div>
       <div className="flex gap-2">
         <Button disabled={files.length < 2 || !!activeId} onClick={onRun}>
-          {t("ok")}
+          {t("tools:merge.run")}
         </Button>
         {activeId && (
           <Button variant="outline" onClick={cancelActive}>

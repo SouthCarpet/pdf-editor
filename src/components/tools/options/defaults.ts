@@ -2,7 +2,7 @@
 // Kept separate from the component files so fast-refresh can boundary
 // them cleanly (eslint react-refresh rule).
 //
-// Phase 17 Task 86a (Delta U extension) — expanded option surface for the
+// Phase 17 Task 86a (Delta U extension) - expanded option surface for the
 // already-committed tools: Crop, Compress, Optimize, ConvertExport,
 // ConvertImport, Compare. Each option value carries the full Delta U
 // surface; the Options components below render the new controls in
@@ -22,7 +22,7 @@ export interface CompressOptionsValue {
   customQuality: number;
   customDpi: number;
   // Delta U extension fields (advisory; current pipeline forwards them
-  // through to the NodeKind payload — the executor honors what
+  // through to the NodeKind payload - the executor honors what
   // GhostscriptWrapper exposes today, the rest survive over the FFI so
   // the UI form persists).
   colorDpi: number;

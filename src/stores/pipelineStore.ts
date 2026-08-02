@@ -1,4 +1,4 @@
-// Phase 14 Task 75 — Pipeline editor store.
+// Phase 14 Task 75 - Pipeline editor store.
 //
 // Holds the draft pipeline (nodes + edges + selected node) being assembled
 // in `/pipeline`. The store exposes mutations that match @xyflow/react's
@@ -18,7 +18,7 @@ import {
 
 import type { NodeKindKey, NodeKindPayload } from "@/pipeline/nodeKinds";
 
-// xyflow Node generic — `data` is our NodeKind payload + label string.
+// xyflow Node generic - `data` is our NodeKind payload + label string.
 export interface PipelineNodeData extends Record<string, unknown> {
   kind: NodeKindKey;
   config: NodeKindPayload;

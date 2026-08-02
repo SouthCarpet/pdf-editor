@@ -1,7 +1,7 @@
-// Phase 14 — frontend NodeKind definitions.
+// Phase 14 - frontend NodeKind definitions.
 //
 // Mirrors `src-tauri/src/pipeline/dag.rs::NodeKind`. The `type` discriminant
-// must match the snake_case Rust serde tag verbatim — the Rust executor
+// must match the snake_case Rust serde tag verbatim - the Rust executor
 // dispatches on it after `serde_json` deserializes the pipeline payload.
 
 import type { CompressOptionsValue } from "@/components/tools/options/CompressOptions";
@@ -328,7 +328,7 @@ export function payloadToRust(payload: NodeKindPayload): Record<string, unknown>
         preset: payload.options.preset === "custom" ? "custom" : payload.options.preset,
         custom_quality: payload.options.preset === "custom" ? payload.options.customQuality : null,
         custom_dpi: payload.options.preset === "custom" ? payload.options.customDpi : null,
-        // Delta U Phase 17 Task 86a — extra Custom-path knobs.
+        // Delta U Phase 17 Task 86a - extra Custom-path knobs.
         color_dpi: payload.options.colorDpi,
         gray_dpi: payload.options.grayDpi,
         mono_dpi: payload.options.monoDpi,
@@ -366,7 +366,7 @@ export function payloadToRust(payload: NodeKindPayload): Record<string, unknown>
         type: "convert",
         format: payload.options.format,
         out_dir: payload.out_dir ?? null,
-        // Delta U Phase 17 Task 86a — per-format sub-options.
+        // Delta U Phase 17 Task 86a - per-format sub-options.
         raster_dpi: payload.options.rasterDpi,
         raster_color_mode: payload.options.rasterColorMode,
         jpeg_quality: payload.options.jpegQuality,
@@ -422,7 +422,7 @@ export function payloadToRust(payload: NodeKindPayload): Record<string, unknown>
         auto_detect: payload.auto_detect,
         apply_to_all_pages: payload.apply_to_all_pages,
         page_index: payload.page_index,
-        // Delta U Phase 17 Task 86a — extra fields. The serde defaults
+        // Delta U Phase 17 Task 86a - extra fields. The serde defaults
         // on the Rust side cover any field missing here.
         aspect_ratio: payload.aspect_ratio ?? "free",
         aspect_ratio_w: payload.aspect_ratio_w ?? 1,

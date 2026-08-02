@@ -1,4 +1,4 @@
-// Phase 14 Task 75 — Pipeline Editor canvas.
+// Phase 14 Task 75: Pipeline Editor canvas.
 //
 // Three columns:
 //   left   = NodePalette (Phase 14)
@@ -29,10 +29,7 @@ import { PipelineNodeView } from "./PipelineNodeView";
 import { PipelineRunDialog } from "./PipelineRunDialog";
 import { PipelinePresetBar } from "./PipelinePresetBar";
 import { WarningEdge } from "./WarningEdge";
-import {
-  usePipelineStore,
-  type PipelineEditorNode,
-} from "@/stores/pipelineStore";
+import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
 import { nodeKindByKey, type NodeKindMeta } from "@/pipeline/nodeKinds";
 import { computeEdgeWarnings } from "@/pipeline/preservation";
 
@@ -78,29 +75,28 @@ function InnerEditor() {
       // (xyflow skips a node it already considers selected), so the panel
       // stayed blank while the node looked selected. Read the whole batch:
       // a node being selected always wins over anything being deselected.
-      const selectChanges = changes.filter(
-        (c) => c.type === "select",
-      ) as Extract<NodeChange, { type: "select" }>[];
+      const selectChanges = changes.filter((c) => c.type === "select") as Extract<
+        NodeChange,
+        { type: "select" }
+      >[];
       const selected = selectChanges.find((c) => c.selected);
       if (selected) {
         setSelected(selected.id);
-      } else if (
-        selectChanges.some((c) => !c.selected && c.id === selectedNodeId)
-      ) {
+      } else if (selectChanges.some((c) => !c.selected && c.id === selectedNodeId)) {
         setSelected(null);
       }
     },
-    [applyNodeChangesAction, setSelected, selectedNodeId],
+    [applyNodeChangesAction, setSelected, selectedNodeId]
   );
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => applyEdgeChangesAction(changes),
-    [applyEdgeChangesAction],
+    [applyEdgeChangesAction]
   );
 
   const onConnect = useCallback<OnConnect>(
     (connection: Connection) => connectAction(connection),
-    [connectAction],
+    [connectAction]
   );
 
   function handleAddNode(kind: NodeKindMeta) {
@@ -121,7 +117,7 @@ function InnerEditor() {
 
   const selectedNode: PipelineEditorNode | undefined = useMemo(
     () => nodes.find((n) => n.id === selectedNodeId),
-    [nodes, selectedNodeId],
+    [nodes, selectedNodeId]
   );
 
   // Compute label live for the selected node so the canvas badge updates.
@@ -134,7 +130,7 @@ function InnerEditor() {
           data: { ...n.data, label: meta.label },
         };
       }),
-    [nodes],
+    [nodes]
   );
 
   // Delta Y: compute edge warnings client-side and decorate each edge
@@ -143,11 +139,9 @@ function InnerEditor() {
   const liveEdges = useMemo(() => {
     const warnings = computeEdgeWarnings(
       nodes.map((n) => ({ id: n.id, config: n.data.config })),
-      edges.map((e) => ({ source: e.source, target: e.target })),
+      edges.map((e) => ({ source: e.source, target: e.target }))
     );
-    const byKey = new Map(
-      warnings.map((w) => [`${w.from}->${w.to}`, w.artifacts]),
-    );
+    const byKey = new Map(warnings.map((w) => [`${w.from}->${w.to}`, w.artifacts]));
     return edges.map((e) => {
       const key = `${e.source}->${e.target}`;
       const w = byKey.get(key);
@@ -179,10 +173,10 @@ function InnerEditor() {
           <Controls />
           <MiniMap pannable zoomable />
         </ReactFlow>
-        <div className="absolute right-3 top-3 flex gap-2">
+        <div className="absolute top-3 right-3 flex gap-2">
           <PipelinePresetBar />
           <Button onClick={() => setShowRun(true)} disabled={nodes.length === 0}>
-            Run
+            {t("run")}
           </Button>
         </div>
         <PipelineRunDialog open={showRun} onClose={() => setShowRun(false)} />

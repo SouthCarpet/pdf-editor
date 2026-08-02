@@ -1,6 +1,6 @@
 // Delta U: reusable Convert Import options panel.
 //
-// Phase 17 Task 86a — page size selector, orientation, margins, image
+// Phase 17 Task 86a - page size selector, orientation, margins, image
 // fit, and multi-image arrangement. These are advisory until the
 // `image_to_pdf` service is upgraded to honor them; the form values
 // survive across the FFI so a follow-up phase can wire them through.

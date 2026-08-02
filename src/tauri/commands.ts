@@ -4,5 +4,5 @@
 // re-export, but Phase 7 Task 45 wired `hello_command` into specta, so the
 // previous hand-rolled `helloCommand` was removed in favour of the generated
 // `commands.helloCommand` (which returns a plain string for the smoke-test
-// command — error-typed commands use the `typedError` wrapper).
+// command - error-typed commands use the `typedError` wrapper).
 export * from "../bindings";

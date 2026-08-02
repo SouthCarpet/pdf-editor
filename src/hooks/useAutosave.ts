@@ -1,4 +1,4 @@
-// Phase 12 Task 69 — Autosave hook + helpers.
+// Phase 12 Task 69 - Autosave hook + helpers.
 //
 // Wired into the Edit panels (Forms / Annotations / Text). Each panel calls
 // `useAutosave(docPath, currentState, 5000)` so unsaved edits persist to

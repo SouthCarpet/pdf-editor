@@ -1,10 +1,10 @@
-// Delta U (Phase 17 Task 86a) — reusable Compare options panel.
+// Delta U (Phase 17 Task 86a) - reusable Compare options panel.
 //
 // Used by:
-//   - ComparePanel (workspace Compare tool) — embeds this on top of the
+//   - ComparePanel (workspace Compare tool) - embeds this on top of the
 //     left/right file pickers so the user can dial in DPI/tolerance/diff
 //     style before running.
-//   - Future pipeline Compare node — when wired in a follow-up phase.
+//   - Future pipeline Compare node - when wired in a follow-up phase.
 //
 // Visual options: DPI 72-300 slider, tolerance 0-10%, diff color picker,
 // view mode (Side-by-side / Overlay / Difference-only).

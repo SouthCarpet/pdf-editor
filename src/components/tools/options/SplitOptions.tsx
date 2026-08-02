@@ -36,9 +36,7 @@ export function SplitOptions({ value, onChange }: Props) {
             className="w-24"
             onChange={(e) =>
               setRanges(
-                ranges.map((x, j) =>
-                  j === i ? { ...x, from: Number(e.target.value) } : x,
-                ),
+                ranges.map((x, j) => (j === i ? { ...x, from: Number(e.target.value) } : x))
               )
             }
           />
@@ -50,11 +48,7 @@ export function SplitOptions({ value, onChange }: Props) {
             value={r.to}
             className="w-24"
             onChange={(e) =>
-              setRanges(
-                ranges.map((x, j) =>
-                  j === i ? { ...x, to: Number(e.target.value) } : x,
-                ),
-              )
+              setRanges(ranges.map((x, j) => (j === i ? { ...x, to: Number(e.target.value) } : x)))
             }
           />
           <Button
@@ -63,7 +57,7 @@ export function SplitOptions({ value, onChange }: Props) {
             onClick={() => setRanges(ranges.filter((_, j) => j !== i))}
             disabled={ranges.length <= 1}
           >
-            Remove
+            {t("remove")}
           </Button>
         </div>
       ))}
@@ -72,7 +66,7 @@ export function SplitOptions({ value, onChange }: Props) {
         size="sm"
         onClick={() => setRanges([...ranges, { from: 1, to: 1 }])}
       >
-        + Range
+        + {t("tools:split.add_range")}
       </Button>
     </div>
   );

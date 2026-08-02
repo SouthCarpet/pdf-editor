@@ -5,6 +5,12 @@
   "save_preset": "Uložiť predvoľbu",
   "load_preset": "Načítať predvoľbu",
   "node_palette": "Uzly",
+  "categories": {
+    "input": "Vstup",
+    "modify": "Úprava",
+    "convert": "Konverzia",
+    "output": "Výstup"
+  },
   "node_config": "Konfigurácia uzla",
   "run": "Spustiť",
   "run_on_folder": "Spustiť na priečinku",
@@ -16,8 +22,15 @@
   "output_paths": "Výstupné súbory",
   "no_results": "Zatiaľ žiadne výsledky",
   "nodes": {
-    "open_file": "Otvoriť súbor"
+    "open_file": "Otvoriť súbor",
+    "watermark": "Vodoznak"
   },
+  "preset_name": "Názov predvoľby",
+  "preset_description": "Popis (voliteľné)",
+  "preset_name_required": "Názov je povinný",
+  "preset_empty": "Zatiaľ nie sú uložené žiadne predvoľby.",
+  "preset_load_failed": "Predvoľbu sa nepodarilo načítať: {{error}}",
+  "preset_delete_confirm": "Odstrániť predvoľbu '{{name}}'? Túto akciu nie je možné vrátiť.",
   "editor": {
     "selection_hint": "Krok môžete kedykoľvek vybrať v zozname Uzly a potom ho pripojiť zhora nadol. Výberom uzla upravíte jeho nastavenia."
   },

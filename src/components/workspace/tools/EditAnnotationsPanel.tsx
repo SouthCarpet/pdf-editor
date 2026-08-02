@@ -1,8 +1,8 @@
-// Phase 12 Task 67 — Edit Tier 2 (annotations) panel — Delta U.
+// Phase 12 Task 67: Edit Tier 2 (annotations) panel, Delta U.
 //
 // Mode-aware options panel: each annotation kind exposes a tailored set of
 // controls (color, width, opacity, font, alignment, ...). The user
-// configures the active mode, then clicks "Add at center of page" — this
+// configures the active mode, then clicks "Add at center of page". This
 // avoids the more involved Konva drag-create flow while still producing
 // real `/Annot` dictionaries through `apply_annotations_cmd`. The drag-
 // create flow is wired in Phase 17 polish.
@@ -118,19 +118,14 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
   const [cfg, setCfg] = useState<ModeConfig>(defaultConfig);
   const [lastMode, setLastMode] = useState<AnnotationMode>(mode);
 
-  // Reset config on mode switch to a sensible default for that mode —
+  // Reset config on mode switch to a sensible default for that mode -
   // derived inline (not in an effect) to keep eslint
   // react-hooks/set-state-in-effect happy and avoid cascading renders.
   if (mode !== lastMode) {
     setLastMode(mode);
     setCfg((prev) => ({
       ...prev,
-      color:
-        mode === "highlight"
-          ? "#fff200"
-          : mode === "note"
-            ? "#ffcc33"
-            : prev.color,
+      color: mode === "highlight" ? "#fff200" : mode === "note" ? "#ffcc33" : prev.color,
       strokeWidth: mode === "ink" ? 3 : mode === "highlight" ? 1 : prev.strokeWidth,
       opacity: mode === "highlight" ? 0.5 : 1,
     }));
@@ -159,7 +154,14 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
       case "highlight": {
         const r = defaultRect;
         const quad: [number, number, number, number, number, number, number, number] = [
-          r[0], r[3], r[2], r[3], r[0], r[1], r[2], r[1],
+          r[0],
+          r[3],
+          r[2],
+          r[3],
+          r[0],
+          r[1],
+          r[2],
+          r[1],
         ];
         return {
           type: "highlight",
@@ -301,7 +303,9 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium">{t("tools.edit")} — Annotations</h3>
+      <h3 className="text-sm font-medium">
+        {t("tools.edit")}: {t("workspace:tools.edit_annotations")}
+      </h3>
       <p className="text-xs text-[var(--color-muted)]">
         Pick a tool, tune its options, then add it to the current page.
       </p>
@@ -314,7 +318,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
               "rounded border px-2 py-1 text-xs",
               mode === m.id
                 ? "border-[var(--color-focus)] bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
-                : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]",
+                : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]"
             )}
           >
             {m.label}
@@ -322,12 +326,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
         ))}
       </div>
 
-      <ModeOptions
-        mode={mode}
-        cfg={cfg}
-        setCfg={setCfg}
-        onPickStampImage={onPickStampImage}
-      />
+      <ModeOptions mode={mode} cfg={cfg} setCfg={setCfg} onPickStampImage={onPickStampImage} />
 
       <Button size="sm" onClick={onAdd} className="w-full">
         Add to page {activePage + 1}
@@ -360,11 +359,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
         <Button size="sm" variant="outline" onClick={() => clearAll(docPath)}>
           Clear
         </Button>
-        <Button
-          size="sm"
-          disabled={busy || annotations.length === 0}
-          onClick={onSave}
-        >
+        <Button size="sm" disabled={busy || annotations.length === 0} onClick={onSave}>
           {busy ? "Saving…" : `Apply ${annotations.length}`}
         </Button>
       </div>
@@ -418,16 +413,12 @@ function ModeOptions({
             label="Icon"
             value={cfg.noteIcon}
             options={["comment", "check", "cross", "key", "note", "insert"]}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, noteIcon: v as NoteIcon }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, noteIcon: v as NoteIcon }))}
           />
           <TextRow
             label="Contents"
             value={cfg.freetextContents}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, freetextContents: v }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, freetextContents: v }))}
           />
         </>
       )}
@@ -459,9 +450,7 @@ function ModeOptions({
             label="Border style"
             value={cfg.borderStyle}
             options={["solid", "dashed", "dotted"]}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, borderStyle: v as BorderStyle }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, borderStyle: v as BorderStyle }))}
           />
         </>
       )}
@@ -486,25 +475,19 @@ function ModeOptions({
             label="Style"
             value={cfg.borderStyle}
             options={["solid", "dashed", "dotted"]}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, borderStyle: v as BorderStyle }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, borderStyle: v as BorderStyle }))}
           />
           <SelectRow
             label="Start"
             value={cfg.lineStartEnd}
             options={["none", "open_arrow", "closed_arrow", "diamond", "square", "circle"]}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, lineStartEnd: v as LineEnd }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, lineStartEnd: v as LineEnd }))}
           />
           <SelectRow
             label="End"
             value={cfg.lineEndEnd}
             options={["none", "open_arrow", "closed_arrow", "diamond", "square", "circle"]}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, lineEndEnd: v as LineEnd }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, lineEndEnd: v as LineEnd }))}
           />
         </>
       )}
@@ -513,9 +496,7 @@ function ModeOptions({
           <TextRow
             label="Contents"
             value={cfg.freetextContents}
-            onChange={(v) =>
-              setCfg((s) => ({ ...s, freetextContents: v }))
-            }
+            onChange={(v) => setCfg((s) => ({ ...s, freetextContents: v }))}
           />
           <ColorPicker
             label="Text"
@@ -715,11 +696,7 @@ function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clien
 function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(hex.replace(/^#/, ""));
   if (!m) return [0, 0, 0];
-  return [
-    parseInt(m[1], 16) / 255,
-    parseInt(m[2], 16) / 255,
-    parseInt(m[3], 16) / 255,
-  ];
+  return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
 }
 
 // "#rrggbbaa" → [r, g, b, a]; missing alpha defaults to 1.

@@ -43,21 +43,18 @@ export function OptimizeTool() {
           jobId: "",
         },
       },
-      [file],
+      [file]
     ).catch(() => {});
   }
 
   return (
-    <ToolPage
-      title={t("tools.optimize")}
-      description={t("tools:optimize.description")}
-    >
+    <ToolPage title={t("tools.optimize")} description={t("tools:optimize.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
       <OptimizeOptions value={opts} onChange={setOpts} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !!activeId} onClick={onRun}>
-          {t("ok")}
+          {t("tools:optimize.run")}
         </Button>
         {activeId && (
           <Button variant="outline" onClick={cancelActive}>

@@ -1,4 +1,4 @@
-// Phase 13 Task 71 — Auto-prompt scan detection dialog.
+// Phase 13 Task 71 - Auto-prompt scan detection dialog.
 //
 // When `detect_scanned_pdf` reports a page-text average below the
 // threshold, WorkspaceRoute mounts this dialog. The user can pick

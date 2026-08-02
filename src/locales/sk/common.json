@@ -7,7 +7,6 @@
   "save": "Uložiť",
   "save_as": "Uložiť ako",
   "cancel": "Zrušiť",
-  "ok": "OK",
   "delete": "Zmazať",
   "remove": "Odstrániť",
   "add": "Pridať",
@@ -145,5 +144,14 @@
     "range_start_aria": "Rozsah {{index}}, prvá strana",
     "range_end_aria": "Rozsah {{index}}, posledná strana"
   },
-  "drop_files": "Sem presuňte súbory"
+  "drop_files": "Sem presuňte súbory",
+  "onboarding": {
+    "welcome": "Vitajte v PDF Editore. Všetky nástroje fungujú lokálne a úplne offline.",
+    "tools": "Nástroj spustíte výberom ľubovoľnej dlaždice.",
+    "settings": "Tu nájdete nastavenia témy a jazyka.",
+    "drag_tip": "Tip: PDF môžete presunúť priamo na dlaždicu nástroja.",
+    "back": "Späť",
+    "next": "Ďalej",
+    "done": "Hotovo"
+  }
 }

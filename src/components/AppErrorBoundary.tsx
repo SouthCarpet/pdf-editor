@@ -1,4 +1,4 @@
-// Phase 17 Task 86 — per-route error boundary.
+// Phase 17 Task 86 - per-route error boundary.
 //
 // Wraps each route's component so an exception in a tool or workspace
 // view doesn't blow up the whole app. The fallback surface offers

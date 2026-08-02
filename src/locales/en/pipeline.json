@@ -5,6 +5,12 @@
   "save_preset": "Save preset",
   "load_preset": "Load preset",
   "node_palette": "Nodes",
+  "categories": {
+    "input": "Input",
+    "modify": "Modify",
+    "convert": "Convert",
+    "output": "Output"
+  },
   "node_config": "Node config",
   "run": "Run",
   "run_on_folder": "Run on folder",
@@ -16,8 +22,15 @@
   "output_paths": "Output files",
   "no_results": "No results yet",
   "nodes": {
-    "open_file": "Open file"
+    "open_file": "Open file",
+    "watermark": "Watermark"
   },
+  "preset_name": "Preset name",
+  "preset_description": "Description (optional)",
+  "preset_name_required": "Name is required",
+  "preset_empty": "No saved presets yet.",
+  "preset_load_failed": "Failed to load preset: {{error}}",
+  "preset_delete_confirm": "Delete preset '{{name}}'? This cannot be undone.",
   "editor": {
     "selection_hint": "Choose a step from Nodes at any time, then connect it top-to-bottom. Select a node to edit its configuration."
   },

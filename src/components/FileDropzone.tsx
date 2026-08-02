@@ -30,7 +30,7 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
     e.preventDefault();
     setHover(false);
     // Tauri 2 drag-drop event populates `path` on the DataTransfer file objects.
-    // Browser DnD does not — those entries get filtered out by `.filter(Boolean)`.
+    // Browser DnD does not - those entries get filtered out by `.filter(Boolean)`.
     const paths = Array.from(e.dataTransfer.files)
       .map((f) => (f as File & { path?: string }).path)
       .filter((p): p is string => typeof p === "string" && p.length > 0);

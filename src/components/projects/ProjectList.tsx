@@ -1,4 +1,4 @@
-// Phase 15 Task 79 — Project list page.
+// Phase 15 Task 79 - Project list page.
 //
 // Queries `project_list` once on mount via the projects store, renders a
 // responsive grid of cards (one card per project) plus a top-right

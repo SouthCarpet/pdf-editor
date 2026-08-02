@@ -1,9 +1,9 @@
-// Phase 11 Task 62 — Crop panel.
+// Phase 11 Task 62 - Crop panel.
 //
 // The panel itself lives in the right-hand workspace slot. The dashed
 // rectangle overlay is rendered by the parent (Workspace.tsx) inside the
 // shared OverlayCanvas so it stacks above the PDF.js raster. We expose a
-// pair of imperative helpers on the panel — Auto-detect and Apply — and
+// pair of imperative helpers on the panel - Auto-detect and Apply - and
 // hold the rectangle state locally; the parent reads it via the
 // `rect`/`onRectChange` props.
 import { useEffect, useState } from "react";

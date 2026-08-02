@@ -25,15 +25,13 @@ function formatBytes(n: number): string {
 }
 
 // Compress uses the typed binding directly rather than `useToolJob` because
-// the success payload (before/after byte counts) is meaningful — `useToolJob`
+// the success payload (before/after byte counts) is meaningful - `useToolJob`
 // discards it. Progress is still represented via the jobs store so the
 // dashboard / progress list can show the run.
 export function CompressTool() {
   const { t } = useTranslation();
   const [file, setFile] = useState<string | null>(null);
-  const [options, setOptions] = useState<CompressOptionsValue>(
-    DEFAULT_COMPRESS_OPTIONS,
-  );
+  const [options, setOptions] = useState<CompressOptionsValue>(DEFAULT_COMPRESS_OPTIONS);
   const [stats, setStats] = useState<RunStats | null>(null);
   const [running, setRunning] = useState(false);
   const { start, finish, fail } = useJobsStore();
@@ -76,16 +74,13 @@ export function CompressTool() {
   }
 
   return (
-    <ToolPage
-      title={t("tools.compress")}
-      description={t("tools:compress.description")}
-    >
+    <ToolPage title={t("tools.compress")} description={t("tools:compress.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
       <CompressOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || running} onClick={onRun}>
-          {t("ok")}
+          {t("tools:compress.run")}
         </Button>
       </div>
       {stats && (

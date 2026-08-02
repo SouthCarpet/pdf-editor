@@ -84,10 +84,7 @@ export function UnlockTool() {
   const showPrompt = stage.kind === "prompt" || encrypted;
 
   return (
-    <ToolPage
-      title={t("tools.unlock")}
-      description={t("tools:unlock.description")}
-    >
+    <ToolPage title={t("tools.unlock")} description={t("tools:unlock.description")}>
       <FileDropzone onFiles={onFile} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
       {stage.kind === "detecting" && (
@@ -98,12 +95,12 @@ export function UnlockTool() {
       )}
       {showPrompt && (
         <div className="space-y-2">
-          <label className="text-sm">Password</label>
+          <label className="text-sm">{t("tools:unlock.password_label")}</label>
           <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password"
+            placeholder={t("tools:unlock.password_label")}
           />
         </div>
       )}
@@ -120,7 +117,7 @@ export function UnlockTool() {
           disabled={!file || stage.kind === "running" || stage.kind === "detecting"}
           onClick={onRun}
         >
-          {t("ok")}
+          {t("tools:unlock.run")}
         </Button>
         {stage.kind === "prompt" && (
           <button

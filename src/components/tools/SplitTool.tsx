@@ -32,21 +32,18 @@ export function SplitTool() {
           jobId: "",
         },
       },
-      [file],
+      [file]
     ).catch(() => {});
   }
 
   return (
-    <ToolPage
-      title={t("tools.split")}
-      description={t("tools:split.description")}
-    >
+    <ToolPage title={t("tools.split")} description={t("tools:split.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
       <SplitOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !!activeId} onClick={onRun}>
-          {t("ok")}
+          {t("tools:split.run")}
         </Button>
         {activeId && (
           <Button variant="outline" onClick={cancelActive}>

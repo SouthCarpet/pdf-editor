@@ -89,7 +89,7 @@ export function useToolJob(toolId: string) {
 
   async function cancelActive() {
     if (!activeId) return;
-    // Generated specta binding — wraps the Tauri command + typed error envelope.
+    // Generated specta binding - wraps the Tauri command + typed error envelope.
     await commands.cancelJob(activeId);
     cancel(activeId);
   }

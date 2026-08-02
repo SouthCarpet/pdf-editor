@@ -42,7 +42,7 @@ export function WorkspaceRoute() {
     if (search.tool) setTool(search.tool);
   }, [search.tool, setTool]);
 
-  // Phase 17 Task 87 — persist last-session slot on doc open + on
+  // Phase 17 Task 87 - persist last-session slot on doc open + on
   // unmount. v1 single-slot (slot=0); multi-tab is follow-up.
   useEffect(() => {
     if (!path) return;
@@ -67,7 +67,7 @@ export function WorkspaceRoute() {
   // Resolve docId → absolute file path. "new" triggers the picker; anything
   // else is the URL-encoded absolute path (TanStack params are decoded by
   // the router, so we don't need decodeURIComponent here).
-  // Skipped entirely in compare mode — we don't load a single doc.
+  // Skipped entirely in compare mode - we don't load a single doc.
   useEffect(() => {
     if (isCompareMode) return;
     let cancelled = false;
@@ -126,7 +126,7 @@ export function WorkspaceRoute() {
         setError(null);
         setPath(resolvedPath);
       }
-      // Phase 13 Task 71 — kick off scan detection in the background.
+      // Phase 13 Task 71 - kick off scan detection in the background.
       const detect = await commands.detectScannedPdf(resolvedPath);
       if (cancelled) return;
       if (detect.status === "ok" && detect.data.is_likely_scanned) {

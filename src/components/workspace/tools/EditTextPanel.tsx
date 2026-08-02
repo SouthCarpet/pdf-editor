@@ -1,8 +1,8 @@
-// Phase 12 Task 68 — Edit Tier 3 (real inline text edit, Delta S).
+// Phase 12 Task 68: Edit Tier 3 (real inline text edit, Delta S).
 //
 // Workflow: enumerate text runs via extract_runs_cmd, let the user pick a
 // run + type new text. Save invokes replace_run_cmd which performs the
-// real in-place Tj/TJ rewrite — original styling preserved. If the font
+// real in-place Tj/TJ rewrite with original styling preserved. If the font
 // encoding cannot be inverted (EncodingMismatch), the panel surfaces a
 // clear banner and offers the explicit redaction-style fallback as a
 // separate button (never auto-substituted).
@@ -25,7 +25,7 @@ interface RunEdit {
 export function EditTextPanel({ docPath }: Props) {
   const { t } = useTranslation("common");
   const setEditSubTool = useWorkspace((s) => s.setEditSubTool);
-  // Combined fetch state — single useState avoids cascading effect-setState.
+  // Combined fetch state - single useState avoids cascading effect-setState.
   const [docState, setDocState] = useState<{
     path: string;
     runs: TextRun[];
@@ -71,11 +71,9 @@ export function EditTextPanel({ docPath }: Props) {
   const runs = docState.runs;
   const loading = docState.loading;
   const selected = selectedIndex !== null ? runs[selectedIndex] : null;
-  // Sync the edit state when the user changes selection — derived inline,
+  // Sync the edit state when the user changes selection - derived inline,
   // not via an effect.
-  const selectedKey = selected
-    ? `${selected.page}-${selected.operator_index}`
-    : null;
+  const selectedKey = selected ? `${selected.page}-${selected.operator_index}` : null;
   if (selectedKey !== lastSelectedKey) {
     setLastSelectedKey(selectedKey);
     setEdit({ newText: selected?.text ?? "" });
@@ -137,16 +135,16 @@ export function EditTextPanel({ docPath }: Props) {
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium">{t("tools.edit")} — Text</h3>
+      <h3 className="text-sm font-medium">
+        {t("tools.edit")}: {t("workspace:tools.edit_text")}
+      </h3>
       <p className="text-xs text-[var(--color-muted)]">
-        Pick a text run from the page, edit it, and save. The original
-        styling is preserved — no layout shift.
+        Pick a text run from the page, edit it, and save. The original styling is preserved with no
+        layout shift.
       </p>
 
       <div className="max-h-[200px] overflow-auto rounded border border-[var(--color-border)]">
-        {loading && (
-          <p className="px-2 py-1 text-xs text-[var(--color-muted)]">Loading runs…</p>
-        )}
+        {loading && <p className="px-2 py-1 text-xs text-[var(--color-muted)]">Loading runs…</p>}
         {!loading && runs.length === 0 && (
           <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
             No editable text runs on this document.
@@ -157,12 +155,13 @@ export function EditTextPanel({ docPath }: Props) {
             key={`${r.page}-${r.operator_index}`}
             onClick={() => setSelectedIndex(i)}
             className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-[var(--color-control-hover)] ${
-              selectedIndex === i ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]" : ""
+              selectedIndex === i
+                ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
+                : ""
             }`}
             title={r.font}
           >
-            <span className="text-[var(--color-muted)]">p{r.page + 1}</span>{" "}
-            {r.text.slice(0, 60)}
+            <span className="text-[var(--color-muted)]">p{r.page + 1}</span> {r.text.slice(0, 60)}
           </button>
         ))}
       </div>
@@ -188,17 +187,11 @@ export function EditTextPanel({ docPath }: Props) {
             <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-[11px] text-[var(--color-warning-soft-foreground)]">
               <p className="font-medium">Cannot invert this font's encoding.</p>
               <p>
-                The font does not expose a /ToUnicode CMap and is not in
-                WinAnsi or MacRoman. Falling back to redaction will paint
-                a white rectangle and overlay new text in Helvetica.
-                Layout may shift.
+                The font does not expose a /ToUnicode CMap and is not in WinAnsi or MacRoman.
+                Falling back to redaction will paint a white rectangle and overlay new text in
+                Helvetica. Layout may shift.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onApplyRedaction}
-                className="mt-1"
-              >
+              <Button size="sm" variant="outline" onClick={onApplyRedaction} className="mt-1">
                 Use redaction-style replacement
               </Button>
             </div>
@@ -211,8 +204,7 @@ export function EditTextPanel({ docPath }: Props) {
       {selected === null && !loading && (
         <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
           <p className="text-[11px] text-[var(--color-muted)]">
-            No editable text here? You can add a free-text annotation
-            instead.
+            No editable text here? You can add a free-text annotation instead.
           </p>
           {!showEmptyAreaPrompt ? (
             <Button
@@ -226,9 +218,7 @@ export function EditTextPanel({ docPath }: Props) {
           ) : (
             <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">
               <p className="font-medium">No editable text here</p>
-              <p className="mb-2">
-                Switch to Annotations to add a new FreeText box.
-              </p>
+              <p className="mb-2">Switch to Annotations to add a new FreeText box.</p>
               <div className="flex gap-1">
                 <Button
                   size="sm"
@@ -239,11 +229,7 @@ export function EditTextPanel({ docPath }: Props) {
                 >
                   Add FreeText annotation
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowEmptyAreaPrompt(false)}
-                >
+                <Button size="sm" variant="ghost" onClick={() => setShowEmptyAreaPrompt(false)}>
                   Cancel
                 </Button>
               </div>

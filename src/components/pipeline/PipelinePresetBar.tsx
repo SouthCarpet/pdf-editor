@@ -1,4 +1,4 @@
-// Phase 14 Task 76 — preset bar (save / load / delete).
+// Phase 14 Task 76: preset bar (save / load / delete).
 //
 // Hooked up to commands.pipelinePreset{Create,List,Get,Update,Delete}.
 // The "Save" button opens a small dialog (name + optional description).
@@ -6,14 +6,12 @@
 // current draft. The "Delete" button (within the load menu) prompts
 // before deleting.
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Edge } from "@xyflow/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { commands, type PipelinePreset } from "@/bindings";
-import {
-  usePipelineStore,
-  type PipelineEditorNode,
-} from "@/stores/pipelineStore";
+import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
 import { nodeKindByKey } from "@/pipeline/nodeKinds";
 
 interface DraftGraph {
@@ -43,6 +41,7 @@ function unwrap<T>(r: { status: "ok"; data: T } | { status: "error"; error: unkn
 }
 
 export function PipelinePresetBar() {
+  const { t } = useTranslation("pipeline");
   const nodes = usePipelineStore((s) => s.nodes);
   const edges = usePipelineStore((s) => s.edges);
   const loadGraph = usePipelineStore((s) => s.loadGraph);
@@ -74,7 +73,7 @@ export function PipelinePresetBar() {
 
   async function handleSave() {
     if (!name.trim()) {
-      setError("Name is required");
+      setError(t("preset_name_required"));
       return;
     }
     setBusy(true);
@@ -98,7 +97,7 @@ export function PipelinePresetBar() {
           name: name.trim(),
           description: description.trim() || null,
           graph_json: JSON.stringify(graph),
-        }),
+        })
       );
       setName("");
       setDescription("");
@@ -134,14 +133,14 @@ export function PipelinePresetBar() {
       loadGraph(loadedNodes, loadedEdges);
       setOpen("none");
     } catch (e) {
-      setError(`Failed to load preset: ${String(e)}`);
+      setError(t("preset_load_failed", { error: String(e) }));
     } finally {
       setBusy(false);
     }
   }
 
   async function handleDelete(p: PipelinePreset) {
-    if (!confirm(`Delete preset "${p.name}"? This cannot be undone.`)) return;
+    if (!confirm(t("preset_delete_confirm", { name: p.name }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -162,7 +161,7 @@ export function PipelinePresetBar() {
           size="sm"
           onClick={() => setOpen(open === "load" ? "none" : "load")}
         >
-          Load preset
+          {t("load_preset")}
         </Button>
         <Button
           variant="outline"
@@ -170,43 +169,36 @@ export function PipelinePresetBar() {
           onClick={() => setOpen(open === "save" ? "none" : "save")}
           disabled={nodes.length === 0}
         >
-          Save preset
+          {t("save_preset")}
         </Button>
       </div>
       {open === "save" && (
         <div className="z-20 w-80 space-y-2 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-3 shadow-lg">
           <Input
-            placeholder="Preset name"
+            placeholder={t("preset_name")}
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <Input
-            placeholder="Description (optional)"
+            placeholder={t("preset_description")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
           {error && <p className="text-xs text-[var(--color-danger-text)]">{error}</p>}
           <div className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setOpen("none")}
-              disabled={busy}
-            >
-              Cancel
+            <Button size="sm" variant="ghost" onClick={() => setOpen("none")} disabled={busy}>
+              {t("common:cancel")}
             </Button>
             <Button size="sm" onClick={handleSave} disabled={busy}>
-              Save
+              {t("common:save")}
             </Button>
           </div>
         </div>
       )}
       {open === "load" && (
-        <div className="z-20 w-96 max-h-96 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-lg">
+        <div className="z-20 max-h-96 w-96 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-lg">
           {presets.length === 0 ? (
-            <p className="p-2 text-xs text-[var(--color-muted)]">
-              No saved presets yet.
-            </p>
+            <p className="p-2 text-xs text-[var(--color-muted)]">{t("preset_empty")}</p>
           ) : (
             presets.map((p) => (
               <div
@@ -216,27 +208,15 @@ export function PipelinePresetBar() {
                 <div className="flex-1">
                   <div className="text-sm font-medium">{p.name}</div>
                   {p.description && (
-                    <div className="text-xs text-[var(--color-muted)]">
-                      {p.description}
-                    </div>
+                    <div className="text-xs text-[var(--color-muted)]">{p.description}</div>
                   )}
                 </div>
                 <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleLoad(p)}
-                    disabled={busy}
-                  >
-                    Load
+                  <Button size="sm" variant="outline" onClick={() => handleLoad(p)} disabled={busy}>
+                    {t("load_preset")}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => handleDelete(p)}
-                    disabled={busy}
-                  >
-                    Delete
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} disabled={busy}>
+                    {t("common:delete")}
                   </Button>
                 </div>
               </div>

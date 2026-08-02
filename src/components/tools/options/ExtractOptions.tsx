@@ -1,5 +1,6 @@
 // Delta U: reusable Extract options panel.
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { parsePageList } from "@/lib/parsePageList";
 
@@ -21,16 +22,12 @@ interface Props {
 }
 
 export function ExtractOptions({ value, onChange }: Props) {
-  const pages = useMemo(
-    () => parsePageList(value.pageInput, MAX_PAGE_HINT),
-    [value.pageInput],
-  );
+  const { t } = useTranslation("tools");
+  const pages = useMemo(() => parsePageList(value.pageInput, MAX_PAGE_HINT), [value.pageInput]);
   const valid = pages !== null && pages.length > 0;
   return (
     <div className="space-y-1">
-      <label className="text-sm text-[var(--color-muted)]">
-        Pages (e.g. <code>1,3,5-7</code>)
-      </label>
+      <label className="text-sm text-[var(--color-muted)]">{t("extract.pages_label")}</label>
       <Input
         type="text"
         value={value.pageInput}
@@ -38,7 +35,7 @@ export function ExtractOptions({ value, onChange }: Props) {
         placeholder="1,3,5-7"
       />
       {!valid && value.pageInput.length > 0 && (
-        <p className="text-xs text-[var(--color-danger-text)]">Invalid page list.</p>
+        <p className="text-xs text-[var(--color-danger-text)]">{t("extract.invalid_pages")}</p>
       )}
     </div>
   );

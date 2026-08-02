@@ -15,9 +15,7 @@ import {
 export function ConvertExportTool() {
   const { t } = useTranslation();
   const [file, setFile] = useState<string | null>(null);
-  const [options, setOptions] = useState<ConvertExportOptionsValue>(
-    DEFAULT_CONVERT_EXPORT_OPTIONS,
-  );
+  const [options, setOptions] = useState<ConvertExportOptionsValue>(DEFAULT_CONVERT_EXPORT_OPTIONS);
   const { run, cancelActive, activeId } = useToolJob("convert_export");
 
   async function onRun() {
@@ -27,25 +25,18 @@ export function ConvertExportTool() {
     await run(
       "convert_pdf_export_cmd",
       { args: { input: file, format: options.format, outDir: dir, jobId: "" } },
-      [file],
+      [file]
     ).catch(() => {});
   }
 
   return (
-    <ToolPage
-      title={t("tools.convert_export")}
-      description={t("tools:convert_export.description")}
-    >
+    <ToolPage title={t("tools.convert_export")} description={t("tools:convert_export.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
       {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
-      <ConvertExportOptions
-        value={options}
-        onChange={setOptions}
-        mode="standalone"
-      />
+      <ConvertExportOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !!activeId} onClick={onRun}>
-          {t("ok")}
+          {t("tools:convert_export.run")}
         </Button>
         {activeId && (
           <Button variant="outline" onClick={cancelActive}>

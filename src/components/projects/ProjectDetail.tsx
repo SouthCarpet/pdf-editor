@@ -1,4 +1,4 @@
-// Phase 15 Task 79 — Project detail page.
+// Phase 15 Task 79 - Project detail page.
 //
 // Loads the project + its files + attached pipelines. Lets the user
 // rename/describe the project (inline save), attach files via the dropzone,
@@ -182,7 +182,7 @@ export function ProjectDetail({ projectId }: Props) {
     setRunReport(`Done: ${ok} succeeded, ${fail} failed`);
   }
 
-  // Task 80 — Export / Import via the project_io commands.
+  // Task 80 - Export / Import via the project_io commands.
   async function onExport() {
     if (!project) return;
     const out = await saveDialog({

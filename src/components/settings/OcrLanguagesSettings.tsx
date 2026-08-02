@@ -1,4 +1,4 @@
-// Phase 13 Task 72 — OCR language management UI.
+// Phase 13 Task 72 - OCR language management UI.
 //
 // Lists installed `.traineddata` files (bundled defaults + extra dir).
 // "Add language file" prompts a file dialog; on confirm the chosen file

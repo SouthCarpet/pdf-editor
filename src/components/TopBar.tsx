@@ -6,11 +6,11 @@ import { useAppStore } from "@/stores/appStore";
 import { Button } from "@/components/ui/button";
 
 export function TopBar() {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const canGoBack = useCanGoBack();
-  const lang = useAppStore((s) => s.language);
+  const lang = i18n.resolvedLanguage === "sk" ? "sk" : "en";
   const setLanguage = useAppStore((s) => s.setLanguage);
 
   return (
@@ -27,13 +27,7 @@ export function TopBar() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Button
-          asChild
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9"
-          title={t("home")}
-        >
+        <Button asChild variant="ghost" size="icon" className="h-9 w-9" title={t("home")}>
           <Link to="/projects" aria-label={t("home")}>
             <Home className="h-4 w-4" />
           </Link>
@@ -47,6 +41,7 @@ export function TopBar() {
           variant="ghost"
           size="sm"
           onClick={() => setLanguage(lang === "en" ? "sk" : "en")}
+          aria-label={t("language")}
         >
           {lang.toUpperCase()}
         </Button>

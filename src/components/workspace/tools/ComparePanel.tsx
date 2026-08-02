@@ -1,4 +1,4 @@
-// Phase 11 Task 65 — Compare panel.
+// Phase 11 Task 65 - Compare panel.
 //
 // Two file pickers (left + right), a Visual/Text mode toggle, and the
 // trigger that fires the backend diff. The actual side-by-side viewer

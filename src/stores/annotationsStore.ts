@@ -1,4 +1,4 @@
-// Phase 12 Task 67 — Annotations Zustand store (Delta U).
+// Phase 12 Task 67 - Annotations Zustand store (Delta U).
 //
 // Keyed by absolute document path. Each entry carries a client-side UUID
 // (`__clientId`) for list-key stability; that field is stripped before

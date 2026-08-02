@@ -1,4 +1,4 @@
-// Delta U: reusable Unlock options panel — shared between UnlockTool and
+// Delta U: reusable Unlock options panel - shared between UnlockTool and
 // the pipeline NodeConfigPanel.
 import { Input } from "@/components/ui/input";
 

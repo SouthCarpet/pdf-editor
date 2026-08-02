@@ -1,4 +1,4 @@
-// Phase 11 Task 65 — Compare viewer.
+// Phase 11 Task 65 - Compare viewer.
 //
 // Two PDF.js viewers side-by-side with synchronized scrolling. Both
 // instances share a single page index controlled by this component;

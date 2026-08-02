@@ -1,4 +1,4 @@
-// Phase 11 Task 63 — Organize panel.
+// Phase 11 Task 63 - Organize panel.
 //
 // Grid of small page thumbnails with HTML5 drag-and-drop reorder, plus a
 // per-page menu offering rotate (±90, 180), delete, and insert-blank-after.
@@ -30,7 +30,7 @@ interface Props {
 
 export function OrganizePanel({ pdf, docPath }: Props) {
   const { t } = useTranslation("common");
-  // Reset the staging state inline when the pdf identity changes — avoids
+  // Reset the staging state inline when the pdf identity changes - avoids
   // the set-state-in-effect lint flag. We track the pdf the state belongs
   // to and rebuild the page array on identity mismatch.
   const [state, setState] = useState<{ pdf: pdfjs.PDFDocumentProxy; pages: PageState[] }>(() => ({
@@ -95,7 +95,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
   function insertBlankAfter(i: number) {
     setPages((prev) => {
       const next = [...prev];
-      // Default to A4 in points (595 x 842) — most common.
+      // Default to A4 in points (595 x 842) - most common.
       next.splice(i + 1, 0, {
         originalIndex: -1,
         rotation: 0,
@@ -122,7 +122,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
     });
     setDragFrom(null);
   }
-  // Phase 17 Task 84 — keyboard-accessible alternative to drag reorder.
+  // Phase 17 Task 84 - keyboard-accessible alternative to drag reorder.
   function moveUp(i: number) {
     if (i <= 0) return;
     setPages((prev) => {
@@ -160,7 +160,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
       let current = docPath;
       const stages: string[] = [];
 
-      // STAGE 1 — keep only non-blank originals, in the new order, drop deleted.
+      // STAGE 1 - keep only non-blank originals, in the new order, drop deleted.
       const kept = pages
         .map((p, idx) => ({ p, idx }))
         .filter(({ p }) => !p.deleted && p.originalIndex >= 0);
@@ -179,7 +179,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
       }
       current = stage1;
 
-      // STAGE 2 — apply rotations (1-based against the new ordering).
+      // STAGE 2 - apply rotations (1-based against the new ordering).
       const rotations: [number, number][] = [];
       kept.forEach(({ p }, idxInKept) => {
         if (p.rotation !== 0) rotations.push([idxInKept + 1, p.rotation]);
@@ -200,7 +200,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
         current = stage2;
       }
 
-      // STAGE 3 — splice in blanks. Walk the final `pages` array, but skip
+      // STAGE 3 - splice in blanks. Walk the final `pages` array, but skip
       // deleted originals; each blank entry produces one insertion at its
       // position relative to the kept set.
       // Compute a flat list of "kept" markers + blanks:
@@ -234,7 +234,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
         // doc grew by one page.
       }
 
-      // Final stage — promote `current` to the requested output path.
+      // Final stage - promote `current` to the requested output path.
       // (The reorder/rotate already wrote to disk; we copy to the chosen
       // path.)
       const r3 = await commands.saveDocument(current, out);

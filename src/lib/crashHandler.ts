@@ -7,7 +7,7 @@
 // `<timestamp>.frontend.txt` next to the panic / crash files so a single
 // logs directory contains the full incident timeline.
 //
-// `installCrashHandlers` is idempotent — call once near the top of
+// `installCrashHandlers` is idempotent - call once near the top of
 // main.tsx (before QueryClientProvider) and subsequent calls are no-ops.
 
 import { commands } from "@/bindings";

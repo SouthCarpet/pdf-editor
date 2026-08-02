@@ -15,8 +15,8 @@
 //   1. PARITY   en and sk must hold the same key set.
 //   2. MISSING  every called key exists in both. (the original check)
 //   3. UNUSED   every catalog key is called, unless allow-listed as dynamic.
-//   4. LITERAL  no hardcoded user-facing string in a file that already
-//               imports useTranslation.
+//   4. ERRORS   every key produced by Rust AppError exists in both catalogs.
+//   5. LITERAL  no hardcoded user-facing attribute or JSX text node.
 //
 // Checks 3 and 4 carry allowlists rather than thresholds. A threshold rots
 // quietly; an allowlist entry has to be written by a person who can be asked
@@ -26,9 +26,11 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, extname, relative } from "node:path";
+import { createHash } from "node:crypto";
 
 const SRC = "src";
 const LOCALES = ["src/locales/en", "src/locales/sk"];
+const APP_ERROR_SOURCE = "src-tauri/src/error.rs";
 const KEY_RE = /\bt\(\s*["'`]([A-Za-z0-9_.:-]+)["'`]/g;
 
 // Key families built at runtime, so no literal call site exists to find.
@@ -84,27 +86,32 @@ for (const f of files) {
 
 const locales = LOCALES.map((d) => ({ dir: d, data: loadLocale(d) }));
 const [en, sk] = locales;
-const namespaces = Array.from(
-  new Set(Object.keys(en.data).map((k) => k.split(":")[0])),
-);
+const namespaces = Array.from(new Set(Object.keys(en.data).map((k) => k.split(":")[0])));
 
 const failures = [];
 
 // ---- 1. PARITY -------------------------------------------------------------
-// Plural categories are LANGUAGE-SPECIFIC, so an exact key-set comparison is
-// wrong. Slovak has a `few` category that English does not, and on the first
-// run this check reported workspace:forms.field_count_few and two siblings as
-// sk-only drift. They are correctly written Slovak plurals. A key counts as
-// present in the other locale if that locale has the same key OR any plural
-// variant of the same base.
-const PLURAL_SUFFIX = /_(zero|one|two|few|many|other)$/;
+// Slovak has legitimate `few` variants for three counted workspace labels.
+// Keep the exception explicit so an unrelated key such as tools:merge.run_few
+// still fails parity.
+const PLURAL_SUFFIX = /_(few|many)$/;
 const baseOf = (k) => k.replace(PLURAL_SUFFIX, "");
+const ALLOWED_SK_PLURAL_BASES = new Set([
+  "workspace:forms.field_count",
+  "workspace:forms.unsaved_count",
+  "workspace:ocr_edit.word_count",
+]);
 const enKeys = new Set(Object.keys(en.data));
 const skKeys = new Set(Object.keys(sk.data));
-const enBases = new Set([...enKeys].map(baseOf));
-const skBases = new Set([...skKeys].map(baseOf));
-const onlyEn = [...enKeys].filter((k) => !skKeys.has(k) && !skBases.has(baseOf(k))).sort();
-const onlySk = [...skKeys].filter((k) => !enKeys.has(k) && !enBases.has(baseOf(k))).sort();
+const allowedSkOnlyPlurals = [...skKeys].filter(
+  (k) => !enKeys.has(k) && ALLOWED_SK_PLURAL_BASES.has(baseOf(k))
+);
+const onlyEn = [...enKeys].filter((k) => !skKeys.has(k)).sort();
+const onlySk = [...skKeys]
+  .filter(
+    (k) => !enKeys.has(k) && !(PLURAL_SUFFIX.test(k) && ALLOWED_SK_PLURAL_BASES.has(baseOf(k)))
+  )
+  .sort();
 if (onlyEn.length || onlySk.length) {
   failures.push({
     title: `PARITY: en and sk key sets differ (${onlyEn.length} en-only, ${onlySk.length} sk-only)`,
@@ -140,6 +147,14 @@ const unused = [...enKeys]
     if (DYNAMIC_KEY_PREFIXES.some((p) => full.startsWith(p))) return false;
     if (calledKeys.has(full)) return false;
     const bare = full.slice(full.indexOf(":") + 1);
+    const pluralBase = full.replace(/_(one|other)$/, "");
+    if (
+      pluralBase !== full &&
+      ALLOWED_SK_PLURAL_BASES.has(pluralBase) &&
+      (calledKeys.has(pluralBase) || bareCalled.has(pluralBase.slice(pluralBase.indexOf(":") + 1)))
+    ) {
+      return false;
+    }
     return !bareCalled.has(bare);
   })
   .sort();
@@ -153,32 +168,79 @@ if (unused.length) {
   });
 }
 
-// ---- 4. LITERAL ------------------------------------------------------------
-// Only files that already import useTranslation are policed. A file with no
-// i18n at all is a separate, larger decision and flagging it here would bury
-// the real regressions in noise.
+// ---- 4. RUST ERROR CATALOG -------------------------------------------------
+// Error keys are produced dynamically by Rust and therefore cannot be found
+// by the literal t() call scanner. Enumerate the key() match arms directly.
+const errorSource = readFileSync(APP_ERROR_SOURCE, "utf8");
+const keyFunction = errorSource.slice(
+  errorSource.indexOf("pub fn key"),
+  errorSource.indexOf("impl Serialize")
+);
+const rustErrorKeys = new Set([...keyFunction.matchAll(/=>\s*"([a-z0-9_]+)"/g)].map((m) => m[1]));
+for (const { dir, data } of locales) {
+  const missingErrors = [...rustErrorKeys]
+    .filter((key) => !Object.prototype.hasOwnProperty.call(data, `errors:${key}`))
+    .sort();
+  if (missingErrors.length) {
+    failures.push({
+      title: `ERRORS: ${dir} lacks ${missingErrors.length} Rust AppError key(s)`,
+      items: missingErrors,
+    });
+  }
+}
+
+// ---- 5. LITERAL ------------------------------------------------------------
+// Scan every non-generated source file. Components without useTranslation are
+// the most important inputs, not an exemption. Attributes and capitalized
+// multi-word JSX text nodes cover both accessible and visible copy.
 const attrRe = new RegExp(
   `\\b(${USER_FACING_ATTRS.join("|")})\\s*=\\s*(["'])([^"'{}]{2,})\\2`,
-  "g",
+  "g"
 );
+const textNodeRe = />([^<>{}]+)</g;
 const literals = [];
 for (const f of files) {
   const rel = relative(".", f).replace(/\\/g, "/");
   if (LITERAL_FILE_ALLOW.includes(rel)) continue;
   const src = readFileSync(f, "utf8");
-  if (!src.includes("useTranslation")) continue;
   for (const m of src.matchAll(attrRe)) {
     const line = src.slice(0, m.index).split("\n").length;
     literals.push(`${rel}:${line}  ${m[1]}="${m[3]}"`);
   }
+  if (extname(f) !== ".tsx") continue;
+  for (const m of src.matchAll(textNodeRe)) {
+    const value = m[1].replace(/\s+/g, " ").trim();
+    if (!/^[A-Z][a-z]+(?:\s+[A-Za-z][A-Za-z0-9'()/.,:-]*)+/.test(value)) continue;
+    const line = src.slice(0, m.index).split("\n").length;
+    literals.push(`${rel}:${line}  text="${value.replaceAll('"', '\\"')}"`);
+  }
 }
-if (literals.length) {
+const literalDetailsByBaselineItem = new Map();
+const literalsByFile = new Map();
+for (const literal of literals) {
+  const match = literal.match(/^(.*?):\d+\s{2}(.*)$/);
+  if (!match) continue;
+  if (!literalsByFile.has(match[1])) literalsByFile.set(match[1], []);
+  literalsByFile.get(match[1]).push(match[2]);
+}
+const literalBaselineItems = [...literalsByFile]
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([file, details]) => {
+    const stableDetails = [...details].sort();
+    const digest = createHash("sha256").update(stableDetails.join("\n")).digest("hex").slice(0, 16);
+    const item = `${file}  ${stableDetails.length} literal(s)  sha256:${digest}`;
+    literalDetailsByBaselineItem.set(
+      item,
+      literals.filter((literal) => literal.startsWith(`${file}:`))
+    );
+    return item;
+  });
+if (literalBaselineItems.length) {
   failures.push({
     title:
-      `LITERAL: ${literals.length} hardcoded user-facing string(s) in files ` +
-      `that already use t(). These bypass the catalog entirely, so no key ` +
-      `check can see them`,
-    items: literals,
+      `LITERAL: ${literals.length} hardcoded user-facing string(s). ` +
+      `These bypass the catalog entirely, so no key check can see them`,
+    items: literalBaselineItems,
   });
 }
 
@@ -215,9 +277,13 @@ for (const f of failures) {
   const known = new Set(baseline[kind] ?? []);
   const fresh = f.items.filter((i) => !known.has(i));
   if (fresh.length) {
+    const displayed =
+      kind === "literals"
+        ? fresh.flatMap((item) => literalDetailsByBaselineItem.get(item) ?? [item])
+        : fresh;
     filtered.push({
-      title: `${f.title.split(":")[0]}: ${fresh.length} NEW item(s) not in the baseline`,
-      items: fresh,
+      title: `${f.title.split(":")[0]}: ${displayed.length} NEW item(s) not in the baseline`,
+      items: displayed,
     });
   }
   const stale = [...known].filter((i) => !f.items.includes(i)).sort();
@@ -244,6 +310,8 @@ if (failures.length) {
 }
 
 console.log(
-  `[OK] i18n: ${enKeys.size} keys, en/sk parity exact, ` +
-    `${calledKeys.size} called, 0 unused, 0 hardcoded user-facing strings`,
+  `[OK] i18n: en ${enKeys.size} keys, sk ${skKeys.size} keys, ` +
+    `${allowedSkOnlyPlurals.length} allowed sk-only plurals, ${calledKeys.size} called, ` +
+    `${unused.length} known unused, ${literals.length} known hardcoded user-facing strings, ` +
+    `${failures.length} new issues`
 );

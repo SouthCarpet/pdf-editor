@@ -1,5 +1,5 @@
 // Virtualized vertical thumbnail strip. Each row mounts a small PdfViewer
-// at zoom=0.18 so already-loaded pages cost nothing extra to thumbnail —
+// at zoom=0.18 so already-loaded pages cost nothing extra to thumbnail -
 // the same PDFDocumentProxy is reused for both the main viewer and the
 // strip. react-window 2.x uses `rowComponent` (factory) + `rowProps`
 // (extra data) instead of the function-as-child API from 1.x.

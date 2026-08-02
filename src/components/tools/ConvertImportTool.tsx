@@ -39,20 +39,13 @@ export function ConvertImportTool() {
     await run(
       "convert_to_pdf_cmd",
       { args: { inputs: files, output: out, jobId: "" } },
-      files,
+      files
     ).catch(() => {});
   }
 
   return (
-    <ToolPage
-      title={t("tools.convert_import")}
-      description={t("tools:convert_import.description")}
-    >
-      <FileDropzone
-        onFiles={(p) => setFiles((prev) => [...prev, ...p])}
-        multiple
-        accept={ACCEPT}
-      />
+    <ToolPage title={t("tools.convert_import")} description={t("tools:convert_import.description")}>
+      <FileDropzone onFiles={(p) => setFiles((prev) => [...prev, ...p])} multiple accept={ACCEPT} />
       <div className="space-y-2">
         {files.map((f, i) => (
           <div
@@ -72,7 +65,7 @@ export function ConvertImportTool() {
       </div>
       <div className="flex gap-2">
         <Button disabled={files.length === 0 || !!activeId} onClick={onRun}>
-          {t("ok")}
+          {t("tools:convert_import.run")}
         </Button>
         {activeId && (
           <Button variant="outline" onClick={cancelActive}>

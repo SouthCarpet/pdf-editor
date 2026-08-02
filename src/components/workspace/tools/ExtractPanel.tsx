@@ -1,4 +1,4 @@
-// Phase 11 Task 64 — Extract panel. Reuses `extract_pages_cmd` from
+// Phase 11 Task 64 - Extract panel. Reuses `extract_pages_cmd` from
 // Phase 9 Task 51 (no new Rust command). User picks a subset of pages
 // in a checkbox grid; "Extract selected to new PDF" opens a save dialog
 // and invokes the command.

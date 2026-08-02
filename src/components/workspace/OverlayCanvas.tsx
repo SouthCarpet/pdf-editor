@@ -1,7 +1,7 @@
 // Konva Stage layered above the PDF.js canvas. Tools (crop rect, form
 // fields, annotations) render their interactive shapes as children
 // inside this Layer. Stage is absolutely positioned to overlay the
-// PDF.js raster — width/height match the current page viewport at the
+// PDF.js raster - width/height match the current page viewport at the
 // current zoom, so coordinates stay 1:1 with the underlying canvas.
 import { Layer, Stage } from "react-konva";
 import type { ReactNode } from "react";

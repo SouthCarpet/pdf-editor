@@ -1,4 +1,4 @@
-// Phase 17 Task 88 — First-run onboarding tour via intro.js.
+// Phase 17 Task 88: First-run onboarding tour via intro.js.
 //
 // Mounts once at app root. On first run (no `onboarded=1` in
 // localStorage) it walks the user through:
@@ -13,10 +13,12 @@
 // tour never auto-replays. (A Settings entry can clear it for a
 // manual re-run.)
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import introJs from "intro.js";
 import "intro.js/introjs.css";
 
 export function Onboarding() {
+  const { t } = useTranslation("common");
   useEffect(() => {
     if (localStorage.getItem("onboarded") === "1") return;
     // The tiles + settings button mount on the Dashboard / TopBar
@@ -29,21 +31,23 @@ export function Onboarding() {
             showProgress: true,
             showBullets: false,
             scrollToElement: true,
+            prevLabel: t("onboarding.back"),
+            nextLabel: t("onboarding.next"),
+            doneLabel: t("onboarding.done"),
             steps: [
               {
-                intro:
-                  "Welcome to PDF Editor. Fully offline, no paywalls, all tools run locally.",
+                intro: t("onboarding.welcome"),
               },
               {
                 element: ".tool-tile-merge",
-                intro: "Click any tile to start a tool.",
+                intro: t("onboarding.tools"),
               },
               {
                 element: "[data-onboard='settings']",
-                intro: "Theme and language live here.",
+                intro: t("onboarding.settings"),
               },
               {
-                intro: "Tip: you can drag a PDF onto any tool tile to start it pre-loaded.",
+                intro: t("onboarding.drag_tip"),
               },
             ],
           })
@@ -60,6 +64,6 @@ export function Onboarding() {
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, []);
+  }, [t]);
   return null;
 }

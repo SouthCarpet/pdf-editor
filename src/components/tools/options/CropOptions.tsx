@@ -2,7 +2,7 @@
 // this through a drag-rect overlay; the pipeline node uses the same
 // schema with text-driven inputs.
 //
-// Phase 17 Task 86a — extended surface:
+// Phase 17 Task 86a - extended surface:
 //   aspect-ratio lock (Free / 1:1 / 4:3 / 16:9 / A4 / Letter / Custom)
 //   preset crop sizes dropdown (A3/A4/A5/Letter/Legal/Tabloid/Custom)
 //   margin presets + custom mm input
