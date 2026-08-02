@@ -15,6 +15,7 @@ import { X } from "lucide-react";
 import { commands } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import type { OcrResult, TextDiffResult, VisualDiffPage } from "@/bindings";
+import { decodeDocId } from "@/lib/docId";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
@@ -33,6 +34,7 @@ type AppErrorShape = { key: string; data?: Record<string, unknown> };
 function isAppError(e: unknown): e is AppErrorShape {
   return typeof e === "object" && e !== null && typeof (e as AppErrorShape).key === "string";
 }
+
 
 export function WorkspaceRoute() {
   const { t } = useTranslation("common");
@@ -77,9 +79,9 @@ export function WorkspaceRoute() {
 
   const isCompareMode = search.tool === "compare";
 
-  // Resolve docId → absolute file path. "new" triggers the picker; anything
-  // else is the URL-encoded absolute path (TanStack params are decoded by
-  // the router, so we don't need decodeURIComponent here).
+  // Resolve docId to an absolute file path. "new" triggers the picker; anything
+  // else is the percent-encoded absolute path and MUST be decoded first (see
+  // decodeDocId above - the previous comment here claimed the router did it).
   // Skipped entirely in compare mode - we don't load a single doc.
   useEffect(() => {
     if (isCompareMode) return;
@@ -107,7 +109,7 @@ export function WorkspaceRoute() {
           replace: true,
         });
       } else {
-        await loadAndRegister(docId);
+        await loadAndRegister(decodeDocId(docId));
       }
     })().catch((err: unknown) => {
       // Log before rendering. The app log previously recorded nothing at all for
@@ -211,7 +213,9 @@ export function WorkspaceRoute() {
             it was previously discarded. Shown small rather than hidden, because
             "it will not open" with no path is unactionable for the user and for
             anyone they report it to. */}
-        <p className="break-all font-mono text-xs text-[var(--color-muted)]">{docId}</p>
+        <p className="break-all font-mono text-xs text-[var(--color-muted)]">
+          {decodeDocId(docId)}
+        </p>
         <Button onClick={() => navigate({ to: "/projects" })}>
           {t("projects.back_to_projects")}
         </Button>
