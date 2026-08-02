@@ -164,6 +164,81 @@ fn open_file_node_rejects_incoming_edges() {
 }
 
 #[test]
+fn topo_order_is_deterministic_across_multiple_roots() {
+    // topo_order used to seed Kahn's queue from a std HashMap, whose iteration
+    // order is randomised per process. With more than one root the execution
+    // order changed between runs, and because OpenFile REPLACES the working
+    // set, the same graph could save compressed output on one run and the
+    // untouched originals on the next. Build a graph with three independent
+    // roots and assert the order follows the node list every time.
+    let p = Pipeline {
+        nodes: vec![
+            PipelineNode {
+                id: "root_a".into(),
+                kind: NodeKind::Merge {},
+            },
+            PipelineNode {
+                id: "root_b".into(),
+                kind: NodeKind::Merge {},
+            },
+            PipelineNode {
+                id: "root_c".into(),
+                kind: NodeKind::Merge {},
+            },
+        ],
+        edges: vec![],
+    };
+
+    let first = p.topo_order().unwrap();
+    assert_eq!(first, vec!["root_a", "root_b", "root_c"]);
+    for _ in 0..50 {
+        assert_eq!(p.topo_order().unwrap(), first);
+    }
+}
+
+#[test]
+fn unconnected_open_file_node_fails_loudly() {
+    // An OpenFile node that feeds nothing leaves it to topological position
+    // whether the run uses the picked files or the ambient inputs, which the
+    // user never chose. It must fail rather than silently save the originals
+    // and report success.
+    let p = Pipeline {
+        nodes: vec![
+            PipelineNode {
+                id: "open".into(),
+                kind: NodeKind::OpenFile {
+                    paths: vec!["C:\\docs\\a.pdf".into()],
+                },
+            },
+            PipelineNode {
+                id: "save".into(),
+                kind: NodeKind::Save {
+                    dir: "/tmp".into(),
+                    name_template: "{stem}.pdf".into(),
+                },
+            },
+        ],
+        edges: vec![],
+    };
+
+    let err = p.validate().unwrap_err().to_string();
+    assert!(
+        err.contains("not connected"),
+        "expected an unconnected-source error, got: {err}"
+    );
+
+    // Wiring it up makes the same graph valid.
+    let wired = Pipeline {
+        edges: vec![PipelineEdge {
+            from: "open".into(),
+            to: "save".into(),
+        }],
+        ..p
+    };
+    assert!(wired.validate().is_ok());
+}
+
+#[test]
 fn open_file_preserves_everything() {
     let n = NodeKind::OpenFile {
         paths: vec!["C:\\docs\\a.pdf".into()],

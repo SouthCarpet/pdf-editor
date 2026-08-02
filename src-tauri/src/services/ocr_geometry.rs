@@ -52,6 +52,11 @@ impl OcrPageGeometry {
         }
     }
 
+    /// Rect-level round trip through the page matrix. Production places
+    /// content by emitting the matrix as a `cm` prologue (see
+    /// `wrap_display_content`) rather than by transforming coordinates, so
+    /// this exists only to assert the matrix itself in tests.
+    #[cfg(test)]
     pub fn display_rect_to_page(self, rect: [f32; 4]) -> [f32; 4] {
         let [x, y, width, height] = rect;
         let matrix = self.display_to_page_matrix();
@@ -89,6 +94,7 @@ impl OcrPageGeometry {
     }
 }
 
+#[cfg(test)]
 fn transform_point(matrix: [f32; 6], x: f32, y: f32) -> (f32, f32) {
     let [a, b, c, d, e, f] = matrix;
     (a * x + c * y + e, b * x + d * y + f)
@@ -232,6 +238,39 @@ mod tests {
             geometry.display_rect_to_page([10.0, 30.0, 20.0, 40.0]),
             [140.0, 30.0, 40.0, 20.0]
         );
+    }
+
+    /// The unrotated page with a shifted MediaBox origin is the case that
+    /// actually ships, and until now it was only covered through
+    /// `display_rect_to_page`, which production does not call. This asserts
+    /// the path that does run: the emitted `cm` prologue must translate by
+    /// the origin, so content authored in display space lands in the right
+    /// place on a page whose lower left corner is not at 0 0.
+    #[test]
+    fn unrotated_page_origin_is_applied_through_the_emitted_prologue() {
+        let mut doc = Document::with_version("1.7");
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![10.into(), 20.into(), 210.into(), 120.into()],
+        });
+
+        let geometry = page_geometry(&doc, page_id).unwrap();
+
+        assert_eq!(geometry.display_dimensions(), (200.0, 100.0));
+        assert_eq!(
+            geometry.display_to_page_matrix(),
+            [1.0, 0.0, 0.0, 1.0, 10.0, 20.0],
+            "an unrotated page must map through a pure translation by its origin"
+        );
+
+        let wrapped = geometry.wrap_display_content(b"BT ET\n".to_vec());
+        let text = String::from_utf8(wrapped).unwrap();
+        assert!(
+            text.starts_with("q\n1 0 0 1 10 20 cm\n"),
+            "prologue must carry the origin, got: {text}"
+        );
+        assert!(text.ends_with("Q\n"), "prologue must be balanced");
+        assert!(text.contains("BT ET"), "original content must survive");
     }
 
     #[test]

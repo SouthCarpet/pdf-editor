@@ -572,6 +572,27 @@ impl Pipeline {
                 anyhow::bail!("open_file node {} cannot have incoming edges", node.id);
             }
         }
+
+        // An OpenFile node REPLACES the working set. If it is not wired into
+        // the rest of the graph, whether the pipeline operates on the picked
+        // files or on the ambient inputs comes down to where it lands in the
+        // topological order, which the user never chose. Ordering is
+        // deterministic now, but a deterministic wrong answer is still wrong,
+        // so an unwired source fails loudly instead of quietly saving the
+        // untouched originals and reporting success.
+        if self.nodes.len() > 1 {
+            for node in &self.nodes {
+                if matches!(&node.kind, NodeKind::OpenFile { .. })
+                    && !self.edges.iter().any(|edge| edge.from == node.id)
+                {
+                    anyhow::bail!(
+                        "open_file node {} is not connected to any step; \
+                         connect its output before running",
+                        node.id
+                    );
+                }
+            }
+        }
         Ok(())
     }
 
@@ -584,10 +605,19 @@ impl Pipeline {
         for e in &self.edges {
             *in_deg.entry(e.to.as_str()).or_insert(0) += 1;
         }
-        let mut q: VecDeque<&str> = in_deg
+        // Seed from self.nodes, NOT from in_deg.iter(). in_deg is a std
+        // HashMap with RandomState, so iterating it yields a different order
+        // on every run. With two or more roots that made the execution order
+        // nondeterministic, and since an OpenFile node REPLACES the working
+        // set rather than extending it, the same graph could compress and
+        // save the right files on one run and copy the untouched originals on
+        // the next. Node order is the order the user built the graph in,
+        // which is stable and is what they would expect.
+        let mut q: VecDeque<&str> = self
+            .nodes
             .iter()
-            .filter(|(_, &d)| d == 0)
-            .map(|(k, _)| *k)
+            .map(|n| n.id.as_str())
+            .filter(|id| in_deg.get(id).copied() == Some(0))
             .collect();
         let mut order = Vec::new();
         let mut seen = HashSet::new();

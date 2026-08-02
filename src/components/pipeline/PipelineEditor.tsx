@@ -71,12 +71,23 @@ function InnerEditor() {
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       applyNodeChangesAction(changes);
-      const sel = changes.find(
+      // Switching steps arrives as ONE batch holding the deselect of the old
+      // node and the select of the new one, deselect first. Taking the first
+      // select-change picked the deselect, cleared the selection and blanked
+      // the config panel; clicking the same node again emitted nothing at all
+      // (xyflow skips a node it already considers selected), so the panel
+      // stayed blank while the node looked selected. Read the whole batch:
+      // a node being selected always wins over anything being deselected.
+      const selectChanges = changes.filter(
         (c) => c.type === "select",
-      ) as Extract<NodeChange, { type: "select" }> | undefined;
-      if (sel && sel.selected) setSelected(sel.id);
-      if (sel && !sel.selected) {
-        if (selectedNodeId === sel.id) setSelected(null);
+      ) as Extract<NodeChange, { type: "select" }>[];
+      const selected = selectChanges.find((c) => c.selected);
+      if (selected) {
+        setSelected(selected.id);
+      } else if (
+        selectChanges.some((c) => !c.selected && c.id === selectedNodeId)
+      ) {
+        setSelected(null);
       }
     },
     [applyNodeChangesAction, setSelected, selectedNodeId],

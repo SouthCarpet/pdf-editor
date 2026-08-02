@@ -59,7 +59,20 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set({ edges: applyEdgeChanges(changes, get().edges) }),
   connect: (connection) =>
     set({ edges: addEdge(connection, get().edges) }),
-  addNode: (node) => set({ nodes: [...get().nodes, node] }),
+  // The new node arrives already selected and every other node is cleared, so
+  // xyflow's own `selected` flags and `selectedNodeId` cannot disagree. When
+  // they disagreed, the canvas highlighted the previous node while the config
+  // panel edited the new one, and clicking the highlighted node did nothing:
+  // xyflow skips emitting a change for a node it already considers selected.
+  addNode: (node) =>
+    set({
+      nodes: [
+        ...get().nodes.map((n) =>
+          n.selected ? { ...n, selected: false } : n,
+        ),
+        { ...node, selected: true },
+      ],
+    }),
   patchNodeConfig: (id, patch) =>
     set({
       nodes: get().nodes.map((n) =>

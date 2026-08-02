@@ -157,6 +157,11 @@ pub fn mutate_page_words(
     })
 }
 
+/// Page-space union of word boxes. Production works in DISPLAY space and lets
+/// the `cm` prologue map back to the page (see `union_word_boxes_in_display`
+/// and `wrap_display_content`), so this page-space form is kept for tests that
+/// assert the mapping end to end.
+#[cfg(test)]
 pub(crate) fn union_word_boxes(
     words: &[WordBox],
     pixel_width: u32,

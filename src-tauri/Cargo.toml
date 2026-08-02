@@ -100,3 +100,19 @@ proptest = "1"
 name = "pdf_ops"
 harness = false
 
+# Local update builds were taking 5+ minutes. Cargo disables incremental
+# compilation for release by default, so `update-pdf-editor.bat` recompiled
+# and re-codegen'd the whole binary every time even when one file changed.
+# This app is built and run locally, never distributed, so trading a little
+# runtime optimisation for a much shorter edit-to-running-app loop is the
+# right way round. The heavy lifting is done by the sidecars and lopdf, both
+# of which are dependencies and stay fully optimised either way.
+#
+# Not addressed here, and the bigger cost: D: is exFAT, which has no hard
+# links, so cargo copies files where it would normally link them. target/debug
+# is 79.7 GB across 52224 files with 24 GB of that in the incremental cache.
+# Moving the target directory to NTFS is the real fix, and it is a user
+# decision because it interacts with an unresolved CARGO_TARGET_DIR question.
+[profile.release]
+incremental = true
+
