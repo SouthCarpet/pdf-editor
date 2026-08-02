@@ -119,12 +119,6 @@ jobs:
           if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
             New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
           }
-      # tests/fixtures/pdfs/*.pdf is gitignored and produced by this script, so
-      # a fresh checkout has none and open_file_tests fail with file_not_found.
-      # Only the jobs that actually run cargo test need them.
-      - name: Generate test fixtures
-        shell: pwsh
-        run: pwsh scripts/generate-fixtures.ps1
       - run: cargo test --manifest-path src-tauri/Cargo.toml
 
   rust-property:
