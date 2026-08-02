@@ -57,7 +57,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
         <div className="space-y-2 rounded border p-3">
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-muted)]">
-              JPEG quality (1-100): {value.customQuality}
+              {t("compress.jpeg_quality")} (1-100): {value.customQuality}
             </label>
             <input
               type="range"
@@ -66,12 +66,12 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               value={value.customQuality}
               onChange={(e) => set("customQuality", Number(e.target.value))}
               className="w-full"
-              aria-label="JPEG quality"
+              aria-label={t("compress.jpeg_quality")}
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-muted)]">
-              Color image DPI (36-300): {value.colorDpi}
+              {t("compress.color_dpi")} (36-300): {value.colorDpi}
             </label>
             <input
               type="range"
@@ -80,12 +80,12 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               value={value.colorDpi}
               onChange={(e) => set("colorDpi", Number(e.target.value))}
               className="w-full"
-              aria-label="Color image DPI"
+              aria-label={t("compress.color_dpi")}
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-muted)]">
-              Grayscale image DPI (36-300): {value.grayDpi}
+              {t("compress.grayscale_dpi")} (36-300): {value.grayDpi}
             </label>
             <input
               type="range"
@@ -94,12 +94,12 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               value={value.grayDpi}
               onChange={(e) => set("grayDpi", Number(e.target.value))}
               className="w-full"
-              aria-label="Grayscale image DPI"
+              aria-label={t("compress.grayscale_dpi")}
             />
           </div>
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-muted)]">
-              Monochrome DPI (72-600): {value.monoDpi}
+              {t("compress.mono_dpi")} (72-600): {value.monoDpi}
             </label>
             <input
               type="range"
@@ -108,7 +108,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
               value={value.monoDpi}
               onChange={(e) => set("monoDpi", Number(e.target.value))}
               className="w-full"
-              aria-label="Monochrome DPI"
+              aria-label={t("compress.mono_dpi")}
             />
           </div>
           <div className="space-y-1">
@@ -121,7 +121,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
                 set("colorMode", e.target.value as CompressColorMode)
               }
               className="h-8 w-full rounded border px-2 text-xs"
-              aria-label="Color mode"
+              aria-label={t("compress.color_mode")}
             >
               <option value="preserve">Preserve</option>
               <option value="grayscale">Convert to Grayscale</option>
@@ -138,7 +138,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
                 set("filter", e.target.value as CompressFilter)
               }
               className="h-8 w-full rounded border px-2 text-xs"
-              aria-label="Compression filter"
+              aria-label={t("compress.filter")}
             >
               <option value="auto">Auto</option>
               <option value="jpeg">JPEG</option>
@@ -156,7 +156,7 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
                 set("downsample", e.target.value as CompressDownsample)
               }
               className="h-8 w-full rounded border px-2 text-xs"
-              aria-label="Downsample method"
+              aria-label={t("compress.downsample")}
             >
               <option value="bicubic">Bicubic</option>
               <option value="average">Average</option>
