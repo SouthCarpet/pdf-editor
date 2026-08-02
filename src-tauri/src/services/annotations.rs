@@ -306,7 +306,6 @@ fn build_annot_dict(
             border_width,
             border_style,
             fill_color,
-            corner_radius: _,
             ..
         } => {
             let mut d = dictionary! { "Type" => "Annot", "Subtype" => "Square" };
@@ -398,7 +397,6 @@ fn build_annot_dict(
             background_fill,
             border_color,
             border_width,
-            auto_resize: _,
             ..
         } => {
             let mut d = dictionary! { "Type" => "Annot", "Subtype" => "FreeText" };
@@ -499,7 +497,6 @@ fn build_annot_dict(
             color,
             width,
             opacity,
-            smoothing: _,
             ..
         } => {
             let mut d = dictionary! { "Type" => "Annot", "Subtype" => "Ink" };

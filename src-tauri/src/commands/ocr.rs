@@ -131,22 +131,26 @@ pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult
     let out_path = PathBuf::from(&args.output);
     let opts = args.options.clone();
     let mupdf = state.mupdf.clone();
-    let (backend, fallback, backend_notice): (
-        Arc<dyn OcrBackend>,
-        Option<Arc<dyn OcrBackend>>,
-        Option<String>,
-    ) = match opts.engine {
-        OcrEngine::Tesseract => (state.tesseract.clone(), None, None),
+    let backends = match opts.engine {
+        OcrEngine::Tesseract => OcrBackends {
+            primary: state.tesseract.clone(),
+            fallback: None,
+            notice: None,
+        },
         OcrEngine::RapidOcr => {
             #[cfg(windows)]
             {
                 if let Some(rapidocr) = state.rapidocr.backend.clone() {
-                    (rapidocr, Some(state.tesseract.clone()), None)
+                    OcrBackends {
+                        primary: rapidocr,
+                        fallback: Some(state.tesseract.clone()),
+                        notice: None,
+                    }
                 } else {
-                    (
-                        state.tesseract.clone(),
-                        None,
-                        Some(format!(
+                    OcrBackends {
+                        primary: state.tesseract.clone(),
+                        fallback: None,
+                        notice: Some(format!(
                             "RapidOCR is unavailable: {}. Tesseract was used.",
                             state
                                 .rapidocr
@@ -154,16 +158,18 @@ pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult
                                 .as_deref()
                                 .unwrap_or("vendored runtime could not be loaded")
                         )),
-                    )
+                    }
                 }
             }
             #[cfg(not(windows))]
             {
-                (
-                    state.tesseract.clone(),
-                    None,
-                    Some("RapidOCR is unavailable on this platform. Tesseract was used.".into()),
-                )
+                OcrBackends {
+                    primary: state.tesseract.clone(),
+                    fallback: None,
+                    notice: Some(
+                        "RapidOCR is unavailable on this platform. Tesseract was used.".into(),
+                    ),
+                }
             }
         }
     };
@@ -174,9 +180,7 @@ pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult
         out_path.clone(),
         opts,
         mupdf,
-        backend,
-        fallback,
-        backend_notice,
+        backends,
         pool,
         token,
     )
@@ -186,17 +190,34 @@ pub async fn ocr_pdf_cmd(state: State<'_, AppState>, args: OcrArgs) -> AppResult
     Ok(processed)
 }
 
+/// The resolved engine choice for one OCR run.
+///
+/// These three values are produced together by the engine selection and
+/// consumed together. Passing them as a bare triple pushed both the tuple
+/// type and this function's parameter list past clippy's complexity limits,
+/// and the grouping is what the code meant anyway.
+struct OcrBackends {
+    primary: Arc<dyn OcrBackend>,
+    /// Only ever set for RapidOCR, which may fall back to Tesseract.
+    fallback: Option<Arc<dyn OcrBackend>>,
+    /// Set when the requested engine could not be used, so the result can say why.
+    notice: Option<String>,
+}
+
 async fn ocr_pdf(
     input: PathBuf,
     output: PathBuf,
     options: OcrOptions,
     mupdf: Arc<crate::sidecars::mupdf::MupdfWrapper>,
-    backend: Arc<dyn OcrBackend>,
-    fallback: Option<Arc<dyn OcrBackend>>,
-    mut backend_notice: Option<String>,
+    backends: OcrBackends,
     pool: SqlitePool,
     cancel: tokio_util::sync::CancellationToken,
 ) -> AppResult<OcrResult> {
+    let OcrBackends {
+        primary: backend,
+        fallback,
+        notice: mut backend_notice,
+    } = backends;
     // Load doc up-front to enumerate pages + bbox.
     let page_count = {
         let doc = Document::load(&input).map_err(|e| AppError::Internal {
@@ -545,6 +566,22 @@ fn pick_ocr_font() -> Option<crate::services::fonts::SystemFont> {
 /// This is the only allowed fallback (NON-NEGOTIABLE rule: no automatic
 /// fallback for the regular text edit path; the OCR layer fallback exists
 /// purely so the OCR feature does not hard-fail on a font-stripped host).
+/// One page's worth of what the text-layer writer needs, in emit order:
+/// page index, recognized words, pixel width and height, the page's object id,
+/// its resolved geometry, and the cache key when the page was cacheable.
+///
+/// Kept as a tuple rather than a struct because it is built and consumed in a
+/// single pipeline a few lines apart; the alias exists so the type is nameable.
+type PageSpec = (
+    u32,
+    Vec<WordBox>,
+    u32,
+    u32,
+    lopdf::ObjectId,
+    OcrPageGeometry,
+    Option<OcrCacheKey>,
+);
+
 pub fn inject_text_layers(
     input: &Path,
     output: &Path,
@@ -579,15 +616,7 @@ pub(crate) fn inject_word_layers(
     // Pre-compute page dimensions so we can register every word with the
     // subsetter before emitting any content stream. write_to_pdf needs the
     // full used_chars set to produce a minimal subset.
-    let page_specs: Vec<(
-        u32,
-        Vec<WordBox>,
-        u32,
-        u32,
-        lopdf::ObjectId,
-        OcrPageGeometry,
-        Option<OcrCacheKey>,
-    )> = pages
+    let page_specs: Vec<PageSpec> = pages
         .iter()
         .map(|page| -> anyhow::Result<_> {
             let &page_id = pages_map.get(&(page.page_index + 1)).ok_or_else(|| {
