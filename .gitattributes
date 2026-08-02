@@ -44,3 +44,13 @@
 *.otf       binary
 *.woff      binary
 *.woff2     binary
+
+# Hash-verified vendored OCR assets. services/rapidocr.rs recomputes their
+# SHA-256 at load time against a hardcoded registry, so git must not touch a
+# single byte. The dictionary is a plain .txt with 502 LFs and no extension
+# rule above covers it, so a Windows checkout with the default autocrlf
+# rewrote them to CRLF, changed the file length from 1634 bytes, and failed
+# the hash check on CI while passing locally where the file was never
+# converted. `-text` disables conversion in both directions.
+src-tauri/resources/ocr/*.txt    -text
+src-tauri/resources/ocr/*.onnx   -text
