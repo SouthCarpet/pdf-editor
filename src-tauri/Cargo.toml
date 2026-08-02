@@ -113,6 +113,35 @@ harness = false
 # is 79.7 GB across 52224 files with 24 GB of that in the incremental cache.
 # Moving the target directory to NTFS is the real fix, and it is a user
 # decision because it interacts with an unresolved CARGO_TARGET_DIR question.
+#
+# 2026-08-02: `incremental = true` was the wrong tool for that goal and it was
+# actively harmful here. It caused a hard rustc crash, not a compile error:
+#
+#   error: could not compile `pdf-editor` (lib)
+#   process didn't exit successfully: rustc.exe --crate-name pdf_editor_lib ...
+#   (exit code: 0xc0000005, STATUS_ACCESS_VIOLATION)
+#
+# rustc deserialises the incremental dep-graph (200 MB here) on every build, and
+# a corrupt cache makes it segfault rather than fail cleanly. On this machine
+# that is the expected outcome rather than bad luck: the volume is exFAT with a
+# dirty-bit history and the host has a standing memory-corruption suspicion.
+#
+# It also did not deliver the speed it was added for. An update build changes
+# this crate, so the expensive final codegen has to happen anyway, and the
+# incremental bookkeeping adds 200 MB of read/write on a filesystem that copies
+# where others hard-link. The user reported 710/713 onwards still being slow.
+#
+# What the comment above actually wants is a per-package opt-level split, which
+# is the standard way to get a fast edit-to-running-app loop without giving up
+# dependency optimisation:
+#   - our own crates compile at opt-level 1, which is where the slow last three
+#     units were coming from
+#   - every dependency stays at opt-level 3 and is built once, so lopdf, image
+#     and rayon keep the optimisation the rationale above depends on
 [profile.release]
-incremental = true
+incremental = false
+opt-level = 1
+
+[profile.release.package."*"]
+opt-level = 3
 
