@@ -23,6 +23,17 @@ import { CompareViewer } from "./CompareViewer";
 import { ComparePanel } from "./tools/ComparePanel";
 import { Workspace } from "./Workspace";
 
+// AppError serialises as `{ key, data }` (see src-tauri/src/error.rs), and the
+// commands throw that object directly. It is NOT an Error, so it has no
+// `.message`: `String(err?.message ?? err)` fell through to `String(object)` and
+// rendered the literal text "[object Object]" to the user. The key was there the
+// whole time, and every key already has a translation in errors.json.
+type AppErrorShape = { key: string; data?: Record<string, unknown> };
+
+function isAppError(e: unknown): e is AppErrorShape {
+  return typeof e === "object" && e !== null && typeof (e as AppErrorShape).key === "string";
+}
+
 export function WorkspaceRoute() {
   const { t } = useTranslation("common");
   const { docId } = useParams({ from: "/workspace/$docId" });
@@ -32,7 +43,9 @@ export function WorkspaceRoute() {
   const setActiveDoc = useDocuments((s) => s.setActive);
   const setTool = useWorkspace((s) => s.setTool);
   const [path, setPath] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<
+    { key: string | null; data: Record<string, unknown>; raw?: string } | null
+  >(null);
   const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -96,8 +109,19 @@ export function WorkspaceRoute() {
       } else {
         await loadAndRegister(docId);
       }
-    })().catch((err) => {
-      if (!cancelled) setError(String(err?.message ?? err));
+    })().catch((err: unknown) => {
+      // Log before rendering. The app log previously recorded nothing at all for
+      // a failed open - only "logging initialized" lines - so a user reporting
+      // "it will not open" left no trace anywhere to diagnose from.
+      console.error("[workspace] open failed", { docId, err });
+      if (cancelled) return;
+      if (isAppError(err)) {
+        setError({ key: err.key, data: err.data ?? {} });
+        return;
+      }
+      const msg =
+        err instanceof Error ? err.message : typeof err === "string" ? err : JSON.stringify(err);
+      setError({ key: null, data: {}, raw: msg });
     });
     return () => {
       cancelled = true;
@@ -173,7 +197,21 @@ export function WorkspaceRoute() {
   if (error) {
     return (
       <div className="space-y-3 p-6">
-        <p className="text-[var(--color-danger-text)]">{t("opening.failed_document", { error })}</p>
+        <p className="text-[var(--color-danger-text)]">
+          {t("opening.failed_document", {
+            // Every AppError key has an entry in errors.json, so translate it
+            // rather than stringifying the payload. The raw fallback only runs
+            // for a throw that is not an AppError at all.
+            error: error.key
+              ? t(`errors:${error.key}`, { ...error.data, defaultValue: error.key })
+              : (error.raw ?? ""),
+          })}
+        </p>
+        {/* The path is the single most useful diagnostic when an open fails and
+            it was previously discarded. Shown small rather than hidden, because
+            "it will not open" with no path is unactionable for the user and for
+            anyone they report it to. */}
+        <p className="break-all font-mono text-xs text-[var(--color-muted)]">{docId}</p>
         <Button onClick={() => navigate({ to: "/projects" })}>
           {t("projects.back_to_projects")}
         </Button>
