@@ -308,6 +308,20 @@ jobs:
           key: sidecars-${{ hashFiles('scripts/sidecar-manifest.json') }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps
+      # Same bundle.resources requirement as every other Rust-compiling job:
+      # tessdata is gitignored, and this job restores sidecars from cache but
+      # nothing populates resources/tessdata. This job had NEVER run before
+      # 2026-08-02 (its `needs: sidecar-contract` gate had never passed), so
+      # this was the fifth instance of the gitignored-artifact class, exposed
+      # only when the fourth was fixed. Guarded, not -Force: a future cache
+      # step could hold a real model, and New-Item -Force truncates.
+      - name: Create bundle-resource stubs
+        shell: pwsh
+        run: |
+          New-Item -Path src-tauri/resources/tessdata -ItemType Directory -Force | Out-Null
+          if (-not (Get-ChildItem -Path src-tauri/resources/tessdata -Filter *.traineddata)) {
+            New-Item -Path src-tauri/resources/tessdata/eng.traineddata -ItemType File | Out-Null
+          }
       # `--no-bundle` skips WiX/MSI; Playwright tests the .exe directly,
       # so we don't need the installer artifact. Avoids opaque candle.exe
       # failures (Tauri-cli swallows WiX stderr).
