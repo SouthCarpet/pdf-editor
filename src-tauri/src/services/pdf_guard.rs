@@ -344,10 +344,17 @@ mod tests {
     #[test]
     #[ignore = "spawned as a subprocess; aborts by design"]
     fn poc_aborts_the_process_unguarded() {
-        assert!(
-            std::env::var("PDF_GUARD_POC").is_ok(),
-            "refusing to run outside the subprocess harness"
-        );
+        // Skips silently rather than asserting when the harness env var is
+        // absent. `#[ignore]` is documentation, not a gate: the CI
+        // sidecar-contract job runs `cargo test -- --include-ignored`, which
+        // switches ignored tests back on, and an assert here failed that job
+        // with "refusing to run outside the subprocess harness". This is a
+        // fixture, not a check, so passing trivially outside its harness is
+        // correct. The real gate is `vulnerability_is_real_in_this_build`,
+        // which spawns this and fails if it does NOT abort.
+        if std::env::var("PDF_GUARD_POC").is_err() {
+            return;
+        }
         let pdf = nested_pdf(20_000);
         // Deliberately NOT guarded. On lopdf 0.34 this exhausts the stack and
         // the process dies here; there is no Err to return.
