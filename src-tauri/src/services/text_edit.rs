@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::{AppError, AppResult};
+use crate::services::lopdf_ext::ObjectExt;
 
 /// Discovered glyph run that the frontend lists as a candidate edit
 /// target. `bbox` is in PDF points; `operator_index` points back into

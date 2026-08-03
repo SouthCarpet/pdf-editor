@@ -214,6 +214,14 @@ fn remove_selected_spans(
     let bytes = stream
         .decompressed_content()
         .unwrap_or_else(|_| stream.content.clone());
+    // Content::decode is a SECOND unbounded-recursion parser, separate from
+    // the document-object one guarded at load. It aborts around 300 levels,
+    // far below the ~10,000 the load path needs, and these bytes come from a
+    // user file's content stream, which the document guard skips by design.
+    // Refuse the same way a decode error is refused: leave this stream alone.
+    if !crate::services::pdf_guard::content_is_safe_to_decode(&bytes) {
+        return Ok(false);
+    }
     let mut content = match Content::decode(&bytes) {
         Ok(content) => content,
         Err(_) => return Ok(false),

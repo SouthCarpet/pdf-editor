@@ -5,6 +5,7 @@ pub mod font_embed;
 pub mod fonts;
 pub mod forms;
 pub mod image_to_pdf;
+pub mod lopdf_ext;
 pub mod ocr_edit;
 pub mod ocr_engine;
 pub(crate) mod ocr_geometry;

@@ -1,5 +1,23 @@
-// RUSTSEC-2026-0187 mitigation: reject pathologically nested PDFs before lopdf
-// ever sees them.
+// Depth guard for PDF object nesting, kept as defence in depth.
+//
+// ============================================================================
+// STATUS 2026-08-03: RUSTSEC-2026-0187 IS FIXED BY THE lopdf 0.34 -> 0.44
+// UPGRADE, NOT BY THIS FILE.
+//
+// This module was written as a stopgap while the crate was pinned to 0.34.
+// Two independent verifications then showed a byte-level pre-scan cannot close
+// the advisory at all (see WHAT THIS DOES NOT DO, below), so the upgrade moved
+// from "later" to "now". `deep_nesting_no_longer_aborts` proves the fix by
+// behaviour rather than by reading a version number, and turns red if the pin
+// ever falls back below 0.42.
+//
+// The module stays because the next parser bug will not announce itself, the
+// scan costs one bounded pass, and it rejected zero of 260 real documents.
+// It is a seatbelt, not the airbag.
+// ============================================================================
+//
+// Original problem, retained because the tests and constants only make sense
+// against it:
 //
 // `lopdf::Document::load*` parses nested arrays and dictionaries with unbounded
 // recursion. A crafted file whose Catalog holds a ~10,000-deep nested array
@@ -372,8 +390,8 @@ mod tests {
 
         let off1 = out.len();
         out.extend_from_slice(b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R /X ");
-        out.extend(std::iter::repeat(b'[').take(levels));
-        out.extend(std::iter::repeat(b']').take(levels));
+        out.extend(std::iter::repeat_n(b'[', levels));
+        out.extend(std::iter::repeat_n(b']', levels));
         out.extend_from_slice(b" >>\nendobj\n");
 
         let off2 = out.len();
@@ -439,7 +457,7 @@ mod tests {
     fn brackets_inside_stream_bodies_do_not_count() {
         // Compressed content streams contain stray delimiters constantly.
         let mut v = b"%PDF-1.7\n1 0 obj\n<< /Length 400 >>\nstream\n".to_vec();
-        v.extend(std::iter::repeat(b'[').take(400));
+        v.extend(std::iter::repeat_n(b'[', 400));
         v.extend_from_slice(b"\nendstream\nendobj\n");
         assert_eq!(measure_nesting(&v).max_depth, 1);
     }
@@ -474,8 +492,8 @@ mod tests {
         // no `endstream`, jumped to EOF, and rated a 20,000-deep nest as
         // depth 1. Six attacker-chosen bytes hid the rest of the file.
         let mut v = b"%PDF-1.7\n<< /S /streamer /X ".to_vec();
-        v.extend(std::iter::repeat(b'[').take(400));
-        v.extend(std::iter::repeat(b']').take(400));
+        v.extend(std::iter::repeat_n(b'[', 400));
+        v.extend(std::iter::repeat_n(b']', 400));
         v.extend_from_slice(b" >>\n");
         let depth = measure_nesting(&v).max_depth;
         assert!(
@@ -489,7 +507,7 @@ mod tests {
         // The boundary check must not break the skip it guards: this is the
         // false-positive side, and it is the reason the skip exists at all.
         let mut v = b"%PDF-1.7\n1 0 obj\n<< /Length 400 >>\nstream\n".to_vec();
-        v.extend(std::iter::repeat(b'[').take(400));
+        v.extend(std::iter::repeat_n(b'[', 400));
         v.extend_from_slice(b"\nendstream\nendobj\n");
         assert_eq!(measure_nesting(&v).max_depth, 1);
     }
@@ -497,16 +515,17 @@ mod tests {
     #[test]
     fn unterminated_stream_stops_the_scan_instead_of_walking_binary() {
         let mut v = b"%PDF-1.7\nstream\n".to_vec();
-        v.extend(std::iter::repeat(b'[').take(5_000));
+        v.extend(std::iter::repeat_n(b'[', 5_000));
         assert_eq!(measure_nesting(&v).max_depth, 0);
     }
 
-    /// The other half of this test, and the only one that proves the guard is
-    /// worth having. Not run directly: it is spawned as a subprocess by
-    /// `vulnerability_is_real_in_this_build` below, because it does not fail,
-    /// it ABORTS, and an abort takes the whole test runner with it.
+    /// Feeds lopdf a 20,000-level nested PDF with no guard in front of it.
+    ///
+    /// Spawned as a subprocess by `deep_nesting_no_longer_aborts` below. On
+    /// lopdf <= 0.41 this ABORTED, taking the whole test runner with it, which
+    /// is why it cannot run in-process. On 0.42+ it returns normally.
     #[test]
-    #[ignore = "spawned as a subprocess; aborts by design"]
+    #[ignore = "spawned as a subprocess; aborted by design on lopdf <= 0.41"]
     fn poc_aborts_the_process_unguarded() {
         // Skips silently rather than asserting when the harness env var is
         // absent. `#[ignore]` is documentation, not a gate: the CI
@@ -527,11 +546,21 @@ mod tests {
     }
 
     #[test]
-    fn vulnerability_is_real_in_this_build() {
-        // The advisory says lopdf <=0.41 aborts on deep nesting. This crate
-        // pins 0.34, but "the advisory says so" is not evidence about THIS
-        // build, and a guard written against a bug that is not actually
-        // present would pass every test above while protecting nothing.
+    fn deep_nesting_no_longer_aborts() {
+        // THIS TEST WAS INVERTED ON 2026-08-03, and the inversion is the point.
+        //
+        // It was written as `vulnerability_is_real_in_this_build`, asserting
+        // that lopdf DOES abort, because a guard built against a bug that is
+        // not actually present would pass every other test here while
+        // protecting nothing. When the pin moved 0.34 -> 0.44 it failed
+        // exactly as its own message predicted ("either the pin moved to a
+        // fixed version or the PoC shape is wrong"), which is how the upgrade
+        // was confirmed to work rather than merely to compile.
+        //
+        // It now guards the opposite property: that the fix STAYS. A downgrade
+        // below 0.42, whether deliberate or through a resolver change, brings
+        // the abort back and turns this red. Version numbers in Cargo.toml are
+        // not evidence of behaviour; this is.
         let exe = std::env::current_exe().expect("test binary path");
         let out = std::process::Command::new(exe)
             .args([
@@ -546,17 +575,19 @@ mod tests {
 
         let stdout = String::from_utf8_lossy(&out.stdout);
         assert!(
-            !stdout.contains("SURVIVED"),
-            "lopdf survived 20,000 levels of nesting, so either the pin moved \
-             to a fixed version or the PoC shape is wrong. Re-check before \
-             trusting this guard.\nstdout: {stdout}"
+            stdout.contains("SURVIVED"),
+            "lopdf ABORTED on 20,000 levels of nesting. RUSTSEC-2026-0187 is \
+             back, which means the pin fell below 0.42. Check Cargo.lock \
+             before shipping.\nstdout: {stdout}\nstderr: {}",
+            String::from_utf8_lossy(&out.stderr)
         );
         assert!(
-            !out.status.success(),
-            "subprocess exited cleanly; expected an abort"
+            out.status.success(),
+            "subprocess died on a deeply nested PDF; expected a clean return"
         );
 
-        // And the guard catches the same input that just killed a process.
+        // The guard still refuses it. Kept as defence in depth against the
+        // next parser bug, not because this one is still open.
         assert!(guard_bytes(&nested_pdf(20_000), "poc").is_err());
     }
 

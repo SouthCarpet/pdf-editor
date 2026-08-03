@@ -4,6 +4,7 @@
 // often contain only page placement plus a /Parent reference, so scanning
 // widgets in isolation is not sufficient.
 
+use crate::services::lopdf_ext::ObjectExt;
 use anyhow::{bail, Context, Result};
 use lopdf::{decode_text_string, text_string, Dictionary, Document, Object, ObjectId};
 use serde::{Deserialize, Serialize};

@@ -631,7 +631,9 @@ fn random_subset_tag() -> String {
 
 #[cfg(test)]
 mod tests {
+    // Only the tests read a /Subtype name here.
     use super::*;
+    use crate::services::lopdf_ext::ObjectExt;
 
     #[test]
     fn build_w_coalesces_runs() {

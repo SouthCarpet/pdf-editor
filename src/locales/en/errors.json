@@ -1,6 +1,6 @@
 {
   "file_not_found": "File not found",
-  "pdf_corrupted": "PDF is corrupted or unsupported",
+  "pdf_corrupted": "PDF is corrupted or unsupported. {{detail}}",
   "password_required": "This PDF requires a password",
   "password_invalid": "Incorrect password",
   "sidecar_failed": "External tool failed",

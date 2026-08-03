@@ -39,7 +39,7 @@ tracing-appender = "0.2"
 directories = "5"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "macros", "migrate", "chrono"] }
 chrono = { version = "0.4", features = ["serde"] }
-lopdf = "0.34"
+lopdf = "0.44"
 # mupdf = "0.4"  # deferred — mupdf-sys 0.4.4 generates VS2019 (v142) solution which requires installing VS 2019 BuildTools alongside our VS 2026 (v143). Use mutool sidecar (Phase 4 MupdfWrapper) at runtime per engine_pdf_rust_core spec.
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "tiff", "bmp"] }
 imageproc = "0.25"

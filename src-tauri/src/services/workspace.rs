@@ -23,12 +23,13 @@ pub fn inspect_document(path: &Path) -> AppResult<OpenedDocument> {
             path: path.display().to_string(),
         });
     }
-    // RUSTSEC-2026-0187: this is where a file the user did not author first
-    // reaches lopdf, and lopdf 0.34 ABORTS on pathological nesting rather
-    // than returning an Err, so the map_err below cannot help. The check has
-    // to happen before the load, not around it. Verified against this exact
-    // build in services/pdf_guard.rs.
-    crate::services::pdf_guard::guard_path(path)?;
+    // RUSTSEC-2026-0187 is handled inside LopdfReader::open, which goes
+    // through pdf_guard::load_guarded. An explicit guard_path call stood here
+    // first, before the sweep covered every load site, and once the sweep
+    // landed it made this path read and scan the whole file TWICE for no
+    // added protection. Removed rather than kept "for safety": a redundant
+    // check that costs a second full read of every opened document is a cost,
+    // not a belt.
     let reader = LopdfReader::open(path).map_err(|e| AppError::PdfCorrupted {
         detail: e.to_string(),
     })?;
