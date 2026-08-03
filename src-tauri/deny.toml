@@ -10,18 +10,30 @@ yanked = "warn"
 # advisories are downgraded to warn — most come from gtk-rs Linux deps that
 # we never actually run (Windows-only target).
 unmaintained = "workspace"  # warn on unmaintained crates we actually depend on (not just transitively)
-# TIME-BOXED exceptions, both owned by ANIMUS plan 033_lopdf-advisory.
-# User decision 2026-08-02: guard now, upgrade later. The runtime guard
-# (services/pdf_guard.rs, nesting-depth pre-scan before every lopdf load)
-# reduces the exposure; only the 0.42+ upgrade removes it. These entries
-# expire with the advisory dates below — cargo-deny warns when an ignore
-# no longer matches, and plan 033's upgrade phase deletes them.
+# Exceptions owned by ANIMUS plan 033_lopdf-advisory.
+#
+# NOT TIME-BOXED, AND THAT IS A LIMITATION OF THE TOOL, NOT A CHOICE. An
+# earlier version of this block claimed to be time-boxed and referred to
+# "advisory dates below" that did not exist. cargo-deny 0.19.5 accepts only
+# `id` and `reason` in an ignore entry and rejects anything else with
+# `error[unexpected-keys]`, so no expiry can be expressed here. These
+# suppressions last until a human deletes them. Plan 033's upgrade phase
+# owns that deletion, and nothing else will remind anyone.
 ignore = [
     # Stack overflow via deeply nested objects; fixed in lopdf 0.42.0.
-    # We pin 0.34 (eight minors behind; upgrade is 033's implement phase,
-    # sized as its own task because 86 references across 22 files).
-    # Mitigation until then: pdf_guard depth pre-scan on the load path.
-    { id = "RUSTSEC-2026-0187", reason = "guarded by pdf_guard nesting pre-scan; upgrade to >=0.42 tracked as plan 033 follow-up" },
+    # We pin 0.34, eight minors behind.
+    #
+    # HONEST STATUS OF THE MITIGATION, per two independent verifications on
+    # 2026-08-03: services/pdf_guard.rs does NOT close this advisory. Four
+    # working bypasses were demonstrated, three of them using spec-legal PDF
+    # features, all measuring shallow to the scanner while still aborting
+    # lopdf. The root problem is structural: lopdf reaches objects through
+    # xref byte offsets while any cheap pre-scan walks linearly, and lopdf
+    # parses object-stream bodies that a scanner must skip to avoid false
+    # positives. The guard raises the bar against the published proof of
+    # concept and is worth keeping as defence in depth. It is not a fix.
+    # Only the 0.42+ upgrade is.
+    { id = "RUSTSEC-2026-0187", reason = "lopdf 0.34 pinned; pdf_guard raises the bar but is verified bypassable, so this is an accepted risk pending the >=0.42 upgrade in plan 033, not a mitigated one" },
     # ttf-parser declared unmaintained. Transitive (font stack), no
     # vulnerability, replacement decision belongs to the same plan.
     { id = "RUSTSEC-2026-0192", reason = "unmaintained, not vulnerable; replacement decision tracked in plan 033" },

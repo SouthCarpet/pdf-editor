@@ -21,6 +21,40 @@
 // the exposure is availability only, with no persistence and no exfiltration.
 // That lowers the urgency and does not make it a non-issue, because opening
 // files the user did not author is the app's entire purpose.
+//
+// ============================================================================
+// WHAT THIS DOES NOT DO. Read before trusting it.
+//
+// This guard DOES NOT CLOSE RUSTSEC-2026-0187. Two independent verifications
+// on 2026-08-03 demonstrated four working bypasses, three of them using
+// ordinary spec-legal PDF features, each measuring shallow here while still
+// aborting lopdf:
+//
+//   1. The nest lives inside a /Type /ObjStm object stream. lopdf decompresses
+//      and parses those bodies; this scanner skips stream bodies, and must, or
+//      it would false-positive on every compressed content stream. Measured
+//      depth 2 at 20,000 levels. A real attacker would FlateDecode it, so no
+//      scanner that avoids decompression can ever see it.
+//   2. A name containing "stream" sent the scan to EOF. FIXED (see
+//      `is_stream_keyword`), and listed here because it shows how little it
+//      costs an attacker to blind a lexer.
+//   3. lopdf reaches objects by xref BYTE OFFSET; this scanner walks linearly.
+//      A stray "(" in dead space makes the scanner read the real catalog as
+//      string content. The two parsers do not agree on where objects are, so a
+//      depth measured by one says nothing about the other.
+//   4. A nest placed past SCAN_PREFIX_BYTES is unseen, while lopdf reads by
+//      offset regardless of position. 8 of 260 real PDFs on this machine
+//      already exceed that prefix.
+//
+// Bypasses 1, 3 and 4 are not bugs to be patched. They follow from a byte-level
+// pre-scan and a full parser disagreeing about document structure, which is the
+// premise, not the implementation.
+//
+// KEEP IT ANYWAY, for what it verifiably is: it raises the bar against the
+// published proof of concept, it costs one bounded scan, and it rejected zero
+// of 260 real documents (max measured depth 7). It is defence in depth.
+// It is not the fix. The fix is lopdf >= 0.42, tracked as ANIMUS plan 033.
+// ============================================================================
 
 use crate::error::{AppError, AppResult};
 use lopdf::{Document, Error as LopdfError};
@@ -134,7 +168,12 @@ pub fn measure_nesting(bytes: &[u8]) -> NestingReport {
             // reading /Length means a lying or indirect /Length cannot walk us
             // into the binary, which matters because /Length is attacker
             // controlled in exactly the file we are defending against.
-            b's' if buf[i..].starts_with(b"stream") => {
+            //
+            // The token-boundary check is not cosmetic. Without it, the name
+            // `/S /streamer` matched here, the scan found no `endstream`, and
+            // jumped to EOF, so everything after six attacker-chosen bytes
+            // became invisible. Demonstrated 2026-08-03.
+            b's' if buf[i..].starts_with(b"stream") && is_stream_keyword(buf, i) => {
                 match find(&buf[i..], b"endstream") {
                     Some(off) => i += off + b"endstream".len(),
                     None => i = buf.len(), // unterminated stream: nothing further is trustworthy
@@ -151,6 +190,21 @@ pub fn measure_nesting(bytes: &[u8]) -> NestingReport {
         max_depth,
         truncated,
     }
+}
+
+/// True when `stream` at `i` is the standalone PDF keyword rather than a
+/// substring of a longer token such as the name `/streamer` or `/endstream`.
+///
+/// PDF delimiters per ISO 32000 7.2.2, plus whitespace. A keyword must be
+/// preceded by a delimiter or whitespace or start of file, and followed by
+/// the same or end of file.
+fn is_stream_keyword(buf: &[u8], i: usize) -> bool {
+    const DELIM: &[u8] = b"()<>[]{}/%";
+    let boundary = |b: u8| b.is_ascii_whitespace() || DELIM.contains(&b);
+    let before_ok = i == 0 || boundary(buf[i - 1]);
+    let after = i + b"stream".len();
+    let after_ok = after >= buf.len() || boundary(buf[after]);
+    before_ok && after_ok
 }
 
 fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -187,6 +241,85 @@ pub fn guard_path(path: &Path) -> AppResult<()> {
     guard_bytes(&bytes, &path.display().to_string())
 }
 
+/// Maximum nesting depth accepted inside a CONTENT STREAM.
+///
+/// A separate, much lower limit than `MAX_NESTING_DEPTH`, for two reasons.
+///
+/// First, the threshold is far lower. `lopdf::content::Content::decode` is a
+/// second unbounded-recursion parser (`nom_parser.rs` `operand` alternates
+/// into `array` and `dictionary`, both recursing through `_direct_object`
+/// with no depth counter), and it aborts with STATUS_STACK_OVERFLOW at
+/// roughly **300 levels**, not the ~10,000 the document-object parser needs.
+/// Measured on lopdf 0.34: 275 survives, 300 aborts.
+///
+/// Second, legitimate content streams are shallow. Nesting there comes from
+/// `TJ` arrays and `BDC` property dictionaries, which are one or two deep.
+/// 64 is generous for real files and roughly five times below the abort.
+///
+/// This door was missed by the first pass of this guard, and it is invisible
+/// to `measure_nesting` BY DESIGN: that function skips stream bodies, because
+/// a compressed content stream contains stray delimiters constantly. So the
+/// document guard cannot cover this and a separate check is required.
+pub const MAX_CONTENT_NESTING_DEPTH: usize = 64;
+
+/// Guard decompressed content-stream bytes before `Content::decode`.
+///
+/// Returns `false` when the stream is too deeply nested to parse safely, so
+/// callers can skip it the same way they already skip a decode error. A
+/// refusal here is not a document-level failure: one unparseable content
+/// stream means one page's operations are left alone.
+pub fn content_is_safe_to_decode(bytes: &[u8]) -> bool {
+    measure_content_nesting(bytes) <= MAX_CONTENT_NESTING_DEPTH
+}
+
+/// Depth of `[` and `<<` in a content stream.
+///
+/// Simpler than `measure_nesting`: content streams have no `stream` bodies to
+/// skip and no comments in practice, but they DO contain literal strings
+/// (every `Tj` and `TJ` operand), and those routinely hold brackets.
+fn measure_content_nesting(bytes: &[u8]) -> usize {
+    let mut depth: usize = 0;
+    let mut max_depth: usize = 0;
+    let mut i: usize = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => {
+                let mut nest = 1usize;
+                i += 1;
+                while i < bytes.len() && nest > 0 {
+                    match bytes[i] {
+                        b'\\' => i += 1,
+                        b'(' => nest += 1,
+                        b')' => nest -= 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                continue;
+            }
+            b'<' if bytes.get(i + 1) == Some(&b'<') => {
+                depth += 1;
+                max_depth = max_depth.max(depth);
+                i += 2;
+                continue;
+            }
+            b'>' if bytes.get(i + 1) == Some(&b'>') => {
+                depth = depth.saturating_sub(1);
+                i += 2;
+                continue;
+            }
+            b'[' => {
+                depth += 1;
+                max_depth = max_depth.max(depth);
+            }
+            b']' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        i += 1;
+    }
+    max_depth
+}
+
 /// Drop-in replacement for `lopdf::Document::load`.
 ///
 /// Deliberately returns `Result<Document, lopdf::Error>` rather than
@@ -201,15 +334,19 @@ pub fn load_guarded<P: AsRef<Path>>(path: P) -> Result<Document, LopdfError> {
     let bytes = std::fs::read(path).map_err(LopdfError::IO)?;
     let report = measure_nesting(&bytes);
     if report.max_depth > MAX_NESTING_DEPTH {
-        // Syntax carries a message through to the call sites' `.to_string()`
-        // and `map_err`, so the reason survives to the user-facing error.
+        // The path is deliberately NOT in this message. It used to be, and
+        // `commands/unlock.rs` decides control flow by substring-matching the
+        // load error for "password" or "encrypt": a refused file living in
+        // `Downloads\encrypted\` was therefore reported to the UI as
+        // "password required", prompting the user for a password on a file
+        // that had been refused for nesting. lopdf's own errors never carried
+        // a path, so this was injected by the guard. Callers already know
+        // which file they asked for.
         return Err(LopdfError::Syntax(format!(
-            "{}: object nesting depth {} exceeds the {} limit. A file this \
-             deeply nested crashes the parser outright (RUSTSEC-2026-0187) \
-             rather than failing cleanly, so it is refused before parsing.",
-            path.display(),
-            report.max_depth,
-            MAX_NESTING_DEPTH
+            "object nesting depth {} exceeds the {} limit; refused before \
+             parsing because a file this deeply nested aborts the parser \
+             outright (RUSTSEC-2026-0187) rather than failing cleanly",
+            report.max_depth, MAX_NESTING_DEPTH
         )));
     }
     Document::load_mem(&bytes)
@@ -328,6 +465,33 @@ mod tests {
     fn comments_are_skipped() {
         let v = b"%PDF-1.7\n% [[[[[[[[[[ this is a comment\n<< /X [1] >>\n";
         assert_eq!(measure_nesting(v).max_depth, 2);
+    }
+
+    #[test]
+    fn a_name_containing_stream_does_not_blind_the_scanner() {
+        // Bypass demonstrated by an independent verifier on 2026-08-03: the
+        // name `/S /streamer` matched the bare substring check, the scan found
+        // no `endstream`, jumped to EOF, and rated a 20,000-deep nest as
+        // depth 1. Six attacker-chosen bytes hid the rest of the file.
+        let mut v = b"%PDF-1.7\n<< /S /streamer /X ".to_vec();
+        v.extend(std::iter::repeat(b'[').take(400));
+        v.extend(std::iter::repeat(b']').take(400));
+        v.extend_from_slice(b" >>\n");
+        let depth = measure_nesting(&v).max_depth;
+        assert!(
+            depth > MAX_NESTING_DEPTH,
+            "a name containing 'stream' must not hide the nest; measured {depth}"
+        );
+    }
+
+    #[test]
+    fn a_real_stream_keyword_is_still_skipped() {
+        // The boundary check must not break the skip it guards: this is the
+        // false-positive side, and it is the reason the skip exists at all.
+        let mut v = b"%PDF-1.7\n1 0 obj\n<< /Length 400 >>\nstream\n".to_vec();
+        v.extend(std::iter::repeat(b'[').take(400));
+        v.extend_from_slice(b"\nendstream\nendobj\n");
+        assert_eq!(measure_nesting(&v).max_depth, 1);
     }
 
     #[test]
