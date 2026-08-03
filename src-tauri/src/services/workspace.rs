@@ -23,6 +23,12 @@ pub fn inspect_document(path: &Path) -> AppResult<OpenedDocument> {
             path: path.display().to_string(),
         });
     }
+    // RUSTSEC-2026-0187: this is where a file the user did not author first
+    // reaches lopdf, and lopdf 0.34 ABORTS on pathological nesting rather
+    // than returning an Err, so the map_err below cannot help. The check has
+    // to happen before the load, not around it. Verified against this exact
+    // build in services/pdf_guard.rs.
+    crate::services::pdf_guard::guard_path(path)?;
     let reader = LopdfReader::open(path).map_err(|e| AppError::PdfCorrupted {
         detail: e.to_string(),
     })?;

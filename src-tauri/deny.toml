@@ -10,7 +10,22 @@ yanked = "warn"
 # advisories are downgraded to warn — most come from gtk-rs Linux deps that
 # we never actually run (Windows-only target).
 unmaintained = "workspace"  # warn on unmaintained crates we actually depend on (not just transitively)
-ignore = []
+# TIME-BOXED exceptions, both owned by ANIMUS plan 033_lopdf-advisory.
+# User decision 2026-08-02: guard now, upgrade later. The runtime guard
+# (services/pdf_guard.rs, nesting-depth pre-scan before every lopdf load)
+# reduces the exposure; only the 0.42+ upgrade removes it. These entries
+# expire with the advisory dates below — cargo-deny warns when an ignore
+# no longer matches, and plan 033's upgrade phase deletes them.
+ignore = [
+    # Stack overflow via deeply nested objects; fixed in lopdf 0.42.0.
+    # We pin 0.34 (eight minors behind; upgrade is 033's implement phase,
+    # sized as its own task because 86 references across 22 files).
+    # Mitigation until then: pdf_guard depth pre-scan on the load path.
+    { id = "RUSTSEC-2026-0187", reason = "guarded by pdf_guard nesting pre-scan; upgrade to >=0.42 tracked as plan 033 follow-up" },
+    # ttf-parser declared unmaintained. Transitive (font stack), no
+    # vulnerability, replacement decision belongs to the same plan.
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained, not vulnerable; replacement decision tracked in plan 033" },
+]
 
 [licenses]
 # cargo-deny 0.16+ removed the `unlicensed`, `deny`, `copyleft`, `default`
