@@ -8,7 +8,7 @@
 use crate::app_state::AppState;
 use crate::error::{AppError, AppResult};
 use crate::services::crop::auto_detect_bbox_from_image;
-use lopdf::{Document, Object};
+use lopdf::Object;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::State;
@@ -102,8 +102,10 @@ pub async fn crop_pdf_cmd(state: State<'_, AppState>, args: CropArgs) -> AppResu
     let output_for_thread = output.clone();
     let page_index = args.page_index;
     tokio::task::spawn_blocking(move || -> AppResult<()> {
-        let mut doc = Document::load(&input_for_thread).map_err(|e| AppError::PdfCorrupted {
-            detail: e.to_string(),
+        let mut doc = crate::services::pdf_guard::load_guarded(&input_for_thread).map_err(|e| {
+            AppError::PdfCorrupted {
+                detail: e.to_string(),
+            }
         })?;
         let pages = doc.get_pages();
         let target_pages: Vec<u32> = if pages_to_crop {

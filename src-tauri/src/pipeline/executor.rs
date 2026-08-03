@@ -392,8 +392,10 @@ async fn run_node(
                     let removeform = *remove_form_data;
                     tokio::task::spawn_blocking(move || -> AppResult<()> {
                         let mut doc =
-                            lopdf::Document::load(&cur).map_err(|e| AppError::PdfCorrupted {
-                                detail: e.to_string(),
+                            crate::services::pdf_guard::load_guarded(&cur).map_err(|e| {
+                                AppError::PdfCorrupted {
+                                    detail: e.to_string(),
+                                }
                             })?;
                         if strip {
                             doc.trailer.remove(b"Info");
@@ -810,8 +812,10 @@ async fn run_node(
                 let page_idx = *page_index;
                 tokio::task::spawn_blocking(move || -> AppResult<()> {
                     let mut doc =
-                        lopdf::Document::load(&src_owned).map_err(|e| AppError::PdfCorrupted {
-                            detail: e.to_string(),
+                        crate::services::pdf_guard::load_guarded(&src_owned).map_err(|e| {
+                            AppError::PdfCorrupted {
+                                detail: e.to_string(),
+                            }
                         })?;
                     let pages = doc.get_pages();
                     let target_pages: Vec<u32> = if target_all {
@@ -863,7 +867,6 @@ async fn run_node(
                 inject_word_layers, recognize_pdf_pages, recognized_pages_to_text,
             };
             use crate::services::ocr_engine::OcrBackend;
-            use lopdf::Document;
             use std::sync::Arc;
 
             let opts = OcrOptions {
@@ -894,8 +897,10 @@ async fn run_node(
                 let pdf_in = src.clone();
                 let pdf_out = dst.clone();
                 let doc_pages = {
-                    let doc = Document::load(&pdf_in).map_err(|e| AppError::Internal {
-                        detail: format!("load: {e}"),
+                    let doc = crate::services::pdf_guard::load_guarded(&pdf_in).map_err(|e| {
+                        AppError::Internal {
+                            detail: format!("load: {e}"),
+                        }
                     })?;
                     doc.get_pages().len() as u32
                 };

@@ -220,9 +220,10 @@ async fn ocr_pdf(
     } = backends;
     // Load doc up-front to enumerate pages + bbox.
     let page_count = {
-        let doc = Document::load(&input).map_err(|e| AppError::Internal {
-            detail: format!("load: {e}"),
-        })?;
+        let doc =
+            crate::services::pdf_guard::load_guarded(&input).map_err(|e| AppError::Internal {
+                detail: format!("load: {e}"),
+            })?;
         doc.get_pages().len() as u32
     };
 
@@ -610,7 +611,7 @@ pub(crate) fn inject_word_layers(
     _opts: &OcrOptions,
     pages: &[RecognizedOcrPage],
 ) -> anyhow::Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages_map = doc.get_pages();
 
     // Pre-compute page dimensions so we can register every word with the

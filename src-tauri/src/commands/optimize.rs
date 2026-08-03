@@ -163,8 +163,10 @@ pub async fn optimize_pdf_cmd(
         let strip = args.strip_metadata;
         let removeform = args.remove_form_data;
         tokio::task::spawn_blocking(move || -> AppResult<()> {
-            let mut doc = lopdf::Document::load(&cur).map_err(|e| AppError::PdfCorrupted {
-                detail: e.to_string(),
+            let mut doc = crate::services::pdf_guard::load_guarded(&cur).map_err(|e| {
+                AppError::PdfCorrupted {
+                    detail: e.to_string(),
+                }
             })?;
             if strip {
                 doc.trailer.remove(b"Info");

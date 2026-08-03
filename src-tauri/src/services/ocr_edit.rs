@@ -35,7 +35,7 @@ pub struct OcrMutation {
 }
 
 pub fn list_page_words(path: &Path, page_index: u32) -> Result<OcrPageWords> {
-    let doc = Document::load(path)?;
+    let doc = crate::services::pdf_guard::load_guarded(path)?;
     let page_id = page_id(&doc, page_index)?;
     let Some((_, stream)) = latest_ocr_stream(&doc, page_id)? else {
         return Ok(OcrPageWords {
@@ -78,7 +78,7 @@ pub fn mutate_page_words(
         return Err(anyhow!("at least one OCR word must be selected"));
     }
     let selected: HashSet<u32> = selected_word_ids.iter().copied().collect();
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let page_id = page_id(&doc, page_index)?;
     let (stream_id, words, pixel_width, pixel_height, cache_key) = {
         let (stream_id, stream) = latest_ocr_stream(&doc, page_id)?

@@ -24,7 +24,8 @@ pub struct LopdfReader {
 
 impl LopdfReader {
     pub fn open(path: &Path) -> Result<Self> {
-        let doc = Document::load(path).with_context(|| format!("load {}", path.display()))?;
+        let doc = crate::services::pdf_guard::load_guarded(path)
+            .with_context(|| format!("load {}", path.display()))?;
         Ok(Self { doc })
     }
 

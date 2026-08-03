@@ -128,7 +128,7 @@ pub enum LineEnd {
 }
 
 pub fn apply_annotations(input: &Path, output: &Path, annotations: &[Annotation]) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages = doc.get_pages();
     for ann in annotations {
         let page_num = annotation_page(ann);

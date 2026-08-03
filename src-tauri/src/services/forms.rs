@@ -66,7 +66,7 @@ struct FieldRecord {
 
 pub fn read_form_fields(path: &Path) -> Result<Vec<FormField>> {
     validate_pdf_input(path)?;
-    let doc = Document::load(path).context("load PDF form")?;
+    let doc = crate::services::pdf_guard::load_guarded(path).context("load PDF form")?;
     Ok(collect_form_fields(&doc)?
         .into_iter()
         .map(|record| record.field)
@@ -77,7 +77,7 @@ pub fn set_form_values(input: &Path, output: &Path, updates: &[FormValueUpdate])
     validate_pdf_input(input)?;
     validate_pdf_output(input, output)?;
 
-    let mut doc = Document::load(input).context("load PDF form")?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input).context("load PDF form")?;
     let records = collect_form_fields(&doc)?;
     let by_id: HashMap<&str, &FieldRecord> = records
         .iter()
@@ -839,7 +839,7 @@ mod tests {
         )
         .expect("save edited form");
 
-        let edited = Document::load(&output).expect("load edited form");
+        let edited = crate::services::pdf_guard::load_guarded(&output).expect("load edited form");
         let text_field = edited
             .get_object(fixture.text_field_id)
             .expect("text field")

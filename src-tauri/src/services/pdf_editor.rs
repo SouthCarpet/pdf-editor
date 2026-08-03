@@ -10,7 +10,10 @@ pub fn merge_pdfs(inputs: &[PathBuf], output: &Path) -> Result<()> {
     }
     let mut docs: Vec<Document> = inputs
         .iter()
-        .map(|p| Document::load(p).with_context(|| format!("load {}", p.display())))
+        .map(|p| {
+            crate::services::pdf_guard::load_guarded(p)
+                .with_context(|| format!("load {}", p.display()))
+        })
         .collect::<Result<_>>()?;
 
     let mut merged = Document::with_version("1.7");
@@ -91,7 +94,7 @@ pub fn split_pdf(
     let mut outputs = Vec::new();
     for (i, range) in ranges.iter().enumerate() {
         let pages: Vec<u32> = range.clone().collect();
-        let mut doc = Document::load(input)?;
+        let mut doc = crate::services::pdf_guard::load_guarded(input)?;
         let total: u32 = doc.get_pages().len() as u32;
         let to_delete: Vec<u32> = (1..=total).filter(|p| !pages.contains(p)).collect();
         doc.delete_pages(&to_delete);
@@ -105,7 +108,7 @@ pub fn split_pdf(
 }
 
 pub fn extract_pages(input: &Path, pages: &[u32], output: &Path) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let total: u32 = doc.get_pages().len() as u32;
     let to_delete: Vec<u32> = (1..=total).filter(|p| !pages.contains(p)).collect();
     doc.delete_pages(&to_delete);
@@ -116,7 +119,7 @@ pub fn extract_pages(input: &Path, pages: &[u32], output: &Path) -> Result<()> {
 }
 
 pub fn delete_pages(input: &Path, pages: &[u32], output: &Path) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     doc.delete_pages(pages);
     doc.renumber_objects();
     doc.compress();
@@ -125,7 +128,7 @@ pub fn delete_pages(input: &Path, pages: &[u32], output: &Path) -> Result<()> {
 }
 
 pub fn rotate_pages(input: &Path, page_rotations: &[(u32, i64)], output: &Path) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     for (page, rotation) in page_rotations {
         let pages = doc.get_pages();
         if let Some(page_id) = pages.get(page).copied() {
@@ -151,7 +154,7 @@ pub fn insert_blank_page(
     width: f32,
     height: f32,
 ) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages_id: ObjectId = doc
         .catalog()
         .ok()
@@ -207,7 +210,7 @@ pub fn insert_blank_page(
 }
 
 pub fn reorder_pages(input: &Path, new_order: &[u32], output: &Path) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages = doc.get_pages();
     let mut new_kids: Vec<Object> = Vec::with_capacity(new_order.len());
     for &page_num in new_order {

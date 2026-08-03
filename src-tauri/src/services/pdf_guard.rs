@@ -23,6 +23,7 @@
 // files the user did not author is the app's entire purpose.
 
 use crate::error::{AppError, AppResult};
+use lopdf::{Document, Error as LopdfError};
 use std::path::Path;
 
 /// Maximum nesting depth of arrays and dictionaries we will hand to lopdf.
@@ -184,6 +185,34 @@ pub fn guard_path(path: &Path) -> AppResult<()> {
         detail: format!("{}: {e}", path.display()),
     })?;
     guard_bytes(&bytes, &path.display().to_string())
+}
+
+/// Drop-in replacement for `lopdf::Document::load`.
+///
+/// Deliberately returns `Result<Document, lopdf::Error>` rather than
+/// `AppResult`, so every existing call site keeps its own error handling
+/// unchanged and the substitution is mechanical. A guard that required
+/// rewriting 26 call sites by hand would have been applied to three of them.
+///
+/// Reads once and hands the same bytes to `load_mem`, so guarding costs one
+/// bounded scan rather than a second read.
+pub fn load_guarded<P: AsRef<Path>>(path: P) -> Result<Document, LopdfError> {
+    let path = path.as_ref();
+    let bytes = std::fs::read(path).map_err(LopdfError::IO)?;
+    let report = measure_nesting(&bytes);
+    if report.max_depth > MAX_NESTING_DEPTH {
+        // Syntax carries a message through to the call sites' `.to_string()`
+        // and `map_err`, so the reason survives to the user-facing error.
+        return Err(LopdfError::Syntax(format!(
+            "{}: object nesting depth {} exceeds the {} limit. A file this \
+             deeply nested crashes the parser outright (RUSTSEC-2026-0187) \
+             rather than failing cleanly, so it is refused before parsing.",
+            path.display(),
+            report.max_depth,
+            MAX_NESTING_DEPTH
+        )));
+    }
+    Document::load_mem(&bytes)
 }
 
 #[cfg(test)]
@@ -358,6 +387,99 @@ mod tests {
 
         // And the guard catches the same input that just killed a process.
         assert!(guard_bytes(&nested_pdf(20_000), "poc").is_err());
+    }
+
+    #[test]
+    fn no_source_file_calls_document_load_directly() {
+        // The guard is only worth having if nothing routes around it. 25 call
+        // sites were swept mechanically; this fails if a 26th appears, which
+        // is the realistic regression: someone adds a feature, writes
+        // `Document::load`, and every test still passes.
+        //
+        // `load_guarded` returns Result<Document, lopdf::Error> precisely so
+        // the substitution is free, which removes the usual excuse for the
+        // direct call.
+        let src_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut offenders: Vec<String> = Vec::new();
+        let mut scanned = 0usize;
+
+        fn walk(dir: &std::path::Path, scanned: &mut usize, offenders: &mut Vec<String>) {
+            let entries = match std::fs::read_dir(dir) {
+                Ok(e) => e,
+                Err(_) => return,
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, scanned, offenders);
+                    continue;
+                }
+                if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                    continue;
+                }
+                // This module legitimately calls it: it IS the wrapper.
+                if path.file_name().and_then(|n| n.to_str()) == Some("pdf_guard.rs") {
+                    continue;
+                }
+                let text = match std::fs::read_to_string(&path) {
+                    Ok(t) => t,
+                    Err(_) => continue,
+                };
+                *scanned += 1;
+                for (i, line) in text.lines().enumerate() {
+                    // `load_mem` is fine: callers of it already hold the bytes
+                    // and guard them separately. Only the path-taking `load(`
+                    // is the unguarded door.
+                    if line.contains("Document::load(") {
+                        offenders.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
+                    }
+                }
+            }
+        }
+
+        walk(&src_root, &mut scanned, &mut offenders);
+
+        // Guards the guard: a broken walk would otherwise pass by scanning
+        // nothing, which is the failure mode this whole module is about.
+        assert!(
+            scanned > 50,
+            "expected to scan >50 source files, scanned {scanned}"
+        );
+        assert!(
+            offenders.is_empty(),
+            "unguarded lopdf load call(s). Use \
+             crate::services::pdf_guard::load_guarded instead:\n{}",
+            offenders.join("\n")
+        );
+    }
+
+    #[test]
+    fn load_guarded_refuses_the_poc_and_accepts_a_real_file() {
+        use std::io::Write;
+
+        // End-to-end through the wrapper the 25 call sites now use, rather
+        // than only through measure_nesting.
+        let dir = std::env::temp_dir().join("pdf_guard_load_guarded_test");
+        std::fs::create_dir_all(&dir).expect("temp dir");
+
+        let hostile = dir.join("hostile.pdf");
+        std::fs::File::create(&hostile)
+            .expect("create")
+            .write_all(&nested_pdf(20_000))
+            .expect("write");
+        let err = load_guarded(&hostile).expect_err("must refuse");
+        assert!(
+            err.to_string().contains("RUSTSEC-2026-0187"),
+            "reason must survive to the call site: {err}"
+        );
+
+        let benign = dir.join("benign.pdf");
+        std::fs::File::create(&benign)
+            .expect("create")
+            .write_all(&nested_pdf(3))
+            .expect("write");
+        let doc = load_guarded(&benign).expect("must accept a valid file");
+        assert!(doc.get_object((1, 0)).is_ok());
     }
 
     #[test]

@@ -41,7 +41,7 @@ pub enum UnlockResult {
 pub async fn detect_pdf_encryption(_state: State<'_, AppState>, input: String) -> AppResult<bool> {
     let p = PathBuf::from(input);
     tokio::task::spawn_blocking(move || -> AppResult<bool> {
-        match lopdf::Document::load(&p) {
+        match crate::services::pdf_guard::load_guarded(&p) {
             Ok(doc) => Ok(doc.is_encrypted()),
             Err(e) => {
                 // lopdf can fail to load encrypted PDFs without the password.

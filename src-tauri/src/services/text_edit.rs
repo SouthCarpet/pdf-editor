@@ -60,7 +60,7 @@ pub struct TextRun {
 /// scrolling / hit-testing the frontend uses pdf.js text layer; this
 /// service is purely the rewrite path.
 pub fn extract_runs(input: &Path) -> Result<Vec<TextRun>> {
-    let doc = Document::load(input)?;
+    let doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages = doc.get_pages();
     let mut out = Vec::new();
     for (page_num, page_id) in pages {
@@ -146,9 +146,10 @@ pub fn replace_run(
     operator_index: u32,
     new_text: &str,
 ) -> AppResult<()> {
-    let mut doc = Document::load(input).map_err(|e| AppError::Internal {
-        detail: e.to_string(),
-    })?;
+    let mut doc =
+        crate::services::pdf_guard::load_guarded(input).map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?;
     let pages = doc.get_pages();
     let page_id = *pages
         .get(&(page_index + 1))
@@ -631,7 +632,7 @@ pub fn replace_run_via_redaction(
     new_text: &str,
     font_size: f32,
 ) -> Result<()> {
-    let mut doc = Document::load(input)?;
+    let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages = doc.get_pages();
     let page_id = pages
         .get(&(page_index + 1))
