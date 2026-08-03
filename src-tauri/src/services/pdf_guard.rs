@@ -26,9 +26,12 @@
 // caught with `catch_unwind`: no amount of error handling at the call site
 // helps, which is why this has to happen before the load, not around it.
 //
-// Vulnerable through lopdf 0.41.0, fixed in 0.42.0. This crate pins 0.34
-// (`Cargo.toml`), and lopdf 0.34's own `Error::BracketLimit` carries the
-// comment "This does not seem to be used", so there is no upstream limit to
+// Vulnerable through lopdf 0.41.0, fixed in 0.42.0. This crate pinned 0.34
+// when the guard was written (the sentence below is kept in the past tense
+// because it explains why the guard exists, not what is true today; the pin
+// is now 0.44 and `deep_nesting_no_longer_aborts` fails if it ever drops
+// below 0.42). lopdf 0.34's own `Error::BracketLimit` carried the comment
+// "This does not seem to be used", so there was no upstream limit to
 // turn on. Upgrading is eight minor versions across 86 references in 22 files
 // and is tracked separately as ANIMUS plan 033; this guard is what stands in
 // the meantime, per the user decision on 2026-08-02 to guard now and upgrade
@@ -53,9 +56,17 @@
 //      it would false-positive on every compressed content stream. Measured
 //      depth 2 at 20,000 levels. A real attacker would FlateDecode it, so no
 //      scanner that avoids decompression can ever see it.
-//   2. A name containing "stream" sent the scan to EOF. FIXED (see
-//      `is_stream_keyword`), and listed here because it shows how little it
-//      costs an attacker to blind a lexer.
+//   2. A name containing "stream" sent the scan to EOF. FIXED TWICE, and the
+//      second time is the interesting one. The first fix added boundary
+//      checks and this header then claimed the bypass was closed. It was not:
+//      `/streamer` was caught because a trailing `e` is not a boundary, while
+//      the exact name `/stream` still walked through, since `/` was accepted
+//      as a valid PRECEDING boundary when `/` is precisely what marks a token
+//      as a name rather than a keyword. A 400-deep nest measured as depth 1,
+//      for one byte less than the case that was fixed. An independent
+//      verifier found it by probing the two shapes side by side. Listed here
+//      because it shows how little it costs an attacker to blind a lexer, and
+//      because "FIXED" in a header is a claim, not a test.
 //   3. lopdf reaches objects by xref BYTE OFFSET; this scanner walks linearly.
 //      A stray "(" in dead space makes the scanner read the real catalog as
 //      string content. The two parsers do not agree on where objects are, so a
@@ -219,6 +230,16 @@ pub fn measure_nesting(bytes: &[u8]) -> NestingReport {
 fn is_stream_keyword(buf: &[u8], i: usize) -> bool {
     const DELIM: &[u8] = b"()<>[]{}/%";
     let boundary = |b: u8| b.is_ascii_whitespace() || DELIM.contains(&b);
+    // A `/` immediately before the token marks it as a NAME, not a keyword.
+    //
+    // The header used to claim this bypass was fixed. It was not: `/streamer`
+    // was caught (trailing `e` is not a boundary) while the exact name
+    // `/stream` walked straight through, because `/` was accepted as a valid
+    // preceding boundary. A 400-deep nest behind `/S /stream` measured as
+    // depth 1. One byte shorter than the case that WAS fixed.
+    if i > 0 && buf[i - 1] == b'/' {
+        return false;
+    }
     let before_ok = i == 0 || boundary(buf[i - 1]);
     let after = i + b"stream".len();
     let after_ok = after >= buf.len() || boundary(buf[after]);
@@ -499,6 +520,27 @@ mod tests {
         assert!(
             depth > MAX_NESTING_DEPTH,
             "a name containing 'stream' must not hide the nest; measured {depth}"
+        );
+    }
+
+    #[test]
+    fn the_bare_name_stream_does_not_blind_the_scanner_either() {
+        // The case the FIRST fix missed while its header claimed otherwise.
+        //
+        // `/streamer` was caught because `r` is not a boundary. The exact name
+        // `/stream` was not: `/` counted as a valid preceding boundary and
+        // whitespace as a trailing one, so the scanner read a NAME as a stream
+        // keyword and skipped to EOF. Cheaper for an attacker than the shape
+        // that was already covered, and the existing test could not see it
+        // because it only ever tried the longer word.
+        let mut v = b"%PDF-1.7\n<< /S /stream /X ".to_vec();
+        v.extend(std::iter::repeat_n(b'[', 400));
+        v.extend(std::iter::repeat_n(b']', 400));
+        v.extend_from_slice(b" >>\n");
+        let depth = measure_nesting(&v).max_depth;
+        assert!(
+            depth > MAX_NESTING_DEPTH,
+            "the bare name '/stream' must not hide the nest; measured {depth}"
         );
     }
 

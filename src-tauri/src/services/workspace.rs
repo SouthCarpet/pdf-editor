@@ -31,7 +31,14 @@ pub fn inspect_document(path: &Path) -> AppResult<OpenedDocument> {
     // check that costs a second full read of every opened document is a cost,
     // not a belt.
     let reader = LopdfReader::open(path).map_err(|e| AppError::PdfCorrupted {
-        detail: e.to_string(),
+        // `{e:#}`, not `{e}`. This is an `anyhow::Error`, and its plain Display
+            // prints ONLY the outermost context — here `format!("load {}", path)`
+            // from LopdfReader::open. So the whole reason a hostile file was
+            // refused (nesting depth, the 256 limit, the advisory id) was being
+            // thrown away and the user was shown a bare path. The `{detail}`
+            // placeholder added to errors.json interpolated nothing useful.
+            // The alternate selector walks the full context chain.
+            detail: format!("{e:#}"),
     })?;
     Ok(OpenedDocument {
         path: path.display().to_string(),

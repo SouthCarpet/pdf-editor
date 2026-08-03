@@ -59,6 +59,26 @@ impl PdfReader for LopdfReader {
     }
 
     fn is_encrypted(&self) -> bool {
-        self.doc.is_encrypted()
+        // The union, and the `was_` half is the one that matters.
+        //
+        // lopdf 0.44 auto-decrypts a document whose USER password is empty and
+        // then clears `/Encrypt` from the in-memory trailer. A permission-lock
+        // (empty user password, real owner password) therefore answers `false`
+        // to `is_encrypted()`, where lopdf 0.34 answered `true`. The upgrade
+        // that closed RUSTSEC-2026-0187 changed this silently, and it decides
+        // whether the unlock flow runs at all.
+        //
+        // Measured on this project's own `password-permission.pdf` fixture and
+        // pinned by tests/encryption_detection_test.rs, so a future bump that
+        // moves it back cannot do so quietly.
+        //
+        // NOT FIXED HERE, and deliberately so: `Document::save` writes what is
+        // in memory, and `/Encrypt` is no longer in it, so every load-then-save
+        // path in this crate strips the owner password and its permission
+        // restrictions from such a file. Preserving that through an edit means
+        // re-encrypting via qpdf on the way out, which is a product decision
+        // rather than a bug fix. Detection is corrected now because it is
+        // unambiguous; the save side is recorded and left visible.
+        self.doc.is_encrypted() || self.doc.was_encrypted()
     }
 }

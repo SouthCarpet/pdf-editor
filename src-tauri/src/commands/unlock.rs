@@ -42,7 +42,11 @@ pub async fn detect_pdf_encryption(_state: State<'_, AppState>, input: String) -
     let p = PathBuf::from(input);
     tokio::task::spawn_blocking(move || -> AppResult<bool> {
         match crate::services::pdf_guard::load_guarded(&p) {
-            Ok(doc) => Ok(doc.is_encrypted()),
+            // Same union as LopdfReader::is_encrypted, for the same reason:
+            // lopdf 0.44 reports a permission-locked file (empty user
+            // password) as unencrypted because it already decrypted it.
+            // See services/pdf_reader.rs and tests/encryption_detection_test.rs.
+            Ok(doc) => Ok(doc.is_encrypted() || doc.was_encrypted()),
             Err(e) => {
                 // lopdf can fail to load encrypted PDFs without the password.
                 // Treat any password-mentioning error as "encrypted, password

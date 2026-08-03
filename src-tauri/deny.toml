@@ -20,20 +20,18 @@ unmaintained = "workspace"  # warn on unmaintained crates we actually depend on 
 # suppressions last until a human deletes them. Plan 033's upgrade phase
 # owns that deletion, and nothing else will remind anyone.
 ignore = [
-    # Stack overflow via deeply nested objects; fixed in lopdf 0.42.0.
-    # We pin 0.34, eight minors behind.
+    # RUSTSEC-2026-0187 IS NO LONGER IGNORED HERE, and deleting the entry was
+    # the point rather than housekeeping.
     #
-    # HONEST STATUS OF THE MITIGATION, per two independent verifications on
-    # 2026-08-03: services/pdf_guard.rs does NOT close this advisory. Four
-    # working bypasses were demonstrated, three of them using spec-legal PDF
-    # features, all measuring shallow to the scanner while still aborting
-    # lopdf. The root problem is structural: lopdf reaches objects through
-    # xref byte offsets while any cheap pre-scan walks linearly, and lopdf
-    # parses object-stream bodies that a scanner must skip to avoid false
-    # positives. The guard raises the bar against the published proof of
-    # concept and is worth keeping as defence in depth. It is not a fix.
-    # Only the 0.42+ upgrade is.
-    { id = "RUSTSEC-2026-0187", reason = "lopdf 0.34 pinned; pdf_guard raises the bar but is verified bypassable, so this is an accepted risk pending the >=0.42 upgrade in plan 033, not a mitigated one" },
+    # The advisory is closed by the 0.34 -> 0.44 upgrade, proven behaviourally
+    # (deep_nesting_no_longer_aborts drives lopdf and goes red if the pin falls
+    # below 0.42). But the suppression survived that upgrade by one commit, and
+    # a verifier caught what that costs: while it stood, cargo-deny was
+    # explicitly blindfolded to this exact advisory, so a pin regression below
+    # 0.42 would have left ONE gate standing instead of two. The old rationale
+    # ("lopdf 0.34 pinned ... accepted risk pending the upgrade") had also
+    # become false the moment the upgrade landed, and a stale reason string is
+    # worse than none: it reads as a current judgement.
     # ttf-parser declared unmaintained. Transitive (font stack), no
     # vulnerability, replacement decision belongs to the same plan.
     { id = "RUSTSEC-2026-0192", reason = "unmaintained, not vulnerable; replacement decision tracked in plan 033" },
