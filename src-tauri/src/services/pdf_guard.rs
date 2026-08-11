@@ -79,6 +79,21 @@
 // pre-scan and a full parser disagreeing about document structure, which is the
 // premise, not the implementation.
 //
+// A separate scanner, `measure_content_nesting` / `content_is_safe_to_decode`,
+// stands in front of the OTHER parser door (`Content::decode`, the only thing
+// gating `ocr_edit.rs`'s call site) and has its own undisclosed bypass, found
+// by an independent verifier on 2026-08-11: a stray "(" inside inline-image
+// (BI/ID/EI) data, which is arbitrary binary by spec, is read as opening a
+// literal string. Nothing closes it, so the scanner swallows every byte after
+// it, including a 5,000-level operand array placed right after, and reports
+// the stream safe. Same class of bug as 1, 3 and 4 above, on the other
+// scanner: a byte-level lexer cannot tell binary payload bytes from syntax,
+// and inline-image data is exactly where the spec makes that legal. Not
+// exploitable today: lopdf 0.44's `Content::decode` itself errors out on a
+// content stream this deep long before 5,000 levels would matter. Pinned
+// honestly, not fixed, by
+// `inline_image_data_can_blind_the_content_stream_scanner` below.
+//
 // KEEP IT ANYWAY, for what it verifiably is: it raises the bar against the
 // published proof of concept, it costs one bounded scan, and it rejected zero
 // of 260 real documents (max measured depth 7). It is defence in depth.
@@ -256,15 +271,38 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 pub fn guard_bytes(bytes: &[u8], label: &str) -> AppResult<()> {
     let report = measure_nesting(bytes);
     if report.max_depth > MAX_NESTING_DEPTH {
+        let truncation_note = if report.truncated {
+            format!(
+                " (measured over only the first {SCAN_PREFIX_BYTES} bytes; \
+                 the file continues past the scanned prefix.)"
+            )
+        } else {
+            String::new()
+        };
         return Err(AppError::PdfCorrupted {
             detail: format!(
                 "{label}: object nesting depth {} exceeds the {} limit. \
                  A file this deeply nested crashes the PDF parser outright \
                  (RUSTSEC-2026-0187) rather than failing cleanly, so it is \
-                 refused before parsing.",
+                 refused before parsing.{truncation_note}",
                 report.max_depth, MAX_NESTING_DEPTH
             ),
         });
+    }
+    // Accepted, but the scan never reached the end of the file: max_depth is
+    // a measurement of the scanned prefix only, not a guarantee about what
+    // follows it. Silent until 2026-08-11 (8 of 269 real files on this
+    // machine already exceed the prefix); logged now so a truncated scan is
+    // visible rather than indistinguishable from a clean one.
+    if report.truncated {
+        tracing::warn!(
+            label = %label,
+            max_depth = report.max_depth,
+            truncated = report.truncated,
+            scan_prefix_bytes = SCAN_PREFIX_BYTES,
+            "pdf_guard: nesting scan truncated at the scan prefix before this file ended; \
+             a hostile nest placed past the prefix would not be caught here",
+        );
     }
     Ok(())
 }
@@ -381,12 +419,28 @@ pub fn load_guarded<P: AsRef<Path>>(path: P) -> Result<Document, LopdfError> {
         // that had been refused for nesting. lopdf's own errors never carried
         // a path, so this was injected by the guard. Callers already know
         // which file they asked for.
+        let truncation_note = if report.truncated {
+            " (measured over only the scanned prefix; the file continues past it.)"
+        } else {
+            ""
+        };
         return Err(LopdfError::Syntax(format!(
             "object nesting depth {} exceeds the {} limit; refused before \
              parsing because a file this deeply nested aborts the parser \
-             outright (RUSTSEC-2026-0187) rather than failing cleanly",
+             outright (RUSTSEC-2026-0187) rather than failing cleanly{truncation_note}",
             report.max_depth, MAX_NESTING_DEPTH
         )));
+    }
+    // Accepted, but truncated: see the matching comment in `guard_bytes`.
+    if report.truncated {
+        tracing::warn!(
+            path = %path.display(),
+            max_depth = report.max_depth,
+            truncated = report.truncated,
+            scan_prefix_bytes = SCAN_PREFIX_BYTES,
+            "pdf_guard: nesting scan truncated at the scan prefix before this file ended; \
+             a hostile nest placed past the prefix would not be caught here",
+        );
     }
     Document::load_mem(&bytes)
 }
@@ -633,6 +687,34 @@ mod tests {
         assert!(guard_bytes(&nested_pdf(20_000), "poc").is_err());
     }
 
+    /// The lopdf 0.44 `Document` loading-entrypoint family, per `reader.rs`:
+    /// every associated function that turns raw bytes or a path into a
+    /// `Document` (or, for the `_metadata_` set, a `PdfMetadata`, which walks
+    /// the same object graph). Widened from a single literal match on
+    /// 2026-08-11: the old check saw only `Document::load(` and explicitly
+    /// exempted `load_mem` on the rationale that its callers already hold
+    /// pre-guarded bytes, a rationale nothing enforced. A future
+    /// `Document::load_mem(&user_bytes)` call site, or any other member of
+    /// this family, now trips the same sweep.
+    const DOCUMENT_LOAD_ENTRYPOINTS: &[&str] = &[
+        "Document::load(",
+        "Document::load_with_options(",
+        "Document::load_with_password(",
+        "Document::load_filtered(",
+        "Document::load_from(",
+        "Document::load_from_with_options(",
+        "Document::load_from_with_password(",
+        "Document::load_mem(",
+        "Document::load_mem_with_options(",
+        "Document::load_mem_with_password(",
+        "Document::load_metadata(",
+        "Document::load_metadata_with_password(",
+        "Document::load_metadata_from(",
+        "Document::load_metadata_from_with_password(",
+        "Document::load_metadata_mem(",
+        "Document::load_metadata_mem_with_password(",
+    ];
+
     #[test]
     fn no_source_file_calls_document_load_directly() {
         // The guard is only worth having if nothing routes around it. 25 call
@@ -671,10 +753,10 @@ mod tests {
                 };
                 *scanned += 1;
                 for (i, line) in text.lines().enumerate() {
-                    // `load_mem` is fine: callers of it already hold the bytes
-                    // and guard them separately. Only the path-taking `load(`
-                    // is the unguarded door.
-                    if line.contains("Document::load(") {
+                    if DOCUMENT_LOAD_ENTRYPOINTS
+                        .iter()
+                        .any(|entrypoint| line.contains(entrypoint))
+                    {
                         offenders.push(format!("{}:{}: {}", path.display(), i + 1, line.trim()));
                     }
                 }
@@ -751,5 +833,108 @@ mod tests {
         // Guards the guard: if fixtures stop being generated, this test would
         // otherwise pass by checking nothing at all.
         assert!(checked >= 5, "expected >=5 fixtures, checked {checked}");
+    }
+
+    #[test]
+    fn inline_image_data_can_blind_the_content_stream_scanner() {
+        // Undisclosed bypass found by an independent verifier on 2026-08-11.
+        // `measure_content_nesting` skips literal strings `( ... )`, which is
+        // correct for `Tj`/`TJ` operands, but has no notion of inline-image
+        // (BI/ID/EI) data, which is arbitrary binary by spec. An
+        // attacker-chosen "(" inside that data is read as opening a literal
+        // string; with no matching ")" left in the stream, the scanner
+        // swallows every byte after it, including the 5,000-level operand
+        // array placed right after the image, and reports the stream safe.
+        //
+        // This test PINS that behaviour honestly. It does not fix it: lopdf
+        // 0.44's own `Content::decode` errors out on a stream this deep long
+        // before 5,000 levels, so there is nothing to exploit today. The
+        // header carries the same disclosure.
+        let mut hostile =
+            b"q\nBI /W 2 /H 2 /BPC 8 /CS /G /F /AHx ID 28 28 28 28 ( EI\nQ\n".to_vec();
+        hostile.extend(std::iter::repeat_n(b'[', 5_000));
+        hostile.extend(std::iter::repeat_n(b']', 5_000));
+        assert!(
+            content_is_safe_to_decode(&hostile),
+            "documents the undisclosed bypass: a stray '(' in inline-image \
+             data should blind the scanner into calling this 5,000-level \
+             nest safe"
+        );
+
+        // Control: the identical payload without the stray paren measures
+        // the real depth and is correctly refused. Causal, not coincidence.
+        let mut clean = b"q\nBI /W 2 /H 2 /BPC 8 /CS /G /F /AHx ID 28 28 28 28 EI\nQ\n".to_vec();
+        clean.extend(std::iter::repeat_n(b'[', 5_000));
+        clean.extend(std::iter::repeat_n(b']', 5_000));
+        assert!(
+            !content_is_safe_to_decode(&clean),
+            "control failed: without the stray paren the nest must still be refused"
+        );
+    }
+
+    #[test]
+    fn refusal_detail_notes_a_truncated_scan() {
+        // A file can be both rejected (deep nesting inside the scanned
+        // prefix) and truncated (longer than the prefix). The detail should
+        // say so, the same way it already names the depth and the limit.
+        let mut pdf = nested_pdf(300);
+        pdf.resize(SCAN_PREFIX_BYTES + 1024, b' ');
+        assert!(measure_nesting(&pdf).truncated, "fixture must be truncated");
+
+        let err = guard_bytes(&pdf, "big-and-deep.pdf").unwrap_err();
+        match err {
+            AppError::PdfCorrupted { detail } => {
+                assert!(
+                    detail.to_lowercase().contains("truncat") || detail.contains("scanned prefix"),
+                    "refusal detail does not mention the truncated scan: {detail}"
+                );
+            }
+            other => panic!("expected PdfCorrupted, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn truncated_scan_is_logged_even_when_the_file_still_passes() {
+        // Before this fix, `NestingReport.truncated` was computed and never
+        // read: a file whose real nest lives past the 8 MiB scan prefix
+        // measured depth 0 there and was accepted with no trace of the
+        // truncation anywhere. 8 of 269 real files on this machine already
+        // exceed the prefix, so this was not hypothetical.
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone, Default)]
+        struct CapturedLog(Arc<Mutex<Vec<u8>>>);
+        impl Write for CapturedLog {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let captured = CapturedLog::default();
+        let for_writer = captured.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(move || for_writer.clone())
+            .with_ansi(false)
+            .finish();
+
+        // Shallow nesting (well under the limit) but longer than the scan
+        // prefix, so the guard accepts it while never seeing the tail.
+        let mut pdf = nested_pdf(3);
+        pdf.resize(SCAN_PREFIX_BYTES + 1024, b' ');
+
+        tracing::subscriber::with_default(subscriber, || {
+            guard_bytes(&pdf, "big-but-shallow.pdf").expect("shallow nesting must still pass");
+        });
+
+        let logged = String::from_utf8(captured.0.lock().unwrap().clone()).expect("utf8 log");
+        assert!(
+            logged.to_lowercase().contains("truncat"),
+            "expected the truncated-but-accepted scan to be logged; got: {logged}"
+        );
     }
 }
