@@ -83,7 +83,10 @@ fn a_permission_locked_file_reads_as_unencrypted_but_remembers() {
 fn saving_a_permission_locked_file_drops_its_encryption() {
     let path = fixture("password-permission.pdf");
     let mut doc = lopdf::Document::load(&path).expect("should load");
-    assert!(doc.was_encrypted(), "fixture is not permission-locked any more");
+    assert!(
+        doc.was_encrypted(),
+        "fixture is not permission-locked any more"
+    );
 
     let out = std::env::temp_dir().join("pdf-editor-encryption-roundtrip.pdf");
     doc.save(&out).expect("should save");
