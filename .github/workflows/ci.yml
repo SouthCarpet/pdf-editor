@@ -44,6 +44,15 @@ jobs:
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
           }
+          # bundle.resources also globs sidecars/*.dll (the DLLs the exes
+          # load at runtime). tauri-build fails the build when a resources
+          # glob matches nothing, so a checkout with no staged DLLs needs a
+          # stub here too. Guarded instead of -Force: New-Item -Force
+          # truncates an existing file, and a restored cache could hold a
+          # real DLL.
+          if (-not (Get-ChildItem -Path src-tauri/sidecars -Filter *.dll)) {
+            New-Item -Path src-tauri/sidecars/stub-sidecar-tests.dll -ItemType File | Out-Null
+          }
           # tauri-build resolves every bundle.resources glob too, and fails the
           # build when one matches nothing. resources/tessdata/ is gitignored
           # (58 MB of OCR models), so on a fresh checkout that glob was empty
@@ -107,6 +116,15 @@ jobs:
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
           }
+          # bundle.resources also globs sidecars/*.dll (the DLLs the exes
+          # load at runtime). tauri-build fails the build when a resources
+          # glob matches nothing, so a checkout with no staged DLLs needs a
+          # stub here too. Guarded instead of -Force: New-Item -Force
+          # truncates an existing file, and a restored cache could hold a
+          # real DLL.
+          if (-not (Get-ChildItem -Path src-tauri/sidecars -Filter *.dll)) {
+            New-Item -Path src-tauri/sidecars/stub-sidecar-tests.dll -ItemType File | Out-Null
+          }
           # tauri-build resolves every bundle.resources glob too, and fails the
           # build when one matches nothing. resources/tessdata/ is gitignored
           # (58 MB of OCR models), so on a fresh checkout that glob was empty
@@ -145,6 +163,15 @@ jobs:
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # bundle.resources also globs sidecars/*.dll (the DLLs the exes
+          # load at runtime). tauri-build fails the build when a resources
+          # glob matches nothing, so a checkout with no staged DLLs needs a
+          # stub here too. Guarded instead of -Force: New-Item -Force
+          # truncates an existing file, and a restored cache could hold a
+          # real DLL.
+          if (-not (Get-ChildItem -Path src-tauri/sidecars -Filter *.dll)) {
+            New-Item -Path src-tauri/sidecars/stub-sidecar-tests.dll -ItemType File | Out-Null
           }
           # tauri-build resolves every bundle.resources glob too, and fails the
           # build when one matches nothing. resources/tessdata/ is gitignored
@@ -199,6 +226,15 @@ jobs:
           New-Item -Path src-tauri/sidecars -ItemType Directory -Force | Out-Null
           foreach ($n in @("qpdf","gswin64c","mutool","tesseract","pdfcrack")) {
             New-Item -Path "src-tauri/sidecars/$n-x86_64-pc-windows-msvc.exe" -ItemType File -Force | Out-Null
+          }
+          # bundle.resources also globs sidecars/*.dll (the DLLs the exes
+          # load at runtime). tauri-build fails the build when a resources
+          # glob matches nothing, so a checkout with no staged DLLs needs a
+          # stub here too. Guarded instead of -Force: New-Item -Force
+          # truncates an existing file, and a restored cache could hold a
+          # real DLL.
+          if (-not (Get-ChildItem -Path src-tauri/sidecars -Filter *.dll)) {
+            New-Item -Path src-tauri/sidecars/stub-sidecar-tests.dll -ItemType File | Out-Null
           }
           # tauri-build resolves every bundle.resources glob too, and fails the
           # build when one matches nothing. resources/tessdata/ is gitignored

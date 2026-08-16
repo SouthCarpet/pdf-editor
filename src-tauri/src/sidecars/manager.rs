@@ -234,11 +234,18 @@ impl SidecarManager {
 mod tests {
     use super::*;
 
+    /// Serializes the tests below that touch `<current_exe dir>/sidecars`:
+    /// the guard creates that directory, the fallback test asserts it must
+    /// NOT exist, and the PATH test reads the resolved value. Run in
+    /// parallel these interfere with each other (see debug note plan
+    /// 036). Poison-tolerant so one panicking test doesn't lock the others
+    /// out.
+    static SIDECARS_DIR_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// RAII guard: creates `<current_exe dir>/sidecars` for the duration of
     /// the test (simulating the installed/bundled layout where
     /// `bundle.resources` lands the DLLs next to the exe), removes it on
-    /// drop even on panic. This is the only test in the crate that touches
-    /// that path, so it does not race other `#[cfg(test)]` code.
+    /// drop even on panic. Callers must hold `SIDECARS_DIR_TEST_LOCK` first.
     struct ExeRelativeSidecarsDirGuard {
         path: PathBuf,
         created: bool,
@@ -269,6 +276,9 @@ mod tests {
 
     #[test]
     fn sidecar_dll_dir_resolves_exe_relative_when_present() {
+        let _lock = SIDECARS_DIR_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let guard = ExeRelativeSidecarsDirGuard::create();
         let resolved = SidecarManager::sidecar_dll_dir();
         assert_eq!(
@@ -279,6 +289,9 @@ mod tests {
 
     #[test]
     fn sidecar_dll_dir_falls_back_to_manifest_dir_when_absent() {
+        let _lock = SIDECARS_DIR_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let exe = std::env::current_exe().expect("current_exe");
         let exe_relative = exe.parent().expect("parent").join("sidecars");
         assert!(
@@ -297,6 +310,9 @@ mod tests {
 
     #[test]
     fn child_path_begins_with_resolved_sidecar_dll_dir() {
+        let _lock = SIDECARS_DIR_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let dll_dir = SidecarManager::sidecar_dll_dir();
         let path_value = SidecarManager::child_path_value();
         let path_str = path_value.to_string_lossy();
