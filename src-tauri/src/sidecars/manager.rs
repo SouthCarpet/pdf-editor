@@ -38,6 +38,43 @@ impl SidecarManager {
         }
     }
 
+    /// Resolves the directory holding the sidecar DLLs (`qpdf30.dll`,
+    /// `libtesseract-5.dll`, `gsdll64.dll`, and siblings), so the child's
+    /// `PATH` can be pointed at it. Same shape as `resolve_binary` above and
+    /// the precedent helpers `TesseractWrapper::tessdata_dir`,
+    /// `rapidocr::resource_root`, `SofficeWrapper::resolve`: exe-relative
+    /// first (the installed/bundled layout, where `bundle.resources` lands
+    /// the DLLs at `<exe dir>\sidecars\`), `CARGO_MANIFEST_DIR` fallback
+    /// second (dev and `cargo build --release`, where `stage-sidecars.ps1`
+    /// already staged the real DLLs into `src-tauri/sidecars/`).
+    fn sidecar_dll_dir() -> PathBuf {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let candidate = dir.join("sidecars");
+                if candidate.exists() {
+                    return candidate;
+                }
+            }
+        }
+        std::env::var("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join("sidecars")
+    }
+
+    /// Builds the child `PATH` value: the resolved sidecar DLL directory
+    /// prepended to whatever `PATH` this process already has, so the Windows
+    /// loader finds `qpdf30.dll`/`libtesseract-5.dll`/`gsdll64.dll` even
+    /// though the sidecar exe is not colocated with them.
+    fn child_path_value() -> std::ffi::OsString {
+        let mut value = std::ffi::OsString::from(Self::sidecar_dll_dir());
+        if let Some(existing) = std::env::var_os("PATH") {
+            value.push(";");
+            value.push(existing);
+        }
+        value
+    }
+
     pub fn resolve_binary(&self, name: &str) -> PathBuf {
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
@@ -101,6 +138,13 @@ impl SidecarManager {
             "COMSPEC",
             "HOME",
         ] {
+            if var == "PATH" {
+                // Prepend the resolved sidecar DLL dir so the loader finds
+                // qpdf30.dll/libtesseract-5.dll/gsdll64.dll even when they
+                // are not colocated with the sidecar exe (plan 036).
+                cmd.env("PATH", Self::child_path_value());
+                continue;
+            }
             if let Some(val) = std::env::var_os(var) {
                 cmd.env(var, val);
             }
@@ -183,5 +227,83 @@ impl SidecarManager {
             stdout: output.stdout,
             stderr: output.stderr,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// RAII guard: creates `<current_exe dir>/sidecars` for the duration of
+    /// the test (simulating the installed/bundled layout where
+    /// `bundle.resources` lands the DLLs next to the exe), removes it on
+    /// drop even on panic. This is the only test in the crate that touches
+    /// that path, so it does not race other `#[cfg(test)]` code.
+    struct ExeRelativeSidecarsDirGuard {
+        path: PathBuf,
+        created: bool,
+    }
+
+    impl ExeRelativeSidecarsDirGuard {
+        fn create() -> Self {
+            let exe = std::env::current_exe().expect("current_exe");
+            let path = exe
+                .parent()
+                .expect("test binary has a parent dir")
+                .join("sidecars");
+            let created = !path.exists();
+            if created {
+                std::fs::create_dir(&path).expect("create marker sidecars dir");
+            }
+            Self { path, created }
+        }
+    }
+
+    impl Drop for ExeRelativeSidecarsDirGuard {
+        fn drop(&mut self) {
+            if self.created {
+                let _ = std::fs::remove_dir(&self.path);
+            }
+        }
+    }
+
+    #[test]
+    fn sidecar_dll_dir_resolves_exe_relative_when_present() {
+        let guard = ExeRelativeSidecarsDirGuard::create();
+        let resolved = SidecarManager::sidecar_dll_dir();
+        assert_eq!(
+            resolved, guard.path,
+            "exe-relative sidecars dir must win when it exists"
+        );
+    }
+
+    #[test]
+    fn sidecar_dll_dir_falls_back_to_manifest_dir_when_absent() {
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_relative = exe.parent().expect("parent").join("sidecars");
+        assert!(
+            !exe_relative.exists(),
+            "precondition: {} must not exist for this test",
+            exe_relative.display()
+        );
+
+        let resolved = SidecarManager::sidecar_dll_dir();
+        let expected = std::env::var("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join("sidecars");
+        assert_eq!(resolved, expected);
+    }
+
+    #[test]
+    fn child_path_begins_with_resolved_sidecar_dll_dir() {
+        let dll_dir = SidecarManager::sidecar_dll_dir();
+        let path_value = SidecarManager::child_path_value();
+        let path_str = path_value.to_string_lossy();
+        let dll_dir_str = dll_dir.to_string_lossy();
+        assert!(
+            path_str.starts_with(dll_dir_str.as_ref()),
+            "child PATH does not begin with the resolved sidecar DLL dir.\n  dll_dir: {dll_dir_str}\n  PATH:    {path_str}"
+        );
     }
 }

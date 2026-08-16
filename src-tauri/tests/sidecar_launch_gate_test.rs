@@ -1,0 +1,149 @@
+// Plan 036 gate: every sidecar must launch THROUGH `SidecarManager`, from the
+// same layout the built app ships (`target/{debug,release}`: unsuffixed exe,
+// no DLLs colocated), with a scrubbed PATH so the developer machine's PATH
+// cannot mask a delivery defect. See
+// `A:/projects-vault/apps/pdf-editor/.vault/process/plans/plan_v1_sidecar_dlls.md`
+// (gate-phase verification contract) for the requirements this encodes.
+//
+// `resolve_binary`'s first branch resolves `current_exe().parent().join("{name}.exe")`.
+// Under `cargo test`, `current_exe()` is the test binary itself, which lives in
+// `target/debug/deps/`, not `target/debug/`. Left alone, that branch misses and
+// falls through to the `CARGO_MANIFEST_DIR/sidecars/` branch, which resolves
+// straight into `src-tauri/sidecars/` where every DLL already sits next to the
+// exe, so the delivery bug would never reproduce. This test copies the real
+// unsuffixed exe that Tauri's build script already stages into `target/debug/`
+// into the test binary's own directory, with no DLL alongside, so
+// `resolve_binary`'s untouched first branch resolves to the same "exe alone, no
+// DLL" shape the shipped layout has.
+
+use pdf_editor_lib::sidecars::manager::{SidecarManager, SidecarRunSpec};
+use std::ffi::OsString;
+use std::path::PathBuf;
+use std::time::Duration;
+
+/// (sidecar name, args to run, substring the successful output must contain,
+/// which stream carries it). Measured directly (`src-tauri/sidecars/`, clean
+/// PATH, piped stdout+stderr separately) rather than assumed: qpdf, tesseract,
+/// pdfcrack and the gswin64c startup banner all write their version text to
+/// stdout, but `mutool -v` writes it to **stderr** with an empty stdout. A
+/// gate that only ever checked stdout would false-negative on mutool.
+const SIDECARS: &[(&str, &[&str], &str, Stream)] = &[
+    ("qpdf", &["--version"], "version", Stream::Stdout),
+    ("gswin64c", &["--version"], "10.", Stream::Stdout),
+    ("mutool", &["-v"], "mutool version", Stream::Stderr),
+    ("tesseract", &["--version"], "tesseract v5", Stream::Stdout),
+    ("pdfcrack", &["--version"], "pdfcrack version", Stream::Stdout),
+];
+
+#[derive(Clone, Copy)]
+enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// Stages the target-layout defect shape (unsuffixed exe, no DLL) next to the
+/// running test binary, and scrubs `PATH` for the process. Restores both on
+/// drop, including on test panic, so a failing assertion still leaves the
+/// filesystem and environment clean for the next run.
+struct TargetLayoutFixture {
+    copied: Vec<PathBuf>,
+    original_path: Option<OsString>,
+}
+
+impl TargetLayoutFixture {
+    fn stage(names: &[&str]) -> Self {
+        let exe = std::env::current_exe().expect("current_exe");
+        let deps_dir = exe.parent().expect("test binary has a parent dir");
+        let target_debug = deps_dir.parent().expect("deps dir has a parent (target/debug)");
+
+        let mut copied = Vec::new();
+        for name in names {
+            let src = target_debug.join(format!("{name}.exe"));
+            assert!(
+                src.exists(),
+                "expected the un-suffixed staged exe at {} (built by tauri_build::build() \
+                 on every `cargo build`/`cargo test`); run `cargo build --manifest-path \
+                 src-tauri/Cargo.toml` first",
+                src.display()
+            );
+            let dst = deps_dir.join(format!("{name}.exe"));
+            std::fs::copy(&src, &dst).unwrap_or_else(|e| {
+                panic!("copy {} -> {} for target-layout fixture: {e}", src.display(), dst.display())
+            });
+            copied.push(dst);
+        }
+
+        let original_path = std::env::var_os("PATH");
+        // SAFETY: this test file has exactly one test function; no other
+        // thread in this process mutates or reads PATH concurrently with it.
+        unsafe {
+            std::env::set_var("PATH", "C:\\Windows\\System32;C:\\Windows");
+        }
+
+        Self {
+            copied,
+            original_path,
+        }
+    }
+}
+
+impl Drop for TargetLayoutFixture {
+    fn drop(&mut self) {
+        for p in &self.copied {
+            let _ = std::fs::remove_file(p);
+        }
+        // SAFETY: see stage(); single-threaded use within this test file.
+        unsafe {
+            match &self.original_path {
+                Some(v) => std::env::set_var("PATH", v),
+                None => std::env::remove_var("PATH"),
+            }
+        }
+    }
+}
+
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real sidecar binaries; run scripts/fetch-sidecars.ps1 + \
+              stage-sidecars.ps1 + `cargo build` first, then --features sidecar-tests"
+)]
+async fn all_five_sidecars_launch_through_manager_from_target_layout() {
+    let names: Vec<&str> = SIDECARS.iter().map(|(n, _, _, _)| *n).collect();
+    let _fixture = TargetLayoutFixture::stage(&names);
+
+    let mgr = SidecarManager::new(4);
+    let mut failures: Vec<String> = Vec::new();
+
+    for (name, args, expected_token, stream) in SIDECARS {
+        let spec = SidecarRunSpec {
+            name: (*name).into(),
+            args: args.iter().map(|s| s.to_string()).collect(),
+            stdin: None,
+            timeout: Some(Duration::from_secs(15)),
+            cancellation: None,
+        };
+        match mgr.run(spec).await {
+            Ok(out) => {
+                let (label, text) = match stream {
+                    Stream::Stdout => ("stdout", String::from_utf8_lossy(&out.stdout)),
+                    Stream::Stderr => ("stderr", String::from_utf8_lossy(&out.stderr)),
+                };
+                if !text.contains(expected_token) {
+                    failures.push(format!(
+                        "{name}: exit 0 but {label} did not contain {expected_token:?}: {text:?}"
+                    ));
+                }
+            }
+            Err(e) => failures.push(format!("{name}: {e:?}")),
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "sidecar launch gate failed for {} of {}:\n{}",
+        failures.len(),
+        SIDECARS.len(),
+        failures.join("\n")
+    );
+}
