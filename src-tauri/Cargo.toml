@@ -6,6 +6,13 @@ authors = ["You"]
 license = "AGPL-3.0-or-later"
 edition = "2021"
 rust-version = "1.85"
+# Plan 047: with two bin targets (this crate's `pdf-editor` from src/main.rs,
+# `generate_bindings` auto-discovered from src/bin/generate_bindings.rs) and
+# no default-run, tauri-bundler's `main_binary()` (settings.rs:1016-1022,
+# tauri-cli-v2.11.1) could not tell which one is the app - found empirically
+# via administrative-extract: it shipped generate_bindings.exe as the
+# installed app. default-run is Cargo's own, standard disambiguation field.
+default-run = "pdf-editor"
 
 [lib]
 name = "pdf_editor_lib"

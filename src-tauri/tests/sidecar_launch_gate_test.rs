@@ -147,3 +147,85 @@ async fn all_five_sidecars_launch_through_manager_from_target_layout() {
         failures.join("\n")
     );
 }
+
+/// Plan 047 installed-layout gate: same five launches, but resolved through
+/// `SidecarManager`'s `PDF_EDITOR_INSTALL_DIR` env override (see
+/// `sidecars/manager.rs`) instead of the test binary's own directory, so
+/// this runs against a REAL MSI install directory
+/// (`%LOCALAPPDATA%\Programs\PDF Editor`) rather than a simulated
+/// `target/debug` shape. Requires `PDF_EDITOR_INSTALL_DIR` to be set to that
+/// directory before `cargo test`; self-skips (not `ignore`d, so it still
+/// shows as a pass, matching the other gate's opt-in-by-feature pattern)
+/// when unset, so an ordinary `cargo test --features sidecar-tests` run does
+/// not fail on a machine with nothing installed.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real sidecar binaries and a real MSI install; set \
+              PDF_EDITOR_INSTALL_DIR then run with --features sidecar-tests"
+)]
+async fn all_five_sidecars_launch_through_manager_from_installed_layout() {
+    let Ok(install_dir) = std::env::var("PDF_EDITOR_INSTALL_DIR") else {
+        eprintln!(
+            "skipping all_five_sidecars_launch_through_manager_from_installed_layout: \
+             PDF_EDITOR_INSTALL_DIR not set"
+        );
+        return;
+    };
+    assert!(
+        std::path::Path::new(&install_dir).exists(),
+        "PDF_EDITOR_INSTALL_DIR set to {install_dir} but that path does not exist"
+    );
+
+    let original_path = std::env::var_os("PATH");
+    // SAFETY: this test file has exactly one test function using this
+    // pattern at a time under the default single-threaded-per-file
+    // execution `cargo test` gives distinct integration test binaries; no
+    // other thread in this process mutates or reads PATH concurrently.
+    unsafe {
+        std::env::set_var("PATH", "C:\\Windows\\System32;C:\\Windows");
+    }
+
+    let mgr = SidecarManager::new(4);
+    let mut failures: Vec<String> = Vec::new();
+
+    for (name, args, expected_token, stream) in SIDECARS {
+        let spec = SidecarRunSpec {
+            name: (*name).into(),
+            args: args.iter().map(|s| s.to_string()).collect(),
+            stdin: None,
+            timeout: Some(Duration::from_secs(15)),
+            cancellation: None,
+        };
+        match mgr.run(spec).await {
+            Ok(out) => {
+                let (label, text) = match stream {
+                    Stream::Stdout => ("stdout", String::from_utf8_lossy(&out.stdout)),
+                    Stream::Stderr => ("stderr", String::from_utf8_lossy(&out.stderr)),
+                };
+                if !text.contains(expected_token) {
+                    failures.push(format!(
+                        "{name}: exit 0 but {label} did not contain {expected_token:?}: {text:?}"
+                    ));
+                }
+            }
+            Err(e) => failures.push(format!("{name}: {e:?}")),
+        }
+    }
+
+    // SAFETY: see above.
+    unsafe {
+        match &original_path {
+            Some(v) => std::env::set_var("PATH", v),
+            None => std::env::remove_var("PATH"),
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "installed-layout sidecar launch gate failed for {} of {}:\n{}",
+        failures.len(),
+        SIDECARS.len(),
+        failures.join("\n")
+    );
+}

@@ -42,12 +42,20 @@ impl SidecarManager {
     /// `libtesseract-5.dll`, `gsdll64.dll`, and siblings), so the child's
     /// `PATH` can be pointed at it. Same shape as `resolve_binary` above and
     /// the precedent helpers `TesseractWrapper::tessdata_dir`,
-    /// `rapidocr::resource_root`, `SofficeWrapper::resolve`: exe-relative
-    /// first (the installed/bundled layout, where `bundle.resources` lands
-    /// the DLLs at `<exe dir>\sidecars\`), `CARGO_MANIFEST_DIR` fallback
-    /// second (dev and `cargo build --release`, where `stage-sidecars.ps1`
-    /// already staged the real DLLs into `src-tauri/sidecars/`).
+    /// `rapidocr::resource_root`, `SofficeWrapper::resolve`:
+    /// `PDF_EDITOR_INSTALL_DIR` env override first (plan 047 gate, unset
+    /// outside test), exe-relative next (the installed/bundled layout, where
+    /// `bundle.resources` lands the DLLs at `<exe dir>\sidecars\`),
+    /// `CARGO_MANIFEST_DIR` fallback last (dev and `cargo build --release`,
+    /// where `stage-sidecars.ps1` already staged the real DLLs into
+    /// `src-tauri/sidecars/`).
     fn sidecar_dll_dir() -> PathBuf {
+        // Plan 047 gate override: point resolution at a real installed MSI
+        // layout instead of the test binary's own directory. Unset in any
+        // shipped install; only the gate test sets it.
+        if let Ok(dir) = std::env::var("PDF_EDITOR_INSTALL_DIR") {
+            return PathBuf::from(dir).join("sidecars");
+        }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
                 let candidate = dir.join("sidecars");
@@ -76,6 +84,13 @@ impl SidecarManager {
     }
 
     pub fn resolve_binary(&self, name: &str) -> PathBuf {
+        // Plan 047 gate override: see `sidecar_dll_dir` above.
+        if let Ok(dir) = std::env::var("PDF_EDITOR_INSTALL_DIR") {
+            let p = PathBuf::from(&dir).join(format!("{name}.exe"));
+            if p.exists() {
+                return p;
+            }
+        }
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
                 let p = dir.join(format!("{name}.exe"));
