@@ -185,8 +185,8 @@ async fn all_five_sidecars_launch_through_manager_from_installed_layout() {
         !install_dir.is_empty(),
         "PDF_EDITOR_INSTALL_DIR is unset or empty; set it to a real MSI installed-layout \
          directory (an administrative extract, see \
-         .vault/process/plans/plan_v1_sidecar_dlls.md, or a real per-user install under \
-         %LOCALAPPDATA%\\Programs\\PDF Editor) before running --features sidecar-tests"
+         .vault/process/plans/plan_v1_sidecar_dlls.md, or a real per-machine install under \
+         %ProgramFiles%\\PDF Editor) before running --features sidecar-tests"
     );
     let install_path = std::path::Path::new(&install_dir);
     assert!(
