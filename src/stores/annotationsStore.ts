@@ -18,6 +18,16 @@ export type AnnotationMode =
 
 export type ClientAnnotation = Annotation & { __clientId: string };
 
+// Shared empty result for documents with no annotations yet. A selector that
+// returns a fresh `[]` gives useSyncExternalStore a new snapshot on every read,
+// which React 19 retries until it reports "Maximum update depth exceeded"
+// (React error #185). One stable reference keeps the snapshot equal.
+// Frozen so a shared mutation fails loudly instead of leaking into every
+// document that has no annotations (verifier finding, plan 050).
+export const NO_ANNOTATIONS: ClientAnnotation[] = Object.freeze(
+  [] as ClientAnnotation[],
+) as unknown as ClientAnnotation[];
+
 interface AnnotationsState {
   mode: AnnotationMode;
   byDoc: Record<string, ClientAnnotation[]>;

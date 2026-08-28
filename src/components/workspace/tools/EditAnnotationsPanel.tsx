@@ -25,7 +25,7 @@ import {
   type TextStyle,
 } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
-import { useAnnotations, type AnnotationMode } from "@/stores/annotationsStore";
+import { NO_ANNOTATIONS, useAnnotations, type AnnotationMode } from "@/stores/annotationsStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { FontPicker } from "@/components/ui/font-picker";
@@ -108,7 +108,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
   const { t } = useTranslation("common");
   const mode = useAnnotations((s) => s.mode);
   const setMode = useAnnotations((s) => s.setMode);
-  const annotations = useAnnotations((s) => s.byDoc[docPath] ?? []);
+  const annotations = useAnnotations((s) => s.byDoc[docPath] ?? NO_ANNOTATIONS);
   const addAnnotation = useAnnotations((s) => s.add);
   const removeAnnotation = useAnnotations((s) => s.remove);
   const clearAll = useAnnotations((s) => s.clear);
