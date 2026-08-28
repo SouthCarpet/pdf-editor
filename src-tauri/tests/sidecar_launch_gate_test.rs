@@ -151,13 +151,28 @@ async fn all_five_sidecars_launch_through_manager_from_target_layout() {
 /// Plan 047 installed-layout gate: same five launches, but resolved through
 /// `SidecarManager`'s `PDF_EDITOR_INSTALL_DIR` env override (see
 /// `sidecars/manager.rs`) instead of the test binary's own directory, so
-/// this runs against a REAL MSI install directory
-/// (`%LOCALAPPDATA%\Programs\PDF Editor`) rather than a simulated
+/// this runs against a REAL MSI install directory (`Program Files\PDF
+/// Editor` for the shipped perMachine MSI, or an administrative-extract
+/// directory standing in for it, see
+/// `.vault/process/plans/plan_v1_sidecar_dlls.md`) rather than a simulated
 /// `target/debug` shape. Requires `PDF_EDITOR_INSTALL_DIR` to be set to that
-/// directory before `cargo test`; self-skips (not `ignore`d, so it still
-/// shows as a pass, matching the other gate's opt-in-by-feature pattern)
-/// when unset, so an ordinary `cargo test --features sidecar-tests` run does
-/// not fail on a machine with nothing installed.
+/// directory before `cargo test --features sidecar-tests` (the
+/// `cfg_attr` below only controls whether the test runs at all under a
+/// plain `cargo test`; it is unrelated to the check below).
+///
+/// Plan 047 fix wave 1, F1: this test FAILS, with a message naming the
+/// problem, when `PDF_EDITOR_INSTALL_DIR` is unset, empty, points to a
+/// missing directory, or points to a directory that is missing any of the
+/// five sidecar exes. It must never quietly pass in any of those cases. It
+/// also does not lean on `SidecarManager::resolve_binary`'s own
+/// `CARGO_MANIFEST_DIR` fallback (see `manager.rs`) to find the exes: that
+/// fallback exists so dev builds and `cargo build --release` still work,
+/// and is correct there, but if this test relied on it, a
+/// `PDF_EDITOR_INSTALL_DIR` pointing at a directory with no sidecars at all
+/// would silently pass by finding the dev checkout's `src-tauri/sidecars/`
+/// binaries instead. So this test checks the exes exist directly under
+/// `PDF_EDITOR_INSTALL_DIR` itself, with no fallback, before it ever calls
+/// into `SidecarManager`.
 #[tokio::test]
 #[cfg_attr(
     not(feature = "sidecar-tests"),
@@ -165,16 +180,41 @@ async fn all_five_sidecars_launch_through_manager_from_target_layout() {
               PDF_EDITOR_INSTALL_DIR then run with --features sidecar-tests"
 )]
 async fn all_five_sidecars_launch_through_manager_from_installed_layout() {
-    let Ok(install_dir) = std::env::var("PDF_EDITOR_INSTALL_DIR") else {
-        eprintln!(
-            "skipping all_five_sidecars_launch_through_manager_from_installed_layout: \
-             PDF_EDITOR_INSTALL_DIR not set"
-        );
-        return;
-    };
+    let install_dir = std::env::var("PDF_EDITOR_INSTALL_DIR").unwrap_or_default();
     assert!(
-        std::path::Path::new(&install_dir).exists(),
-        "PDF_EDITOR_INSTALL_DIR set to {install_dir} but that path does not exist"
+        !install_dir.is_empty(),
+        "PDF_EDITOR_INSTALL_DIR is unset or empty; set it to a real MSI installed-layout \
+         directory (an administrative extract, see \
+         .vault/process/plans/plan_v1_sidecar_dlls.md, or a real per-user install under \
+         %LOCALAPPDATA%\\Programs\\PDF Editor) before running --features sidecar-tests"
+    );
+    let install_path = std::path::Path::new(&install_dir);
+    assert!(
+        install_path.is_dir(),
+        "PDF_EDITOR_INSTALL_DIR={install_dir} does not exist or is not a directory"
+    );
+
+    // F1: check the five exes directly, with no fallback. See the doc
+    // comment above for why `SidecarManager::resolve_binary`'s own
+    // `CARGO_MANIFEST_DIR` fallback must not be the thing that makes this
+    // pass.
+    let names: Vec<&str> = SIDECARS.iter().map(|(n, _, _, _)| *n).collect();
+    let mut missing: Vec<String> = Vec::new();
+    for name in &names {
+        let exe = install_path.join(format!("{name}.exe"));
+        if !exe.exists() {
+            missing.push(exe.display().to_string());
+        }
+    }
+    let dll_dir = install_path.join("sidecars");
+    if !dll_dir.is_dir() {
+        missing.push(format!("{} (sidecar DLL directory)", dll_dir.display()));
+    }
+    assert!(
+        missing.is_empty(),
+        "PDF_EDITOR_INSTALL_DIR={install_dir} is not a complete installed layout, \
+         missing:\n{}",
+        missing.join("\n")
     );
 
     let original_path = std::env::var_os("PATH");

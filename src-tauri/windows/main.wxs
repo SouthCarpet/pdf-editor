@@ -451,10 +451,13 @@
     </Product>
 
     <!-- PDF EDITOR DELTA 3: file associations, ported from the WiX 4 template
-         (Phase 17 Task 89 Delta I). Registered under HKCU only (per-user
-         install, no HKLM writes). [#Path] is the main exe's File Id in
-         Tauri's WiX 3 default template (Component Id="Path" above), not the
-         WiX 4 auto-generated `exe.PdfEditor` id the old template used. -->
+         (Phase 17 Task 89 Delta I). Registered under HKCU only (the
+         installing user's registry hive, no HKLM writes) - this is
+         independent of the Package's own InstallScope, which is
+         perMachine (see DELTA 1 above; per-user install was tried and
+         reverted). [#Path] is the main exe's File Id in Tauri's WiX 3
+         default template (Component Id="Path" above), not the WiX 4
+         auto-generated `exe.PdfEditor` id the old template used. -->
     <Fragment>
         <ComponentGroup Id="FileAssocComponents" Directory="INSTALLDIR">
 
