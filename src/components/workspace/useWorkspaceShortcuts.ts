@@ -8,7 +8,12 @@ import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
 import { isTextInputTarget, resolveShortcut, type ShortcutAction } from "./shortcuts";
 
-function runAction(action: ShortcutAction, docId: string, zoom: ZoomActions): void {
+function runAction(
+  action: ShortcutAction,
+  docId: string,
+  zoom: ZoomActions,
+  onDeletePending: (() => void) | undefined,
+): void {
   switch (action.type) {
     case "zoom-in":
       zoom.zoomIn(docId);
@@ -24,6 +29,9 @@ function runAction(action: ShortcutAction, docId: string, zoom: ZoomActions): vo
       return;
     case "save-as":
       if (hasUnsavedWork(docId)) void saveDocument(docId, { forcePrompt: true });
+      return;
+    case "delete-pending":
+      onDeletePending?.();
   }
 }
 
@@ -33,21 +41,30 @@ interface ZoomActions {
   resetZoom: (docId: string) => void;
 }
 
+interface WorkspaceShortcutHandlers {
+  /** Plan 062 T1.1: Delete / Backspace on a selected pending fill. */
+  onDeletePending?: () => void;
+}
+
 /** Registers the workspace keyboard shortcuts for the given document.
  * Call once at the workspace level - see `Workspace.tsx`. */
-export function useWorkspaceShortcuts(docId: string): void {
+export function useWorkspaceShortcuts(
+  docId: string,
+  handlers: WorkspaceShortcutHandlers = {},
+): void {
   const zoomIn = useWorkspace((s) => s.zoomIn);
   const zoomOut = useWorkspace((s) => s.zoomOut);
   const resetZoom = useWorkspace((s) => s.resetZoom);
+  const onDeletePending = handlers.onDeletePending;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const action = resolveShortcut(e, isTextInputTarget(e.target));
       if (!action) return;
       e.preventDefault();
-      runAction(action, docId, { zoomIn, zoomOut, resetZoom });
+      runAction(action, docId, { zoomIn, zoomOut, resetZoom }, onDeletePending);
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [docId, zoomIn, zoomOut, resetZoom]);
+  }, [docId, zoomIn, zoomOut, resetZoom, onDeletePending]);
 }

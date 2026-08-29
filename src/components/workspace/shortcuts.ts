@@ -4,15 +4,81 @@
 // React, no jsdom event dispatch.
 //
 // Rule: shortcuts are ignored while a text input has focus (typing "+"
-// into a field must not zoom the page), except Ctrl+S / Ctrl+Shift+S,
-// which always save - a user mid-edit still expects Ctrl+S to work.
+// into a field must not zoom the page; Delete/Backspace in a field must
+// edit the text), except Ctrl+S / Ctrl+Shift+S, which always save.
 
 export type ShortcutAction =
   | { type: "zoom-in" }
   | { type: "zoom-out" }
   | { type: "zoom-reset" }
   | { type: "save" }
-  | { type: "save-as" };
+  | { type: "save-as" }
+  | { type: "delete-pending" };
+
+/** One row of the workspace shortcut table. T3.3's overlay iterates this
+ * list, so a shortcut that is not here cannot appear there. */
+export interface ShortcutBinding {
+  action: ShortcutAction["type"];
+  keys: readonly string[];
+  /** Optional `KeyboardEvent.code` values (numpad Add/Subtract). */
+  codes?: readonly string[];
+  modifier: "ctrl" | "none";
+  /** When set, Shift must match. When omitted, Shift is ignored (Ctrl+=
+   * still zooms in on layouts where "+" needs Shift). */
+  shift?: boolean;
+  allowInTextInput: boolean;
+  /** Catalog key the T3.3 overlay will pass to `t()`. */
+  labelKey: string;
+}
+
+export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
+  {
+    action: "save-as",
+    keys: ["s"],
+    modifier: "ctrl",
+    shift: true,
+    allowInTextInput: true,
+    labelKey: "save_as",
+  },
+  {
+    action: "save",
+    keys: ["s"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "save",
+  },
+  {
+    action: "zoom-reset",
+    keys: ["0"],
+    modifier: "ctrl",
+    allowInTextInput: false,
+    labelKey: "toolbar.zoom_reset",
+  },
+  {
+    action: "zoom-in",
+    keys: ["+", "="],
+    codes: ["NumpadAdd"],
+    modifier: "ctrl",
+    allowInTextInput: false,
+    labelKey: "zoom_in",
+  },
+  {
+    action: "zoom-out",
+    keys: ["-"],
+    codes: ["NumpadSubtract"],
+    modifier: "ctrl",
+    allowInTextInput: false,
+    labelKey: "zoom_out",
+  },
+  {
+    action: "delete-pending",
+    keys: ["Delete", "Backspace"],
+    modifier: "none",
+    allowInTextInput: false,
+    labelKey: "pending_annotation.delete",
+  },
+];
 
 /** The subset of `KeyboardEvent` the resolver reads. Kept narrow so tests
  * can pass a plain object instead of constructing a real `KeyboardEvent`. */
@@ -24,38 +90,32 @@ export interface ShortcutKeyEvent {
   shiftKey: boolean;
 }
 
-// "+" covers Shift+= on a US layout; "=" covers the unshifted key some
-// layouts use for "+" directly (brief: "Ctrl+= for keyboards where plus
-// needs Shift"). Numpad Add/Subtract report `code`, not a distinct `key`,
-// on some platforms, so both are checked.
-const ZOOM_IN_KEYS = new Set(["+", "="]);
-const ZOOM_OUT_KEYS = new Set(["-"]);
-
-function isZoomInKey(e: ShortcutKeyEvent): boolean {
-  return ZOOM_IN_KEYS.has(e.key) || e.code === "NumpadAdd";
-}
-
-function isZoomOutKey(e: ShortcutKeyEvent): boolean {
-  return ZOOM_OUT_KEYS.has(e.key) || e.code === "NumpadSubtract";
+function bindingMatches(spec: ShortcutBinding, e: ShortcutKeyEvent): boolean {
+  const withModifier = e.ctrlKey || e.metaKey;
+  if (spec.modifier === "ctrl" && !withModifier) return false;
+  if (spec.modifier === "none" && withModifier) return false;
+  if (spec.shift === true && !e.shiftKey) return false;
+  if (spec.shift === false && e.shiftKey) return false;
+  const keyHit = spec.keys.some((k) =>
+    k.length === 1 ? e.key.toLowerCase() === k.toLowerCase() : e.key === k,
+  );
+  const codeHit = spec.codes !== undefined && e.code !== undefined && spec.codes.includes(e.code);
+  return keyHit || codeHit;
 }
 
 /** Resolves one keydown into a workspace shortcut action, or `null` if the
  * event is not one of ours. `isTextInputFocused` gates every action except
- * save / save-as. */
+ * those marked `allowInTextInput` (save / save-as). Bindings come from
+ * `WORKSPACE_SHORTCUTS` so the T3.3 overlay cannot drift. */
 export function resolveShortcut(
   e: ShortcutKeyEvent,
   isTextInputFocused: boolean,
 ): ShortcutAction | null {
-  const withModifier = e.ctrlKey || e.metaKey;
-  if (!withModifier) return null;
-
-  if (e.key.toLowerCase() === "s") {
-    return e.shiftKey ? { type: "save-as" } : { type: "save" };
+  for (const spec of WORKSPACE_SHORTCUTS) {
+    if (!bindingMatches(spec, e)) continue;
+    if (isTextInputFocused && !spec.allowInTextInput) return null;
+    return { type: spec.action };
   }
-  if (isTextInputFocused) return null;
-  if (e.key === "0") return { type: "zoom-reset" };
-  if (isZoomInKey(e)) return { type: "zoom-in" };
-  if (isZoomOutKey(e)) return { type: "zoom-out" };
   return null;
 }
 

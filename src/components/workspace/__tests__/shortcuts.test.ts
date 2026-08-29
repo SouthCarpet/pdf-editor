@@ -3,7 +3,12 @@
 // one assertion, and `useWorkspaceShortcuts` (the thin wiring layer that
 // calls it from a real `keydown` listener) has nothing left to get wrong.
 import { describe, it, expect } from "vitest";
-import { isTextInputTarget, resolveShortcut, type ShortcutKeyEvent } from "../shortcuts";
+import {
+  isTextInputTarget,
+  resolveShortcut,
+  WORKSPACE_SHORTCUTS,
+  type ShortcutKeyEvent,
+} from "../shortcuts";
 
 function key(overrides: Partial<ShortcutKeyEvent> & { key: string }): ShortcutKeyEvent {
   return { ctrlKey: false, metaKey: false, shiftKey: false, ...overrides };
@@ -68,6 +73,40 @@ describe("resolveShortcut", () => {
 
   it("Ctrl+S is case-insensitive (Caps Lock produces an uppercase key)", () => {
     expect(resolveShortcut(key({ key: "S", ctrlKey: true }), false)).toEqual({ type: "save" });
+  });
+
+  // Plan 062 T1.1: Delete / Backspace clear a selected pending fill, but
+  // only when the event is not typing into a text field. Oracle: Michal's
+  // 2026-08-29 defect (click a filled cell, Delete does nothing) and R1
+  // of the round-2 brief.
+  it("Delete maps to delete-pending when no text input is focused", () => {
+    expect(resolveShortcut(key({ key: "Delete" }), false)).toEqual({ type: "delete-pending" });
+  });
+
+  it("Backspace maps to delete-pending when no text input is focused", () => {
+    expect(resolveShortcut(key({ key: "Backspace" }), false)).toEqual({
+      type: "delete-pending",
+    });
+  });
+
+  it("Delete and Backspace do not map to delete-pending while a text input is focused", () => {
+    expect(resolveShortcut(key({ key: "Delete" }), true)).toBeNull();
+    expect(resolveShortcut(key({ key: "Backspace" }), true)).toBeNull();
+  });
+
+  it("Ctrl+Delete and Ctrl+Backspace are not the delete-pending shortcut", () => {
+    expect(resolveShortcut(key({ key: "Delete", ctrlKey: true }), false)).toBeNull();
+    expect(resolveShortcut(key({ key: "Backspace", ctrlKey: true }), false)).toBeNull();
+  });
+});
+
+describe("WORKSPACE_SHORTCUTS", () => {
+  it("registers delete-pending on Delete and Backspace so the T3.3 overlay can list it", () => {
+    const spec = WORKSPACE_SHORTCUTS.find((s) => s.action === "delete-pending");
+    expect(spec).toBeDefined();
+    expect(spec?.keys).toEqual(["Delete", "Backspace"]);
+    expect(spec?.modifier).toBe("none");
+    expect(spec?.allowInTextInput).toBe(false);
   });
 });
 

@@ -14,6 +14,11 @@
   "fit_page": "Fit page",
   "page_n_of_m": "Page {{n}} of {{m}}",
   "thumbnails": "Thumbnails",
+  "page_panel": {
+    "pages": "Pages {{count}}",
+    "collapse": "Hide pages",
+    "expand": "Show pages"
+  },
   "compare": {
     "title": "Compare",
     "panel_label": "Document comparison",

@@ -46,6 +46,9 @@ interface WorkspaceState {
   // plan 050 D2-UX-2 R7a) - a plain `ref.current` read/write is the
   // pattern that rule already treats as safe.
   autoDetectFormsRequest: number;
+  /** Plan 062 T1.5: left page panel collapsed. Session-only (this store
+   * is wiped on reload). */
+  thumbnailStripCollapsed: boolean;
   setTool: (t: WorkspaceTool) => void;
   setEditSubTool: (t: EditSubTool) => void;
   setActivePage: (n: number) => void;
@@ -58,6 +61,7 @@ interface WorkspaceState {
   openOcrPrompt: () => void;
   closeOcrPrompt: () => void;
   requestAutoDetectForms: () => void;
+  setThumbnailStripCollapsed: (collapsed: boolean) => void;
 }
 
 export const useWorkspace = create<WorkspaceState>((set, get) => ({
@@ -67,6 +71,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   zoomByDoc: {},
   ocrPromptOpen: false,
   autoDetectFormsRequest: 0,
+  thumbnailStripCollapsed: false,
   setTool: (t) => set({ activeTool: t }),
   setEditSubTool: (t) => set({ editSubTool: t }),
   setActivePage: (n) => set({ activePage: Math.max(0, n) }),
@@ -79,4 +84,5 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   openOcrPrompt: () => set({ ocrPromptOpen: true }),
   closeOcrPrompt: () => set({ ocrPromptOpen: false }),
   requestAutoDetectForms: () => set((s) => ({ autoDetectFormsRequest: s.autoDetectFormsRequest + 1 })),
+  setThumbnailStripCollapsed: (collapsed) => set({ thumbnailStripCollapsed: collapsed }),
 }));

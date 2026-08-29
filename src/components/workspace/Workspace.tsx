@@ -7,7 +7,7 @@
 // `workspaceStore.activeTool`. The Crop tool ships in this commit;
 // Organize/Extract panels are added in subsequent Phase 11 commits.
 import type * as pdfjs from "pdfjs-dist";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Rect } from "react-konva";
 import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
@@ -15,7 +15,8 @@ import { ZOOM_DEFAULT, useWorkspace } from "@/stores/workspaceStore";
 import { DetectedFieldFill } from "./DetectedFieldFill";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay } from "./EditPageOverlay";
-import { EMPTY_FILLED_FIELDS, markFieldFilled, unmarkFieldForClientId } from "./filledFieldsState";
+import { deletePendingAnnotation } from "./deletePending";
+import { EMPTY_FILLED_FIELDS, markFieldFilled } from "./filledFieldsState";
 import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { PendingAnnotationControls } from "./PendingAnnotationControls";
@@ -60,11 +61,11 @@ export function Workspace({ pdf, path }: Props) {
   const zoom = useWorkspace((s) => s.zoomByDoc[path] ?? ZOOM_DEFAULT);
   const zoomIn = useWorkspace((s) => s.zoomIn);
   const zoomOut = useWorkspace((s) => s.zoomOut);
+  const thumbnailStripCollapsed = useWorkspace((s) => s.thumbnailStripCollapsed);
+  const setThumbnailStripCollapsed = useWorkspace((s) => s.setThumbnailStripCollapsed);
   const addAnnotation = useAnnotations((s) => s.add);
   const updateAnnotation = useAnnotations((s) => s.update);
   const removeAnnotation = useAnnotations((s) => s.remove);
-  // R1: Ctrl+plus/minus/0, registered once for the whole workspace.
-  useWorkspaceShortcuts(path);
   const mainRef = useRef<HTMLElement>(null);
   const wheelAnchorRef = useRef<WheelAnchor | null>(null);
 
@@ -132,6 +133,32 @@ export function Workspace({ pdf, path }: Props) {
   );
   const hasPendingOnPage = pendingAnnotations.some(
     (a) => a.type === "free_text" && a.page === activePage,
+  );
+
+  const handleDeletePending = useCallback(() => {
+    if (!selectedFreeText) return;
+    const clientId = selectedFreeText.__clientId;
+    setFilledState((current) =>
+      deletePendingAnnotation({
+        remove: removeAnnotation,
+        filled: current,
+        docPath: path,
+        pageKey: ocrPageKey,
+        clientId,
+      }),
+    );
+    setSelectedPending(null);
+  }, [selectedFreeText, removeAnnotation, path, ocrPageKey]);
+
+  // R1: Ctrl+plus/minus/0, Save, and Delete/Backspace on a selected fill.
+  useWorkspaceShortcuts(path, { onDeletePending: handleDeletePending });
+
+  const selectPage = useCallback(
+    (index: number) => {
+      setActivePage(index);
+      mainRef.current?.scrollTo({ top: 0, left: 0 });
+    },
+    [setActivePage],
   );
 
   // Clamp active page when the document changes (defensive).
@@ -222,8 +249,10 @@ export function Workspace({ pdf, path }: Props) {
           <ThumbnailStrip
             pdf={pdf}
             active={activePage}
-            onSelect={setActivePage}
+            onSelect={selectPage}
             height={typeof window !== "undefined" ? window.innerHeight - 96 : 600}
+            collapsed={thumbnailStripCollapsed}
+            onToggleCollapsed={() => setThumbnailStripCollapsed(!thumbnailStripCollapsed)}
           />
         </aside>
         <main
@@ -321,16 +350,7 @@ export function Workspace({ pdf, path }: Props) {
                     })
                   }
                   onConfirm={() => setSelectedPending(null)}
-                  onDelete={() => {
-                    removeAnnotation(path, selectedFreeText.__clientId);
-                    // R7b (plan 050 D2-UX-2): a deleted fill no longer backs
-                    // its detected field, so the field must stop showing as
-                    // filled too.
-                    setFilledState((current) =>
-                      unmarkFieldForClientId(current, ocrPageKey, selectedFreeText.__clientId),
-                    );
-                    setSelectedPending(null);
-                  }}
+                  onDelete={handleDeletePending}
                 />
               )}
             {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (

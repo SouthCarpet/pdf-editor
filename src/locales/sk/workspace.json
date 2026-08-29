@@ -14,6 +14,11 @@
   "fit_page": "Prispôsobiť strane",
   "page_n_of_m": "Strana {{n}} z {{m}}",
   "thumbnails": "Náhľady",
+  "page_panel": {
+    "pages": "Strany {{count}}",
+    "collapse": "Skryť strany",
+    "expand": "Zobraziť strany"
+  },
   "compare": {
     "title": "Porovnanie",
     "panel_label": "Porovnanie dokumentov",

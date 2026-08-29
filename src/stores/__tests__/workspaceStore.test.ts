@@ -11,6 +11,7 @@ describe("workspaceStore", () => {
       editSubTool: "forms",
       activePage: 0,
       zoomByDoc: {},
+      thumbnailStripCollapsed: false,
     });
   });
 
@@ -109,5 +110,14 @@ describe("workspaceStore", () => {
     expect(useWorkspace.getState().autoDetectFormsRequest).toBe(1);
     useWorkspace.getState().requestAutoDetectForms();
     expect(useWorkspace.getState().autoDetectFormsRequest).toBe(2);
+  });
+
+  // Plan 062 T1.5: collapse is session state on this store (wiped on reload).
+  it("thumbnail strip collapse defaults to expanded and remembers a toggle", () => {
+    expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(false);
+    useWorkspace.getState().setThumbnailStripCollapsed(true);
+    expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(true);
+    useWorkspace.getState().setThumbnailStripCollapsed(false);
+    expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(false);
   });
 });

@@ -40,8 +40,14 @@ import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 // A plain `data-testid`, not `aria-label`/`placeholder`: those are
 // user-facing attributes the i18n literal-string gate polices, and this
 // element exists only to give a keydown a text-input `target` in the test.
-function Harness({ docId }: { docId: string }) {
-  useWorkspaceShortcuts(docId);
+function Harness({
+  docId,
+  onDeletePending,
+}: {
+  docId: string;
+  onDeletePending?: () => void;
+}) {
+  useWorkspaceShortcuts(docId, { onDeletePending });
   return <input data-testid="draft" />;
 }
 
@@ -90,5 +96,35 @@ describe("useWorkspaceShortcuts", () => {
     fireEvent.keyDown(baseElement, { key: "s", ctrlKey: true });
     expect(fakeBridge.pickSavePath).not.toHaveBeenCalled();
     expect(commandFakes.applyAnnotationsCmd).not.toHaveBeenCalled();
+  });
+
+  // Plan 062 T1.1: the window listener must dispatch Delete / Backspace
+  // into the workspace delete path when focus is not a text input.
+  it("Delete calls onDeletePending when focus is not a text input", () => {
+    const onDeletePending = vi.fn();
+    const { baseElement } = render(
+      <Harness docId={DOC_A} onDeletePending={onDeletePending} />,
+    );
+    fireEvent.keyDown(baseElement, { key: "Delete" });
+    expect(onDeletePending).toHaveBeenCalledTimes(1);
+  });
+
+  it("Backspace calls onDeletePending when focus is not a text input", () => {
+    const onDeletePending = vi.fn();
+    const { baseElement } = render(
+      <Harness docId={DOC_A} onDeletePending={onDeletePending} />,
+    );
+    fireEvent.keyDown(baseElement, { key: "Backspace" });
+    expect(onDeletePending).toHaveBeenCalledTimes(1);
+  });
+
+  it("Delete and Backspace inside a text input do not call onDeletePending", () => {
+    const onDeletePending = vi.fn();
+    const { getByTestId } = render(
+      <Harness docId={DOC_A} onDeletePending={onDeletePending} />,
+    );
+    fireEvent.keyDown(getByTestId("draft"), { key: "Delete" });
+    fireEvent.keyDown(getByTestId("draft"), { key: "Backspace" });
+    expect(onDeletePending).not.toHaveBeenCalled();
   });
 });
