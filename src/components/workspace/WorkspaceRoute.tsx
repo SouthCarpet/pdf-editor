@@ -15,8 +15,10 @@ import { commands } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import type { OcrResult, TextDiffResult, VisualDiffPage } from "@/bindings";
 import { decodeDocId } from "@/lib/docId";
+import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
+import { useCloseGuard } from "@/stores/closeGuardStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { pickPaths, pickSavePath } from "@/tauri/bridge";
 import { ScanDetectedDialog, type OcrSelections } from "@/components/ScanDetectedDialog";
@@ -35,6 +37,10 @@ function isAppError(e: unknown): e is AppErrorShape {
   return typeof e === "object" && e !== null && typeof (e as AppErrorShape).key === "string";
 }
 
+function fileName(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
 
 export function WorkspaceRoute() {
   const { t } = useTranslation("common");
@@ -42,18 +48,25 @@ export function WorkspaceRoute() {
   const search = useSearch({ from: "/workspace/$docId" });
   const navigate = useNavigate();
   const addDoc = useDocuments((s) => s.add);
+  const closeDoc = useDocuments((s) => s.close);
   const setActiveDoc = useDocuments((s) => s.setActive);
   const setTool = useWorkspace((s) => s.setTool);
   // Plan 050 task D2-UX: lifted into the workspace store so the Text tool's
-  // scanned-page empty state can open this dialog directly (see R4).
+  // scanned-page empty state can open this dialog directly (see R4). Plan
+  // 062 T1.2 (R1): WorkspaceRoute itself no longer calls `openOcrPrompt` -
+  // the dialog opens only from that explicit "Spustiť OCR" action (or the
+  // OCR toolbar tab), never automatically on open.
   const ocrPromptOpen = useWorkspace((s) => s.ocrPromptOpen);
-  const openOcrPrompt = useWorkspace((s) => s.openOcrPrompt);
   const closeOcrPrompt = useWorkspace((s) => s.closeOcrPrompt);
+  const getZoom = useWorkspace((s) => s.getZoom);
+  const setZoom = useWorkspace((s) => s.setZoom);
+  const openCloseGuard = useCloseGuard((s) => s.open);
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<
     { key: string | null; data: Record<string, unknown>; raw?: string } | null
   >(null);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
+  const [ocrOutputPath, setOcrOutputPath] = useState<string | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
 
   // Apply the tool search param exactly once on first mount.
@@ -156,14 +169,16 @@ export function WorkspaceRoute() {
         setError(null);
         setPath(resolvedPath);
       }
-      // Phase 13 Task 71 - kick off scan detection in the background.
-      const detect = await commands.detectScannedPdf(resolvedPath);
-      if (cancelled) return;
-      if (detect.status === "ok" && detect.data.is_likely_scanned) {
-        openOcrPrompt();
-      }
+      // Phase 13 Task 71 used to kick off scan detection here and
+      // auto-open the OCR dialog on every open (defect, plan 062 T1.2:
+      // Michal reported the prompt appearing on every document, scanned
+      // or not, with no way to dismiss it for good). Scan detection
+      // itself still runs - `EditTextPanel` calls `detectScannedPdf`
+      // itself to drive its own scanned-page empty state - so removing
+      // this duplicate call here only removes the auto-prompt, not the
+      // detection.
     }
-  }, [docId, navigate, addDoc, setActiveDoc, search, isCompareMode, openOcrPrompt]);
+  }, [docId, navigate, addDoc, setActiveDoc, search, isCompareMode]);
 
   async function onRunOcr(sel: OcrSelections) {
     if (!path) return;
@@ -175,6 +190,7 @@ export function WorkspaceRoute() {
     if (!out) return;
     setOcrError(null);
     setOcrResult(null);
+    setOcrOutputPath(null);
     const result = await commands.ocrPdfCmd({
       input: path,
       output: out,
@@ -193,9 +209,49 @@ export function WorkspaceRoute() {
     });
     if (result.status === "ok") {
       setOcrResult(result.data);
+      setOcrOutputPath(out);
+      // Plan 062 T1.4: the OCR job writes a separate searchable PDF: the
+      // open document is untouched, so the Text panel kept showing the
+      // "scanned, no text layer" empty state even after a successful run.
+      // Open the result so the panel reflects what OCR actually produced.
+      void openOcrResult(path, out);
     } else {
       setOcrError(JSON.stringify(result.error));
     }
+  }
+
+  // A tab is identified by its document path (`documentStore` keys on
+  // it), so there is no way to swap a tab's path in place. Closing the
+  // scanned original and opening the searchable result as a new,
+  // focused tab is the fallback R2 names for that case.
+  async function openOcrResult(originalPath: string, outputPath: string) {
+    const swap = () => void swapDocument(originalPath, outputPath);
+    if (hasUnsavedWork(originalPath)) {
+      // Reuse the close-guard dialog (Save / Discard / Cancel) instead of
+      // silently dropping pending annotations or an in-progress text
+      // edit on the original when it is replaced.
+      openCloseGuard({ kind: "tab", docId: originalPath, onClosed: swap });
+      return;
+    }
+    swap();
+  }
+
+  async function swapDocument(originalPath: string, outputPath: string) {
+    const opened = await commands.openDocument(outputPath);
+    if (opened.status === "error") {
+      setOcrError(JSON.stringify(opened.error));
+      return;
+    }
+    const doc = opened.data;
+    setZoom(doc.path, getZoom(originalPath));
+    addDoc({ id: doc.path, path: doc.path, pageCount: doc.page_count, dirty: false });
+    closeDoc(originalPath);
+    void navigate({
+      to: "/workspace/$docId",
+      params: { docId: encodeURIComponent(doc.path) },
+      search,
+      replace: true,
+    });
   }
 
   const pdfDoc = usePdfDocument(path);
@@ -227,7 +283,7 @@ export function WorkspaceRoute() {
     );
   }
   if (isCompareMode) {
-    return <CompareWorkspace />;
+    return <CompareWorkspace initialLeftPath={docId === "new" ? null : decodeDocId(docId)} />;
   }
   if (!path || !pdfDoc) {
     return <div className="p-6 text-[var(--color-muted)]">Loading…</div>;
@@ -255,12 +311,18 @@ export function WorkspaceRoute() {
                   })}
                 </p>
               )}
+              {ocrResult && ocrOutputPath && (
+                <p className="mt-1 truncate text-xs text-[var(--color-muted)]" title={ocrOutputPath}>
+                  {t("ocr_result.output_file", { name: fileName(ocrOutputPath) })}
+                </p>
+              )}
             </div>
             <button
               type="button"
               aria-label={t("ocr_result.close")}
               onClick={() => {
                 setOcrResult(null);
+                setOcrOutputPath(null);
                 setOcrError(null);
               }}
               className="-m-2 inline-flex size-10 items-center justify-center rounded-md text-[var(--color-muted)] transition-transform duration-150 ease-out hover:text-[var(--color-foreground)] active:scale-[0.96]"
@@ -328,29 +390,29 @@ export function WorkspaceRoute() {
 
 // ---------- Compare-mode workspace shell ----------
 
-function CompareWorkspace() {
-  const [leftPath, setLeftPath] = useState<string | null>(null);
+function CompareWorkspace({ initialLeftPath }: { initialLeftPath: string | null }) {
+  const { t } = useTranslation("workspace");
+  const [leftPath, setLeftPath] = useState<string | null>(initialLeftPath);
   const [rightPath, setRightPath] = useState<string | null>(null);
   const [mode, setMode] = useState<"visual" | "text">("visual");
   const [visualResult, setVisualResult] = useState<VisualDiffPage[] | null>(null);
   const [textResult, setTextResult] = useState<TextDiffResult | null>(null);
 
-  const ready = leftPath && rightPath;
+  const ready = leftPath !== null && rightPath !== null;
 
   return (
     <div className="flex h-full min-h-0">
       <main className="flex-1 overflow-hidden">
         {ready ? (
           <CompareViewer
-            leftPath={leftPath!}
-            rightPath={rightPath!}
+            leftPath={leftPath}
+            rightPath={rightPath}
             mode={mode}
             visualResult={visualResult}
-            textResult={textResult}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-[var(--color-muted)]">
-            Pick a left and right PDF in the panel to begin.
+            {t("compare.viewer_empty")}
           </div>
         )}
       </main>
@@ -364,6 +426,8 @@ function CompareWorkspace() {
           setMode={setMode}
           onVisualResult={setVisualResult}
           onTextResult={setTextResult}
+          visualResult={visualResult}
+          textResult={textResult}
         />
       </aside>
     </div>

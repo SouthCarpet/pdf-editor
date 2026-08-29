@@ -125,7 +125,8 @@
     "engine": "Engine used: {{engine}}",
     "fallback": "RapidOCR was unavailable or failed. Tesseract was used.",
     "close": "Close OCR result",
-    "failed": "OCR failed: {{error}}"
+    "failed": "OCR failed: {{error}}",
+    "output_file": "Saved as {{name}}"
   },
   "ocr_options": {
     "engine": "OCR engine",

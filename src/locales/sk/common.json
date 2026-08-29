@@ -125,7 +125,8 @@
     "engine": "Použitý engine: {{engine}}",
     "fallback": "RapidOCR nebol dostupný alebo zlyhal. Použil sa Tesseract.",
     "close": "Zavrieť výsledok OCR",
-    "failed": "OCR zlyhalo: {{error}}"
+    "failed": "OCR zlyhalo: {{error}}",
+    "output_file": "Uložené ako {{name}}"
   },
   "ocr_options": {
     "engine": "OCR engine",

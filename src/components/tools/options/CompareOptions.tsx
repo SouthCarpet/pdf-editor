@@ -11,6 +11,7 @@
 // Text options: word boundary toggle, ignore case, ignore whitespace,
 // min change unit (Char / Word / Sentence), diff style (Inline /
 // Side-by-side / Unified).
+import { useTranslation } from "react-i18next";
 import type {
   CompareDiffStyle,
   CompareDiffUnit,
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function CompareOptions({ value, onChange }: Props) {
+  const { t } = useTranslation("workspace");
   function set<K extends keyof CompareOptionsValue>(
     key: K,
     next: CompareOptionsValue[K],
@@ -36,7 +38,7 @@ export function CompareOptions({ value, onChange }: Props) {
   }
   return (
     <div className="space-y-2 rounded border p-3 text-sm">
-      <fieldset className="flex gap-3" aria-label="Compare mode">
+      <fieldset className="flex gap-3" aria-label={t("compare.options.mode")}>
         {(["visual", "text"] as CompareMode[]).map((m) => (
           <label key={m} className="flex items-center gap-1 text-xs">
             <input
@@ -45,7 +47,7 @@ export function CompareOptions({ value, onChange }: Props) {
               checked={value.mode === m}
               onChange={() => set("mode", m)}
             />
-            {m === "visual" ? "Visual" : "Text"}
+            {t(`compare.options.${m}`)}
           </label>
         ))}
       </fieldset>
@@ -53,7 +55,7 @@ export function CompareOptions({ value, onChange }: Props) {
       {value.mode === "visual" && (
         <div className="space-y-2 rounded border p-2 text-xs">
           <label className="block">
-            DPI: {value.visualDpi}
+            {t("compare.options.dpi")}: {value.visualDpi}
             <input
               type="range"
               min={72}
@@ -61,11 +63,11 @@ export function CompareOptions({ value, onChange }: Props) {
               value={value.visualDpi}
               onChange={(e) => set("visualDpi", Number(e.target.value))}
               className="w-full"
-              aria-label="Visual DPI"
+              aria-label={t("compare.options.visual_dpi")}
             />
           </label>
           <label className="block">
-            Tolerance: {value.visualTolerancePercent}%
+            {t("compare.options.tolerance")}: {value.visualTolerancePercent}%
             <input
               type="range"
               min={0}
@@ -76,31 +78,31 @@ export function CompareOptions({ value, onChange }: Props) {
                 set("visualTolerancePercent", Number(e.target.value))
               }
               className="w-full"
-              aria-label="Visual tolerance"
+              aria-label={t("compare.options.visual_tolerance")}
             />
           </label>
           <label className="flex items-center gap-2">
-            Diff color
+            {t("compare.options.diff_color")}
             <input
               type="color"
               value={value.visualDiffColor}
               onChange={(e) => set("visualDiffColor", e.target.value)}
-              aria-label="Diff color"
+              aria-label={t("compare.options.diff_color")}
             />
           </label>
           <label className="block">
-            View mode
+            {t("compare.options.view_mode")}
             <select
               value={value.visualView}
               onChange={(e) =>
                 set("visualView", e.target.value as CompareView)
               }
               className="h-7 w-full rounded border px-2"
-              aria-label="Visual view mode"
+              aria-label={t("compare.options.visual_view_mode")}
             >
-              <option value="side-by-side">Side-by-side</option>
-              <option value="overlay">Overlay</option>
-              <option value="difference-only">Difference only</option>
+              <option value="side-by-side">{t("compare.options.side_by_side")}</option>
+              <option value="overlay">{t("compare.options.overlay")}</option>
+              <option value="difference-only">{t("compare.options.difference_only")}</option>
             </select>
           </label>
         </div>
@@ -114,7 +116,7 @@ export function CompareOptions({ value, onChange }: Props) {
               checked={value.textWordBoundary}
               onChange={(e) => set("textWordBoundary", e.target.checked)}
             />
-            Word boundary
+            {t("compare.options.word_boundary")}
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -122,7 +124,7 @@ export function CompareOptions({ value, onChange }: Props) {
               checked={value.textIgnoreCase}
               onChange={(e) => set("textIgnoreCase", e.target.checked)}
             />
-            Ignore case
+            {t("compare.options.ignore_case")}
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -132,36 +134,36 @@ export function CompareOptions({ value, onChange }: Props) {
                 set("textIgnoreWhitespace", e.target.checked)
               }
             />
-            Ignore whitespace
+            {t("compare.options.ignore_whitespace")}
           </label>
           <label className="block">
-            Min change unit
+            {t("compare.options.min_change_unit")}
             <select
               value={value.textMinChangeUnit}
               onChange={(e) =>
                 set("textMinChangeUnit", e.target.value as CompareDiffUnit)
               }
               className="h-7 w-full rounded border px-2"
-              aria-label="Min change unit"
+              aria-label={t("compare.options.min_change_unit")}
             >
-              <option value="char">Character</option>
-              <option value="word">Word</option>
-              <option value="sentence">Sentence</option>
+              <option value="char">{t("compare.options.character")}</option>
+              <option value="word">{t("compare.options.word")}</option>
+              <option value="sentence">{t("compare.options.sentence")}</option>
             </select>
           </label>
           <label className="block">
-            Diff style
+            {t("compare.options.diff_style")}
             <select
               value={value.textDiffStyle}
               onChange={(e) =>
                 set("textDiffStyle", e.target.value as CompareDiffStyle)
               }
               className="h-7 w-full rounded border px-2"
-              aria-label="Diff style"
+              aria-label={t("compare.options.diff_style")}
             >
-              <option value="inline">Inline</option>
-              <option value="side-by-side">Side-by-side</option>
-              <option value="unified">Unified</option>
+              <option value="inline">{t("compare.options.inline")}</option>
+              <option value="side-by-side">{t("compare.options.side_by_side")}</option>
+              <option value="unified">{t("compare.options.unified")}</option>
             </select>
           </label>
         </div>

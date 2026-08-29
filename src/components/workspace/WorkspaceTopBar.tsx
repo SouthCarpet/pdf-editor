@@ -7,7 +7,7 @@
 //     document, a shortcut into the Convert tool, an overflow for the
 //     other document-level tools, and the zoom indicator (R1).
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ interface Props {
 
 export function WorkspaceTopBar({ path }: Props) {
   const { t } = useTranslation("common");
+  const navigate = useNavigate();
   const tool = useWorkspace((s) => s.activeTool);
   const setTool = useWorkspace((s) => s.setTool);
   const zoom = useWorkspace((s) => s.zoomByDoc[path] ?? ZOOM_DEFAULT);
@@ -73,6 +74,16 @@ export function WorkspaceTopBar({ path }: Props) {
     }
   }
 
+  function selectTool(nextTool: WorkspaceTool) {
+    setTool(nextTool);
+    if (nextTool !== "compare") return;
+    void navigate({
+      to: "/workspace/$docId",
+      params: { docId: encodeURIComponent(path) },
+      search: { tool: "compare" },
+    });
+  }
+
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1">
       {TOOLS.map((id) => (
@@ -80,7 +91,7 @@ export function WorkspaceTopBar({ path }: Props) {
           key={id}
           variant={id === tool ? "default" : "ghost"}
           size="sm"
-          onClick={() => setTool(id)}
+          onClick={() => selectTool(id)}
         >
           {t(`tools.${id}`)}
         </Button>
