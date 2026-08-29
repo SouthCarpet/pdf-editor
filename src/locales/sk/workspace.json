@@ -5,6 +5,11 @@
   "save_status_saving": "Ukladá sa...",
   "zoom_in": "Priblížiť",
   "zoom_out": "Oddialiť",
+  "toolbar": {
+    "more_tools": "Ďalšie nástroje",
+    "zoom_reset": "Obnoviť mierku na 100 %",
+    "convert": "Konvertovať"
+  },
   "fit_width": "Prispôsobiť šírke",
   "fit_page": "Prispôsobiť strane",
   "page_n_of_m": "Strana {{n}} z {{m}}",
@@ -134,7 +139,8 @@
     "size_decrease": "Zmenšiť písmo",
     "size_increase": "Zväčšiť písmo",
     "color_label": "Farba textu",
-    "delete": "Odstrániť"
+    "delete": "Odstrániť",
+    "confirm": "Potvrdiť"
   },
   "close_guard": {
     "title": "Neuložené zmeny",

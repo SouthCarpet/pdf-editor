@@ -11,7 +11,6 @@
     "common:opening.before_active",
     "common:reset",
     "common:retry",
-    "common:save_as",
     "common:tools.pipeline",
     "dashboard:new_project",
     "dashboard:no_projects",
@@ -203,9 +202,7 @@
     "workspace:save_status_saving",
     "workspace:thumbnails",
     "workspace:tools.edit_forms",
-    "workspace:tools.ocr",
-    "workspace:zoom_in",
-    "workspace:zoom_out"
+    "workspace:tools.ocr"
   ],
   "literals": [
     "src/App.tsx  1 literal(s)  sha256:a331fada577d5d62",

@@ -26,51 +26,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { commands, type Annotation } from "@/bindings";
-import { pickSavePath } from "@/tauri/bridge";
 import { onWindowCloseRequested, requestWindowClose } from "@/tauri/windowClose";
-import { NO_ANNOTATIONS, useAnnotations } from "@/stores/annotationsStore";
+import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments, type DocId } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { hasUnsavedWork, unsavedDocIds } from "@/lib/unsavedWork";
+import { saveDocument } from "@/lib/documentSave";
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
-}
-
-function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clientId"> {
-  const { __clientId: _drop, ...rest } = a;
-  void _drop;
-  return rest;
-}
-
-/** What one document's save attempt ended in. */
-type SaveOutcome = "saved" | "nothing-to-save" | "stopped";
-
-/**
- * Runs the existing annotations save flow for one document.
- *   - "saved": nothing was pending, or the write succeeded.
- *   - "nothing-to-save": the document is dirty, but its only unsaved work
- *     is an in-progress text-run edit (Edit > Text). No command can flush
- *     that, so saving must not pretend it did - the user has to Apply the
- *     text edit first.
- *   - "stopped": the user cancelled the save dialog, or the write failed.
- */
-async function saveDocument(docId: DocId): Promise<SaveOutcome> {
-  const pending = useAnnotations.getState().byDoc[docId] ?? NO_ANNOTATIONS;
-  if (pending.length === 0) return hasUnsavedWork(docId) ? "nothing-to-save" : "saved";
-  const output = await pickSavePath({
-    defaultPath: docId.replace(/\.pdf$/i, ".annotated.pdf"),
-    filters: [{ name: "PDF", extensions: ["pdf"] }],
-  });
-  if (!output) return "stopped";
-  const result = await commands.applyAnnotationsCmd({
-    input: docId,
-    output,
-    annotations: pending.map(stripClientId) as Annotation[],
-    job_id: crypto.randomUUID(),
-  });
-  return result.status === "ok" ? "saved" : "stopped";
 }
 
 function discardDocument(docId: DocId): void {
@@ -129,12 +93,19 @@ export function CloseGuardDialog() {
     try {
       for (const id of docIds) {
         const outcome = await saveDocument(id);
-        if (outcome === "stopped") return;
+        if (outcome === "cancelled" || outcome === "failed") return;
         if (outcome === "nothing-to-save") {
           setHint(true);
           return;
         }
-        discardDocument(id);
+        // "saved": saveDocument wrote the pending annotations, but a
+        // document can carry a separate Edit Text draft (`dirty`) that
+        // this save does not touch. Re-check before trusting the loop is
+        // done, so that unsaved work never closes silently.
+        if (hasUnsavedWork(id)) {
+          setHint(true);
+          return;
+        }
       }
       finish();
     } finally {

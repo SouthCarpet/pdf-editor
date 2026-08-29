@@ -12,9 +12,16 @@
 // each other's clicks. `EditPageOverlay` mounts the one `Stage`.
 import type { PageViewport } from "pdfjs-dist";
 import type { KonvaEventObject } from "konva/lib/Node";
+import type { Vector2d } from "konva/lib/types";
 import { Group, Rect, Text } from "react-konva";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
-import { freeTextRenderProps, toPdfRect, type FreeTextAnnotation } from "./pendingAnnotationGeometry";
+import {
+  freeTextRenderProps,
+  resizeRectEdge,
+  toPdfRect,
+  type FreeTextAnnotation,
+  type ResizeEdge,
+} from "./pendingAnnotationGeometry";
 import type { ScreenRect } from "./detectedFieldGeometry";
 
 type PendingFreeText = ClientAnnotation & FreeTextAnnotation;
@@ -29,7 +36,28 @@ interface Props {
 }
 
 const HANDLE_SIZE = 9;
-const MIN_HANDLE_DRAG_PX = 12;
+
+/** One draggable handle at the midpoint of one rectangle edge, and the
+ * screen axis it moves along - the other axis is pinned so the drag can
+ * only narrow/widen (left/right) or shorten/heighten (top/bottom) one
+ * dimension at a time. */
+interface EdgeHandle {
+  edge: ResizeEdge;
+  x: number;
+  y: number;
+  axis: "x" | "y";
+}
+
+function edgeHandles(screen: ScreenRect): EdgeHandle[] {
+  const midX = screen.x + screen.width / 2;
+  const midY = screen.y + screen.height / 2;
+  return [
+    { edge: "left", x: screen.x, y: midY, axis: "x" },
+    { edge: "right", x: screen.x + screen.width, y: midY, axis: "x" },
+    { edge: "top", x: midX, y: screen.y, axis: "y" },
+    { edge: "bottom", x: midX, y: screen.y + screen.height, axis: "y" },
+  ];
+}
 
 export function PendingFreeTextLayer({
   page,
@@ -86,10 +114,23 @@ function PendingFreeTextItem({
     onRectChange(toPdfRect(next, viewport));
   }
 
-  function onHandleDragMove(e: KonvaEventObject<DragEvent>) {
-    const width = Math.max(MIN_HANDLE_DRAG_PX, e.target.x() - screen.x);
-    const height = Math.max(MIN_HANDLE_DRAG_PX, e.target.y() - screen.y);
-    onRectChange(toPdfRect({ x: screen.x, y: screen.y, width, height }, viewport));
+  // R2 (plan 050 D2-UX-3b): resize from any of the four edges, not only
+  // the bottom-right corner - a wide detected field can now be narrowed.
+  // `screen` (already validated non-null above) recovers the current PDF
+  // rect through `toPdfRect`, so the resize maths never has to special-
+  // case the wire annotation's nullable `rect` tuple. The font size is
+  // never touched here (R2): only `rect` is patched.
+  function onEdgeDragMove(edge: ResizeEdge, axis: "x" | "y") {
+    return (e: KonvaEventObject<DragEvent>) => {
+      const currentRect = toPdfRect(screen, viewport);
+      const screenValue = (axis === "x" ? e.target.x() : e.target.y()) + HANDLE_SIZE / 2;
+      const point =
+        axis === "x"
+          ? viewport.convertToPdfPoint(screenValue, screen.y)
+          : viewport.convertToPdfPoint(screen.x, screenValue);
+      const valuePt = axis === "x" ? point[0] : point[1];
+      onRectChange(resizeRectEdge(currentRect, edge, valuePt));
+    };
   }
 
   return (
@@ -118,17 +159,24 @@ function PendingFreeTextItem({
         align={item.style.align}
         listening={false}
       />
-      {selected && (
-        <Rect
-          x={screen.x + screen.width - HANDLE_SIZE / 2}
-          y={screen.y + screen.height - HANDLE_SIZE / 2}
-          width={HANDLE_SIZE}
-          height={HANDLE_SIZE}
-          fill="#111827"
-          draggable
-          onDragMove={onHandleDragMove}
-        />
-      )}
+      {selected &&
+        edgeHandles(screen).map(({ edge, x, y, axis }) => (
+          <Rect
+            key={edge}
+            x={x - HANDLE_SIZE / 2}
+            y={y - HANDLE_SIZE / 2}
+            width={HANDLE_SIZE}
+            height={HANDLE_SIZE}
+            fill="#111827"
+            draggable
+            dragBoundFunc={(pos: Vector2d): Vector2d =>
+              axis === "x"
+                ? { x: pos.x, y: y - HANDLE_SIZE / 2 }
+                : { x: x - HANDLE_SIZE / 2, y: pos.y }
+            }
+            onDragMove={onEdgeDragMove(edge, axis)}
+          />
+        ))}
     </Group>
   );
 }

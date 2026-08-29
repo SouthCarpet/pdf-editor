@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useWorkspace } from "../workspaceStore";
+import { useWorkspace, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../workspaceStore";
+
+const DOC_A = "A:\\docs\\a.pdf";
+const DOC_B = "A:\\docs\\b.pdf";
 
 describe("workspaceStore", () => {
   beforeEach(() => {
@@ -7,7 +10,7 @@ describe("workspaceStore", () => {
       activeTool: "edit",
       editSubTool: "forms",
       activePage: 0,
-      zoom: 1.0,
+      zoomByDoc: {},
     });
   });
 
@@ -26,19 +29,67 @@ describe("workspaceStore", () => {
     expect(useWorkspace.getState().activePage).toBe(0);
   });
 
-  it("setZoom clamps below 0.25", () => {
-    useWorkspace.getState().setZoom(0.01);
-    expect(useWorkspace.getState().zoom).toBe(0.25);
+  // Plan 060 task T1 (R1/R4): zoom is per document and defaults to 100%
+  // for a document that was never touched.
+  it("getZoom defaults to ZOOM_DEFAULT (100%) for an unseen document", () => {
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_DEFAULT);
   });
 
-  it("setZoom clamps above 4", () => {
-    useWorkspace.getState().setZoom(100);
-    expect(useWorkspace.getState().zoom).toBe(4);
+  it("setZoom clamps below ZOOM_MIN", () => {
+    useWorkspace.getState().setZoom(DOC_A, 0.01);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_MIN);
+  });
+
+  it("setZoom clamps above ZOOM_MAX", () => {
+    useWorkspace.getState().setZoom(DOC_A, 100);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_MAX);
   });
 
   it("setZoom accepts mid-range values verbatim", () => {
-    useWorkspace.getState().setZoom(1.75);
-    expect(useWorkspace.getState().zoom).toBe(1.75);
+    useWorkspace.getState().setZoom(DOC_A, 1.75);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(1.75);
+  });
+
+  it("zoomIn steps up by ZOOM_STEP from the default", () => {
+    useWorkspace.getState().zoomIn(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBeCloseTo(ZOOM_DEFAULT + ZOOM_STEP, 5);
+  });
+
+  it("zoomOut steps down by ZOOM_STEP from the default", () => {
+    useWorkspace.getState().zoomOut(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBeCloseTo(ZOOM_DEFAULT - ZOOM_STEP, 5);
+  });
+
+  it("repeated zoomIn steps never drift off a round percentage", () => {
+    for (let i = 0; i < 5; i++) useWorkspace.getState().zoomIn(DOC_A);
+    // 1.0 + 5*0.1 = 1.5, not 1.4999999999999998 (floating point drift).
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(1.5);
+  });
+
+  it("zoomIn clamps at ZOOM_MAX instead of overshooting", () => {
+    useWorkspace.getState().setZoom(DOC_A, ZOOM_MAX);
+    useWorkspace.getState().zoomIn(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_MAX);
+  });
+
+  it("zoomOut clamps at ZOOM_MIN instead of undershooting", () => {
+    useWorkspace.getState().setZoom(DOC_A, ZOOM_MIN);
+    useWorkspace.getState().zoomOut(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_MIN);
+  });
+
+  it("resetZoom (Ctrl+0) restores ZOOM_DEFAULT after zooming", () => {
+    useWorkspace.getState().setZoom(DOC_A, 2.5);
+    useWorkspace.getState().resetZoom(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_DEFAULT);
+  });
+
+  it("zoom is independent per document", () => {
+    useWorkspace.getState().setZoom(DOC_A, 2);
+    expect(useWorkspace.getState().getZoom(DOC_B)).toBe(ZOOM_DEFAULT);
+    useWorkspace.getState().zoomIn(DOC_B);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(2);
+    expect(useWorkspace.getState().getZoom(DOC_B)).toBeCloseTo(ZOOM_DEFAULT + ZOOM_STEP, 5);
   });
 
   // Plan 050 task D2-UX (R4): the Text tool's scanned-page empty state

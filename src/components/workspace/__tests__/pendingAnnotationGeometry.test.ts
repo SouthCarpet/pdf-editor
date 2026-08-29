@@ -14,6 +14,8 @@ import type { Annotation } from "@/bindings";
 import {
   freeTextRenderProps,
   hexToRgb01,
+  MIN_RESIZE_SIZE_PT,
+  resizeRectEdge,
   rgb01ToHex,
   rgbToCss,
   rgbaToCss,
@@ -110,6 +112,56 @@ describe("toPdfRect / toScreenRect round trip", () => {
     for (let i = 0; i < 4; i++) {
       expect(recovered[i]).toBeCloseTo(original[i], 5);
     }
+  });
+});
+
+describe("resizeRectEdge (R2, plan 050 D2-UX-3b)", () => {
+  const RECT: [number, number, number, number] = [100, 700, 250, 724];
+
+  it("narrows from the left edge: x0 grows, x1 fixed", () => {
+    expect(resizeRectEdge(RECT, "left", 150)).toEqual([150, 700, 250, 724]);
+  });
+
+  it("widens from the left edge: x0 shrinks, x1 fixed", () => {
+    expect(resizeRectEdge(RECT, "left", 50)).toEqual([50, 700, 250, 724]);
+  });
+
+  it("resizes from the right edge: x1 moves, x0 fixed", () => {
+    expect(resizeRectEdge(RECT, "right", 300)).toEqual([100, 700, 300, 724]);
+  });
+
+  it("resizes from the bottom edge: y0 moves, y1 fixed", () => {
+    expect(resizeRectEdge(RECT, "bottom", 690)).toEqual([100, 690, 250, 724]);
+  });
+
+  it("resizes from the top edge: y1 moves, y0 fixed", () => {
+    expect(resizeRectEdge(RECT, "top", 740)).toEqual([100, 700, 250, 740]);
+  });
+
+  it("clamps a left-edge drag past the minimum width, never inverting", () => {
+    const result = resizeRectEdge(RECT, "left", 245);
+    expect(result[0]).toBe(250 - MIN_RESIZE_SIZE_PT);
+    expect(result[2]).toBe(250);
+    expect(result[0]).toBeLessThan(result[2]);
+  });
+
+  it("clamps a right-edge drag past the minimum width, never inverting", () => {
+    const result = resizeRectEdge(RECT, "right", 105);
+    expect(result[2]).toBe(100 + MIN_RESIZE_SIZE_PT);
+    expect(result[0]).toBe(100);
+    expect(result[0]).toBeLessThan(result[2]);
+  });
+
+  it("clamps a top-edge drag past the minimum height, never inverting", () => {
+    const result = resizeRectEdge(RECT, "top", 705);
+    expect(result[3]).toBe(700 + MIN_RESIZE_SIZE_PT);
+    expect(result[1]).toBeLessThan(result[3]);
+  });
+
+  it("clamps a bottom-edge drag past the minimum height, never inverting", () => {
+    const result = resizeRectEdge(RECT, "bottom", 720);
+    expect(result[1]).toBe(724 - MIN_RESIZE_SIZE_PT);
+    expect(result[1]).toBeLessThan(result[3]);
   });
 });
 

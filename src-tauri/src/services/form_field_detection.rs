@@ -18,6 +18,10 @@ const MAX_STROKE_THICKNESS: u32 = 5;
 const MIN_WHITESPACE_HEIGHT: u32 = 8;
 const MAX_WHITESPACE_HEIGHT: u32 = 20;
 const MAX_WHITESPACE_DENSITY: f32 = 0.05;
+// At the 150 DPI detection scale, 30 px is 14.4 pt (about 5 mm): enough
+// room for a short value while discarding border-adjacent slivers.
+const MIN_SPLIT_UNDERLINE_WIDTH: u32 = 30;
+const VERTICAL_STROKE_TOLERANCE: u32 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 pub struct DetectedFormField {
@@ -115,6 +119,7 @@ pub(crate) fn analyze_form_raster(
     let mask = threshold(gray);
     let boxes = find_box_candidates(&mask);
     let underlines = suppress_box_bottom_underlines(find_underline_candidates(&mask), &boxes);
+    let underlines = split_underlines_at_vertical_strokes(&mask, underlines);
     let mut candidates: Vec<(PixelRect, DetectedFieldKind, f32)> = boxes
         .iter()
         .map(|candidate| {
@@ -333,14 +338,108 @@ fn ink_density(mask: &GrayImage, x0: u32, y0: u32, x1: u32, y1: u32) -> f32 {
     ink as f32 / area as f32
 }
 
+fn split_underlines_at_vertical_strokes(
+    mask: &GrayImage,
+    underlines: Vec<UnderlineCandidate>,
+) -> Vec<UnderlineCandidate> {
+    underlines
+        .into_iter()
+        .flat_map(|underline| split_underline_at_vertical_strokes(mask, underline))
+        .collect()
+}
+
+fn split_underline_at_vertical_strokes(
+    mask: &GrayImage,
+    underline: UnderlineCandidate,
+) -> Vec<UnderlineCandidate> {
+    let separators = vertical_stroke_ranges(mask, &underline);
+    if separators.is_empty() {
+        return vec![underline];
+    }
+
+    let mut segments = Vec::new();
+    let mut segment_x0 = underline.fill_rect.x0;
+    for (stroke_x0, stroke_x1) in separators {
+        if let Some(segment) = underline_segment(&underline, segment_x0, stroke_x0) {
+            segments.push(segment);
+        }
+        segment_x0 = stroke_x1;
+    }
+    if let Some(segment) = underline_segment(&underline, segment_x0, underline.fill_rect.x1) {
+        segments.push(segment);
+    }
+    segments
+}
+
+fn underline_segment(
+    underline: &UnderlineCandidate,
+    x0: u32,
+    x1: u32,
+) -> Option<UnderlineCandidate> {
+    (x1.saturating_sub(x0) >= MIN_SPLIT_UNDERLINE_WIDTH).then_some(UnderlineCandidate {
+        fill_rect: PixelRect {
+            x0,
+            x1,
+            ..underline.fill_rect
+        },
+        stroke_rect: PixelRect {
+            x0,
+            x1,
+            ..underline.stroke_rect
+        },
+        confidence: underline.confidence,
+    })
+}
+
+fn vertical_stroke_ranges(mask: &GrayImage, underline: &UnderlineCandidate) -> Vec<(u32, u32)> {
+    let mut ranges = Vec::new();
+    for x in underline.stroke_rect.x0..underline.stroke_rect.x1 {
+        if !has_crossing_vertical_stroke(mask, x, underline) {
+            continue;
+        }
+        match ranges.last_mut() {
+            Some((_, x1)) if *x1 == x => *x1 = x + 1,
+            _ => ranges.push((x, x + 1)),
+        }
+    }
+    ranges
+}
+
+fn has_crossing_vertical_stroke(mask: &GrayImage, x: u32, underline: &UnderlineCandidate) -> bool {
+    let minimum_height = underline.fill_rect.height();
+    let mut y = 0;
+    while y < mask.height() {
+        if mask.get_pixel(x, y)[0] == 0 {
+            y += 1;
+            continue;
+        }
+        let y0 = y;
+        while y < mask.height() && mask.get_pixel(x, y)[0] != 0 {
+            y += 1;
+        }
+        if y - y0 > minimum_height
+            && ranges_overlap_with_tolerance(
+                y0,
+                y,
+                underline.stroke_rect.y0,
+                underline.stroke_rect.y1,
+                VERTICAL_STROKE_TOLERANCE,
+            )
+        {
+            return true;
+        }
+    }
+    false
+}
+
 fn ranges_overlap_with_tolerance(
-    left_x0: u32,
-    left_x1: u32,
-    right_x0: u32,
-    right_x1: u32,
+    left_0: u32,
+    left_1: u32,
+    right_0: u32,
+    right_1: u32,
     tolerance: u32,
 ) -> bool {
-    left_x0 <= right_x1.saturating_add(tolerance) && right_x0 <= left_x1.saturating_add(tolerance)
+    left_0 <= right_1.saturating_add(tolerance) && right_0 <= left_1.saturating_add(tolerance)
 }
 
 fn suppress_box_bottom_underlines(
@@ -485,6 +584,70 @@ mod tests {
             underline.rect[3] - underline.rect[1] >= 20.0,
             "the fill rectangle must include the whitespace band, got {:?}",
             underline.rect
+        );
+    }
+
+    #[test]
+    fn underline_crossed_by_two_vertical_strokes_yields_three_fields() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_horizontal(&mut image, 200, 800, 800);
+        draw_vertical(&mut image, 400, 760, 821);
+        draw_vertical(&mut image, 600, 760, 821);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+        let x_ranges: Vec<[f32; 2]> = analysis
+            .fields
+            .iter()
+            .filter(|field| field.kind == DetectedFieldKind::Underline)
+            .map(|field| [field.rect[0], field.rect[2]])
+            .collect();
+
+        assert_eq!(
+            x_ranges,
+            vec![[200.0, 400.0], [401.0, 600.0], [601.0, 800.0]],
+            "two crossing column borders must divide the underline into three cell fields"
+        );
+    }
+
+    #[test]
+    fn vertical_stroke_stopping_above_underline_does_not_split_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_horizontal(&mut image, 200, 800, 800);
+        draw_vertical(&mut image, 400, 740, 797);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+        let x_ranges: Vec<[f32; 2]> = analysis
+            .fields
+            .iter()
+            .filter(|field| field.kind == DetectedFieldKind::Underline)
+            .map(|field| [field.rect[0], field.rect[2]])
+            .collect();
+
+        assert_eq!(
+            x_ranges,
+            vec![[200.0, 800.0]],
+            "a vertical stroke ending outside the two-pixel crossing tolerance is not a border"
+        );
+    }
+
+    #[test]
+    fn split_underline_drops_leftover_narrower_than_thirty_pixels() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_horizontal(&mut image, 200, 500, 800);
+        draw_vertical(&mut image, 225, 760, 821);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+        let x_ranges: Vec<[f32; 2]> = analysis
+            .fields
+            .iter()
+            .filter(|field| field.kind == DetectedFieldKind::Underline)
+            .map(|field| [field.rect[0], field.rect[2]])
+            .collect();
+
+        assert_eq!(
+            x_ranges,
+            vec![[226.0, 500.0]],
+            "a 25-pixel remnant is too narrow to be a usable form field"
         );
     }
 

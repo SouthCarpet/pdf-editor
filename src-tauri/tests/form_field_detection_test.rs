@@ -25,15 +25,16 @@ const DPI: u32 = 150;
 const PAGE_WIDTH_PT: f32 = 595.44;
 const PAGE_HEIGHT_PT: f32 = 841.915_19;
 
-// Locked from the first honest run of this pipeline against hodiny.pdf:
-// 203 fields, 170 box and 33 underline, on a 1241x1754 raster
-// (2026-08-28). The sample is an hours grid, so the box count is mostly
-// real table cells, which the ADR's hole-first rule requires to survive.
-// The band is a tolerance around that measurement, not a number invented
-// at design time. A count outside it means the pipeline changed behaviour
-// on a file that did not change.
-const MIN_FIELDS: usize = 180;
-const MAX_FIELDS: usize = 225;
+// Locked after splitting row-spanning underlines at table borders:
+// 327 fields, 170 box and 157 underline, on a 1241x1754 raster
+// (2026-08-29). The +/-10% band allows minor raster/toolchain drift while
+// remaining far enough above the stale 203-field result to catch rows being
+// joined back into single fields.
+const MIN_FIELDS: usize = 294;
+const MAX_FIELDS: usize = 360;
+const FIRST_MO_ROW_BOTTOM_PT: f32 = 624.0;
+const FIRST_MO_ROW_TOP_PT: f32 = 637.0;
+const COLUMN_POSITION_TOLERANCE_PT: f32 = 0.5;
 
 async fn detect() -> DetectionAnalysis {
     let mupdf = MupdfWrapper::new(SidecarManager::new(2));
@@ -65,6 +66,18 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
         analysis.raster_width,
         analysis.raster_height
     );
+    let mut first_mo_row_rects: Vec<[f32; 4]> = analysis
+        .fields
+        .iter()
+        .filter(|field| {
+            field.kind == DetectedFieldKind::Underline
+                && field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT
+                && field.rect[3] <= FIRST_MO_ROW_TOP_PT
+        })
+        .map(|field| field.rect)
+        .collect();
+    first_mo_row_rects.sort_by(|left, right| left[0].total_cmp(&right[0]));
+    println!("hodiny first Mo row fields sorted by x: {first_mo_row_rects:#?}");
 
     assert!(boxes >= 1, "the sample has visible empty boxes");
     assert!(underlines >= 1, "the sample has visible empty lines");
@@ -73,6 +86,46 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
         "field count {} left the locked band [{MIN_FIELDS}, {MAX_FIELDS}] \
          ({boxes} boxes, {underlines} underlines)",
         analysis.fields.len()
+    );
+
+    assert_eq!(
+        first_mo_row_rects.len(),
+        5,
+        "the first Mo row must yield one field in each of its five value columns: \
+         {first_mo_row_rects:?}"
+    );
+    assert!(
+        first_mo_row_rects
+            .windows(2)
+            .all(|pair| pair[0][2] < pair[1][0]),
+        "the first Mo row fields must be disjoint and ordered left to right: \
+         {first_mo_row_rects:?}"
+    );
+
+    // Oracle: the five column boundaries measured from the locked fixture's
+    // first Mo row after the split, allowing roughly one 150-DPI pixel.
+    let expected_x_ranges = [
+        [97.400_74, 153.058_3],
+        [156.416_95, 214.473_56],
+        [217.832_2, 273.489_78],
+        [276.368_6, 342.581_9],
+        [345.460_75, 522.989_2],
+    ];
+    for (actual, expected) in first_mo_row_rects.iter().zip(expected_x_ranges) {
+        assert!(
+            (actual[0] - expected[0]).abs() < COLUMN_POSITION_TOLERANCE_PT
+                && (actual[2] - expected[1]).abs() < COLUMN_POSITION_TOLERANCE_PT,
+            "first Mo row field {actual:?} left its expected column {expected:?}"
+        );
+    }
+
+    let table_width = first_mo_row_rects[4][2] - first_mo_row_rects[0][0];
+    assert!(
+        first_mo_row_rects
+            .iter()
+            .all(|rect| rect[2] - rect[0] < table_width * 0.5),
+        "no first Mo row field may span multiple columns (table width {table_width}): \
+         {first_mo_row_rects:?}"
     );
 }
 

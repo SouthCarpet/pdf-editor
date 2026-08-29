@@ -27,6 +27,7 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={vi.fn()}
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
@@ -49,6 +50,7 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={onChangeSize}
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
@@ -72,6 +74,7 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={onChangeSize}
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
@@ -92,6 +95,7 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={vi.fn()}
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
@@ -112,6 +116,7 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={vi.fn()}
         onChangeColor={onChangeColor}
         onDelete={vi.fn()}
+        onConfirm={vi.fn()}
       />,
     );
 
@@ -132,10 +137,75 @@ describe("PendingAnnotationControls", () => {
         onChangeSize={vi.fn()}
         onChangeColor={vi.fn()}
         onDelete={onDelete}
+        onConfirm={vi.fn()}
       />,
     );
 
     await user.click(screen.getByRole("button", { name: "Odstrániť" }));
     expect(onDelete).toHaveBeenCalled();
+  });
+
+  it("Potvrdiť calls onConfirm", async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PendingAnnotationControls
+        screenRect={SCREEN_RECT}
+        text="Peter"
+        sizePt={14}
+        colorHex="#000000"
+        onChangeText={vi.fn()}
+        onChangeSize={vi.fn()}
+        onChangeColor={vi.fn()}
+        onDelete={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Potvrdiť" }));
+    expect(onConfirm).toHaveBeenCalled();
+  });
+
+  it("Escape calls onConfirm (R1)", async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PendingAnnotationControls
+        screenRect={SCREEN_RECT}
+        text="Peter"
+        sizePt={14}
+        colorHex="#000000"
+        onChangeText={vi.fn()}
+        onChangeSize={vi.fn()}
+        onChangeColor={vi.fn()}
+        onDelete={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.keyboard("{Escape}");
+    expect(onConfirm).toHaveBeenCalled();
+  });
+
+  it("Enter in the text field calls onConfirm (R1)", async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PendingAnnotationControls
+        screenRect={SCREEN_RECT}
+        text="Peter"
+        sizePt={14}
+        colorHex="#000000"
+        onChangeText={vi.fn()}
+        onChangeSize={vi.fn()}
+        onChangeColor={vi.fn()}
+        onDelete={vi.fn()}
+        onConfirm={onConfirm}
+      />,
+    );
+
+    await user.click(screen.getByDisplayValue("Peter"));
+    await user.keyboard("{Enter}");
+    expect(onConfirm).toHaveBeenCalled();
   });
 });

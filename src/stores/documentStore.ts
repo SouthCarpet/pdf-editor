@@ -7,6 +7,11 @@ export interface OpenDocument {
   path: string;
   pageCount: number;
   dirty: boolean;
+  /** Where the shared save flow (`@/lib/documentSave`) last wrote this
+   * document's pending edits. `undefined` means "never saved to a chosen
+   * path yet" - that is what makes global "Uložiť" behave like "Uložiť
+   * ako" the first time (plan 060 task T1, R2). */
+  savedPath?: string;
 }
 
 interface DocState {
@@ -15,6 +20,7 @@ interface DocState {
   add: (doc: OpenDocument) => void;
   setActive: (id: DocId | null) => void;
   markDirty: (id: DocId, dirty: boolean) => void;
+  setSavedPath: (id: DocId, path: string) => void;
   close: (id: DocId) => void;
 }
 
@@ -33,6 +39,13 @@ export const useDocuments = create<DocState>((set) => ({
       const m = new Map(s.documents);
       const d = m.get(id);
       if (d) m.set(id, { ...d, dirty });
+      return { documents: m };
+    }),
+  setSavedPath: (id, path) =>
+    set((s) => {
+      const m = new Map(s.documents);
+      const d = m.get(id);
+      if (d) m.set(id, { ...d, savedPath: path });
       return { documents: m };
     }),
   close: (id) =>

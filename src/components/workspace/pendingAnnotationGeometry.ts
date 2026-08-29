@@ -84,3 +84,40 @@ export function toPdfRect(
   const [px1, py1] = viewport.convertToPdfPoint(screen.x + screen.width, screen.y + screen.height);
   return [Math.min(px0, px1), Math.min(py0, py1), Math.max(px0, px1), Math.max(py0, py1)];
 }
+
+/** One edge of a pending FreeText annotation's rectangle. */
+export type ResizeEdge = "left" | "right" | "top" | "bottom";
+
+/**
+ * Minimum width AND height a pending FreeText rectangle may be resized to,
+ * in PDF points (plan 050 D2-UX-3b, R2). One constant for both dimensions:
+ * small enough to still narrow a wide detected field, large enough to stay
+ * a usable target.
+ */
+export const MIN_RESIZE_SIZE_PT = 12;
+
+/**
+ * Move one edge of a PDF /Rect (`[x0, y0, x1, y1]`, `toPdfRect`'s
+ * convention: x0<=x1, y0<=y1, y1 is the top) to a new absolute PDF-point
+ * coordinate, keeping the opposite edge fixed. Clamped to
+ * `MIN_RESIZE_SIZE_PT` so the rect can shrink but never invert or collapse.
+ * Pure: no viewport, no font-size change - the caller decides what to do
+ * with the new rect (R2: the font size is never recomputed on resize).
+ */
+export function resizeRectEdge(
+  rect: readonly [number, number, number, number],
+  edge: ResizeEdge,
+  valuePt: number,
+): [number, number, number, number] {
+  const [x0, y0, x1, y1] = rect;
+  switch (edge) {
+    case "left":
+      return [Math.min(valuePt, x1 - MIN_RESIZE_SIZE_PT), y0, x1, y1];
+    case "right":
+      return [x0, y0, Math.max(valuePt, x0 + MIN_RESIZE_SIZE_PT), y1];
+    case "bottom":
+      return [x0, Math.min(valuePt, y1 - MIN_RESIZE_SIZE_PT), x1, y1];
+    case "top":
+      return [x0, y0, x1, Math.max(valuePt, y0 + MIN_RESIZE_SIZE_PT)];
+  }
+}

@@ -187,6 +187,26 @@ describe("CloseGuardDialog - window scope", () => {
     expect(screen.getByText("Neuložené zmeny")).toBeInTheDocument();
   });
 
+  it("Uložiť saves pending annotations but keeps the dialog open when a text draft remains", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    useDocuments.getState().markDirty(DOC_A, true);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Uložiť" }));
+
+    await waitFor(() => expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText("Najskôr použite Použiť v úprave textu. Potom uložte."),
+    ).toBeInTheDocument();
+    expect(useAnnotations.getState().byDoc[DOC_A]).toHaveLength(0);
+    expect(useDocuments.getState().documents.get(DOC_A)?.dirty).toBe(true);
+    expect(tauriWindow.close).not.toHaveBeenCalled();
+    expect(screen.getByText("Neuložené zmeny")).toBeInTheDocument();
+  });
+
   it("Neukladať clears a text-draft-only document and closes", async () => {
     useDocuments.getState().markDirty(DOC_A, true);
     const user = userEvent.setup();

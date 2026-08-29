@@ -11,10 +11,10 @@
 import { useCallback, useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { commands, type Annotation, type DetectedFormField } from "@/bindings";
+import { commands, type DetectedFormField } from "@/bindings";
 import { useAnnotations } from "@/stores/annotationsStore";
 import { useWorkspace } from "@/stores/workspaceStore";
-import { pickSavePath } from "@/tauri/bridge";
+import { saveDocument } from "@/lib/documentSave";
 
 const DETECT_DPI = 150;
 
@@ -81,18 +81,9 @@ export function DetectFieldsSection({
     setErr(null);
     setSaved(false);
     try {
-      const output = await pickSavePath({
-        defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
-      if (!output) return;
-      const result = await commands.applyAnnotationsCmd({
-        input: docPath,
-        output,
-        annotations: pending.map(stripClientId) as Annotation[],
-        job_id: crypto.randomUUID(),
-      });
-      if (result.status === "error") {
+      const outcome = await saveDocument(docPath);
+      if (outcome === "cancelled" || outcome === "nothing-to-save") return;
+      if (outcome === "failed") {
         setErr(t("forms.detect_error"));
         return;
       }
@@ -151,12 +142,6 @@ export function DetectFieldsSection({
       )}
     </div>
   );
-}
-
-function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clientId"> {
-  const { __clientId: _unused, ...rest } = a;
-  void _unused;
-  return rest;
 }
 
 function formatCommandError(error: unknown): string {

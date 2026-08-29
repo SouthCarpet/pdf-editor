@@ -128,7 +128,7 @@ describe("workspace route for a scanned PDF", () => {
       activeTool: "edit",
       editSubTool: "annotations",
       activePage: 0,
-      zoom: 1,
+      zoomByDoc: {},
     });
     localStorage.setItem("onboarded", "1");
   });

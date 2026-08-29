@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import { Rect } from "react-konva";
 import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
-import { useWorkspace } from "@/stores/workspaceStore";
+import { ZOOM_DEFAULT, useWorkspace } from "@/stores/workspaceStore";
 import { DetectedFieldFill } from "./DetectedFieldFill";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay } from "./EditPageOverlay";
@@ -22,6 +22,7 @@ import { PendingAnnotationControls } from "./PendingAnnotationControls";
 import { hexToRgb01, rgb01ToHex, type FreeTextAnnotation } from "./pendingAnnotationGeometry";
 import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
+import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { CropPanel, type CropRect } from "./tools/CropPanel";
 import { EditAnnotationsPanel } from "./tools/EditAnnotationsPanel";
@@ -39,16 +40,33 @@ interface Props {
   path: string;
 }
 
+/** Captured on a Ctrl+wheel zoom so the scroll position can be corrected
+ * once the page canvas actually resizes (see the two effects below). */
+interface WheelAnchor {
+  cursorClientX: number;
+  cursorClientY: number;
+  /** Cursor position in unscrolled content coordinates, at `prevZoom`. */
+  contentX: number;
+  contentY: number;
+  prevZoom: number;
+}
+
 export function Workspace({ pdf, path }: Props) {
   const activeTool = useWorkspace((s) => s.activeTool);
   const editSubTool = useWorkspace((s) => s.editSubTool);
   const setEditSubTool = useWorkspace((s) => s.setEditSubTool);
   const activePage = useWorkspace((s) => s.activePage);
   const setActivePage = useWorkspace((s) => s.setActivePage);
-  const zoom = useWorkspace((s) => s.zoom);
+  const zoom = useWorkspace((s) => s.zoomByDoc[path] ?? ZOOM_DEFAULT);
+  const zoomIn = useWorkspace((s) => s.zoomIn);
+  const zoomOut = useWorkspace((s) => s.zoomOut);
   const addAnnotation = useAnnotations((s) => s.add);
   const updateAnnotation = useAnnotations((s) => s.update);
   const removeAnnotation = useAnnotations((s) => s.remove);
+  // R1: Ctrl+plus/minus/0, registered once for the whole workspace.
+  useWorkspaceShortcuts(path);
+  const mainRef = useRef<HTMLElement>(null);
+  const wheelAnchorRef = useRef<WheelAnchor | null>(null);
 
   // Track the rendered viewport size of the active page so the overlay
   // (and crop rect) line up 1:1 with the PDF.js canvas.
@@ -136,6 +154,46 @@ export function Workspace({ pdf, path }: Props) {
     };
   }, [pdf, activePage, zoom]);
 
+  // R1: Ctrl+wheel zooms around the cursor. The anchor is captured on the
+  // wheel event and applied once `pageSize` actually reflects the new
+  // zoom (React commits state before running effects, so this is exact -
+  // no need to guess when the async `pdf.getPage` above settles).
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!e.ctrlKey || e.deltaY === 0 || !el) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      wheelAnchorRef.current = {
+        cursorClientX: e.clientX,
+        cursorClientY: e.clientY,
+        contentX: e.clientX - rect.left + el.scrollLeft,
+        contentY: e.clientY - rect.top + el.scrollTop,
+        prevZoom: zoom,
+      };
+      if (e.deltaY < 0) zoomIn(path);
+      else zoomOut(path);
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [path, zoom, zoomIn, zoomOut]);
+
+  useEffect(() => {
+    const anchor = wheelAnchorRef.current;
+    const el = mainRef.current;
+    if (!anchor || !el) return;
+    wheelAnchorRef.current = null;
+    const ratio = zoom / anchor.prevZoom;
+    const rect = el.getBoundingClientRect();
+    el.scrollLeft = anchor.contentX * ratio - (anchor.cursorClientX - rect.left);
+    el.scrollTop = anchor.contentY * ratio - (anchor.cursorClientY - rect.top);
+    // Depends on `pageSize`, not `zoom`: the page canvas only actually
+    // resizes once this state updates, and only then is a scroll
+    // correction meaningful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize]);
+
   useEffect(() => {
     if (activeTool !== "ocr") return;
     let cancelled = false;
@@ -158,7 +216,7 @@ export function Workspace({ pdf, path }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WorkspaceTopBar />
+      <WorkspaceTopBar path={path} />
       <div className="flex flex-1 overflow-hidden">
         <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]">
           <ThumbnailStrip
@@ -168,7 +226,10 @@ export function Workspace({ pdf, path }: Props) {
             height={typeof window !== "undefined" ? window.innerHeight - 96 : 600}
           />
         </aside>
-        <main className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6">
+        <main
+          ref={mainRef}
+          className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6"
+        >
           <div className="relative" style={{ width: pageSize.width, height: pageSize.height }}>
             <PdfViewer pdf={pdf} pageIndex={activePage} zoom={zoom} className="shadow-lg" />
             {activeTool === "crop" && pageSize.width > 0 && (
@@ -259,6 +320,7 @@ export function Workspace({ pdf, path }: Props) {
                       style: { ...selectedFreeText.style, color: hexToRgb01(hex) },
                     })
                   }
+                  onConfirm={() => setSelectedPending(null)}
                   onDelete={() => {
                     removeAnnotation(path, selectedFreeText.__clientId);
                     // R7b (plan 050 D2-UX-2): a deleted fill no longer backs

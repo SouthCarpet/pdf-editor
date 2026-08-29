@@ -5,6 +5,11 @@
   "save_status_saving": "Saving...",
   "zoom_in": "Zoom in",
   "zoom_out": "Zoom out",
+  "toolbar": {
+    "more_tools": "More tools",
+    "zoom_reset": "Reset zoom to 100%",
+    "convert": "Convert"
+  },
   "fit_width": "Fit width",
   "fit_page": "Fit page",
   "page_n_of_m": "Page {{n}} of {{m}}",
@@ -130,7 +135,8 @@
     "size_decrease": "Decrease font size",
     "size_increase": "Increase font size",
     "color_label": "Text colour",
-    "delete": "Remove"
+    "delete": "Remove",
+    "confirm": "Confirm"
   },
   "close_guard": {
     "title": "Unsaved changes",

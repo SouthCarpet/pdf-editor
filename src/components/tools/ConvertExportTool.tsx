@@ -1,5 +1,6 @@
 import { pickPaths } from "@/tauri/bridge";
 import { useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
@@ -14,7 +15,17 @@ import {
 
 export function ConvertExportTool() {
   const { t } = useTranslation();
-  const [file, setFile] = useState<string | null>(null);
+  // Plan 060 task T1 (R3): opened from the workspace toolbar with the
+  // active document pre-filled, so the user does not pick the same file
+  // again. Opened standalone (from the tool tile), `search.file` is absent
+  // and the dropzone behaves exactly as before.
+  // Plan 061 T1 fix wave (F1): `strict: false` so this component does not
+  // throw when mounted outside the "/tools/convert/export" route (e.g. in
+  // a test harness or an error boundary's fallback tree).
+  const search = useSearch({ strict: false });
+  const [file, setFile] = useState<string | null>(
+    typeof search.file === "string" ? search.file : null,
+  );
   const [options, setOptions] = useState<ConvertExportOptionsValue>(DEFAULT_CONVERT_EXPORT_OPTIONS);
   const { run, cancelActive, activeId } = useToolJob("convert_export");
 

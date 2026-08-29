@@ -11,22 +11,16 @@
 // appearance stream when the path resolves; if reading the file fails we
 // fall back to the legacy "Approved" placeholder stamp.
 import { useMemo, useState } from "react";
-import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { ColorPicker } from "@/components/ui/color-picker";
-import {
-  commands,
-  type Annotation,
-  type BorderStyle,
-  type LineEnd,
-  type NoteIcon,
-  type TextStyle,
-} from "@/bindings";
+import type { Annotation, BorderStyle, LineEnd, NoteIcon, TextStyle } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
 import { NO_ANNOTATIONS, useAnnotations, type AnnotationMode } from "@/stores/annotationsStore";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { saveDocument } from "@/lib/documentSave";
 import { cn } from "@/lib/utils";
 import { FontPicker } from "@/components/ui/font-picker";
 
@@ -284,18 +278,11 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
     setBusy(true);
     setErr(null);
     try {
-      const out = await save({
-        defaultPath: docPath.replace(/\.pdf$/i, ".annotated.pdf"),
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
-      if (!out) return;
-      const r = await commands.applyAnnotationsCmd({
-        input: docPath,
-        output: out,
-        annotations: annotations.map(stripClientId) as Annotation[],
-        job_id: crypto.randomUUID(),
-      });
-      if (r.status === "error") setErr(JSON.stringify(r.error));
+      // Plan 060 task T1 (R2): the same shared save flow the global
+      // toolbar and the Forms panel use, so a save here also clears the
+      // pending annotations and marks the document clean.
+      const outcome = await saveDocument(docPath);
+      if (outcome === "failed") setErr(t("workspace:forms.detect_error"));
     } finally {
       setBusy(false);
     }
@@ -684,12 +671,6 @@ function TextRow({
       />
     </label>
   );
-}
-
-function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clientId"> {
-  const { __clientId: _unused, ...rest } = a;
-  void _unused;
-  return rest;
 }
 
 // "#rrggbb[aa]" → [r, g, b] in 0..1.
