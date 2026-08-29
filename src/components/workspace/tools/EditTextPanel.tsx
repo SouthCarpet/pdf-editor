@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type TextRun } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
+import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 
 interface Props {
@@ -25,6 +26,8 @@ interface RunEdit {
 export function EditTextPanel({ docPath }: Props) {
   const { t } = useTranslation("common");
   const setEditSubTool = useWorkspace((s) => s.setEditSubTool);
+  const requestAutoDetectForms = useWorkspace((s) => s.requestAutoDetectForms);
+  const openOcrPrompt = useWorkspace((s) => s.openOcrPrompt);
   // Combined fetch state - single useState avoids cascading effect-setState.
   const [docState, setDocState] = useState<{
     path: string;
@@ -37,16 +40,31 @@ export function EditTextPanel({ docPath }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [showRedactionFallback, setShowRedactionFallback] = useState(false);
+  // Plan 050 task D2-UX-2 (R1): typed-but-not-yet-Applied text is real
+  // unsaved work - closing the app or the tab must not lose it silently.
+  // Reported into `documentStore.dirty`, the generic "other unsaved edit"
+  // source `hasUnsavedWork` already reads, since Apply always writes a new
+  // output file rather than mutating the currently open document in place
+  // (same as the annotations flows this task also guards).
+  const [textDraftDirty, setTextDraftDirty] = useState(false);
+  const markDirty = useDocuments((s) => s.markDirty);
   // Delta W §4: when the user wants to add text where there is no
   // editable run, show a popover offering to switch to the annotations
   // sub-tool (FreeText) at the click location.
   const [showEmptyAreaPrompt, setShowEmptyAreaPrompt] = useState(false);
+  // Plan 050 task D2-UX (R4): whether this document has no text layer at
+  // all, so "no editable text runs" can say why instead of just stating it.
+  const [scanState, setScanState] = useState<{ path: string; isScanned: boolean }>({
+    path: docPath,
+    isScanned: false,
+  });
 
   // Reset state inline (not in an effect) when docPath changes.
   if (docState.path !== docPath) {
     setDocState({ path: docPath, runs: [], loading: true });
     setSelectedIndex(null);
     setLastSelectedKey(null);
+    setTextDraftDirty(false);
   }
 
   useEffect(() => {
@@ -66,6 +84,32 @@ export function EditTextPanel({ docPath }: Props) {
     };
   }, [docPath]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const r = await commands.detectScannedPdf(docPath);
+      if (cancelled) return;
+      setScanState({ path: docPath, isScanned: r.status === "ok" && r.data.is_likely_scanned });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [docPath]);
+
+  useEffect(() => {
+    markDirty(docPath, textDraftDirty);
+    return () => {
+      markDirty(docPath, false);
+    };
+  }, [docPath, textDraftDirty, markDirty]);
+
+  const isScanned = scanState.path === docPath && scanState.isScanned;
+
+  function onFindFields() {
+    setEditSubTool("forms");
+    requestAutoDetectForms();
+  }
+
   useAutosave(docPath, { tool: "text", selectedIndex, edit }, 5000);
 
   const runs = docState.runs;
@@ -78,6 +122,7 @@ export function EditTextPanel({ docPath }: Props) {
     setLastSelectedKey(selectedKey);
     setEdit({ newText: selected?.text ?? "" });
     setShowRedactionFallback(false);
+    setTextDraftDirty(false);
   }
 
   async function onApply() {
@@ -102,6 +147,8 @@ export function EditTextPanel({ docPath }: Props) {
         const e = r.error as { key: string; data: { detail?: string } };
         setErr(e.data?.detail ?? JSON.stringify(e));
         if (e.key === "encoding_mismatch") setShowRedactionFallback(true);
+      } else {
+        setTextDraftDirty(false);
       }
     } finally {
       setBusy(false);
@@ -128,6 +175,7 @@ export function EditTextPanel({ docPath }: Props) {
         job_id: crypto.randomUUID(),
       });
       if (r.status === "error") setErr(JSON.stringify(r.error));
+      else setTextDraftDirty(false);
     } finally {
       setBusy(false);
     }
@@ -145,10 +193,26 @@ export function EditTextPanel({ docPath }: Props) {
 
       <div className="max-h-[200px] overflow-auto rounded border border-[var(--color-border)]">
         {loading && <p className="px-2 py-1 text-xs text-[var(--color-muted)]">Loading runs…</p>}
-        {!loading && runs.length === 0 && (
+        {!loading && runs.length === 0 && !isScanned && (
           <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
-            No editable text runs on this document.
+            {t("workspace:edit_text.no_runs")}
           </p>
+        )}
+        {!loading && runs.length === 0 && isScanned && (
+          <div className="space-y-2 p-2">
+            <p className="text-xs font-medium">{t("workspace:edit_text.scanned_title")}</p>
+            <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+              {t("workspace:edit_text.scanned_explanation")}
+            </p>
+            <div className="flex gap-1">
+              <Button size="sm" onClick={onFindFields}>
+                {t("workspace:edit_text.find_fields")}
+              </Button>
+              <Button size="sm" variant="outline" onClick={openOcrPrompt}>
+                {t("workspace:edit_text.run_ocr")}
+              </Button>
+            </div>
+          </div>
         )}
         {runs.map((r, i) => (
           <button
@@ -173,7 +237,10 @@ export function EditTextPanel({ docPath }: Props) {
             <input
               type="text"
               value={edit.newText}
-              onChange={(e) => setEdit({ newText: e.target.value })}
+              onChange={(e) => {
+                setEdit({ newText: e.target.value });
+                setTextDraftDirty(true);
+              }}
               className="mt-1 block w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
             />
           </label>
@@ -213,7 +280,7 @@ export function EditTextPanel({ docPath }: Props) {
               className="w-full"
               onClick={() => setShowEmptyAreaPrompt(true)}
             >
-              Add new text…
+              {t("workspace:edit_text.add_new_text")}
             </Button>
           ) : (
             <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">

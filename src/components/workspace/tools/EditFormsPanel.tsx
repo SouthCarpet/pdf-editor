@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +19,13 @@ interface Props {
   onSelectPage?: (pageIndex: number) => void;
   detectedFields?: DetectedFormField[] | null;
   onDetectedFields?: (fields: DetectedFormField[]) => void;
+  // Plan 050 task D2-UX-2 (R7a): forwarded to `DetectFieldsSection` so the
+  // auto-detect dedup survives this panel remounting. Optional so a caller
+  // that never triggers `requestAutoDetectForms` (a raw render in a test,
+  // say) does not have to invent one; a local fallback ref is used instead
+  // — it just will not survive ITS OWN remounts, which matches the
+  // pre-R7a behaviour for that caller.
+  autoDetectHandledRef?: RefObject<number>;
 }
 
 type DraftValues = Record<string, string | null>;
@@ -32,7 +39,10 @@ export function EditFormsPanel({
   onSelectPage,
   detectedFields = null,
   onDetectedFields,
+  autoDetectHandledRef,
 }: Props) {
+  const fallbackAutoDetectHandledRef = useRef(0);
+  const resolvedAutoDetectHandledRef = autoDetectHandledRef ?? fallbackAutoDetectHandledRef;
   const { t } = useTranslation("workspace");
   const activePage = useWorkspace((state) => state.activePage);
   const [fieldState, setFieldState] = useState<FieldState>({
@@ -132,6 +142,7 @@ export function EditFormsPanel({
           pageIndex={activePage}
           fields={detectedFields}
           onDetected={onDetectedFields ?? (() => {})}
+          autoDetectHandledRef={resolvedAutoDetectHandledRef}
         />
       ) : (
         <>

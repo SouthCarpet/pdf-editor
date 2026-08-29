@@ -8,9 +8,11 @@ async fn settings_roundtrip() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("settings.json");
 
-    let mut settings = AppSettings::default();
-    settings.theme = Theme::Dark;
-    settings.language = Language::Sk;
+    let settings = AppSettings {
+        theme: Theme::Dark,
+        language: Language::Sk,
+        ..AppSettings::default()
+    };
     save_settings(&path, &settings).await.expect("save");
 
     let loaded = load_settings(&path).await.expect("load");

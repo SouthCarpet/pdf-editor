@@ -1,6 +1,4 @@
 import { useEffect, useEffectEvent, useState, type ReactNode } from "react";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { open, save } from "@tauri-apps/plugin-dialog";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, Combine, FileStack, FileUp, GripVertical, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +19,7 @@ import {
   type MergePlacement,
 } from "@/lib/fileOpening";
 import { useDocuments } from "@/stores/documentStore";
+import { onFileDrop, pickPaths, pickSavePath } from "@/tauri/bridge";
 import { OpenFilesContext, type OpenFilesContextValue } from "./openFilesContext";
 
 type DialogStep = "choose" | "merge";
@@ -110,13 +109,13 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
   }
 
   async function browseForPdfs() {
-    const selected = await open({
+    const selected = await pickPaths({
       multiple: true,
       directory: false,
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
-    if (selected === null) return;
-    requestOpen(Array.isArray(selected) ? selected : [selected]);
+    if (selected.length === 0) return;
+    requestOpen(selected);
   }
 
   const handleDroppedPaths = useEffectEvent((paths: string[]) => {
@@ -127,18 +126,14 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
-    getCurrentWebview()
-      .onDragDropEvent((event) => {
-        const payload = event.payload;
-        if (payload.type === "enter" || payload.type === "over") {
-          setDropActive(true);
-        } else if (payload.type === "leave") {
-          setDropActive(false);
-        } else {
-          setDropActive(false);
-          handleDroppedPaths(payload.paths);
-        }
-      })
+    onFileDrop((event) => {
+      if (event.kind === "over") {
+        setDropActive(true);
+        return;
+      }
+      setDropActive(false);
+      if (event.kind === "drop") handleDroppedPaths(event.paths);
+    })
       .then((stop) => {
         if (disposed) {
           stop();
@@ -165,7 +160,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
     const inputs = composeMergeInputs(pendingPaths, activePath, placement);
     if (inputs.length < 2) return;
 
-    const output = await save({
+    const output = await pickSavePath({
       defaultPath: "merged.pdf",
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });

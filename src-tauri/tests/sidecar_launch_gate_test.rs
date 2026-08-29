@@ -32,7 +32,12 @@ const SIDECARS: &[(&str, &[&str], &str, Stream)] = &[
     ("gswin64c", &["--version"], "10.", Stream::Stdout),
     ("mutool", &["-v"], "mutool version", Stream::Stderr),
     ("tesseract", &["--version"], "tesseract v5", Stream::Stdout),
-    ("pdfcrack", &["--version"], "pdfcrack version", Stream::Stdout),
+    (
+        "pdfcrack",
+        &["--version"],
+        "pdfcrack version",
+        Stream::Stdout,
+    ),
 ];
 
 #[derive(Clone, Copy)]
@@ -54,7 +59,9 @@ impl TargetLayoutFixture {
     fn stage(names: &[&str]) -> Self {
         let exe = std::env::current_exe().expect("current_exe");
         let deps_dir = exe.parent().expect("test binary has a parent dir");
-        let target_debug = deps_dir.parent().expect("deps dir has a parent (target/debug)");
+        let target_debug = deps_dir
+            .parent()
+            .expect("deps dir has a parent (target/debug)");
 
         let mut copied = Vec::new();
         for name in names {
@@ -68,7 +75,11 @@ impl TargetLayoutFixture {
             );
             let dst = deps_dir.join(format!("{name}.exe"));
             std::fs::copy(&src, &dst).unwrap_or_else(|e| {
-                panic!("copy {} -> {} for target-layout fixture: {e}", src.display(), dst.display())
+                panic!(
+                    "copy {} -> {} for target-layout fixture: {e}",
+                    src.display(),
+                    dst.display()
+                )
             });
             copied.push(dst);
         }

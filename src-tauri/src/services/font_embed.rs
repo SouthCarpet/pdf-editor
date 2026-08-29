@@ -618,13 +618,16 @@ fn random_subset_tag() -> String {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.subsec_nanos() as u64 + d.as_secs())
         .unwrap_or(0);
+    subset_tag(nanos)
+}
+
+fn subset_tag(mut seed: u64) -> String {
     let mut tag = String::with_capacity(6);
-    let mut x = nanos;
     for _ in 0..6 {
-        let c = ((x % 26) as u8 + b'A') as char;
+        let c = ((seed % 26) as u8 + b'A') as char;
         tag.push(c);
-        x /= 26;
-        x ^= x.rotate_left(13);
+        seed /= 26;
+        seed ^= seed.rotate_left(13);
     }
     tag
 }
@@ -655,10 +658,11 @@ mod tests {
     }
 
     #[test]
-    fn subset_tag_is_six_uppercase() {
-        let t = random_subset_tag();
-        assert_eq!(t.len(), 6);
-        assert!(t.chars().all(|c| c.is_ascii_uppercase()));
+    fn subset_tag_is_six_uppercase_ascii_characters() {
+        let tag = subset_tag(42);
+
+        assert_eq!(tag.chars().count(), 6);
+        assert!(tag.chars().all(|character| character.is_ascii_uppercase()));
     }
 
     #[test]
@@ -676,10 +680,7 @@ mod tests {
     #[test]
     fn arial_subset_roundtrips() {
         let arial = std::path::PathBuf::from("C:\\Windows\\Fonts\\arial.ttf");
-        if !arial.exists() {
-            eprintln!("arial.ttf not present; skipping");
-            return;
-        }
+        assert!(arial.exists(), "Windows Arial fixture is missing");
         let mut sub = FontSubsetter::new_from_path(&arial).expect("load");
         sub.add_text("Hello World Slovenčina");
         let bytes = sub.build_subset().expect("subset");
@@ -701,10 +702,7 @@ mod tests {
     #[test]
     fn arial_write_to_pdf_emits_chain() {
         let arial = std::path::PathBuf::from("C:\\Windows\\Fonts\\arial.ttf");
-        if !arial.exists() {
-            eprintln!("arial.ttf not present; skipping");
-            return;
-        }
+        assert!(arial.exists(), "Windows Arial fixture is missing");
         let mut sub = FontSubsetter::new_from_path(&arial).expect("load");
         sub.add_text("Hello");
         let mut doc = lopdf::Document::with_version("1.7");

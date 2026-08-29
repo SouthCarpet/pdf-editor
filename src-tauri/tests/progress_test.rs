@@ -10,15 +10,29 @@ async fn reporter_emits_started_progress_done() {
     r.progress(1.0, None).await;
     r.done(Some(serde_json::json!({"output": "out.pdf"}))).await;
 
-    let mut events = vec![];
-    while let Ok(e) = tokio::time::timeout(std::time::Duration::from_millis(50), rx.recv()).await {
-        if let Some(e) = e {
-            events.push(e);
-        } else {
-            break;
-        }
-    }
-    assert_eq!(events.len(), 4);
-    assert!(matches!(events[0], ProgressEvent::Started { .. }));
-    assert!(matches!(events[3], ProgressEvent::Done { .. }));
+    let started = rx.recv().await.expect("started event");
+    let quarter = rx.recv().await.expect("quarter-progress event");
+    let complete = rx.recv().await.expect("complete-progress event");
+    let done = rx.recv().await.expect("done event");
+
+    assert!(matches!(
+        started,
+        ProgressEvent::Started {
+            ref job_id,
+            label: Some(ref label)
+        } if job_id == "job-1" && label == "compress"
+    ));
+    assert!(matches!(
+        quarter,
+        ProgressEvent::Progress {
+            ratio,
+            label: Some(ref label),
+            ..
+        } if ratio == 0.25 && label == "step 1/4"
+    ));
+    assert!(matches!(
+        complete,
+        ProgressEvent::Progress { ratio, label: None, .. } if ratio == 1.0
+    ));
+    assert!(matches!(done, ProgressEvent::Done { .. }));
 }

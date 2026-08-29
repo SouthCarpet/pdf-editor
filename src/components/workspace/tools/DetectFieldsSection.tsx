@@ -8,11 +8,12 @@
 //
 // It lives in its own file so the edit to `EditFormsPanel` stays small:
 // the panel renders this in the empty-state branch and owns nothing else.
-import { useState } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type Annotation, type DetectedFormField } from "@/bindings";
 import { useAnnotations } from "@/stores/annotationsStore";
+import { useWorkspace } from "@/stores/workspaceStore";
 import { pickSavePath } from "@/tauri/bridge";
 
 const DETECT_DPI = 150;
@@ -22,16 +23,29 @@ interface Props {
   pageIndex: number;
   fields: DetectedFormField[] | null;
   onDetected: (fields: DetectedFormField[]) => void;
+  // Plan 050 task D2-UX-2 (R7a): the last `autoDetectFormsRequest` value
+  // this Forms tab already acted on. Owned by `Workspace` (which does not
+  // unmount when the Edit sub-tool changes) and threaded down through
+  // `EditFormsPanel`, rather than a ref created here: a ref created in
+  // this component dies with it, so switching away from Forms and back
+  // reset the dedup and re-ran detection for a request already consumed.
+  autoDetectHandledRef: RefObject<number>;
 }
 
-export function DetectFieldsSection({ docPath, pageIndex, fields, onDetected }: Props) {
+export function DetectFieldsSection({
+  docPath,
+  pageIndex,
+  fields,
+  onDetected,
+  autoDetectHandledRef,
+}: Props) {
   const { t } = useTranslation("workspace");
   const annotations = useAnnotations((s) => s.byDoc[docPath]);
   const [busy, setBusy] = useState<"detect" | "save" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  async function onDetect() {
+  const onDetect = useCallback(async () => {
     setBusy("detect");
     setErr(null);
     setSaved(false);
@@ -46,7 +60,19 @@ export function DetectFieldsSection({ docPath, pageIndex, fields, onDetected }: 
     } finally {
       setBusy(null);
     }
-  }
+  }, [docPath, pageIndex, onDetected, t]);
+
+  // Plan 050 task D2-UX (R4): the Text tool's "Nájsť polia" action switches
+  // to this sub-tool AND runs detection, by incrementing a counter in the
+  // workspace store. `autoDetectHandledRef` (see the prop doc above) is
+  // what makes this a one-shot per request even across the remount that
+  // switching sub-tool and back causes (R7a, plan 050 D2-UX-2).
+  const autoDetectRequest = useWorkspace((s) => s.autoDetectFormsRequest);
+  useEffect(() => {
+    if (autoDetectRequest === 0 || autoDetectRequest === autoDetectHandledRef.current) return;
+    autoDetectHandledRef.current = autoDetectRequest;
+    void onDetect();
+  }, [autoDetectRequest, autoDetectHandledRef, onDetect]);
 
   async function onSaveFilled() {
     const pending = annotations ?? [];

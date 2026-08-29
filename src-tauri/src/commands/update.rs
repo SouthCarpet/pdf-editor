@@ -218,22 +218,22 @@ mod tests {
     #[test]
     fn resolves_release_repo_root_relative_to_executable() {
         let root = repo_root_for_exe(
-            Path::new(r"D:\repo\src-tauri\target\release\pdf-editor.exe"),
+            Path::new(r"A:\repo\src-tauri\target\release\pdf-editor.exe"),
             None,
         )
         .unwrap();
 
-        assert_eq!(root, Path::new(r"D:\repo"));
+        assert_eq!(root, Path::new(r"A:\repo"));
     }
 
     #[test]
     fn resolves_dev_repo_root_from_manifest_dir() {
         let root = repo_root_for_exe(
             Path::new(r"C:\unrelated\target\debug\pdf-editor.exe"),
-            Some(Path::new(r"D:\repo\src-tauri")),
+            Some(Path::new(r"A:\repo\src-tauri")),
         )
         .unwrap();
 
-        assert_eq!(root, Path::new(r"D:\repo"));
+        assert_eq!(root, Path::new(r"A:\repo"));
     }
 }

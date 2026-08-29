@@ -89,18 +89,13 @@ async fn ocr_then_edit_preserves_diacritics() {
 
     // 2. extract_runs on the OCR'd output.
     let runs = extract_runs(&ocred).expect("runs");
-    if runs.is_empty() {
-        // `scanned.pdf` from generate-fixtures.ps1 is currently a 16x16
-        // synthetic PNG (no actual text) — Tesseract returns empty hocr,
-        // so there's nothing to roundtrip. Skip cleanly instead of failing
-        // CI; this test becomes meaningful when a real scanned-with-Slovak
-        // fixture lands in generate-fixtures.ps1.
-        eprintln!(
-            "skip: scanned.pdf produced no OCR runs (placeholder fixture); \
-             Delta W diacritic roundtrip not exercised yet"
-        );
-        return;
-    }
+    assert!(
+        !runs.is_empty(),
+        "extract_runs returned no runs; tests/fixtures/pdfs/scanned.pdf looks like the \
+         placeholder 16x16 synthetic PNG (no actual text) rather than a real scanned-Slovak \
+         fixture. Regenerate it with real content via scripts/generate-fixtures.ps1 before \
+         running --features sidecar-tests."
+    );
     let first = &runs[0];
 
     // 3. replace_run with Slovak diacritics. The Type0 CIDFont (Delta W)

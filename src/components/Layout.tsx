@@ -3,6 +3,7 @@ import { TopBar } from "./TopBar";
 import { ThemeProvider } from "./ThemeProvider";
 import { SessionRestorePrompt } from "./SessionRestorePrompt";
 import { Onboarding } from "./Onboarding";
+import { CloseGuardDialog } from "./CloseGuardDialog";
 import { DocumentTabs } from "./opening/DocumentTabs";
 import { OpenFilesProvider } from "./opening/OpenFilesProvider";
 import { UpdateNotice } from "./UpdateNotice";
@@ -24,6 +25,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <DocumentTabs />
           <SessionRestorePrompt />
           <Onboarding />
+          <CloseGuardDialog />
           <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
         </div>
       </OpenFilesProvider>

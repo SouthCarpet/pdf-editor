@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   readFormFieldsCmd: vi.fn(),
   setFormValuesCmd: vi.fn(),
   autosavePut: vi.fn(),
-  save: vi.fn(),
 }));
 
 vi.mock("@/bindings", () => ({
@@ -19,13 +18,14 @@ vi.mock("@/bindings", () => ({
   },
 }));
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  save: mocks.save,
-}));
+vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
+
+import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 
 describe("EditFormsPanel", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    resetFakeBridge();
     await i18n.changeLanguage("en");
     mocks.readFormFieldsCmd.mockResolvedValue({
       status: "ok",
@@ -44,7 +44,7 @@ describe("EditFormsPanel", () => {
       ],
     });
     mocks.setFormValuesCmd.mockResolvedValue({ status: "ok", data: null });
-    mocks.save.mockResolvedValue("D:\\output\\form.filled.pdf");
+    fakeBridge.pickSavePath.mockResolvedValue("D:\\output\\form.filled.pdf");
   });
 
   it("sends an explicit null update when a user clears a filled field", async () => {

@@ -5,11 +5,11 @@
 // over this store or the editor at all.
 import { describe, it, expect, beforeEach } from "vitest";
 import type { NodeChange } from "@xyflow/react";
-
 import {
   usePipelineStore,
   type PipelineEditorNode,
 } from "@/stores/pipelineStore";
+import { selectedNodeAfterChanges } from "@/pipeline/selection";
 
 function node(id: string): PipelineEditorNode {
   return {
@@ -18,26 +18,6 @@ function node(id: string): PipelineEditorNode {
     position: { x: 0, y: 0 },
     data: { kind: "merge", config: { kind: "merge" }, label: id },
   } as PipelineEditorNode;
-}
-
-/**
- * The editor's own reducer over a batch of select-changes. Kept in sync with
- * PipelineEditor.onNodesChange: the point of the test is the RULE, which is
- * that a node being selected anywhere in the batch wins over a deselect.
- */
-function pickSelection(
-  changes: NodeChange[],
-  currentlySelected: string | null,
-): string | null {
-  const selectChanges = changes.filter(
-    (c) => c.type === "select",
-  ) as Extract<NodeChange, { type: "select" }>[];
-  const selected = selectChanges.find((c) => c.selected);
-  if (selected) return selected.id;
-  if (selectChanges.some((c) => !c.selected && c.id === currentlySelected)) {
-    return null;
-  }
-  return currentlySelected;
 }
 
 describe("pipeline step selection", () => {
@@ -55,7 +35,7 @@ describe("pipeline step selection", () => {
       { type: "select", id: "b", selected: true },
     ];
 
-    expect(pickSelection(changes, "a")).toBe("b");
+    expect(selectedNodeAfterChanges(changes, "a")).toBe("b");
   });
 
   it("clears the selection when the selected node is deselected and nothing else is selected", () => {
@@ -63,7 +43,7 @@ describe("pipeline step selection", () => {
       { type: "select", id: "a", selected: false },
     ];
 
-    expect(pickSelection(changes, "a")).toBeNull();
+    expect(selectedNodeAfterChanges(changes, "a")).toBeNull();
   });
 
   it("leaves the selection alone when the deselect targets some other node", () => {
@@ -71,7 +51,7 @@ describe("pipeline step selection", () => {
       { type: "select", id: "b", selected: false },
     ];
 
-    expect(pickSelection(changes, "a")).toBe("a");
+    expect(selectedNodeAfterChanges(changes, "a")).toBe("a");
   });
 
   it("adding a node selects it and deselects every other node", () => {

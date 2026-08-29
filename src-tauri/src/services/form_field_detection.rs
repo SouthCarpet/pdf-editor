@@ -529,6 +529,20 @@ mod tests {
     }
 
     #[test]
+    fn box_below_minimum_extent_is_rejected() {
+        let rect = PixelRect {
+            x0: 100,
+            y0: 200,
+            x1: 300,
+            y1: 260,
+        };
+
+        // Oracle: the D2 verification plan requires extent >= 0.6.
+        assert!(box_candidate_passes(rect, 0.60, PAGE_W, PAGE_H));
+        assert!(!box_candidate_passes(rect, 0.59, PAGE_W, PAGE_H));
+    }
+
+    #[test]
     fn box_bottom_is_not_emitted_again_as_an_underline() {
         let mut image = blank(PAGE_W, PAGE_H);
         draw_box(&mut image, 200, 300, 800, 420);

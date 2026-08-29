@@ -1,9 +1,15 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useJobsStore } from "../jobsStore";
 
 describe("jobsStore", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1787990400000);
     useJobsStore.setState({ jobs: new Map() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("registers a started job in pending state", () => {
@@ -13,6 +19,7 @@ describe("jobsStore", () => {
     expect(j?.toolId).toBe("merge");
     expect(j?.progress).toBe(0);
     expect(j?.inputPaths).toEqual(["a.pdf", "b.pdf"]);
+    expect(j?.startedAt).toBe(1787990400000);
   });
 
   it("update patches an existing job without losing fields", () => {
@@ -32,12 +39,13 @@ describe("jobsStore", () => {
 
   it("finish marks job done with progress=1 and stores outputPaths", () => {
     useJobsStore.getState().start("j1", "split", ["src.pdf"]);
+    vi.setSystemTime(1787990460000);
     useJobsStore.getState().finish("j1", ["out1.pdf", "out2.pdf"]);
     const j = useJobsStore.getState().jobs.get("j1");
     expect(j?.status).toBe("done");
     expect(j?.progress).toBe(1);
     expect(j?.outputPaths).toEqual(["out1.pdf", "out2.pdf"]);
-    expect(j?.finishedAt).toBeTypeOf("number");
+    expect(j?.finishedAt).toBe(1787990460000);
   });
 
   it("fail records error key + detail", () => {
@@ -65,9 +73,10 @@ describe("jobsStore", () => {
 
   it("cancel flips status to cancelled and stamps finishedAt", () => {
     useJobsStore.getState().start("j1", "ocr", ["a.pdf"]);
+    vi.setSystemTime(1787990460000);
     useJobsStore.getState().cancel("j1");
     const j = useJobsStore.getState().jobs.get("j1");
     expect(j?.status).toBe("cancelled");
-    expect(j?.finishedAt).toBeTypeOf("number");
+    expect(j?.finishedAt).toBe(1787990460000);
   });
 });

@@ -120,6 +120,29 @@
     "click_empty_message": "Tu nie je upraviteľný text. Pridať nový text?",
     "add_new_text": "Pridať nový text",
     "preserve_original": "Zachovať pôvodný",
-    "override_style": "Prepísať štýl"
+    "override_style": "Prepísať štýl",
+    "no_runs": "Na tejto strane sa nenašiel žiadny upraviteľný text.",
+    "scanned_title": "Táto strana je naskenovaný obrázok",
+    "scanned_explanation": "Obrázok nemá textovú vrstvu, preto tu nie je čo upraviť. Nájdite prázdne polia na vyplnenie, alebo najprv spustite OCR a získajte upraviteľný text.",
+    "find_fields": "Nájsť polia",
+    "run_ocr": "Spustiť OCR"
+  },
+  "pending_annotation": {
+    "title": "Úprava vloženého textu",
+    "text_label": "Text",
+    "size_label": "Veľkosť písma",
+    "size_decrease": "Zmenšiť písmo",
+    "size_increase": "Zväčšiť písmo",
+    "color_label": "Farba textu",
+    "delete": "Odstrániť"
+  },
+  "close_guard": {
+    "title": "Neuložené zmeny",
+    "description": "Neuložené zmeny v týchto dokumentoch: {{names}}",
+    "save": "Uložiť",
+    "discard": "Neukladať",
+    "cancel": "Zrušiť",
+    "saving": "Ukladá sa…",
+    "text_draft_hint": "Najskôr použite Použiť v úprave textu. Potom uložte."
   }
 }

@@ -966,7 +966,7 @@ mod tests {
     }
 
     #[test]
-    fn macroman_e_at_8E() {
+    fn macroman_e_at_8_e() {
         let inverse: HashMap<char, u8> = MAC_ROMAN_TABLE.iter().copied().collect();
         assert_eq!(inverse[&'\u{00E9}'], 0x8E);
         assert_eq!(inverse[&'\u{2122}'], 0xAA);

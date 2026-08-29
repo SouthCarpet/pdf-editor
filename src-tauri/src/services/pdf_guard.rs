@@ -81,18 +81,10 @@
 //
 // A separate scanner, `measure_content_nesting` / `content_is_safe_to_decode`,
 // stands in front of the OTHER parser door (`Content::decode`, the only thing
-// gating `ocr_edit.rs`'s call site) and has its own undisclosed bypass, found
-// by an independent verifier on 2026-08-11: a stray "(" inside inline-image
-// (BI/ID/EI) data, which is arbitrary binary by spec, is read as opening a
-// literal string. Nothing closes it, so the scanner swallows every byte after
-// it, including a 5,000-level operand array placed right after, and reports
-// the stream safe. Same class of bug as 1, 3 and 4 above, on the other
-// scanner: a byte-level lexer cannot tell binary payload bytes from syntax,
-// and inline-image data is exactly where the spec makes that legal. Not
-// exploitable today: lopdf 0.44's `Content::decode` itself errors out on a
-// content stream this deep long before 5,000 levels would matter. Pinned
-// honestly, not fixed, by
-// `inline_image_data_can_blind_the_content_stream_scanner` below.
+// gating `ocr_edit.rs`'s call site). It conservatively refuses inline-image
+// streams because BI/ID/EI payload bytes are arbitrary binary and cannot be
+// lexed safely by this lightweight scanner. OCR edit then leaves the original
+// stream unchanged and uses its patch-only fallback.
 //
 // KEEP IT ANYWAY, for what it verifiably is: it raises the bar against the
 // published proof of concept, it costs one bounded scan, and it rejected zero
@@ -359,6 +351,9 @@ fn measure_content_nesting(bytes: &[u8]) -> usize {
     let mut max_depth: usize = 0;
     let mut i: usize = 0;
     while i < bytes.len() {
+        if standalone_operator_at(bytes, i, b"BI") {
+            return MAX_CONTENT_NESTING_DEPTH + 1;
+        }
         match bytes[i] {
             b'(' => {
                 let mut nest = 1usize;
@@ -395,6 +390,15 @@ fn measure_content_nesting(bytes: &[u8]) -> usize {
         i += 1;
     }
     max_depth
+}
+
+fn standalone_operator_at(bytes: &[u8], index: usize, operator: &[u8]) -> bool {
+    let Some(end) = index.checked_add(operator.len()) else {
+        return false;
+    };
+    bytes.get(index..end) == Some(operator)
+        && (index == 0 || bytes[index - 1].is_ascii_whitespace())
+        && bytes.get(end).is_none_or(u8::is_ascii_whitespace)
 }
 
 /// Drop-in replacement for `lopdf::Document::load`.
@@ -785,10 +789,9 @@ mod tests {
 
         // End-to-end through the wrapper the 25 call sites now use, rather
         // than only through measure_nesting.
-        let dir = std::env::temp_dir().join("pdf_guard_load_guarded_test");
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let dir = tempfile::tempdir().expect("temp dir");
 
-        let hostile = dir.join("hostile.pdf");
+        let hostile = dir.path().join("hostile.pdf");
         std::fs::File::create(&hostile)
             .expect("create")
             .write_all(&nested_pdf(20_000))
@@ -799,7 +802,7 @@ mod tests {
             "reason must survive to the call site: {err}"
         );
 
-        let benign = dir.join("benign.pdf");
+        let benign = dir.path().join("benign.pdf");
         std::fs::File::create(&benign)
             .expect("create")
             .write_all(&nested_pdf(3))
@@ -836,39 +839,17 @@ mod tests {
     }
 
     #[test]
-    fn inline_image_data_can_blind_the_content_stream_scanner() {
-        // Undisclosed bypass found by an independent verifier on 2026-08-11.
-        // `measure_content_nesting` skips literal strings `( ... )`, which is
-        // correct for `Tj`/`TJ` operands, but has no notion of inline-image
-        // (BI/ID/EI) data, which is arbitrary binary by spec. An
-        // attacker-chosen "(" inside that data is read as opening a literal
-        // string; with no matching ")" left in the stream, the scanner
-        // swallows every byte after it, including the 5,000-level operand
-        // array placed right after the image, and reports the stream safe.
-        //
-        // This test PINS that behaviour honestly. It does not fix it: lopdf
-        // 0.44's own `Content::decode` errors out on a stream this deep long
-        // before 5,000 levels, so there is nothing to exploit today. The
-        // header carries the same disclosure.
+    fn inline_image_stream_is_refused_before_binary_data_can_blind_the_scanner() {
+        // A stray `(` in inline-image data used to blind literal-string
+        // scanning and hide every delimiter after it. Refusing BI before its
+        // binary payload is the safe contract for this edit-only guard.
         let mut hostile =
             b"q\nBI /W 2 /H 2 /BPC 8 /CS /G /F /AHx ID 28 28 28 28 ( EI\nQ\n".to_vec();
         hostile.extend(std::iter::repeat_n(b'[', 5_000));
         hostile.extend(std::iter::repeat_n(b']', 5_000));
         assert!(
-            content_is_safe_to_decode(&hostile),
-            "documents the undisclosed bypass: a stray '(' in inline-image \
-             data should blind the scanner into calling this 5,000-level \
-             nest safe"
-        );
-
-        // Control: the identical payload without the stray paren measures
-        // the real depth and is correctly refused. Causal, not coincidence.
-        let mut clean = b"q\nBI /W 2 /H 2 /BPC 8 /CS /G /F /AHx ID 28 28 28 28 EI\nQ\n".to_vec();
-        clean.extend(std::iter::repeat_n(b'[', 5_000));
-        clean.extend(std::iter::repeat_n(b']', 5_000));
-        assert!(
-            !content_is_safe_to_decode(&clean),
-            "control failed: without the stray paren the nest must still be refused"
+            !content_is_safe_to_decode(&hostile),
+            "inline-image binary data must be refused before literal-string scanning"
         );
     }
 

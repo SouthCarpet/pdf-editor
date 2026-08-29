@@ -10,6 +10,17 @@ use tracing::{debug, warn};
 
 use crate::error::{AppError, AppResult};
 
+fn stderr_tail(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .chars()
+        .rev()
+        .take(500)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct SidecarRunSpec {
     pub name: String,
@@ -221,19 +232,10 @@ impl SidecarManager {
         };
 
         if !output.status.success() {
-            let tail = String::from_utf8_lossy(&output.stderr);
-            let tail: String = tail
-                .chars()
-                .rev()
-                .take(500)
-                .collect::<String>()
-                .chars()
-                .rev()
-                .collect();
             return Err(AppError::SidecarFailed {
                 tool: spec.name.clone(),
                 exit_code: output.status.code().unwrap_or(-1),
-                stderr_tail: tail,
+                stderr_tail: stderr_tail(&output.stderr),
             });
         }
 
@@ -256,6 +258,16 @@ mod tests {
     /// 036). Poison-tolerant so one panicking test doesn't lock the others
     /// out.
     static SIDECARS_DIR_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn stderr_tail_keeps_the_last_five_hundred_characters() {
+        let stderr = format!("{}TAIL", "x".repeat(600));
+        let tail = stderr_tail(stderr.as_bytes());
+
+        assert_eq!(tail.chars().count(), 500);
+        assert!(tail.ends_with("TAIL"));
+        assert_eq!(tail, format!("{}TAIL", "x".repeat(496)));
+    }
 
     /// RAII guard: creates `<current_exe dir>/sidecars` for the duration of
     /// the test (simulating the installed/bundled layout where

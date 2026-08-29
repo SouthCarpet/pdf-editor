@@ -1,4 +1,4 @@
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/tauri/bridge";
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -47,7 +47,7 @@ export function UnlockTool() {
 
   async function onRun() {
     if (!file) return;
-    const out = await save({
+    const out = await pickSavePath({
       filters: [{ name: "PDF", extensions: ["pdf"] }],
       defaultPath: "unlocked.pdf",
     });

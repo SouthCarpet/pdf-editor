@@ -40,4 +40,23 @@ describe("workspaceStore", () => {
     useWorkspace.getState().setZoom(1.75);
     expect(useWorkspace.getState().zoom).toBe(1.75);
   });
+
+  // Plan 050 task D2-UX (R4): the Text tool's scanned-page empty state
+  // drives these two through the store instead of prop-drilling callbacks
+  // down from `WorkspaceRoute`.
+  it("openOcrPrompt/closeOcrPrompt toggle the scanned-page OCR dialog", () => {
+    expect(useWorkspace.getState().ocrPromptOpen).toBe(false);
+    useWorkspace.getState().openOcrPrompt();
+    expect(useWorkspace.getState().ocrPromptOpen).toBe(true);
+    useWorkspace.getState().closeOcrPrompt();
+    expect(useWorkspace.getState().ocrPromptOpen).toBe(false);
+  });
+
+  it("requestAutoDetectForms increments a one-shot counter", () => {
+    expect(useWorkspace.getState().autoDetectFormsRequest).toBe(0);
+    useWorkspace.getState().requestAutoDetectForms();
+    expect(useWorkspace.getState().autoDetectFormsRequest).toBe(1);
+    useWorkspace.getState().requestAutoDetectForms();
+    expect(useWorkspace.getState().autoDetectFormsRequest).toBe(2);
+  });
 });

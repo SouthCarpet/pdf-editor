@@ -22,6 +22,7 @@
 //! it again in silence. They assert what lopdf does, not what we wish it did.
 
 use std::path::PathBuf;
+use tempfile::TempDir;
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -38,14 +39,21 @@ fn a_user_password_file_is_still_detected() {
     let path = fixture("password-open.pdf");
     assert!(path.exists(), "fixture missing: {}", path.display());
 
-    // Either lopdf refuses to load it, or it loads and reports encrypted.
-    // Both are "the UI will prompt"; neither is silent success.
+    // Either lopdf rejects the missing password, or it loads and reports
+    // encryption. Both are "the UI will prompt"; any other error is a broken
+    // fixture or parser regression, not evidence for this contract.
     match lopdf::Document::load(&path) {
         Ok(doc) => assert!(
             doc.is_encrypted() || doc.was_encrypted(),
             "a user-password file loaded and claimed to be unencrypted",
         ),
-        Err(_) => {}
+        Err(error) => assert!(
+            matches!(
+                error,
+                lopdf::Error::InvalidPassword | lopdf::Error::Decryption(_)
+            ),
+            "a user-password file must fail specifically because it is encrypted: {error}",
+        ),
     }
 }
 
@@ -88,11 +96,10 @@ fn saving_a_permission_locked_file_drops_its_encryption() {
         "fixture is not permission-locked any more"
     );
 
-    let out = std::env::temp_dir().join("pdf-editor-encryption-roundtrip.pdf");
+    let temp = TempDir::new().expect("temporary directory");
+    let out = temp.path().join("roundtrip.pdf");
     doc.save(&out).expect("should save");
     let reloaded = lopdf::Document::load(&out).expect("should reload");
-    let _ = std::fs::remove_file(&out);
-
     assert!(
         !reloaded.is_encrypted() && !reloaded.was_encrypted(),
         "the roundtrip preserved encryption — if lopdf gained that ability, \

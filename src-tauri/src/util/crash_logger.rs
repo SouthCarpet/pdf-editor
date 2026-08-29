@@ -68,7 +68,11 @@ impl Default for TraceRing {
 
 /// Returns a Windows-filename-safe timestamp string like `2026-05-10_13-42-15`.
 pub fn timestamp_for_filename() -> String {
-    chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string()
+    timestamp_for_filename_at(&chrono::Local::now())
+}
+
+fn timestamp_for_filename_at(now: &chrono::DateTime<chrono::Local>) -> String {
+    now.format("%Y-%m-%d_%H-%M-%S").to_string()
 }
 
 /// Writes `<logs_dir>/<timestamp>.<kind>.txt`. Best-effort: any IO failure
@@ -191,11 +195,13 @@ mod tests {
 
     #[test]
     fn timestamp_filename_has_no_colons() {
-        let ts = timestamp_for_filename();
-        assert!(!ts.contains(':'));
-        assert!(!ts.contains(' '));
-        // shape: 2026-05-10_13-42-15 → 19 chars
-        assert_eq!(ts.len(), 19);
+        use chrono::TimeZone;
+        let now = chrono::Local
+            .with_ymd_and_hms(2026, 5, 10, 13, 42, 15)
+            .single()
+            .expect("valid local fixture time");
+
+        assert_eq!(timestamp_for_filename_at(&now), "2026-05-10_13-42-15");
     }
 
     #[test]

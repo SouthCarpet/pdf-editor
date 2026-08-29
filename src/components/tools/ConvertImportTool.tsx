@@ -1,4 +1,4 @@
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/tauri/bridge";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ export function ConvertImportTool() {
 
   async function onRun() {
     if (files.length === 0) return;
-    const out = await save({
+    const out = await pickSavePath({
       filters: [{ name: "PDF", extensions: ["pdf"] }],
       defaultPath: "converted.pdf",
     });

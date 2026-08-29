@@ -1,0 +1,132 @@
+// Plan 050 task D2-UX (R5): the pure geometry/colour math behind the
+// pending-FreeText live preview.
+//
+// A real `pdfjs-dist` `PageViewport` needs `DOMMatrix`, which this
+// project's jsdom test environment does not provide (confirmed: importing
+// `pdfjs-dist` in a vitest run throws `ReferenceError: DOMMatrix is not
+// defined`). `FakeViewport` below replicates pdf.js's own rotation-0,
+// non-flipped transform (Y flip + scale, `MediaBox` origin at 0,0) with
+// plain arithmetic, so these tests exercise the same maths `toScreenRect`
+// and `toPdfRect` are written for without needing a DOM.
+import { describe, it, expect } from "vitest";
+import type { PageViewport } from "pdfjs-dist";
+import type { Annotation } from "@/bindings";
+import {
+  freeTextRenderProps,
+  hexToRgb01,
+  rgb01ToHex,
+  rgbToCss,
+  rgbaToCss,
+  toPdfRect,
+} from "../pendingAnnotationGeometry";
+
+class FakeViewport {
+  constructor(
+    public scale: number,
+    private pageHeight = 792,
+  ) {}
+
+  convertToViewportRectangle(rect: number[]): number[] {
+    const [x0, y0, x1, y1] = rect;
+    return [
+      x0 * this.scale,
+      (this.pageHeight - y0) * this.scale,
+      x1 * this.scale,
+      (this.pageHeight - y1) * this.scale,
+    ];
+  }
+
+  convertToPdfPoint(x: number, y: number): number[] {
+    return [x / this.scale, this.pageHeight - y / this.scale];
+  }
+}
+
+function makeViewport(scale: number): PageViewport {
+  return new FakeViewport(scale) as unknown as PageViewport;
+}
+
+function freeText(overrides: Partial<Extract<Annotation, { type: "free_text" }>> = {}) {
+  const base: Extract<Annotation, { type: "free_text" }> = {
+    type: "free_text",
+    page: 0,
+    rect: [100, 700, 250, 724],
+    contents: "Peter",
+    style: {
+      font_family: "Helvetica",
+      font_postscript_name: "Helvetica",
+      size_pt: 14.4,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      color: [1, 0, 0],
+      background: null,
+      align: "left",
+      letter_spacing: 0,
+      line_height_multiplier: 1.2,
+    },
+    background_fill: null,
+    border_color: [0, 0, 0],
+    border_width: 0,
+    auto_resize: false,
+  };
+  return { ...base, ...overrides };
+}
+
+describe("freeTextRenderProps", () => {
+  it("renders at the annotation's rect, scaled font size and colour", () => {
+    const viewport = makeViewport(2);
+    const rendered = freeTextRenderProps(freeText(), viewport);
+    expect(rendered).not.toBeNull();
+    // Rect: 150pt wide, 24pt tall in PDF points -> doubled on screen at scale 2.
+    expect(rendered!.screen.width).toBeCloseTo(300, 5);
+    expect(rendered!.screen.height).toBeCloseTo(48, 5);
+    // Font size: 14.4pt * scale 2 = 28.8px.
+    expect(rendered!.fontSizePx).toBeCloseTo(28.8, 5);
+    // Colour: [1, 0, 0] -> pure red.
+    expect(rendered!.colorCss).toBe("rgb(255, 0, 0)");
+    expect(rendered!.backgroundCss).toBeNull();
+  });
+
+  it("carries a background colour when the annotation has one", () => {
+    const viewport = makeViewport(1);
+    const rendered = freeTextRenderProps(freeText({ background_fill: [0, 1, 0, 0.5] }), viewport);
+    expect(rendered!.backgroundCss).toBe("rgba(0, 255, 0, 0.5)");
+  });
+
+  it("returns null for a rect with a missing coordinate", () => {
+    const viewport = makeViewport(1);
+    const rendered = freeTextRenderProps(freeText({ rect: [100, null, 250, 724] }), viewport);
+    expect(rendered).toBeNull();
+  });
+});
+
+describe("toPdfRect / toScreenRect round trip", () => {
+  it("recovers the original PDF rect from its screen rect", () => {
+    const viewport = makeViewport(1.5);
+    const original = freeText().rect as [number, number, number, number];
+    const rendered = freeTextRenderProps(freeText(), viewport)!;
+    const recovered = toPdfRect(rendered.screen, viewport);
+    for (let i = 0; i < 4; i++) {
+      expect(recovered[i]).toBeCloseTo(original[i], 5);
+    }
+  });
+});
+
+describe("colour helpers", () => {
+  it("round-trips a hex colour through 0..1 RGB", () => {
+    expect(rgb01ToHex(hexToRgb01("#2563eb"))).toBe("#2563eb");
+  });
+
+  it("falls back to black for an unparseable hex", () => {
+    expect(hexToRgb01("not-a-colour")).toEqual([0, 0, 0]);
+  });
+
+  it("defaults alpha to 1 in rgbaToCss when missing", () => {
+    expect(rgbaToCss([1, 1, 1])).toBe("rgba(255, 255, 255, 1)");
+  });
+
+  it("rgbToCss rounds 0..1 channels to bytes", () => {
+    expect(rgbToCss([0, 0, 0])).toBe("rgb(0, 0, 0)");
+  });
+});

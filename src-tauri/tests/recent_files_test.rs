@@ -1,9 +1,13 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use pdf_editor_lib::persistence::{
     db,
     recent_files::{add_recent, list_recent, remove_recent, RecentFile},
 };
 use tempfile::TempDir;
+
+fn fixed_time() -> DateTime<Utc> {
+    "2026-08-29T08:00:00Z".parse().expect("valid fixture time")
+}
 
 #[tokio::test]
 async fn add_list_remove_recent() {
@@ -14,7 +18,7 @@ async fn add_list_remove_recent() {
     let f = RecentFile {
         path: "C:/foo.pdf".into(),
         display_name: "foo.pdf".into(),
-        last_opened_at: Utc::now(),
+        last_opened_at: fixed_time(),
         page_count: Some(10),
         size_bytes: Some(1234),
     };
@@ -37,7 +41,7 @@ async fn add_recent_upserts_on_duplicate() {
     let mut f = RecentFile {
         path: "C:/dup.pdf".into(),
         display_name: "dup.pdf".into(),
-        last_opened_at: Utc::now(),
+        last_opened_at: fixed_time(),
         page_count: None,
         size_bytes: None,
     };

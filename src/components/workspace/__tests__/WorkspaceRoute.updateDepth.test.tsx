@@ -21,13 +21,20 @@ import { useWorkspace } from "@/stores/workspaceStore";
 const SEPARATOR = String.fromCharCode(92);
 const DOC_PATH = ["A:", "scans", "hodiny.pdf"].join(SEPARATOR);
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn(async () => null),
-  save: vi.fn(async () => null),
+vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
+
+const commandFakes = vi.hoisted(() => ({
+  openDocument: vi.fn(),
+  detectScannedPdf: vi.fn(),
 }));
-vi.mock("@tauri-apps/plugin-fs", () => ({ readFile: vi.fn(async () => new Uint8Array()) }));
-vi.mock("@tauri-apps/api/webview", () => ({
-  getCurrentWebview: () => ({ onDragDropEvent: async () => () => {} }),
+vi.mock("@/bindings", () => ({
+  Channel: class {},
+  commands: new Proxy(commandFakes, {
+    get(target, property: string) {
+      if (property in target) return target[property as keyof typeof target];
+      return vi.fn(async () => ({ status: "ok", data: [] }));
+    },
+  }),
 }));
 
 // The real hook needs the pdf.js worker, which jsdom has no use for. The stub
@@ -45,32 +52,7 @@ vi.mock("@/hooks/usePdfDocument", () => ({
       : null,
 }));
 
-vi.mock("@tauri-apps/api/core", () => ({
-  Channel: class {},
-  invoke: vi.fn(async (command: string) => {
-    switch (command) {
-      case "open_document":
-        return { path: DOC_PATH, page_count: 1 };
-      // hodiny.pdf is a Genius Scan JPEG-only PDF: no text layer.
-      case "detect_scanned_pdf":
-        return { is_likely_scanned: true, average_text_length: 0 };
-      case "list_ocr_languages":
-        return ["eng"];
-      case "check_for_update":
-        return {
-          embedded_commit: "test",
-          embedded_dirty: false,
-          repo_head: null,
-          dirty: false,
-          behind: false,
-          error: null,
-        };
-      // No AcroForm, no OCR backends, no session, no recent files.
-      default:
-        return [];
-    }
-  }),
-}));
+import { resetFakeBridge } from "@/test/fakeTauriBridge";
 
 function renderWorkspace() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -89,11 +71,18 @@ function renderWorkspace() {
 
 async function renderAndCollectErrors() {
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-  renderWorkspace();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const messages = consoleError.mock.calls.map((call) => call.map(String).join(" "));
-  consoleError.mockRestore();
-  return messages.some((message) => message.includes("Maximum update depth exceeded"));
+  try {
+    renderWorkspace();
+    await screen.findAllByText(/hodiny\.pdf/);
+    const messages = consoleError.mock.calls.map((call) =>
+      call.map(String).join(" "),
+    );
+    return messages.some((message) =>
+      message.includes("Maximum update depth exceeded"),
+    );
+  } finally {
+    consoleError.mockRestore();
+  }
 }
 
 describe("workspace route for a scanned PDF", () => {
@@ -123,6 +112,16 @@ describe("workspace route for a scanned PDF", () => {
   });
 
   beforeEach(() => {
+    vi.clearAllMocks();
+    resetFakeBridge();
+    commandFakes.openDocument.mockResolvedValue({
+      status: "ok",
+      data: { path: DOC_PATH, page_count: 1 },
+    });
+    commandFakes.detectScannedPdf.mockResolvedValue({
+      status: "ok",
+      data: { is_likely_scanned: true, average_text_length: 0 },
+    });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useWorkspace.setState({
@@ -137,8 +136,7 @@ describe("workspace route for a scanned PDF", () => {
   it("keeps a stable snapshot in the annotations panel for a document with no annotations", async () => {
     const looped = await renderAndCollectErrors();
     expect(looped).toBe(false);
-    // Guard against a silently empty render passing the loop check.
-    expect(screen.getByText(/hodiny\.pdf/)).toBeInTheDocument();
+    expect(commandFakes.openDocument).toHaveBeenCalledWith(DOC_PATH);
   });
 
   it("stays stable with the default Forms sub-tool, the panel a fresh session opens with", async () => {

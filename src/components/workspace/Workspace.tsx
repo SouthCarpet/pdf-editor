@@ -7,16 +7,19 @@
 // `workspaceStore.activeTool`. The Crop tool ships in this commit;
 // Organize/Extract panels are added in subsequent Phase 11 commits.
 import type * as pdfjs from "pdfjs-dist";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Rect } from "react-konva";
 import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
-import { useAnnotations } from "@/stores/annotationsStore";
+import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { DetectedFieldFill } from "./DetectedFieldFill";
-import { DetectedFieldsOverlay } from "./DetectedFieldsOverlay";
-import type { ScreenRect } from "./detectedFieldGeometry";
+import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
+import { EditPageOverlay } from "./EditPageOverlay";
+import { EMPTY_FILLED_FIELDS, markFieldFilled, unmarkFieldForClientId } from "./filledFieldsState";
 import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
 import { OverlayCanvas } from "./OverlayCanvas";
+import { PendingAnnotationControls } from "./PendingAnnotationControls";
+import { hexToRgb01, rgb01ToHex, type FreeTextAnnotation } from "./pendingAnnotationGeometry";
 import { PdfViewer } from "./PdfViewer";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
@@ -44,6 +47,8 @@ export function Workspace({ pdf, path }: Props) {
   const setActivePage = useWorkspace((s) => s.setActivePage);
   const zoom = useWorkspace((s) => s.zoom);
   const addAnnotation = useAnnotations((s) => s.add);
+  const updateAnnotation = useAnnotations((s) => s.update);
+  const removeAnnotation = useAnnotations((s) => s.remove);
 
   // Track the rendered viewport size of the active page so the overlay
   // (and crop rect) line up 1:1 with the PDF.js canvas.
@@ -82,16 +87,34 @@ export function Workspace({ pdf, path }: Props) {
     field: DetectedFormField;
     screenRect: ScreenRect;
   } | null>(null);
-  const [filledState, setFilledState] = useState<{ key: string; ids: Set<string> }>({
-    key: "",
-    ids: new Set(),
-  });
+  const [filledState, setFilledState] = useState(EMPTY_FILLED_FIELDS);
+  // Plan 050 task D2-UX: the pending FreeText annotation selected for
+  // editing in the control strip (R2). Keyed like the state above so a
+  // page or document switch does not leave a stale selection open.
+  const [selectedPending, setSelectedPending] = useState<{ key: string; clientId: string } | null>(
+    null,
+  );
+  // Plan 050 task D2-UX-2 (R7a): owned here, not inside the Forms panel,
+  // because `Workspace` does not unmount when the Edit sub-tool changes -
+  // a ref created inside `EditFormsPanel`/`DetectFieldsSection` dies with
+  // them, so switching away from Forms and back reset the dedup and
+  // re-ran auto-detection for a "Nájsť polia" request already handled.
+  const autoDetectHandledRef = useRef(0);
   const detectedFields = detectState.key === ocrPageKey ? detectState.fields : null;
   const filledIds = filledState.key === ocrPageKey ? filledState.ids : EMPTY_FIELD_IDS;
   const ocrWords = ocrPageState.key === ocrPageKey ? ocrPageState.words : [];
   const ocrLayerNotice = ocrPageState.key === ocrPageKey ? ocrPageState.notice : null;
   const ocrWordsLoading = activeTool === "ocr" && ocrPageState.key !== ocrPageKey;
   const selectedOcrWordIds = ocrSelection.key === ocrPageKey ? ocrSelection.ids : new Set<number>();
+  const pendingAnnotations = useAnnotations((s) => s.byDoc[path] ?? NO_ANNOTATIONS);
+  const selectedPendingId = selectedPending?.key === ocrPageKey ? selectedPending.clientId : null;
+  const selectedFreeText = pendingAnnotations.find(
+    (a): a is ClientAnnotation & FreeTextAnnotation =>
+      a.type === "free_text" && a.__clientId === selectedPendingId,
+  );
+  const hasPendingOnPage = pendingAnnotations.some(
+    (a) => a.type === "free_text" && a.page === activePage,
+  );
 
   // Clamp active page when the document changes (defensive).
   useEffect(() => {
@@ -166,19 +189,31 @@ export function Workspace({ pdf, path }: Props) {
               </OverlayCanvas>
             )}
             {activeTool === "edit" &&
-              editSubTool === "forms" &&
+              (editSubTool === "forms" || editSubTool === "annotations") &&
               pageSize.width > 0 &&
               pageViewport !== null &&
-              detectedFields !== null &&
-              detectedFields.length > 0 && (
-                <DetectedFieldsOverlay
+              // Plan 050 task D2-UX: an empty Konva `Stage` has nothing to
+              // show, so it stays unmounted rather than paying for one on
+              // every Edit-tool page (this also keeps a document with no
+              // pending annotations and no detected fields exactly as
+              // canvas-free as it was before this task).
+              ((editSubTool === "forms" && detectedFields !== null && detectedFields.length > 0) ||
+                hasPendingOnPage) && (
+                <EditPageOverlay
                   width={pageSize.width}
                   height={pageSize.height}
-                  fields={detectedFields}
+                  page={activePage}
                   viewport={pageViewport}
+                  detectedFields={editSubTool === "forms" ? detectedFields : null}
                   filledIds={filledIds}
-                  onPick={(field, screenRect) =>
+                  onPickField={(field, screenRect) =>
                     setFillTarget({ key: ocrPageKey, field, screenRect })
+                  }
+                  pendingAnnotations={pendingAnnotations}
+                  selectedPendingId={selectedPendingId}
+                  onSelectPending={(clientId) => setSelectedPending({ key: ocrPageKey, clientId })}
+                  onPendingRectChange={(clientId, rect) =>
+                    updateAnnotation(path, clientId, { rect })
                   }
                 />
               )}
@@ -190,16 +225,50 @@ export function Workspace({ pdf, path }: Props) {
                   field={fillTarget.field}
                   screenRect={fillTarget.screenRect}
                   onSubmit={(annotation) => {
-                    addAnnotation(path, annotation);
-                    setFilledState((current) => ({
-                      key: ocrPageKey,
-                      ids: new Set(current.key === ocrPageKey ? current.ids : []).add(
-                        fillTarget.field.id
-                      ),
-                    }));
+                    const clientId = addAnnotation(path, annotation);
+                    setFilledState((current) =>
+                      markFieldFilled(current, ocrPageKey, fillTarget.field.id, clientId),
+                    );
                     setFillTarget(null);
+                    setSelectedPending({ key: ocrPageKey, clientId });
                   }}
                   onCancel={() => setFillTarget(null)}
+                />
+              )}
+            {selectedFreeText &&
+              pageViewport !== null &&
+              activeTool === "edit" &&
+              (editSubTool === "forms" || editSubTool === "annotations") && (
+                <PendingAnnotationControls
+                  screenRect={
+                    toScreenRect(selectedFreeText.rect, pageViewport) ?? EMPTY_SCREEN_RECT
+                  }
+                  text={selectedFreeText.contents}
+                  sizePt={selectedFreeText.style.size_pt ?? 12}
+                  colorHex={rgb01ToHex(selectedFreeText.style.color)}
+                  onChangeText={(text) =>
+                    updateAnnotation(path, selectedFreeText.__clientId, { contents: text })
+                  }
+                  onChangeSize={(sizePt) =>
+                    updateAnnotation(path, selectedFreeText.__clientId, {
+                      style: { ...selectedFreeText.style, size_pt: sizePt },
+                    })
+                  }
+                  onChangeColor={(hex) =>
+                    updateAnnotation(path, selectedFreeText.__clientId, {
+                      style: { ...selectedFreeText.style, color: hexToRgb01(hex) },
+                    })
+                  }
+                  onDelete={() => {
+                    removeAnnotation(path, selectedFreeText.__clientId);
+                    // R7b (plan 050 D2-UX-2): a deleted fill no longer backs
+                    // its detected field, so the field must stop showing as
+                    // filled too.
+                    setFilledState((current) =>
+                      unmarkFieldForClientId(current, ocrPageKey, selectedFreeText.__clientId),
+                    );
+                    setSelectedPending(null);
+                  }}
                 />
               )}
             {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (
@@ -248,6 +317,7 @@ export function Workspace({ pdf, path }: Props) {
                     setDetectState({ key: ocrPageKey, fields });
                     setFillTarget(null);
                   }}
+                  autoDetectHandledRef={autoDetectHandledRef}
                 />
               )}
               {editSubTool === "annotations" && (
@@ -268,3 +338,6 @@ export function Workspace({ pdf, path }: Props) {
 }
 
 const EMPTY_FIELD_IDS = new Set<string>();
+// Fallback only: a selected pending annotation always has a rect, so
+// `toScreenRect` only returns null for a malformed one from outside this app.
+const EMPTY_SCREEN_RECT: ScreenRect = { x: 0, y: 0, width: 0, height: 0 };

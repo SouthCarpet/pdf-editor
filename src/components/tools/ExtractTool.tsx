@@ -1,4 +1,4 @@
-import { save } from "@tauri-apps/plugin-dialog";
+import { pickSavePath } from "@/tauri/bridge";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export function ExtractTool() {
 
   async function onRun() {
     if (!file || !pages) return;
-    const out = await save({
+    const out = await pickSavePath({
       filters: [{ name: "PDF", extensions: ["pdf"] }],
       defaultPath: "extracted.pdf",
     });

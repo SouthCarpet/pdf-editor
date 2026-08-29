@@ -1,4 +1,4 @@
-import { open } from "@tauri-apps/plugin-dialog";
+import { pickPaths } from "@/tauri/bridge";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,8 @@ export function SplitTool() {
 
   async function onRun() {
     if (!file) return;
-    const dir = await open({ directory: true, multiple: false });
-    if (!dir || Array.isArray(dir)) return;
+    const [dir] = await pickPaths({ directory: true, multiple: false });
+    if (!dir) return;
     await run(
       "split_pdf_cmd",
       {

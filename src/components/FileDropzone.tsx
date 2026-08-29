@@ -1,7 +1,7 @@
-import { open } from "@tauri-apps/plugin-dialog";
 import { useState, type DragEvent, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { pickPaths } from "@/tauri/bridge";
 
 interface Props {
   multiple?: boolean;
@@ -18,12 +18,12 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
   const [hover, setHover] = useState(false);
 
   async function pick() {
-    const sel = await open({
+    const selected = await pickPaths({
       multiple,
       filters: [{ name: "PDF", extensions: accept }],
     });
-    if (sel === null) return;
-    onFiles(Array.isArray(sel) ? sel : [sel]);
+    if (selected.length === 0) return;
+    onFiles(selected);
   }
 
   function onDrop(e: DragEvent<HTMLDivElement>) {

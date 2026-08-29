@@ -16,21 +16,20 @@ async fn convert_docx_to_pdf() {
     let soffice =
         Path::new("../src-tauri/resources/libreoffice/App/libreoffice/program/soffice.exe");
     let soffice_alt = Path::new("resources/libreoffice/App/libreoffice/program/soffice.exe");
-    if !soffice.exists() && !soffice_alt.exists() {
-        eprintln!(
-            "skip: LibreOffice not staged at resources/libreoffice/...; \
-             docx-to-pdf conversion not exercised yet"
-        );
-        return;
-    }
+    assert!(
+        soffice.exists() || soffice_alt.exists(),
+        "LibreOffice is not staged at {} or {}; stage it before running \
+         --features sidecar-tests.",
+        soffice.display(),
+        soffice_alt.display()
+    );
     let fixture = Path::new("tests/fixtures/docs/sample.docx");
-    if !fixture.exists() {
-        eprintln!(
-            "skip: tests/fixtures/docs/sample.docx missing (generate-fixtures \
-             skips it when soffice isn't on disk); docx-to-pdf not exercised"
-        );
-        return;
-    }
+    assert!(
+        fixture.exists(),
+        "tests/fixtures/docs/sample.docx missing; generate-fixtures.ps1 only creates it \
+         once soffice is staged, so stage LibreOffice and re-run \
+         scripts/generate-fixtures.ps1."
+    );
     let mgr = SidecarManager::new(2);
     let lo = SofficeWrapper::new(mgr);
     let tmp = TempDir::new().unwrap();

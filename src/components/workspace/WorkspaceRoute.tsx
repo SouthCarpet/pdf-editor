@@ -9,7 +9,6 @@
 // is special-cased into a two-document workspace (no single-doc state).
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { commands } from "@/bindings";
@@ -19,6 +18,7 @@ import { decodeDocId } from "@/lib/docId";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { pickPaths, pickSavePath } from "@/tauri/bridge";
 import { ScanDetectedDialog, type OcrSelections } from "@/components/ScanDetectedDialog";
 import { CompareViewer } from "./CompareViewer";
 import { ComparePanel } from "./tools/ComparePanel";
@@ -44,11 +44,15 @@ export function WorkspaceRoute() {
   const addDoc = useDocuments((s) => s.add);
   const setActiveDoc = useDocuments((s) => s.setActive);
   const setTool = useWorkspace((s) => s.setTool);
+  // Plan 050 task D2-UX: lifted into the workspace store so the Text tool's
+  // scanned-page empty state can open this dialog directly (see R4).
+  const ocrPromptOpen = useWorkspace((s) => s.ocrPromptOpen);
+  const openOcrPrompt = useWorkspace((s) => s.openOcrPrompt);
+  const closeOcrPrompt = useWorkspace((s) => s.closeOcrPrompt);
   const [path, setPath] = useState<string | null>(null);
   const [error, setError] = useState<
     { key: string | null; data: Record<string, unknown>; raw?: string } | null
   >(null);
-  const [scanDialogOpen, setScanDialogOpen] = useState(false);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
   const [ocrError, setOcrError] = useState<string | null>(null);
 
@@ -88,17 +92,17 @@ export function WorkspaceRoute() {
     let cancelled = false;
     (async () => {
       if (docId === "new") {
-        const picked = await openDialog({
+        const picked = await pickPaths({
           multiple: false,
           directory: false,
           filters: [{ name: "PDF", extensions: ["pdf"] }],
         });
         if (cancelled) return;
-        if (!picked) {
+        const absolute = picked[0];
+        if (!absolute) {
           navigate({ to: "/" });
           return;
         }
-        const absolute = typeof picked === "string" ? picked : picked;
         await loadAndRegister(absolute);
         if (cancelled) return;
         // Replace history so the back button doesn't re-trigger the picker.
@@ -156,15 +160,15 @@ export function WorkspaceRoute() {
       const detect = await commands.detectScannedPdf(resolvedPath);
       if (cancelled) return;
       if (detect.status === "ok" && detect.data.is_likely_scanned) {
-        setScanDialogOpen(true);
+        openOcrPrompt();
       }
     }
-  }, [docId, navigate, addDoc, setActiveDoc, search, isCompareMode]);
+  }, [docId, navigate, addDoc, setActiveDoc, search, isCompareMode, openOcrPrompt]);
 
   async function onRunOcr(sel: OcrSelections) {
     if (!path) return;
-    setScanDialogOpen(false);
-    const out = await saveDialog({
+    closeOcrPrompt();
+    const out = await pickSavePath({
       defaultPath: path.replace(/\.pdf$/i, ".ocr.pdf"),
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
@@ -231,11 +235,7 @@ export function WorkspaceRoute() {
   return (
     <>
       <Workspace pdf={pdfDoc.pdf} path={path} />
-      <ScanDetectedDialog
-        open={scanDialogOpen}
-        onClose={() => setScanDialogOpen(false)}
-        onRunOcr={onRunOcr}
-      />
+      <ScanDetectedDialog open={ocrPromptOpen} onClose={closeOcrPrompt} onRunOcr={onRunOcr} />
       {(ocrResult || ocrError) && (
         <div
           role={ocrError ? "alert" : "status"}

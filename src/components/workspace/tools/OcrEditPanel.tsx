@@ -1,8 +1,8 @@
-import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands, type OcrSelectableWord } from "@/bindings";
 import { Button } from "@/components/ui/button";
+import { pickSavePath } from "@/tauri/bridge";
 
 interface Props {
   docPath: string;
@@ -31,7 +31,7 @@ export function OcrEditPanel({
 
   async function apply(mode: "erase" | "replace") {
     if (selectedIds.size === 0 || (mode === "replace" && replacement.trim() === "")) return;
-    const output = await save({
+    const output = await pickSavePath({
       defaultPath: docPath.replace(/\.pdf$/i, ".ocr-edited.pdf"),
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });

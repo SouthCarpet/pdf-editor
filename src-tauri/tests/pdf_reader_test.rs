@@ -2,16 +2,20 @@ use pdf_editor_lib::services::pdf_reader::{LopdfReader, PdfReader};
 use std::path::Path;
 
 #[test]
-#[ignore] // requires fixture; run scripts/generate-fixtures.ps1 first
 fn page_count_matches_fixture() {
     let r = LopdfReader::open(Path::new("tests/fixtures/pdfs/sample.pdf")).unwrap();
-    assert!(r.page_count() >= 1);
+    assert_eq!(r.page_count(), 1);
 }
 
 #[test]
-#[ignore] // requires fixture; run scripts/generate-fixtures.ps1 first
-fn metadata_returns_optional_fields() {
+fn metadata_is_empty_when_the_pdf_has_no_info_dictionary() {
     let r = LopdfReader::open(Path::new("tests/fixtures/pdfs/sample.pdf")).unwrap();
     let meta = r.metadata();
-    let _ = (meta.title, meta.author, meta.creator); // simply accessible
+    // Oracle: `mutool show sample.pdf trailer` has no /Info entry.
+    assert_eq!(meta.title, None);
+    assert_eq!(meta.author, None);
+    assert_eq!(meta.subject, None);
+    assert_eq!(meta.keywords, None);
+    assert_eq!(meta.creator, None);
+    assert_eq!(meta.producer, None);
 }

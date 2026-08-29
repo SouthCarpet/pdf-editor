@@ -18,13 +18,12 @@ fn mupdf() -> MupdfWrapper {
 )]
 async fn extract_text_from_slovak_pdf_preserves_diacritics() {
     let path = Path::new("tests/fixtures/pdfs/slovak-utf8.pdf");
-    if !path.exists() {
-        eprintln!(
-            "skip: slovak-utf8.pdf missing (requires staged LibreOffice in \
-             generate-fixtures.ps1); Slovak-diacritic extract not exercised"
-        );
-        return;
-    }
+    assert!(
+        path.exists(),
+        "tests/fixtures/pdfs/slovak-utf8.pdf missing; it requires a staged LibreOffice \
+         install so scripts/generate-fixtures.ps1 can produce it. Stage LibreOffice and \
+         regenerate fixtures before running --features sidecar-tests."
+    );
     let text = mupdf().extract_text(path).await.unwrap();
     assert!(
         text.contains('č') || text.contains('š') || text.contains('á'),
@@ -42,7 +41,7 @@ async fn extract_text_returns_empty_for_scanned_pdf() {
     let text = mupdf()
         .extract_text(Path::new("tests/fixtures/pdfs/scanned.pdf"))
         .await
-        .unwrap_or_default();
+        .expect("extract scanned PDF text");
     // scanned PDF should produce little/no text without OCR
     assert!(text.trim().len() < 50);
 }

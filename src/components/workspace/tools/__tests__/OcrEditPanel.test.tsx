@@ -6,7 +6,6 @@ import { OcrEditPanel } from "../OcrEditPanel";
 
 const mocks = vi.hoisted(() => ({
   editOcrPageWordsCmd: vi.fn(),
-  save: vi.fn(),
   clearSelection: vi.fn(),
 }));
 
@@ -16,15 +15,16 @@ vi.mock("@/bindings", () => ({
   },
 }));
 
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  save: mocks.save,
-}));
+vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
+
+import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 
 describe("OcrEditPanel", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    resetFakeBridge();
     await i18n.changeLanguage("en");
-    mocks.save.mockResolvedValue("D:\\output\\scan.ocr-edited.pdf");
+    fakeBridge.pickSavePath.mockResolvedValue("D:\\output\\scan.ocr-edited.pdf");
   });
 
   it("sends selected OCR word ids for erase", async () => {

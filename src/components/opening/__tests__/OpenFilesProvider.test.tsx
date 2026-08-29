@@ -5,8 +5,6 @@ import { useDocuments } from "@/stores/documentStore";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
-  openDialog: vi.fn(),
-  saveDialog: vi.fn(),
   openDocument: vi.fn(),
   mergePdfs: vi.fn(),
 }));
@@ -15,16 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mocks.navigate,
 }));
 
-vi.mock("@tauri-apps/api/webview", () => ({
-  getCurrentWebview: () => ({
-    onDragDropEvent: vi.fn(async () => () => {}),
-  }),
-}));
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: (...args: unknown[]) => mocks.openDialog(...args),
-  save: (...args: unknown[]) => mocks.saveDialog(...args),
-}));
+vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
 vi.mock("@/bindings", () => ({
   commands: {
@@ -35,6 +24,7 @@ vi.mock("@/bindings", () => ({
 
 import { OpenFilesProvider } from "../OpenFilesProvider";
 import { useOpenFiles } from "../openFilesContext";
+import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 
 function Trigger({ paths }: { paths: string[] }) {
   const { requestOpen } = useOpenFiles();
@@ -66,8 +56,7 @@ function opened(path: string) {
 describe("OpenFilesProvider", () => {
   beforeEach(() => {
     mocks.navigate.mockReset().mockResolvedValue(undefined);
-    mocks.openDialog.mockReset();
-    mocks.saveDialog.mockReset();
+    resetFakeBridge();
     mocks.openDocument.mockReset();
     mocks.mergePdfs.mockReset();
     useDocuments.setState({ documents: new Map(), activeDocId: null });
@@ -104,7 +93,7 @@ describe("OpenFilesProvider", () => {
       pageCount: 1,
       dirty: false,
     });
-    mocks.saveDialog.mockResolvedValue("C:/merged.pdf");
+    fakeBridge.pickSavePath.mockResolvedValue("C:/merged.pdf");
     mocks.mergePdfs.mockResolvedValue({
       status: "ok",
       data: { output_paths: ["C:/merged.pdf"] },

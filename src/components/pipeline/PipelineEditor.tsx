@@ -32,6 +32,7 @@ import { WarningEdge } from "./WarningEdge";
 import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
 import { nodeKindByKey, type NodeKindMeta } from "@/pipeline/nodeKinds";
 import { computeEdgeWarnings } from "@/pipeline/preservation";
+import { selectedNodeAfterChanges } from "@/pipeline/selection";
 
 const NODE_TYPES = {
   pipeline_node: PipelineNodeView,
@@ -75,16 +76,7 @@ function InnerEditor() {
       // (xyflow skips a node it already considers selected), so the panel
       // stayed blank while the node looked selected. Read the whole batch:
       // a node being selected always wins over anything being deselected.
-      const selectChanges = changes.filter((c) => c.type === "select") as Extract<
-        NodeChange,
-        { type: "select" }
-      >[];
-      const selected = selectChanges.find((c) => c.selected);
-      if (selected) {
-        setSelected(selected.id);
-      } else if (selectChanges.some((c) => !c.selected && c.id === selectedNodeId)) {
-        setSelected(null);
-      }
+      setSelected(selectedNodeAfterChanges(changes, selectedNodeId));
     },
     [applyNodeChangesAction, setSelected, selectedNodeId]
   );

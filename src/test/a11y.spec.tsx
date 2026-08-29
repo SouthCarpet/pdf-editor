@@ -4,12 +4,10 @@
 // provider stack (TanStack Router memory history + QueryClient + i18n)
 // and asserts axe-core finds zero violations of the configured rules.
 //
-// Mocks @tauri-apps/api/core so stores that call `invoke` on mount don't
-// reject (they would otherwise blow up the render and leave the body
-// empty, which axe would still pass but tests should still cover the
-// real DOM).
+// Fakes app-owned Tauri boundaries so mounted stores do not reject before
+// axe can inspect the real DOM.
 import { describe, it, expect, vi, beforeAll } from "vitest";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { axe } from "vitest-axe";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -21,29 +19,9 @@ import {
 } from "@tanstack/react-router";
 
 import "@/i18n";
+import { useJobsStore } from "@/stores/jobsStore";
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (cmd: string) => {
-    // Return shape-safe defaults so stores don't throw.
-    if (cmd === "recent_files_list") return [];
-    if (cmd === "session_list") return [];
-    if (cmd.startsWith("project_list")) return [];
-    if (cmd.startsWith("pipeline_preset_list")) return [];
-    if (cmd === "list_fonts_cmd") return [];
-    if (cmd === "list_ocr_languages") return [];
-    return null;
-  }),
-}));
-
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  open: vi.fn(async () => null),
-  save: vi.fn(async () => null),
-}));
-
-vi.mock("@tauri-apps/plugin-fs", () => ({
-  readFile: vi.fn(),
-  writeFile: vi.fn(),
-}));
+vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
 vi.mock("@/bindings", () => {
   const stub = vi.fn(async () => ({ status: "ok", data: null }));
@@ -101,8 +79,7 @@ function renderWithProviders(node: React.ReactNode) {
 async function expectNoViolations(loader: () => Promise<React.ReactElement>) {
   const node = await loader();
   const { container } = renderWithProviders(node);
-  // Let async store-loads inside the component settle before axe runs.
-  await new Promise((r) => setTimeout(r, 0));
+  await waitFor(() => expect(container.childElementCount).toBeGreaterThan(0));
   const results = await axe(container);
   expect(results.violations).toEqual([]);
 }
@@ -132,6 +109,8 @@ describe("a11y", () => {
 
   it("ProgressList has no axe violations", async () => {
     await expectNoViolations(async () => {
+      useJobsStore.setState({ jobs: new Map() });
+      useJobsStore.getState().start("a11y-job", "merge", ["document.pdf"]);
       const { ProgressList } = await import("@/components/ProgressList");
       return <ProgressList />;
     });

@@ -65,17 +65,11 @@ async fn ocr_makes_scanned_pdf_searchable() {
     inject_text_layers(&scanned, &ocred, &opts, &hocrs).expect("inject");
 
     let text = mupdf.extract_text(&ocred).await.unwrap();
-    if text.trim().is_empty() {
-        // scanned.pdf is currently a 16x16 synthetic PNG; Tesseract finds
-        // no text. Skip gracefully — meaningful once a real fixture lands.
-        eprintln!(
-            "skip: scanned.pdf produced no OCR text (placeholder fixture); \
-             scanned-PDF searchability not exercised yet"
-        );
-        return;
-    }
     assert!(
-        text.trim().len() >= 1,
-        "OCR text should be present after layer added"
+        !text.trim().is_empty(),
+        "OCR text should be present after layer added, but Tesseract found none; \
+         tests/fixtures/pdfs/scanned.pdf looks like the placeholder 16x16 synthetic PNG \
+         instead of real scanned content. Regenerate it with real content via \
+         scripts/generate-fixtures.ps1 before running --features sidecar-tests."
     );
 }

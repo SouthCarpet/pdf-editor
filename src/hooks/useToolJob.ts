@@ -1,7 +1,6 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { useJobsStore } from "@/stores/jobsStore";
+import { invokeCommand, listenEvent, type UnlistenFn } from "@/tauri/bridge";
 import { commands } from "@/tauri/commands";
 import type { ProgressEvent } from "@/tauri/events";
 
@@ -37,8 +36,7 @@ export function useToolJob(toolId: string) {
     setActiveId(id);
     start(id, toolId, inputPaths);
 
-    unlistenRef.current = await listen<ProgressEvent>("job:progress", (e) => {
-      const ev = e.payload;
+    unlistenRef.current = await listenEvent<ProgressEvent>("job:progress", (ev) => {
       if (ev.job_id !== id) return;
       switch (ev.type) {
         case "progress":
@@ -72,7 +70,7 @@ export function useToolJob(toolId: string) {
       ) {
         argsWithJob.args = { ...(argsWithJob.args as Record<string, unknown>), jobId: id };
       }
-      const result = await invoke<T>(commandName, argsWithJob);
+      const result = await invokeCommand<T>(commandName, argsWithJob);
       const outputPaths = (result as { outputPaths?: string[] } | undefined)?.outputPaths;
       finish(id, outputPaths);
       return { id, outputPaths };

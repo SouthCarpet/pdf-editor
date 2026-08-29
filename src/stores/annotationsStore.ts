@@ -6,6 +6,8 @@
 import { create } from "zustand";
 import type { Annotation } from "@/bindings";
 
+type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
+
 export type AnnotationMode =
   | "highlight"
   | "note"
@@ -32,7 +34,12 @@ interface AnnotationsState {
   mode: AnnotationMode;
   byDoc: Record<string, ClientAnnotation[]>;
   setMode: (m: AnnotationMode) => void;
-  add: (docPath: string, ann: Annotation) => void;
+  /** Returns the generated client id, so a caller can select the new item
+   * for immediate editing (Plan 050 task D2-UX, R2). */
+  add: (docPath: string, ann: Annotation) => string;
+  /** Partial update of a pending FreeText annotation (font size, colour,
+   * text, rect) - the only kind the live-preview control strip edits. */
+  update: (docPath: string, clientId: string, patch: Partial<FreeTextAnnotation>) => void;
   remove: (docPath: string, clientId: string) => void;
   replace: (docPath: string, list: ClientAnnotation[]) => void;
   clear: (docPath: string) => void;
@@ -42,14 +49,26 @@ export const useAnnotations = create<AnnotationsState>((set) => ({
   mode: "highlight",
   byDoc: {},
   setMode: (mode) => set({ mode }),
-  add: (docPath, ann) =>
+  add: (docPath, ann) => {
+    const clientId = crypto.randomUUID();
     set((s) => ({
       byDoc: {
         ...s.byDoc,
         [docPath]: [
           ...(s.byDoc[docPath] ?? []),
-          { ...ann, __clientId: crypto.randomUUID() } as ClientAnnotation,
+          { ...ann, __clientId: clientId } as ClientAnnotation,
         ],
+      },
+    }));
+    return clientId;
+  },
+  update: (docPath, clientId, patch) =>
+    set((s) => ({
+      byDoc: {
+        ...s.byDoc,
+        [docPath]: (s.byDoc[docPath] ?? []).map((a) =>
+          a.__clientId === clientId ? ({ ...a, ...patch } as ClientAnnotation) : a,
+        ),
       },
     })),
   remove: (docPath, clientId) =>

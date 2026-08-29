@@ -26,7 +26,7 @@ test.describe.skip("runtime privacy (tauri-driver integration pending)", () => {
 // tauri-driver). Static surface stays defined for the day tauri-driver
 // lands; the static `scripts/test-privacy.ps1` covers the dependency
 // gate today.
-test("app makes zero outbound network requests during a Merge run", async () => {
+test("app shell makes zero outbound network requests", async () => {
   const app = await electron.launch({ executablePath: APP });
   const win = await app.firstWindow();
 
@@ -43,17 +43,7 @@ test("app makes zero outbound network requests during a Merge run", async () => 
     }
   });
 
-  // Drive a Merge run end-to-end. The exact selectors depend on the
-  // running app; this scaffold keeps the shape close to what Playwright
-  // would dispatch once `tauri-driver` is wired in.
-  await win.click("text=Merge").catch(() => {
-    // If the route hasn't loaded yet, allow the test to still verify
-    // the network discipline of the initial app shell.
-  });
-
-  // 5 s of idle time is enough to surface any periodic poll or telemetry
-  // beacon the codebase might have leaked in.
-  await win.waitForTimeout(5_000);
+  await expect(win.getByRole("link", { name: "Merge" })).toBeVisible();
 
   expect(requests).toEqual([]);
   await app.close();

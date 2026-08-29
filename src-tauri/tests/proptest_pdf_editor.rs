@@ -12,9 +12,8 @@
 //!  2. **Split is page-count exhaustive.** Splitting an `n`-page doc into
 //!     `n` single-page ranges yields exactly `n` output files, each with
 //!     exactly 1 page (the page-count side of "split is well-defined").
-//!  3. **Reorder permutation invariant.** Applying any permutation of
-//!     `1..=n` either preserves the page count or surfaces a structured
-//!     Err (no panic, no silent page loss).
+//!  3. **Reorder permutation invariant.** Applying a valid permutation of
+//!     `1..=n` preserves the page count.
 //!  4. **Rotate idempotency at 0°.** Rotating every page by 0 degrees is
 //!     a structural no-op — output reloads cleanly with the same page
 //!     count.
@@ -32,7 +31,7 @@ use pdf_editor_lib::services::image_to_pdf::images_to_pdf;
 use pdf_editor_lib::services::pdf_editor::{reorder_pages, rotate_pages, split_pdf};
 use pdf_editor_lib::services::pdf_reader::{LopdfReader, PdfReader};
 use proptest::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 /// Build a synthetic PDF with `n` pages into `tmp` and return its path.
@@ -54,7 +53,7 @@ fn make_blank_pdf(tmp: &TempDir, n: u32, tag: &str) -> PathBuf {
     out
 }
 
-fn page_count(path: &PathBuf) -> u32 {
+fn page_count(path: &Path) -> u32 {
     LopdfReader::open(path).unwrap().page_count() as u32
 }
 
@@ -89,19 +88,16 @@ proptest! {
         }
     }
 
-    /// Property 3: applying any permutation of `1..=n` via `reorder_pages`
-    /// either preserves the page count or surfaces a structured `Err` —
-    /// what we forbid is a panic or silent page loss.
+    /// Property 3: applying a valid reversed permutation preserves every page.
     #[test]
-    fn reorder_preserves_or_errors_no_panic(n in 2u32..=4) {
+    fn reorder_valid_permutation_preserves_page_count(n in 2u32..=4) {
         let tmp = TempDir::new().unwrap();
         let src = make_blank_pdf(&tmp, n, "r");
         // Reversed permutation.
         let perm: Vec<u32> = (1..=n).rev().collect();
         let out = tmp.path().join("reordered.pdf");
-        if reorder_pages(&src, &perm, &out).is_ok() {
-            prop_assert!(page_count(&out) <= n);
-        }
+        reorder_pages(&src, &perm, &out).unwrap();
+        prop_assert_eq!(page_count(&out), n);
     }
 
     /// Property 4: rotating every page by 0 degrees is a structural no-op

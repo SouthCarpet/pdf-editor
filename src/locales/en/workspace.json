@@ -116,6 +116,29 @@
     "click_empty_message": "No editable text here. Add new text?",
     "add_new_text": "Add new text",
     "preserve_original": "Preserve original",
-    "override_style": "Override style"
+    "override_style": "Override style",
+    "no_runs": "No editable text found on this page.",
+    "scanned_title": "This page is a scanned image",
+    "scanned_explanation": "The image has no text layer, so there is nothing to edit here. Find blank fields to fill in, or run OCR first to get editable text.",
+    "find_fields": "Find fields",
+    "run_ocr": "Run OCR"
+  },
+  "pending_annotation": {
+    "title": "Edit inserted text",
+    "text_label": "Text",
+    "size_label": "Font size",
+    "size_decrease": "Decrease font size",
+    "size_increase": "Increase font size",
+    "color_label": "Text colour",
+    "delete": "Remove"
+  },
+  "close_guard": {
+    "title": "Unsaved changes",
+    "description": "Unsaved changes in these documents: {{names}}",
+    "save": "Save",
+    "discard": "Discard",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "text_draft_hint": "Apply the text edit first, then save."
   }
 }

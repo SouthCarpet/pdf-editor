@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "@/tauri/bridge";
 
 export interface RecentFile {
   path: string;
@@ -21,11 +21,13 @@ export const useRecentFiles = create<RecentState>((set) => ({
   loading: false,
   refresh: async () => {
     set({ loading: true });
-    const files = await invoke<RecentFile[]>("recent_files_list", { limit: 20 });
+    const files = await invokeCommand<RecentFile[]>("recent_files_list", {
+      limit: 20,
+    });
     set({ files, loading: false });
   },
   remove: async (path) => {
-    await invoke("recent_files_remove", { path });
+    await invokeCommand("recent_files_remove", { path });
     set((s) => ({ files: s.files.filter((f) => f.path !== path) }));
   },
 }));

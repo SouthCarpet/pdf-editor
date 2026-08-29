@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use pdf_editor_lib::persistence::{
     db,
     jobs_history::{
@@ -8,6 +8,10 @@ use pdf_editor_lib::persistence::{
     last_session::{clear_session, list_session, save_session_slot, SessionSlot},
 };
 use tempfile::TempDir;
+
+fn fixed_time(value: &str) -> DateTime<Utc> {
+    value.parse().expect("valid fixture time")
+}
 
 #[tokio::test]
 async fn jobs_history_basics() {
@@ -19,7 +23,7 @@ async fn jobs_history_basics() {
         &pool,
         &JobStartRecord {
             tool_id: "compress".into(),
-            started_at: Utc::now(),
+            started_at: fixed_time("2026-08-29T08:00:00Z"),
             input_paths: vec!["C:/a.pdf".into()],
         },
     )
@@ -31,7 +35,7 @@ async fn jobs_history_basics() {
         &JobFinishRecord {
             id,
             status: JobStatus::Done,
-            finished_at: Utc::now(),
+            finished_at: fixed_time("2026-08-29T08:01:00Z"),
             output_paths: Some(vec!["C:/a_compressed.pdf".into()]),
             error_message: None,
         },
