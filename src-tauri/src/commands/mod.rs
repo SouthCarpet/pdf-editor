@@ -4,6 +4,7 @@ pub mod compress;
 pub mod convert_export;
 pub mod convert_import;
 pub mod crop;
+pub mod detect_form_fields;
 pub mod edit_annotations;
 pub mod edit_forms;
 pub mod edit_text;

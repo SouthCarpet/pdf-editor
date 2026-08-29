@@ -9,8 +9,12 @@
 import type * as pdfjs from "pdfjs-dist";
 import { useEffect, useState } from "react";
 import { Rect } from "react-konva";
-import { commands, type OcrSelectableWord } from "@/bindings";
+import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
+import { useAnnotations } from "@/stores/annotationsStore";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { DetectedFieldFill } from "./DetectedFieldFill";
+import { DetectedFieldsOverlay } from "./DetectedFieldsOverlay";
+import type { ScreenRect } from "./detectedFieldGeometry";
 import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { PdfViewer } from "./PdfViewer";
@@ -39,6 +43,7 @@ export function Workspace({ pdf, path }: Props) {
   const activePage = useWorkspace((s) => s.activePage);
   const setActivePage = useWorkspace((s) => s.setActivePage);
   const zoom = useWorkspace((s) => s.zoom);
+  const addAnnotation = useAnnotations((s) => s.add);
 
   // Track the rendered viewport size of the active page so the overlay
   // (and crop rect) line up 1:1 with the PDF.js canvas.
@@ -46,6 +51,11 @@ export function Workspace({ pdf, path }: Props) {
     width: 0,
     height: 0,
   });
+  // Plan 050 task D2: the viewport instance itself, not only its size. The
+  // detected-fields overlay converts PDF points to screen pixels with its
+  // `convertToViewportRectangle`, which already handles the Y flip, the
+  // rotation and the MediaBox origin.
+  const [pageViewport, setPageViewport] = useState<pdfjs.PageViewport | null>(null);
 
   // Crop rectangle lives at the workspace level so it can be shared
   // between the Konva overlay and the CropPanel.
@@ -60,6 +70,24 @@ export function Workspace({ pdf, path }: Props) {
     key: "",
     ids: new Set(),
   });
+  // Plan 050 task D2: detected blank fields for the page in view, and the
+  // one the user clicked to type into. Keyed like the OCR words above so a
+  // page or document switch does not show stale rectangles.
+  const [detectState, setDetectState] = useState<{
+    key: string;
+    fields: DetectedFormField[] | null;
+  }>({ key: "", fields: null });
+  const [fillTarget, setFillTarget] = useState<{
+    key: string;
+    field: DetectedFormField;
+    screenRect: ScreenRect;
+  } | null>(null);
+  const [filledState, setFilledState] = useState<{ key: string; ids: Set<string> }>({
+    key: "",
+    ids: new Set(),
+  });
+  const detectedFields = detectState.key === ocrPageKey ? detectState.fields : null;
+  const filledIds = filledState.key === ocrPageKey ? filledState.ids : EMPTY_FIELD_IDS;
   const ocrWords = ocrPageState.key === ocrPageKey ? ocrPageState.words : [];
   const ocrLayerNotice = ocrPageState.key === ocrPageKey ? ocrPageState.notice : null;
   const ocrWordsLoading = activeTool === "ocr" && ocrPageState.key !== ocrPageKey;
@@ -78,6 +106,7 @@ export function Workspace({ pdf, path }: Props) {
       if (cancelled) return;
       const vp = page.getViewport({ scale: zoom });
       setPageSize({ width: Math.ceil(vp.width), height: Math.ceil(vp.height) });
+      setPageViewport(vp);
     })();
     return () => {
       cancelled = true;
@@ -136,6 +165,43 @@ export function Workspace({ pdf, path }: Props) {
                 />
               </OverlayCanvas>
             )}
+            {activeTool === "edit" &&
+              editSubTool === "forms" &&
+              pageSize.width > 0 &&
+              pageViewport !== null &&
+              detectedFields !== null &&
+              detectedFields.length > 0 && (
+                <DetectedFieldsOverlay
+                  width={pageSize.width}
+                  height={pageSize.height}
+                  fields={detectedFields}
+                  viewport={pageViewport}
+                  filledIds={filledIds}
+                  onPick={(field, screenRect) =>
+                    setFillTarget({ key: ocrPageKey, field, screenRect })
+                  }
+                />
+              )}
+            {fillTarget !== null &&
+              fillTarget.key === ocrPageKey &&
+              activeTool === "edit" &&
+              editSubTool === "forms" && (
+                <DetectedFieldFill
+                  field={fillTarget.field}
+                  screenRect={fillTarget.screenRect}
+                  onSubmit={(annotation) => {
+                    addAnnotation(path, annotation);
+                    setFilledState((current) => ({
+                      key: ocrPageKey,
+                      ids: new Set(current.key === ocrPageKey ? current.ids : []).add(
+                        fillTarget.field.id
+                      ),
+                    }));
+                    setFillTarget(null);
+                  }}
+                  onCancel={() => setFillTarget(null)}
+                />
+              )}
             {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (
               <OcrSelectionOverlay
                 width={pageSize.width}
@@ -174,7 +240,15 @@ export function Workspace({ pdf, path }: Props) {
             <div className="space-y-3">
               <EditSubToolToggle value={editSubTool} onChange={setEditSubTool} />
               {editSubTool === "forms" && (
-                <EditFormsPanel docPath={path} onSelectPage={setActivePage} />
+                <EditFormsPanel
+                  docPath={path}
+                  onSelectPage={setActivePage}
+                  detectedFields={detectedFields}
+                  onDetectedFields={(fields) => {
+                    setDetectState({ key: ocrPageKey, fields });
+                    setFillTarget(null);
+                  }}
+                />
               )}
               {editSubTool === "annotations" && (
                 <EditAnnotationsPanel
@@ -192,3 +266,5 @@ export function Workspace({ pdf, path }: Props) {
     </div>
   );
 }
+
+const EMPTY_FIELD_IDS = new Set<string>();

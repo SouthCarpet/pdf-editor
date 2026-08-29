@@ -52,12 +52,9 @@ impl OcrPageGeometry {
         }
     }
 
-    /// Rect-level round trip through the page matrix. Production places
-    /// content by emitting the matrix as a `cm` prologue (see
-    /// `wrap_display_content`) rather than by transforming coordinates, so
-    /// this exists only to assert the matrix itself in tests.
-    #[cfg(test)]
-    pub fn display_rect_to_page(self, rect: [f32; 4]) -> [f32; 4] {
+    /// Maps a display-space rectangle expressed as x, y, width and height
+    /// back into the page's unrotated user space.
+    pub(crate) fn display_rect_to_page(self, rect: [f32; 4]) -> [f32; 4] {
         let [x, y, width, height] = rect;
         let matrix = self.display_to_page_matrix();
         let points = [
@@ -94,7 +91,6 @@ impl OcrPageGeometry {
     }
 }
 
-#[cfg(test)]
 fn transform_point(matrix: [f32; 6], x: f32, y: f32) -> (f32, f32) {
     let [a, b, c, d, e, f] = matrix;
     (a * x + c * y + e, b * x + d * y + f)

@@ -75,6 +75,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("render_page_thumbnail", { path, pageIndex, dpi })),
+	detectScannedFormFieldsCmd: (path: string, pageIndex: number, dpi: number) => typedError<DetectedFormField[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("detect_scanned_form_fields_cmd", { path, pageIndex, dpi })),
 	cropPdfCmd: (args: CropArgs) => typedError<CropResult, {
 	key: string,
 	data: unknown,
@@ -364,6 +368,16 @@ export type DeletePagesArgs = {
 	output: string,
 	pages: number[],
 	job_id: string,
+};
+
+export type DetectedFieldKind = "box" | "underline";
+
+export type DetectedFormField = {
+	id: string,
+	page_index: number,
+	rect: [(number | null), (number | null), (number | null), (number | null)],
+	kind: DetectedFieldKind,
+	confidence: number | null,
 };
 
 export type EditOcrWordsArgs = {

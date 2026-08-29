@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { commands, type FormField, type FormValueUpdate } from "@/bindings";
+import {
+  commands,
+  type DetectedFormField,
+  type FormField,
+  type FormValueUpdate,
+} from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
+import { pickSavePath } from "@/tauri/bridge";
+import { useWorkspace } from "@/stores/workspaceStore";
+// Plan 050 task D2 (added block): scanned pages have no AcroForm, so the
+// empty state offers geometry detection instead of only an OCR hint.
+import { DetectFieldsSection } from "./DetectFieldsSection";
 
 interface Props {
   docPath: string;
   onSelectPage?: (pageIndex: number) => void;
+  detectedFields?: DetectedFormField[] | null;
+  onDetectedFields?: (fields: DetectedFormField[]) => void;
 }
 
 type DraftValues = Record<string, string | null>;
@@ -16,8 +27,14 @@ interface FieldState {
   fields: FormField[] | null;
 }
 
-export function EditFormsPanel({ docPath, onSelectPage }: Props) {
+export function EditFormsPanel({
+  docPath,
+  onSelectPage,
+  detectedFields = null,
+  onDetectedFields,
+}: Props) {
   const { t } = useTranslation("workspace");
+  const activePage = useWorkspace((state) => state.activePage);
   const [fieldState, setFieldState] = useState<FieldState>({
     path: docPath,
     fields: null,
@@ -75,7 +92,7 @@ export function EditFormsPanel({ docPath, onSelectPage }: Props) {
     setErr(null);
     setSaved(false);
     try {
-      const output = await save({
+      const output = await pickSavePath({
         defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
         filters: [{ name: "PDF", extensions: ["pdf"] }],
       });
@@ -110,12 +127,12 @@ export function EditFormsPanel({ docPath, onSelectPage }: Props) {
     <section aria-labelledby="forms-title" className="space-y-3">
       <PanelTitle />
       {fields.length === 0 ? (
-        <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-          <p className="text-xs font-medium">{t("forms.no_fields")}</p>
-          <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
-            {t("forms.scanned_explanation")}
-          </p>
-        </div>
+        <DetectFieldsSection
+          docPath={docPath}
+          pageIndex={activePage}
+          fields={detectedFields}
+          onDetected={onDetectedFields ?? (() => {})}
+        />
       ) : (
         <>
           <div className="flex items-center justify-between text-xs">

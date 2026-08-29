@@ -3,6 +3,7 @@ pub mod crop;
 pub mod diff_engine;
 pub mod font_embed;
 pub mod fonts;
+pub mod form_field_detection;
 pub mod forms;
 pub mod image_to_pdf;
 pub mod lopdf_ext;

@@ -67,12 +67,16 @@ describe("EditFormsPanel", () => {
     );
   });
 
-  it("explains the scanned-form path when no AcroForm fields exist", async () => {
+  // Plan 050 task D2: the empty state used to send the user to OCR, which
+  // finds printed words, not the blank boxes they want to fill. It now
+  // offers geometry detection instead.
+  it("offers field detection when no AcroForm fields exist", async () => {
     mocks.readFormFieldsCmd.mockResolvedValue({ status: "ok", data: [] });
 
     render(<EditFormsPanel docPath={"D:\\input\\scan.pdf"} />);
 
     expect(await screen.findByText("No native form fields found")).toBeInTheDocument();
-    expect(screen.getByText(/part of the page image/i)).toBeInTheDocument();
+    expect(screen.getByText(/empty boxes and lines in the page image/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find fields" })).toBeInTheDocument();
   });
 });

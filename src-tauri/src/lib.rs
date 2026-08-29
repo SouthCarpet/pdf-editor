@@ -46,6 +46,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::workspace::open_document,
             commands::workspace::save_document,
             commands::render::render_page_thumbnail,
+            commands::detect_form_fields::detect_scanned_form_fields_cmd,
             // Phase 11 — Workspace tools (Tasks 62-65)
             commands::crop::crop_pdf_cmd,
             commands::organize::rotate_pages_cmd,
