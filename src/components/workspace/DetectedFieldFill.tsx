@@ -22,6 +22,10 @@ interface Props {
 export function DetectedFieldFill({ field, screenRect, onSubmit, onCancel }: Props) {
   const { t } = useTranslation("workspace");
   const [value, setValue] = useState("");
+  const placeholder = {
+    box: t("forms.detect_placeholder_box"),
+    underline: t("forms.detect_placeholder_underline"),
+  }[field.kind];
 
   function submit() {
     if (value.trim().length === 0) return;
@@ -42,7 +46,7 @@ export function DetectedFieldFill({ field, screenRect, onSubmit, onCancel }: Pro
         autoFocus
         type="text"
         aria-label={t("forms.detect_submit")}
-        placeholder={t("forms.detect_placeholder", { context: field.kind })}
+        placeholder={placeholder}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         onKeyDown={(event) => {

@@ -51,6 +51,14 @@ export function WorkspaceTopBar({ path }: Props) {
   const canSave = useHasUnsavedWork(path);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState(false);
+  const toolLabels: Record<WorkspaceTool, string> = {
+    edit: t("common:tools.edit"),
+    organize: t("common:tools.organize"),
+    crop: t("common:tools.crop"),
+    extract: t("common:tools.extract"),
+    ocr: t("common:tools.ocr"),
+    compare: t("common:tools.compare"),
+  };
 
   async function onSave() {
     setBusy(true);
@@ -93,7 +101,7 @@ export function WorkspaceTopBar({ path }: Props) {
           size="sm"
           onClick={() => selectTool(id)}
         >
-          {t(`tools.${id}`)}
+          {toolLabels[id]}
         </Button>
       ))}
 

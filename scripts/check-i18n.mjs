@@ -91,12 +91,13 @@ const namespaces = Array.from(new Set(Object.keys(en.data).map((k) => k.split(":
 const failures = [];
 
 // ---- 1. PARITY -------------------------------------------------------------
-// Slovak has legitimate `few` variants for three counted workspace labels.
+// Slovak has legitimate `few` variants for four counted workspace labels.
 // Keep the exception explicit so an unrelated key such as tools:merge.run_few
 // still fails parity.
 const PLURAL_SUFFIX = /_(few|many)$/;
 const baseOf = (k) => k.replace(PLURAL_SUFFIX, "");
 const ALLOWED_SK_PLURAL_BASES = new Set([
+  "workspace:forms.detected_field_count",
   "workspace:forms.field_count",
   "workspace:forms.unsaved_count",
   "workspace:ocr_edit.word_count",

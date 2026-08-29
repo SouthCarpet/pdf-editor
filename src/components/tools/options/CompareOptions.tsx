@@ -30,6 +30,10 @@ interface Props {
 
 export function CompareOptions({ value, onChange }: Props) {
   const { t } = useTranslation("workspace");
+  const modeLabels: Record<CompareMode, string> = {
+    visual: t("compare.options.visual"),
+    text: t("compare.options.text"),
+  };
   function set<K extends keyof CompareOptionsValue>(
     key: K,
     next: CompareOptionsValue[K],
@@ -47,7 +51,7 @@ export function CompareOptions({ value, onChange }: Props) {
               checked={value.mode === m}
               onChange={() => set("mode", m)}
             />
-            {t(`compare.options.${m}`)}
+            {modeLabels[m]}
           </label>
         ))}
       </fieldset>

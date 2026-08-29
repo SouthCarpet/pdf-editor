@@ -187,12 +187,15 @@ export function EditTextPanel({ docPath }: Props) {
         {t("tools.edit")}: {t("workspace:tools.edit_text")}
       </h3>
       <p className="text-xs text-[var(--color-muted)]">
-        Pick a text run from the page, edit it, and save. The original styling is preserved with no
-        layout shift.
+        {t("workspace:edit_text.description")}
       </p>
 
       <div className="max-h-[200px] overflow-auto rounded border border-[var(--color-border)]">
-        {loading && <p className="px-2 py-1 text-xs text-[var(--color-muted)]">Loading runs…</p>}
+        {loading && (
+          <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
+            {t("workspace:edit_text.loading_runs")}
+          </p>
+        )}
         {!loading && runs.length === 0 && !isScanned && (
           <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
             {t("workspace:edit_text.no_runs")}
@@ -233,7 +236,9 @@ export function EditTextPanel({ docPath }: Props) {
       {selected && (
         <>
           <label className="block text-xs">
-            <span className="text-[var(--color-muted)]">New text</span>
+            <span className="text-[var(--color-muted)]">
+              {t("workspace:edit_text.new_text")}
+            </span>
             <input
               type="text"
               value={edit.newText}
@@ -252,14 +257,10 @@ export function EditTextPanel({ docPath }: Props) {
           </Button>
           {showRedactionFallback && (
             <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-[11px] text-[var(--color-warning-soft-foreground)]">
-              <p className="font-medium">Cannot invert this font's encoding.</p>
-              <p>
-                The font does not expose a /ToUnicode CMap and is not in WinAnsi or MacRoman.
-                Falling back to redaction will paint a white rectangle and overlay new text in
-                Helvetica. Layout may shift.
-              </p>
+              <p className="font-medium">{t("workspace:edit_text.encoding_error_title")}</p>
+              <p>{t("workspace:edit_text.encoding_error_explanation")}</p>
               <Button size="sm" variant="outline" onClick={onApplyRedaction} className="mt-1">
-                Use redaction-style replacement
+                {t("workspace:edit_text.use_redaction")}
               </Button>
             </div>
           )}
@@ -271,7 +272,7 @@ export function EditTextPanel({ docPath }: Props) {
       {selected === null && !loading && (
         <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
           <p className="text-[11px] text-[var(--color-muted)]">
-            No editable text here? You can add a free-text annotation instead.
+            {t("workspace:edit_text.empty_area_hint")}
           </p>
           {!showEmptyAreaPrompt ? (
             <Button
@@ -284,8 +285,8 @@ export function EditTextPanel({ docPath }: Props) {
             </Button>
           ) : (
             <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">
-              <p className="font-medium">No editable text here</p>
-              <p className="mb-2">Switch to Annotations to add a new FreeText box.</p>
+              <p className="font-medium">{t("workspace:edit_text.empty_area_title")}</p>
+              <p className="mb-2">{t("workspace:edit_text.empty_area_switch")}</p>
               <div className="flex gap-1">
                 <Button
                   size="sm"
@@ -294,10 +295,10 @@ export function EditTextPanel({ docPath }: Props) {
                     setEditSubTool("annotations");
                   }}
                 >
-                  Add FreeText annotation
+                  {t("workspace:edit_text.add_freetext")}
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setShowEmptyAreaPrompt(false)}>
-                  Cancel
+                  {t("common:cancel")}
                 </Button>
               </div>
             </div>
