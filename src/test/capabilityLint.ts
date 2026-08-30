@@ -11,12 +11,9 @@
 // the check is mechanical instead of relying on someone remembering to
 // grep for it.
 //
-// R2 (plan-062 brief): app-defined commands (`src/bindings.ts` `commands.*`,
-// invoked as `invoke("<snake_command>")`) are exempt. In Tauri 2, the ACL
-// only gates PLUGIN commands (`invoke("plugin:<name>|<command>")`); a
-// command the app itself registers via `tauri::generate_handler!` needs no
-// permission entry to be callable at all, so a bare (non "plugin:"-
-// prefixed) invoke literal is not a permission-shaped question.
+// App-defined commands are allowed by default, but commands listed in the
+// build script's AppManifest are capability-gated. Those exceptional commands
+// are mapped below just like plugin and core calls.
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
@@ -99,6 +96,7 @@ export function loadCapabilityEntries(capabilitiesDir: string): string[] {
 // map") rather than silently pass. Keys:
 //   - `window:<method>`        methods called on the object `getCurrentWindow()`
 //                              (or `getCurrentWebviewWindow()`) returns.
+//   - `webview:<method>`       methods called on `getCurrentWebview()`.
 //   - `plugin-<name>:<fn>`     named imports from `@tauri-apps/plugin-<name>`.
 //   - `api/path:<fn>`          named imports from `@tauri-apps/api/path`.
 // Raw `invoke("plugin:<name>|<command>")` literals are not looked up here:
@@ -119,6 +117,12 @@ export const CALL_PERMISSIONS: Record<string, string> = {
   "window:show": "core:window:allow-show",
   "window:hide": "core:window:allow-hide",
   "window:setFullscreen": "core:window:allow-set-fullscreen",
+
+  // onDragDropEvent is implemented by Webview.listen(TauriEvent.DRAG_DROP),
+  // so it uses the core event channel rather than a webview IPC command.
+  "webview:onDragDropEvent": "core:event:allow-listen",
+
+  "api/event:listen": "core:event:allow-listen",
 
   "plugin-dialog:open": "dialog:allow-open",
   "plugin-dialog:save": "dialog:allow-save",
@@ -154,6 +158,10 @@ export const CALL_PERMISSIONS: Record<string, string> = {
   "api/path:normalize": "core:path:allow-normalize",
 };
 
+const APP_COMMAND_PERMISSIONS: Record<string, string> = {
+  startup_paths: "allow-startup-paths",
+};
+
 interface ImportedName {
   local: string;
   original: string;
@@ -186,6 +194,7 @@ export function scanFile(filePath: string, text: string): { calls: CallSite[]; u
 
   const aliasKey = new Map<string, string>();
   let windowAlias: string | null = null;
+  let webviewAlias: string | null = null;
   let invokeLocal: string | null = null;
 
   for (const [, namedSpec, modulePath] of text.matchAll(IMPORT_RE)) {
@@ -194,11 +203,19 @@ export function scanFile(filePath: string, text: string): { calls: CallSite[]; u
       for (const { original, local } of names) {
         if (original === "getCurrentWindow" || original === "getCurrentWebviewWindow") windowAlias = local;
       }
+    } else if (modulePath === "api/webview") {
+      for (const { original, local } of names) {
+        if (original === "getCurrentWebview") webviewAlias = local;
+      }
     } else if (modulePath === "api/core") {
       for (const { original, local } of names) {
         if (original === "invoke") invokeLocal = local;
       }
-    } else if (modulePath === "api/path" || modulePath.startsWith("plugin-")) {
+    } else if (
+      modulePath === "api/event" ||
+      modulePath === "api/path" ||
+      modulePath.startsWith("plugin-")
+    ) {
       for (const { original, local } of names) aliasKey.set(local, `${modulePath}:${original}`);
     }
   }
@@ -226,12 +243,31 @@ export function scanFile(filePath: string, text: string): { calls: CallSite[]; u
     }
   }
 
+  if (webviewAlias) {
+    const methodRe = new RegExp(`\\b${webviewAlias}\\s*\\(\\s*\\)\\s*\\.\\s*(\\w+)\\s*\\(`, "g");
+    for (const m of text.matchAll(methodRe)) {
+      const methodName = m[1];
+      const line = lineNumberAt(text, m.index ?? 0);
+      const key = `webview:${methodName}`;
+      const permission = CALL_PERMISSIONS[key];
+      const detail = `${webviewAlias}().${methodName}(...)`;
+      if (permission === undefined) unknown.push({ file: filePath, line, detail });
+      else calls.push({ file: filePath, line, permission, detail });
+    }
+  }
+
   if (invokeLocal) {
     const invokeRe = new RegExp(`\\b${invokeLocal}\\s*(?:<[^>]*>)?\\s*\\(\\s*["']([^"']+)["']`, "g");
     for (const m of text.matchAll(invokeRe)) {
       const literal = m[1];
-      if (!literal.startsWith("plugin:")) continue; // R2: app-defined command, exempt.
       const line = lineNumberAt(text, m.index ?? 0);
+      if (!literal.startsWith("plugin:")) {
+        const permission = APP_COMMAND_PERMISSIONS[literal];
+        if (permission) {
+          calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
+        }
+        continue;
+      }
       const [pluginName, command] = literal.slice("plugin:".length).split("|");
       if (!pluginName || !command) {
         unknown.push({ file: filePath, line, detail: `invoke("${literal}") [malformed plugin call]` });

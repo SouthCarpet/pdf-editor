@@ -8,10 +8,10 @@
 // Organize/Extract panels are added in subsequent Phase 11 commits.
 import type * as pdfjs from "pdfjs-dist";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Rect } from "react-konva";
 import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { linkAnnotationToFilledField } from "@/stores/annotationHistory";
+import { useFilledFields, type FilledFieldsUpdater } from "@/stores/filledFieldsStore";
 import { historyStore } from "@/stores/historyStore";
 import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
@@ -25,11 +25,12 @@ import {
   unmarkFieldForClientId,
 } from "./filledFieldsState";
 import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
-import { OverlayCanvas } from "./OverlayCanvas";
+import { CropOverlay } from "./CropOverlay";
 import { PendingAnnotationControls } from "./PendingAnnotationControls";
 import { hexToRgb01, rgb01ToHex, type FreeTextAnnotation } from "./pendingAnnotationGeometry";
 import { PdfViewer } from "./PdfViewer";
 import { SearchHighlightLayer } from "./SearchHighlightLayer";
+import { ShortcutOverlay } from "./ShortcutOverlay";
 import { ThumbnailStrip } from "./ThumbnailStrip";
 import { buildPageIndex, findMatches, type PageTextIndex } from "./textSearch";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
@@ -127,7 +128,13 @@ export function Workspace({ pdf, path }: Props) {
     key: string;
     fields: DetectedFormField[] | null;
   }>({ key: "", fields: null });
-  const [filledState, setFilledState] = useState(EMPTY_FILLED_FIELDS);
+  const filledState = useFilledFields((s) => s.byDoc[path] ?? EMPTY_FILLED_FIELDS);
+  const setFilledState = useCallback(
+    (next: FilledFieldsUpdater) => {
+      useFilledFields.getState().setFilled(path, next);
+    },
+    [path],
+  );
   // Plan 050 task D2-UX: the pending FreeText annotation selected for
   // editing in the control strip (R2). Keyed like the state above so a
   // page or document switch does not leave a stale selection open.
@@ -135,6 +142,7 @@ export function Workspace({ pdf, path }: Props) {
     null,
   );
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [searchIndexRequested, setSearchIndexRequested] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMatchIndex, setSearchMatchIndex] = useState(0);
@@ -186,7 +194,7 @@ export function Workspace({ pdf, path }: Props) {
     });
     setFilledState(filled);
     setSelectedPending(null);
-  }, [selectedFreeText, removeAnnotation, filledState, path, ocrPageKey]);
+  }, [selectedFreeText, removeAnnotation, filledState, path, ocrPageKey, setFilledState]);
 
   const applyFieldSelection = useCallback(
     (selection: ReturnType<typeof selectDetectedField>) => {
@@ -208,7 +216,7 @@ export function Workspace({ pdf, path }: Props) {
       setFilledState(selection.filled);
       setSelectedPending({ key: ocrPageKey, clientId: selection.clientId });
     },
-    [ocrPageKey, path],
+    [ocrPageKey, path, setFilledState],
   );
 
   const changeCropRect = useCallback(
@@ -307,6 +315,10 @@ export function Workspace({ pdf, path }: Props) {
     });
   }, []);
   const closeSearch = useCallback(() => setSearchOpen(false), []);
+  const openShortcuts = useCallback(() => {
+    setSearchOpen(false);
+    setShortcutsOpen(true);
+  }, []);
 
   const moveSearchMatch = useCallback(
     (direction: 1 | -1) => {
@@ -346,6 +358,7 @@ export function Workspace({ pdf, path }: Props) {
     onFirstPage: firstPage,
     onLastPage: lastPage,
     onOpenSearch: openSearch,
+    onOpenShortcuts: openShortcuts,
     searchOpen,
     onCloseSearch: closeSearch,
     onNextSearchMatch: nextSearchMatch,
@@ -516,7 +529,9 @@ export function Workspace({ pdf, path }: Props) {
         activePage={activePage}
         onSelectPage={selectPage}
         onOpenSearch={openSearch}
+        onOpenShortcuts={openShortcuts}
       />
+      <ShortcutOverlay open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       {searchOpen && (
         <WorkspaceSearchBar
           ref={searchInputRef}
@@ -569,21 +584,13 @@ export function Workspace({ pdf, path }: Props) {
                 />
               )}
             {activeTool === "crop" && pageSize.width > 0 && (
-              <OverlayCanvas width={pageSize.width} height={pageSize.height}>
-                <Rect
-                  x={cropRect.x}
-                  y={cropRect.y}
-                  width={cropRect.width}
-                  height={cropRect.height}
-                  stroke="red"
-                  strokeWidth={1}
-                  dash={[4, 4]}
-                  draggable
-                  onDragEnd={(e) =>
-                    changeCropRect({ ...cropRect, x: e.target.x(), y: e.target.y() })
-                  }
-                />
-              </OverlayCanvas>
+              <CropOverlay
+                width={pageSize.width}
+                height={pageSize.height}
+                rect={cropRect}
+                onRectChange={changeCropRect}
+                docPath={path}
+              />
             )}
             {activeTool === "edit" &&
               (editSubTool === "forms" || editSubTool === "annotations") &&

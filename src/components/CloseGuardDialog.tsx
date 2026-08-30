@@ -26,10 +26,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { commands } from "@/bindings";
 import { onWindowCloseRequested, requestWindowClose } from "@/tauri/windowClose";
 import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments, type DocId } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
+import { useFilledFields } from "@/stores/filledFieldsStore";
 import { hasUnsavedWork, unsavedDocIds } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
 import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
@@ -39,8 +41,14 @@ function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-function discardDocument(docId: DocId): void {
+async function discardDocument(docId: DocId): Promise<void> {
+  // Plan 062 T4.3 R3: drop the autosave row so the next open does not
+  // re-offer work the user just discarded ("Neukladať"). Await the
+  // delete before the document closes; a fire-and-forget would lose the
+  // IPC on window teardown.
+  await Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
   useAnnotations.getState().clear(docId);
+  useFilledFields.getState().clear(docId);
   historyStore.getState().clear(docId);
   clearAnnotationFieldLinks(docId);
   useDocuments.getState().markDirty(docId, false);
@@ -117,10 +125,15 @@ export function CloseGuardDialog() {
     }
   }
 
-  function onDiscard() {
+  async function onDiscard() {
     setHint(false);
-    for (const id of docIds) discardDocument(id);
-    finish();
+    setBusy(true);
+    try {
+      for (const id of docIds) await discardDocument(id);
+      finish();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -142,7 +155,7 @@ export function CloseGuardDialog() {
           <Button variant="ghost" onClick={dismiss} disabled={busy}>
             {t("close_guard.cancel")}
           </Button>
-          <Button variant="outline" onClick={onDiscard} disabled={busy}>
+          <Button variant="outline" onClick={() => void onDiscard()} disabled={busy}>
             {t("close_guard.discard")}
           </Button>
           <Button onClick={() => void onSave()} disabled={busy}>

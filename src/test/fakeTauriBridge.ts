@@ -16,8 +16,10 @@ import { vi } from "vitest";
 import type { FileDropEvent } from "@/tauri/bridge";
 
 type DropHandler = (event: FileDropEvent) => void;
+type OpenPathsHandler = (paths: string[]) => void;
 
 const dropHandlers = new Set<DropHandler>();
+const openPathsHandlers = new Set<OpenPathsHandler>();
 
 export const fakeBridge = {
   pickPaths: vi.fn<() => Promise<string[]>>(async () => []),
@@ -31,6 +33,13 @@ export const fakeBridge = {
   listenEvent: vi.fn(
     async (_event: string, _handler: (payload: unknown) => void) => () => {},
   ),
+  startupPaths: vi.fn<() => Promise<string[]>>(async () => []),
+  onOpenPaths: vi.fn(async (handler: OpenPathsHandler) => {
+    openPathsHandlers.add(handler);
+    return () => {
+      openPathsHandlers.delete(handler);
+    };
+  }),
   onFileDrop: vi.fn(async (handler: DropHandler) => {
     dropHandlers.add(handler);
     return () => {
@@ -44,9 +53,15 @@ export function emitFileDrop(event: FileDropEvent): void {
   for (const handler of dropHandlers) handler(event);
 }
 
+/** Delivers PDF arguments as if Explorer launched a second app process. */
+export function emitOpenPaths(paths: string[]): void {
+  for (const handler of openPathsHandlers) handler(paths);
+}
+
 /** Restores the defaults above. Call from `beforeEach`. */
 export function resetFakeBridge(): void {
   dropHandlers.clear();
+  openPathsHandlers.clear();
   fakeBridge.pickPaths.mockReset().mockResolvedValue([]);
   fakeBridge.pickSavePath.mockReset().mockResolvedValue(null);
   fakeBridge.pathExists.mockReset().mockResolvedValue(false);
@@ -56,6 +71,13 @@ export function resetFakeBridge(): void {
   fakeBridge.listenEvent
     .mockReset()
     .mockImplementation(async (_event, _handler) => () => {});
+  fakeBridge.startupPaths.mockReset().mockResolvedValue([]);
+  fakeBridge.onOpenPaths.mockReset().mockImplementation(async (handler) => {
+    openPathsHandlers.add(handler);
+    return () => {
+      openPathsHandlers.delete(handler);
+    };
+  });
   fakeBridge.onFileDrop.mockReset().mockImplementation(async (handler) => {
     dropHandlers.add(handler);
     return () => {

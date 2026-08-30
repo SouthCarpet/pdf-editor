@@ -47,6 +47,10 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("optimize_pdf_cmd", { args })),
+	estimateOptimizeCmd: (args: EstimateArgs) => typedError<EstimateResult, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("estimate_optimize_cmd", { args })),
 	detectPdfEncryption: (input: string) => typedError<boolean, {
 	key: string,
 	data: unknown,
@@ -286,6 +290,7 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("session_clear")),
+	startupPaths: () => __TAURI_INVOKE<string[]>("startup_paths"),
 };
 
 /* Types */
@@ -393,6 +398,33 @@ export type EditOcrWordsResult = {
 	removed_word_ids: number[],
 	skipped_word_ids: number[],
 	cache_invalidated: boolean,
+};
+
+export type EstimateArgs = {
+	input: string,
+	options: EstimateOptions,
+};
+
+export type EstimateMethod = "dry_run" | "heuristic";
+
+export type EstimateOptions = {
+	linearize: boolean,
+	remove_unused: boolean,
+	subset_fonts: boolean,
+	object_streams: boolean,
+	strip_metadata: boolean,
+	flatten_annotations: boolean,
+	remove_form_data: boolean,
+	make_searchable_ocr: string | null,
+	convert_pdfa: number | null,
+	ocr_dpi: number | null,
+};
+
+export type EstimateResult = {
+	current_bytes: number,
+	estimated_bytes: number,
+	method: EstimateMethod,
+	details: string[],
 };
 
 export type ExportArgs = {

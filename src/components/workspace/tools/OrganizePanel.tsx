@@ -1,254 +1,339 @@
-// Phase 11 Task 63 - Organize panel.
+// Phase 11 Task 63 / plan 062 T5.1 — Organize panel.
 //
-// Grid of small page thumbnails with HTML5 drag-and-drop reorder, plus a
-// per-page menu offering rotate (±90, 180), delete, and insert-blank-after.
-// Changes are staged into a local "plan" structure (a list of operations
-// + the current ordering) and only flushed to disk on Apply, so the user
-// can preview the result before committing.
-import { useMemo, useState } from "react";
+// Grid of page thumbnails with group drag-and-drop, Shift-range / Ctrl-toggle
+// selection, reverse, duplicate, insert-from-PDF, and per-page rotate / delete
+// / insert-blank / keyboard move. Staging lives in organizeModel; Apply flushes
+// the plan (reorder → extract/merge imports → blanks → rotate) then
+// historyStore.clear (T2.2: Apply drops the document history).
+import { useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import type * as pdfjs from "pdfjs-dist";
-import { save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 import { cn } from "@/lib/utils";
 import { historyStore } from "@/stores/historyStore";
+import { pickPaths, pickSavePath } from "@/tauri/bridge";
 import { PdfViewer } from "../PdfViewer";
-
-interface PageState {
-  /** 1-based page number in the *current* (post-edit) ordering. */
-  originalIndex: number; // 0-based reference into the source PDF
-  rotation: 0 | 90 | 180 | 270;
-  deleted: boolean;
-  /** Inserted blank? carries the page size in pt. */
-  blank: { width: number; height: number } | null;
-}
+import { parsePageRanges } from "./extractSelection";
+import {
+  buildApplyPlan,
+  createOrganizeState,
+  deleteSelected,
+  dragGroupIds,
+  duplicate,
+  insertBlankAfter,
+  insertFrom,
+  isOrganizeDirty,
+  mergeImportSplit,
+  movePages,
+  reverse,
+  rotatePage,
+  selectOne,
+  selectRange,
+  toggleDeleted,
+  toggleSelect,
+  type OrganizeState,
+} from "./organizeModel";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
   docPath: string;
 }
 
+const PDF_FILTER = [{ name: "PDF", extensions: ["pdf"] }];
+
 export function OrganizePanel({ pdf, docPath }: Props) {
-  const { t } = useTranslation("common");
-  // Reset the staging state inline when the pdf identity changes - avoids
-  // the set-state-in-effect lint flag. We track the pdf the state belongs
-  // to and rebuild the page array on identity mismatch.
-  const [state, setState] = useState<{ pdf: pdfjs.PDFDocumentProxy; pages: PageState[] }>(() => ({
+  const { t } = useTranslation(["common", "tools"]);
+  const [bundle, setBundle] = useState(() => ({
     pdf,
-    pages: Array.from({ length: pdf.numPages }, (_, i) => ({
-      originalIndex: i,
-      rotation: 0,
-      deleted: false,
-      blank: null,
-    })),
+    org: createOrganizeState(pdf.numPages),
   }));
-  if (state.pdf !== pdf) {
-    setState({
-      pdf,
-      pages: Array.from({ length: pdf.numPages }, (_, i) => ({
-        originalIndex: i,
-        rotation: 0,
-        deleted: false,
-        blank: null,
-      })),
-    });
+  if (bundle.pdf !== pdf) {
+    setBundle({ pdf, org: createOrganizeState(pdf.numPages) });
   }
-  const pages = state.pdf === pdf
-    ? state.pages
-    : Array.from({ length: pdf.numPages }, (_, i) => ({
-        originalIndex: i,
-        rotation: 0 as 0 | 90 | 180 | 270,
-        deleted: false,
-        blank: null,
-      }));
-  const setPages = (updater: PageState[] | ((p: PageState[]) => PageState[])) => {
-    const before = pages;
-    const after =
-      typeof updater === "function"
-        ? (updater as (p: PageState[]) => PageState[])(before)
-        : updater;
-    if (after === before) return;
-    setState({ pdf, pages: after });
-    historyStore.getState().push(docPath, {
-      label: "organize",
-      undo: () => setState({ pdf, pages: before }),
-      redo: () => setState({ pdf, pages: after }),
-    });
-  };
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const org =
+    bundle.pdf === pdf ? bundle.org : createOrganizeState(pdf.numPages);
+
+  const [dragIds, setDragIds] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [pendingImport, setPendingImport] = useState<{
+    path: string;
+    pageCount: number;
+  } | null>(null);
+  const [rangeText, setRangeText] = useState("1");
 
-  const dirty = useMemo(() => {
-    if (pages.length === 0) return false;
-    if (pages.some((p) => p.deleted || p.rotation !== 0 || p.blank)) return true;
-    return pages.some((p, i) => p.originalIndex !== i);
-  }, [pages]);
+  const dirty = useMemo(
+    () => isOrganizeDirty(org, pdf.numPages),
+    [org, pdf.numPages],
+  );
 
-  function rotate(i: number, delta: 90 | 180 | 270) {
-    setPages((prev) => {
-      const next = [...prev];
-      const r = ((next[i].rotation + delta) % 360) as 0 | 90 | 180 | 270;
-      next[i] = { ...next[i], rotation: r };
-      return next;
-    });
+  function setOrg(next: OrganizeState) {
+    setBundle({ pdf, org: next });
   }
-  function toggleDelete(i: number) {
-    setPages((prev) => {
-      const next = [...prev];
-      next[i] = { ...next[i], deleted: !next[i].deleted };
-      return next;
-    });
-  }
-  function insertBlankAfter(i: number) {
-    setPages((prev) => {
-      const next = [...prev];
-      // Default to A4 in points (595 x 842) - most common.
-      next.splice(i + 1, 0, {
-        originalIndex: -1,
-        rotation: 0,
-        deleted: false,
-        blank: { width: 595, height: 842 },
-      });
-      return next;
+
+  function commit(next: OrganizeState) {
+    if (next === org) return;
+    const before = org;
+    setOrg(next);
+    if (next.pages === before.pages && next.nextId === before.nextId) return;
+    historyStore.getState().push(docPath, {
+      label: "organize",
+      undo: () => setBundle({ pdf, org: before }),
+      redo: () => setBundle({ pdf, org: next }),
     });
   }
 
-  function onDragStart(i: number) {
-    setDragFrom(i);
-  }
-  function onDrop(i: number) {
-    if (dragFrom === null || dragFrom === i) {
-      setDragFrom(null);
+  function onCardClick(event: MouseEvent, id: string) {
+    if (event.shiftKey) {
+      event.preventDefault();
+      commit(selectRange(org, org.anchorId ?? id, id));
       return;
     }
-    setPages((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(dragFrom, 1);
-      next.splice(i, 0, moved);
-      return next;
-    });
-    setDragFrom(null);
+    if (event.ctrlKey || event.metaKey) {
+      commit(toggleSelect(org, id));
+      return;
+    }
+    commit(selectOne(org, id));
   }
-  // Phase 17 Task 84 - keyboard-accessible alternative to drag reorder.
-  function moveUp(i: number) {
-    if (i <= 0) return;
-    setPages((prev) => {
-      const next = [...prev];
-      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-      return next;
-    });
+
+  function onDragStart(event: DragEvent, id: string) {
+    const group = dragGroupIds(org, id);
+    setDragIds(group);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", group.join(","));
+    if (group.length > 1) {
+      const ghost = document.createElement("div");
+      ghost.textContent = t("organize.drag_count", { ns: "tools", count: group.length });
+      ghost.style.position = "absolute";
+      ghost.style.top = "-1000px";
+      ghost.style.padding = "4px 8px";
+      ghost.style.background = "var(--color-card)";
+      ghost.style.border = "1px solid var(--color-border)";
+      document.body.appendChild(ghost);
+      event.dataTransfer.setDragImage(ghost, 16, 16);
+      requestAnimationFrame(() => ghost.remove());
+    }
   }
-  function moveDown(i: number) {
-    setPages((prev) => {
-      if (i >= prev.length - 1) return prev;
-      const next = [...prev];
-      [next[i + 1], next[i]] = [next[i], next[i + 1]];
-      return next;
+
+  function onDrop(targetId: string) {
+    if (dragIds === null || dragIds.length === 0) {
+      setDragIds(null);
+      return;
+    }
+    const targetIndex = org.pages.findIndex((page) => page.id === targetId);
+    if (targetIndex >= 0) commit(movePages(org, dragIds, targetIndex));
+    setDragIds(null);
+  }
+
+  function moveUp(index: number) {
+    const page = org.pages[index];
+    if (!page || index === 0) return;
+    commit(movePages(org, [page.id], index - 1));
+  }
+  function moveDown(index: number) {
+    const page = org.pages[index];
+    if (!page || index >= org.pages.length - 1) return;
+    commit(movePages(org, [page.id], index + 2));
+  }
+
+  function duplicateSelected() {
+    let next = org;
+    for (const id of org.pages
+      .filter((page) => org.selectedIds.includes(page.id))
+      .map((page) => page.id)
+      .reverse()) {
+      next = duplicate(next, id);
+    }
+    commit(next);
+  }
+
+  async function pickImport() {
+    const selected = await pickPaths({
+      multiple: false,
+      directory: false,
+      filters: PDF_FILTER,
     });
+    const path = selected[0];
+    if (!path) return;
+    const opened = await commands.openDocument(path);
+    const pageCount = opened.status === "ok" ? opened.data.page_count : 1;
+    setPendingImport({ path, pageCount });
+    setRangeText("1");
+  }
+
+  function confirmImport() {
+    if (!pendingImport) return;
+    const indices = [...parsePageRanges(rangeText, pendingImport.pageCount)].sort(
+      (a, b) => a - b,
+    );
+    if (indices.length === 0) return;
+    const selectedIndexes = org.selectedIds
+      .map((id) => org.pages.findIndex((page) => page.id === id))
+      .filter((index) => index >= 0);
+    const afterIndex =
+      selectedIndexes.length > 0
+        ? Math.max(...selectedIndexes)
+        : org.pages.length - 1;
+    commit(
+      insertFrom(
+        org,
+        afterIndex,
+        indices.map((page) => ({
+          imported: { path: pendingImport.path, page },
+        })),
+      ),
+    );
+    setPendingImport(null);
   }
 
   async function apply() {
     setBusy(true);
     setErr(null);
     try {
-      const out = await save({
+      const out = await pickSavePath({
         defaultPath: docPath.replace(/\.pdf$/i, ".organized.pdf"),
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        filters: PDF_FILTER,
       });
       if (!out) {
         setBusy(false);
         return;
       }
 
-      // Pipeline: reorder → rotate → delete → insert-blank → final copy.
-      // We compose these by writing intermediate PDFs into the same
-      // output path between stages, using `${out}.stage{N}.pdf` for the
-      // intermediates so we don't clobber the source.
+      const plan = buildApplyPlan(org);
       let current = docPath;
-      const stages: string[] = [];
+      let pageCount = pdf.numPages;
+      let hasCurrent = false;
+      let pendingExtract: { path: string; count: number } | null = null;
+      let stageN = 0;
+      const nextStage = (label: string) => {
+        stageN += 1;
+        return `${out}.stage${stageN}_${label}.pdf`;
+      };
 
-      // STAGE 1 - keep only non-blank originals, in the new order, drop deleted.
-      const kept = pages
-        .map((p, idx) => ({ p, idx }))
-        .filter(({ p }) => !p.deleted && p.originalIndex >= 0);
-      const newOrder: number[] = kept.map(({ p }) => p.originalIndex + 1);
-      const stage1 = `${out}.stage1.pdf`;
-      stages.push(stage1);
-      const r1 = await commands.reorderPagesCmd({
-        input: current,
-        output: stage1,
-        new_order: newOrder,
-        job_id: crypto.randomUUID(),
-      });
-      if (r1.status === "error") {
-        setErr(JSON.stringify(r1.error));
-        return;
-      }
-      current = stage1;
+      const fail = (result: { status: "error"; error: unknown }) => {
+        setErr(JSON.stringify(result.error));
+        return false;
+      };
 
-      // STAGE 2 - apply rotations (1-based against the new ordering).
-      const rotations: [number, number][] = [];
-      kept.forEach(({ p }, idxInKept) => {
-        if (p.rotation !== 0) rotations.push([idxInKept + 1, p.rotation]);
-      });
-      if (rotations.length > 0) {
-        const stage2 = `${out}.stage2.pdf`;
-        stages.push(stage2);
-        const r2 = await commands.rotatePagesCmd({
-          input: current,
-          output: stage2,
-          rotations,
-          job_id: crypto.randomUUID(),
-        });
-        if (r2.status === "error") {
-          setErr(JSON.stringify(r2.error));
-          return;
+      for (const stage of plan.stages) {
+        if (stage.type === "reorder") {
+          const dest = nextStage("reorder");
+          const result = await commands.reorderPagesCmd({
+            input: current,
+            output: dest,
+            new_order: stage.new_order,
+            job_id: crypto.randomUUID(),
+          });
+          if (result.status === "error") {
+            fail(result);
+            return;
+          }
+          current = dest;
+          pageCount = stage.new_order.length;
+          hasCurrent = true;
+        } else if (stage.type === "extract_import") {
+          const dest = nextStage("extract");
+          const result = await commands.extractPagesCmd({
+            input: stage.input,
+            pages: stage.pages,
+            output: dest,
+            job_id: crypto.randomUUID(),
+          });
+          if (result.status === "error") {
+            fail(result);
+            return;
+          }
+          pendingExtract = { path: dest, count: stage.pages.length };
+        } else if (stage.type === "merge_import") {
+          if (!pendingExtract) continue;
+          if (!hasCurrent) {
+            current = pendingExtract.path;
+            pageCount = pendingExtract.count;
+            hasCurrent = true;
+            pendingExtract = null;
+            continue;
+          }
+          const dest = nextStage("merge");
+          const split = mergeImportSplit(stage.after_page_index, pageCount);
+          let inputs: string[];
+          if (split.mode === "prepend") {
+            inputs = [pendingExtract.path, current];
+          } else if (split.mode === "append") {
+            inputs = [current, pendingExtract.path];
+          } else {
+            const prefixPath = nextStage("prefix");
+            const suffixPath = nextStage("suffix");
+            const prefix = await commands.extractPagesCmd({
+              input: current,
+              pages: split.prefix,
+              output: prefixPath,
+              job_id: crypto.randomUUID(),
+            });
+            if (prefix.status === "error") {
+              fail(prefix);
+              return;
+            }
+            const suffix = await commands.extractPagesCmd({
+              input: current,
+              pages: split.suffix,
+              output: suffixPath,
+              job_id: crypto.randomUUID(),
+            });
+            if (suffix.status === "error") {
+              fail(suffix);
+              return;
+            }
+            inputs = [prefixPath, pendingExtract.path, suffixPath];
+          }
+          const merged = await commands.mergePdfsCmd({
+            inputs,
+            output: dest,
+            job_id: crypto.randomUUID(),
+          });
+          if (merged.status === "error") {
+            fail(merged);
+            return;
+          }
+          current = dest;
+          pageCount += pendingExtract.count;
+          pendingExtract = null;
+        } else if (stage.type === "insert_blank") {
+          const dest = nextStage("blank");
+          const result = await commands.insertBlankPageCmd({
+            input: current,
+            output: dest,
+            after_page_index: stage.after_page_index,
+            width: stage.width,
+            height: stage.height,
+            job_id: crypto.randomUUID(),
+          });
+          if (result.status === "error") {
+            fail(result);
+            return;
+          }
+          current = dest;
+          pageCount += 1;
+          hasCurrent = true;
+        } else if (stage.type === "rotate") {
+          const dest = nextStage("rotate");
+          const result = await commands.rotatePagesCmd({
+            input: current,
+            output: dest,
+            rotations: stage.rotations,
+            job_id: crypto.randomUUID(),
+          });
+          if (result.status === "error") {
+            fail(result);
+            return;
+          }
+          current = dest;
         }
-        current = stage2;
       }
 
-      // STAGE 3 - splice in blanks. Walk the final `pages` array, but skip
-      // deleted originals; each blank entry produces one insertion at its
-      // position relative to the kept set.
-      // Compute a flat list of "kept" markers + blanks:
-      const insertSpec: { afterIdx0Based: number; width: number; height: number }[] = [];
-      let keptCounter = -1;
-      for (const p of pages) {
-        if (p.deleted) continue;
-        if (p.blank) {
-          insertSpec.push({ afterIdx0Based: keptCounter, width: p.blank.width, height: p.blank.height });
-        } else {
-          keptCounter += 1;
-        }
-      }
-      for (const ins of insertSpec) {
-        const stageN = `${out}.stage_ins_${ins.afterIdx0Based}.pdf`;
-        stages.push(stageN);
-        const ri = await commands.insertBlankPageCmd({
-          input: current,
-          output: stageN,
-          after_page_index: ins.afterIdx0Based,
-          width: ins.width,
-          height: ins.height,
-          job_id: crypto.randomUUID(),
-        });
-        if (ri.status === "error") {
-          setErr(JSON.stringify(ri.error));
-          return;
-        }
-        current = stageN;
-        // Subsequent insertion indices have to be incremented because the
-        // doc grew by one page.
-      }
-
-      // Final stage - promote `current` to the requested output path.
-      // (The reorder/rotate already wrote to disk; we copy to the chosen
-      // path.)
-      const r3 = await commands.saveDocument(current, out);
-      if (r3.status === "error") {
-        setErr(JSON.stringify(r3.error));
+      const saved = await commands.saveDocument(current, out);
+      if (saved.status === "error") {
+        setErr(JSON.stringify(saved.error));
       } else {
         historyStore.getState().clear(docPath);
       }
@@ -261,109 +346,182 @@ export function OrganizePanel({ pdf, docPath }: Props) {
     <div className="space-y-3">
       <h3 className="text-sm font-medium">{t("tools.organize")}</h3>
       <p className="text-xs text-[var(--color-muted)]">
-        Drag thumbnails to reorder. Use the menu to rotate, delete, or insert
-        a blank page. Changes are applied on Save.
+        {t("organize.hint", { ns: "tools" })}
       </p>
-      <div className="grid max-h-[480px] grid-cols-2 gap-2 overflow-auto">
-        {pages.map((p, i) => (
-          <div
-            key={`${p.originalIndex}-${i}`}
-            draggable
-            onDragStart={() => onDragStart(i)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => onDrop(i)}
-            className={cn(
-              "relative flex flex-col items-center rounded border bg-[var(--color-card)] p-1 text-xs shadow-sm",
-              p.deleted && "opacity-30 line-through",
-              dragFrom === i && "ring-2 ring-blue-500",
-            )}
-          >
-            {p.blank ? (
-              <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-muted)]">
-                blank
-              </div>
-            ) : (
-              <div
-                style={{
-                  transform: `rotate(${p.rotation}deg)`,
-                  transformOrigin: "center",
-                }}
-              >
-                <PdfViewer pdf={pdf} pageIndex={p.originalIndex} zoom={0.18} />
-              </div>
-            )}
-            <div className="mt-1 flex flex-wrap items-center gap-1">
-              <button
-                type="button"
-                title="Move up"
-                aria-label={t("organize.move_up", { ns: "tools" })}
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => moveUp(i)}
-                disabled={i === 0}
-              >
-                ↑
-              </button>
-              <button
-                type="button"
-                title="Move down"
-                aria-label={t("organize.move_down", { ns: "tools" })}
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => moveDown(i)}
-                disabled={i === pages.length - 1}
-              >
-                ↓
-              </button>
-              <button
-                type="button"
-                title="Rotate left"
-                aria-label="Rotate left"
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => rotate(i, 270)}
-              >
-                ⟲
-              </button>
-              <button
-                type="button"
-                title="Rotate right"
-                aria-label="Rotate right"
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => rotate(i, 90)}
-              >
-                ⟳
-              </button>
-              <button
-                type="button"
-                title="Rotate 180"
-                aria-label="Rotate 180 degrees"
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => rotate(i, 180)}
-              >
-                ⇅
-              </button>
-              <button
-                type="button"
-                title={p.deleted ? "Undo delete" : "Delete"}
-                aria-label={p.deleted ? "Undo delete" : "Delete page"}
-                className="rounded px-1 text-xs hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
-                onClick={() => toggleDelete(i)}
-              >
-                ✕
-              </button>
-              <button
-                type="button"
-                title="Insert blank after"
-                aria-label="Insert blank page after"
-                className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
-                onClick={() => insertBlankAfter(i)}
-              >
-                +
-              </button>
-            </div>
-          </div>
-        ))}
+      <div className="flex flex-wrap gap-1">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => commit(reverse(org))}
+          disabled={org.pages.length < 2}
+        >
+          {t("organize.reverse", { ns: "tools" })}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={duplicateSelected}
+          disabled={org.selectedIds.length === 0}
+        >
+          {t("organize.duplicate", { ns: "tools" })}
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => void pickImport()}>
+          {t("organize.insert_from_pdf", { ns: "tools" })}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => commit(deleteSelected(org))}
+          disabled={org.selectedIds.length === 0}
+        >
+          {t("organize.delete_selected", { ns: "tools" })}
+        </Button>
       </div>
-      <Button size="sm" onClick={apply} disabled={!dirty || busy}>
-        {busy ? "Working…" : "Apply changes"}
+      {pendingImport && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col text-xs">
+            {t("organize.range_label", { ns: "tools" })}
+            <input
+              value={rangeText}
+              onChange={(event) => setRangeText(event.target.value)}
+              placeholder={t("organize.range_placeholder", { ns: "tools" })}
+              className="mt-1 h-8 rounded border border-[var(--color-border)] bg-[var(--color-control)] px-2"
+            />
+          </label>
+          <Button size="sm" onClick={confirmImport}>
+            {t("organize.insert_confirm", { ns: "tools" })}
+          </Button>
+        </div>
+      )}
+      <div
+        role="listbox"
+        aria-multiselectable="true"
+        className="grid max-h-[480px] grid-cols-2 gap-2 overflow-auto"
+      >
+        {org.pages.map((page, index) => {
+          const selected = org.selectedIds.includes(page.id);
+          return (
+            <div
+              key={page.id}
+              role="option"
+              aria-selected={selected}
+              draggable
+              onClick={(event) => onCardClick(event, page.id)}
+              onDragStart={(event) => onDragStart(event, page.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => onDrop(page.id)}
+              onDragEnd={() => setDragIds(null)}
+              className={cn(
+                "relative flex flex-col items-center rounded border bg-[var(--color-card)] p-1 text-xs shadow-sm",
+                page.deleted && "opacity-30 line-through",
+                selected && "border-[var(--color-accent)] bg-[var(--color-accent-soft)]",
+                dragIds?.includes(page.id) && "ring-2 ring-blue-500",
+              )}
+            >
+              {page.blank ? (
+                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-muted)]">
+                  {t("organize.blank", { ns: "tools" })}
+                </div>
+              ) : page.imported ? (
+                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-muted)]">
+                  {t("organize.imported", { ns: "tools" })}
+                </div>
+              ) : (
+                <div
+                  style={{
+                    transform: `rotate(${page.rotation}deg)`,
+                    transformOrigin: "center",
+                  }}
+                >
+                  <PdfViewer pdf={pdf} pageIndex={page.originalIndex ?? 0} zoom={0.18} />
+                </div>
+              )}
+              <div
+                className="mt-1 flex flex-wrap items-center gap-1"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  title={t("organize.move_up", { ns: "tools" })}
+                  aria-label={t("organize.move_up", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => moveUp(index)}
+                  disabled={index === 0}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  title={t("organize.move_down", { ns: "tools" })}
+                  aria-label={t("organize.move_down", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => moveDown(index)}
+                  disabled={index === org.pages.length - 1}
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  title={t("organize.rotate_left", { ns: "tools" })}
+                  aria-label={t("organize.rotate_left", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => commit(rotatePage(org, page.id, 270))}
+                >
+                  ⟲
+                </button>
+                <button
+                  type="button"
+                  title={t("organize.rotate_right", { ns: "tools" })}
+                  aria-label={t("organize.rotate_right", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => commit(rotatePage(org, page.id, 90))}
+                >
+                  ⟳
+                </button>
+                <button
+                  type="button"
+                  title={t("organize.rotate_180", { ns: "tools" })}
+                  aria-label={t("organize.rotate_180", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => commit(rotatePage(org, page.id, 180))}
+                >
+                  ⇅
+                </button>
+                <button
+                  type="button"
+                  title={
+                    page.deleted
+                      ? t("organize.undo_delete", { ns: "tools" })
+                      : t("organize.delete", { ns: "tools" })
+                  }
+                  aria-label={
+                    page.deleted
+                      ? t("organize.undo_delete", { ns: "tools" })
+                      : t("organize.delete", { ns: "tools" })
+                  }
+                  className="rounded px-1 text-xs hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
+                  onClick={() => commit(toggleDeleted(org, page.id))}
+                >
+                  ✕
+                </button>
+                <button
+                  type="button"
+                  title={t("organize.insert_blank_after", { ns: "tools" })}
+                  aria-label={t("organize.insert_blank_after", { ns: "tools" })}
+                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  onClick={() => commit(insertBlankAfter(org, page.id))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <Button size="sm" onClick={() => void apply()} disabled={!dirty || busy}>
+        {busy
+          ? t("organize.working", { ns: "tools" })
+          : t("organize.apply", { ns: "tools" })}
       </Button>
       {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
     </div>

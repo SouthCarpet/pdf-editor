@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@/i18n";
 import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
@@ -8,7 +8,6 @@ import { useRecentFiles } from "@/stores/recentFilesStore";
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   openDocument: vi.fn(),
-  mergePdfs: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -20,17 +19,21 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 vi.mock("@/bindings", () => ({
   commands: {
     openDocument: (...args: unknown[]) => mocks.openDocument(...args),
-    mergePdfsCmd: (...args: unknown[]) => mocks.mergePdfs(...args),
   },
 }));
 
 import { OpenFilesProvider } from "../OpenFilesProvider";
 import { useOpenFiles } from "../openFilesContext";
-import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
+import {
+  emitFileDrop,
+  emitOpenPaths,
+  fakeBridge,
+  resetFakeBridge,
+} from "@/test/fakeTauriBridge";
 
-function Trigger({ paths }: { paths: string[] }) {
-  const { requestOpen } = useOpenFiles();
-  return <button onClick={() => requestOpen(paths)}>trigger</button>;
+function BrowseTrigger() {
+  const { browseForPdfs } = useOpenFiles();
+  return <button onClick={() => void browseForPdfs()}>browse</button>;
 }
 
 function opened(path: string) {
@@ -60,69 +63,88 @@ describe("OpenFilesProvider", () => {
     mocks.navigate.mockReset().mockResolvedValue(undefined);
     resetFakeBridge();
     mocks.openDocument.mockReset();
-    mocks.mergePdfs.mockReset();
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useRecentFiles.setState({ files: [], loading: false });
     useAppStore.setState({ openLastDocumentAtStart: false });
   });
 
-  it("opens every selected PDF as a visible document tab", async () => {
+  it("opens every PDF selected by the multi-file picker and focuses the last tab", async () => {
+    fakeBridge.pickPaths.mockResolvedValue(["C:/a.pdf", "C:/b.pdf"]);
     mocks.openDocument.mockImplementation(async (path: string) => opened(path));
 
     render(
       <OpenFilesProvider>
-        <Trigger paths={["C:/a.pdf", "C:/b.pdf"]} />
+        <BrowseTrigger />
       </OpenFilesProvider>,
     );
 
-    fireEvent.click(screen.getByText("trigger"));
-    expect(screen.getByText("Open 2 PDFs")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Open in new tabs"));
+    fireEvent.click(screen.getByText("browse"));
 
     await waitFor(() => expect(mocks.openDocument).toHaveBeenCalledTimes(2));
+    expect(fakeBridge.pickPaths).toHaveBeenCalledWith({
+      multiple: true,
+      directory: false,
+      filters: [{ name: "PDF", extensions: ["pdf"] }],
+    });
     expect(Array.from(useDocuments.getState().documents.keys())).toEqual([
       "C:/a.pdf",
       "C:/b.pdf",
     ]);
+    expect(mocks.navigate).toHaveBeenCalledOnce();
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/workspace/$docId",
       params: { docId: "C%3A%2Fb.pdf" },
     });
   });
 
-  it("merges ordered PDFs before the active document and opens the result", async () => {
-    useDocuments.getState().add({
-      id: "C:/active.pdf",
-      path: "C:/active.pdf",
-      pageCount: 1,
-      dirty: false,
+  it("shows the drop target, opens dropped PDFs, and reports ignored files", async () => {
+    mocks.openDocument.mockImplementation(async (path: string) => opened(path));
+    render(
+      <OpenFilesProvider>
+        <div>home</div>
+      </OpenFilesProvider>,
+    );
+    await waitFor(() => expect(fakeBridge.onFileDrop).toHaveBeenCalledOnce());
+
+    act(() => emitFileDrop({ kind: "over" }));
+    expect(screen.getByText("Drop PDFs to open")).toBeInTheDocument();
+
+    await act(async () => {
+      emitFileDrop({ kind: "drop", paths: ["C:/form.pdf", "C:/notes.txt"] });
     });
-    fakeBridge.pickSavePath.mockResolvedValue("C:/merged.pdf");
-    mocks.mergePdfs.mockResolvedValue({
-      status: "ok",
-      data: { output_paths: ["C:/merged.pdf"] },
-    });
-    mocks.openDocument.mockResolvedValue(opened("C:/merged.pdf"));
+
+    await waitFor(() => expect(mocks.openDocument).toHaveBeenCalledWith("C:/form.pdf"));
+    expect(screen.queryByText("Drop PDFs to open")).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Non-PDF files were ignored.");
+  });
+
+  it("opens startup paths returned by the mocked Tauri bridge", async () => {
+    fakeBridge.startupPaths.mockResolvedValue(["C:/startup.pdf"]);
+    mocks.openDocument.mockImplementation(async (path: string) => opened(path));
 
     render(
       <OpenFilesProvider>
-        <Trigger paths={["C:/a.pdf", "C:/b.pdf"]} />
+        <div>home</div>
       </OpenFilesProvider>,
     );
 
-    fireEvent.click(screen.getByText("trigger"));
-    fireEvent.click(screen.getByText("Merge into one"));
-    fireEvent.click(screen.getByText("Before active document"));
-    fireEvent.click(screen.getByText("Save merged PDF"));
+    await waitFor(() => expect(mocks.openDocument).toHaveBeenCalledWith("C:/startup.pdf"));
+    expect(useDocuments.getState().activeDocId).toBe("C:/startup.pdf");
+  });
 
-    await waitFor(() => expect(mocks.mergePdfs).toHaveBeenCalledTimes(1));
-    expect(mocks.mergePdfs).toHaveBeenCalledWith({
-      inputs: ["C:/a.pdf", "C:/b.pdf", "C:/active.pdf"],
-      output: "C:/merged.pdf",
-      job_id: expect.any(String),
-    });
+  it("opens paths forwarded by a second application process", async () => {
+    mocks.openDocument.mockImplementation(async (path: string) => opened(path));
+    render(
+      <OpenFilesProvider>
+        <div>home</div>
+      </OpenFilesProvider>,
+    );
+    await waitFor(() => expect(fakeBridge.onOpenPaths).toHaveBeenCalledOnce());
+
+    await act(async () => emitOpenPaths(["C:/second-instance.pdf"]));
+
     await waitFor(() =>
-      expect(useDocuments.getState().documents.has("C:/merged.pdf")).toBe(true),
+      expect(mocks.openDocument).toHaveBeenCalledWith("C:/second-instance.pdf"),
     );
   });
 
@@ -136,7 +158,7 @@ describe("OpenFilesProvider", () => {
 
     render(
       <OpenFilesProvider>
-        <div>child</div>
+        <div>home</div>
       </OpenFilesProvider>,
     );
 
@@ -144,7 +166,7 @@ describe("OpenFilesProvider", () => {
     expect(useAppStore.getState().openLastDocumentAtStart).toBe(true);
   });
 
-  it("does nothing at start when the most recent file is gone and leaves the setting on", async () => {
+  it("leaves the setting on when the most recent file no longer exists", async () => {
     useAppStore.setState({ openLastDocumentAtStart: true });
     fakeBridge.invokeCommand.mockResolvedValue([
       { path: "C:/missing.pdf", display_name: "missing.pdf", last_opened_at: "x" },
@@ -153,7 +175,7 @@ describe("OpenFilesProvider", () => {
 
     render(
       <OpenFilesProvider>
-        <div>child</div>
+        <div>home</div>
       </OpenFilesProvider>,
     );
 

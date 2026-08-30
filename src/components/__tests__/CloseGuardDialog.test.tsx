@@ -14,6 +14,7 @@ import type { Annotation } from "@/bindings";
 import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
+import { useFilledFields } from "@/stores/filledFieldsStore";
 import { CloseGuardDialog } from "../CloseGuardDialog";
 
 const DOC_A = "A:\\docs\\a.pdf";
@@ -71,6 +72,7 @@ describe("CloseGuardDialog - window scope", () => {
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });
+    useFilledFields.setState({ byDoc: {} });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
   });
 
@@ -123,7 +125,22 @@ describe("CloseGuardDialog - window scope", () => {
 
     expect(fakeBridge.pickSavePath).not.toHaveBeenCalled();
     expect(useAnnotations.getState().byDoc[DOC_A]).toHaveLength(0);
-    expect(tauriWindow.close).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+  });
+
+  it("Neukladať deletes the autosave row before the document closes", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Neukladať" }));
+
+    await waitFor(() => expect(commandFakes.autosaveDelete).toHaveBeenCalledWith(DOC_A));
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+    const deleteOrder = commandFakes.autosaveDelete.mock.invocationCallOrder[0];
+    const closeOrder = tauriWindow.close.mock.invocationCallOrder[0];
+    expect(deleteOrder).toBeLessThan(closeOrder);
   });
 
   it("Uložiť runs the annotations save flow, then closes", async () => {
@@ -218,7 +235,7 @@ describe("CloseGuardDialog - window scope", () => {
     await user.click(await screen.findByRole("button", { name: "Neukladať" }));
 
     expect(useDocuments.getState().documents.get(DOC_A)?.dirty).toBe(false);
-    expect(tauriWindow.close).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
   });
 
   it("lists every dirty document when several are open", async () => {
@@ -246,6 +263,7 @@ describe("CloseGuardDialog - tab scope", () => {
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });
+    useFilledFields.setState({ byDoc: {} });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
   });
 
@@ -258,7 +276,8 @@ describe("CloseGuardDialog - tab scope", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Neukladať" }));
 
-    expect(onClosed).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onClosed).toHaveBeenCalledTimes(1));
+    expect(commandFakes.autosaveDelete).toHaveBeenCalledWith(DOC_A);
     expect(tauriWindow.close).not.toHaveBeenCalled();
   });
 

@@ -64,6 +64,9 @@ function runAction(
     case "open-search":
       handlers.onOpenSearch?.();
       return handlers.onOpenSearch !== undefined;
+    case "open-shortcuts":
+      handlers.onOpenShortcuts?.();
+      return handlers.onOpenShortcuts !== undefined;
     case "next-search-match":
       if (!handlers.searchOpen) return false;
       handlers.onNextSearchMatch?.();
@@ -94,6 +97,7 @@ interface WorkspaceShortcutHandlers {
   onFirstPage?: () => void;
   onLastPage?: () => void;
   onOpenSearch?: () => void;
+  onOpenShortcuts?: () => void;
   searchOpen?: boolean;
   onCloseSearch?: () => void;
   onNextSearchMatch?: () => void;
@@ -119,6 +123,7 @@ export function useWorkspaceShortcuts(
     onFirstPage,
     onLastPage,
     onOpenSearch,
+    onOpenShortcuts,
     searchOpen = false,
     onCloseSearch,
     onNextSearchMatch,
@@ -150,6 +155,7 @@ export function useWorkspaceShortcuts(
         onFirstPage,
         onLastPage,
         onOpenSearch,
+        onOpenShortcuts,
         searchOpen,
         onCloseSearch,
         onNextSearchMatch,
@@ -177,6 +183,7 @@ export function useWorkspaceShortcuts(
     onFirstPage,
     onLastPage,
     onOpenSearch,
+    onOpenShortcuts,
     searchOpen,
     onCloseSearch,
     onNextSearchMatch,

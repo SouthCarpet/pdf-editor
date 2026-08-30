@@ -38,6 +38,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::extract::extract_pages_cmd,
             commands::compress::compress_pdf_cmd,
             commands::optimize::optimize_pdf_cmd,
+            commands::optimize::estimate_optimize_cmd,
             commands::unlock::detect_pdf_encryption,
             commands::unlock::unlock_pdf_cmd,
             commands::convert_export::convert_pdf_export_cmd,
@@ -109,5 +110,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::session::session_save,
             commands::session::session_list,
             commands::session::session_clear,
+            // Plan 062 T4.1 - Explorer and command-line PDF arguments.
+            commands::startup::startup_paths,
         ])
 }

@@ -17,6 +17,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace, ZOOM_DEFAULT, type WorkspaceTool } from "@/stores/workspaceStore";
@@ -40,6 +42,31 @@ const OVERFLOW_TOOLS = [
   { key: "unlock", to: "/tools/unlock" },
 ] as const;
 
+function historyEntryText(t: ReturnType<typeof useTranslation>["t"], label: string): string {
+  switch (label) {
+    case "add":
+      return t("workspace:history.entries.add");
+    case "text":
+      return t("workspace:history.entries.text");
+    case "style":
+      return t("workspace:history.entries.style");
+    case "move":
+      return t("workspace:history.entries.move");
+    case "resize":
+      return t("workspace:history.entries.resize");
+    case "delete":
+      return t("workspace:history.entries.delete");
+    case "edit":
+      return t("workspace:history.entries.edit");
+    case "organize":
+      return t("workspace:history.entries.organize");
+    case "crop":
+      return t("workspace:history.entries.crop");
+    default:
+      return label;
+  }
+}
+
 interface Props {
   /** Absolute path of the document currently open in the workspace. */
   path: string;
@@ -47,6 +74,7 @@ interface Props {
   activePage?: number;
   onSelectPage?: (pageIndex: number) => void;
   onOpenSearch?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 interface PageBoxProps {
@@ -96,6 +124,7 @@ export function WorkspaceTopBar({
   activePage: activePageProp,
   onSelectPage,
   onOpenSearch,
+  onOpenShortcuts,
 }: Props) {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
@@ -128,12 +157,12 @@ export function WorkspaceTopBar({
   };
   const undoTitle = undoEntry
     ? t("workspace:history.undo_with_label", {
-        label: t(`workspace:history.entries.${undoEntry.label}`, { defaultValue: undoEntry.label }),
+        label: historyEntryText(t, undoEntry.label),
       })
     : t("workspace:history.undo");
   const redoTitle = redoEntry
     ? t("workspace:history.redo_with_label", {
-        label: t(`workspace:history.entries.${redoEntry.label}`, { defaultValue: redoEntry.label }),
+        label: historyEntryText(t, redoEntry.label),
       })
     : t("workspace:history.redo");
 
@@ -257,6 +286,11 @@ export function WorkspaceTopBar({
               <Link to={to as never}>{t(`tools.${key}`)}</Link>
             </DropdownMenuItem>
           ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onOpenShortcuts}>
+            {t("workspace:shortcuts.open_shortcuts")}
+            <DropdownMenuShortcut>?</DropdownMenuShortcut>
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 

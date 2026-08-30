@@ -5,30 +5,20 @@
 // SQLite every 5 seconds.  On workspace mount, callers use `loadAutosave`
 // to offer restoration; on successful save-to-disk or explicit discard
 // they call `clearAutosave`.
-import { useEffect, useRef } from "react";
 import { commands } from "@/bindings";
 
 export function useAutosave(
-  docPath: string | null,
-  patch: unknown,
-  intervalMs = 5000,
+  _docPath: string | null,
+  _patch: unknown,
+  _intervalMs = 5000,
 ) {
-  // Keep the latest payload in a ref so the interval can read it without
-  // re-arming when the patch object changes identity each render.
-  const patchRef = useRef(patch);
-  useEffect(() => {
-    patchRef.current = patch;
-  }, [patch]);
-
-  useEffect(() => {
-    if (!docPath) return;
-    const id = setInterval(() => {
-      void commands
-        .autosavePut(docPath, JSON.stringify(patchRef.current))
-        .catch(() => {});
-    }, intervalMs);
-    return () => clearInterval(id);
-  }, [docPath, intervalMs]);
+  // Plan 062 T4.3: pending-fill autosave is owned by
+  // `src/components/workspace/autosave.ts` (versioned `{ v: 1, ... }`
+  // payload, dirty + blur scheduler, recovery dialog). This hook used to
+  // write a tool-shaped patch every 5s and would overwrite that record.
+  void _docPath;
+  void _patch;
+  void _intervalMs;
 }
 
 export async function loadAutosave(docPath: string): Promise<unknown | null> {

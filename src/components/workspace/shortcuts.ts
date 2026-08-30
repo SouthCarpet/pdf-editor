@@ -27,11 +27,16 @@ export type ShortcutAction =
   | { type: "open-search" }
   | { type: "close-search" }
   | { type: "next-search-match" }
-  | { type: "previous-search-match" };
+  | { type: "previous-search-match" }
+  | { type: "open-shortcuts" };
+
+export type ShortcutGroup = "navigation" | "forms" | "edit" | "view" | "file";
 
 /** One row of the workspace shortcut table. T3.3's overlay iterates this
  * list, so a shortcut that is not here cannot appear there. */
 export interface ShortcutBinding {
+  /** Stable identity for rendering and tests. */
+  id: string;
   action: ShortcutAction["type"];
   keys: readonly string[];
   /** Optional `KeyboardEvent.code` values (numpad Add/Subtract). */
@@ -45,139 +50,185 @@ export interface ShortcutBinding {
   searchInputOnly?: boolean;
   /** Catalog key the T3.3 overlay will pass to `t()`. */
   labelKey: string;
+  group: ShortcutGroup;
 }
 
 export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
   {
+    id: "open-search",
     action: "open-search",
     keys: ["f"],
     modifier: "ctrl",
     shift: false,
     allowInTextInput: true,
     labelKey: "shortcuts.open_search",
+    group: "navigation",
   },
   {
+    id: "save-as",
     action: "save-as",
     keys: ["s"],
     modifier: "ctrl",
     shift: true,
     allowInTextInput: true,
-    labelKey: "save_as",
+    labelKey: "common:save_as",
+    group: "file",
   },
   {
+    id: "save",
     action: "save",
     keys: ["s"],
     modifier: "ctrl",
     shift: false,
     allowInTextInput: true,
-    labelKey: "save",
+    labelKey: "common:save",
+    group: "file",
   },
   {
+    id: "redo-ctrl-shift-z",
     action: "redo",
     keys: ["z"],
     modifier: "ctrl",
     shift: true,
     allowInTextInput: false,
     labelKey: "history.redo",
+    group: "edit",
   },
   {
+    id: "redo-ctrl-y",
     action: "redo",
     keys: ["y"],
     modifier: "ctrl",
     shift: false,
     allowInTextInput: false,
     labelKey: "history.redo",
+    group: "edit",
   },
   {
+    id: "undo",
     action: "undo",
     keys: ["z"],
     modifier: "ctrl",
     shift: false,
     allowInTextInput: false,
     labelKey: "history.undo",
+    group: "edit",
   },
   {
+    id: "zoom-reset",
     action: "zoom-reset",
     keys: ["0"],
     modifier: "ctrl",
     allowInTextInput: false,
     labelKey: "toolbar.zoom_reset",
+    group: "view",
   },
   {
+    id: "zoom-in",
     action: "zoom-in",
     keys: ["+", "="],
     codes: ["NumpadAdd"],
     modifier: "ctrl",
     allowInTextInput: false,
     labelKey: "zoom_in",
+    group: "view",
   },
   {
+    id: "zoom-out",
     action: "zoom-out",
     keys: ["-"],
     codes: ["NumpadSubtract"],
     modifier: "ctrl",
     allowInTextInput: false,
     labelKey: "zoom_out",
+    group: "view",
   },
   {
+    id: "open-shortcuts",
+    action: "open-shortcuts",
+    keys: ["?"],
+    modifier: "none",
+    shift: true,
+    allowInTextInput: false,
+    labelKey: "shortcuts.open_shortcuts",
+    group: "view",
+  },
+  {
+    id: "delete-pending",
     action: "delete-pending",
     keys: ["Delete", "Backspace"],
     modifier: "none",
     allowInTextInput: false,
     labelKey: "pending_annotation.delete",
+    group: "edit",
   },
   {
+    id: "previous-page",
     action: "previous-page",
     keys: ["PageUp"],
     modifier: "none",
     allowInTextInput: false,
     labelKey: "shortcuts.previous_page",
+    group: "navigation",
   },
   {
+    id: "next-page",
     action: "next-page",
     keys: ["PageDown"],
     modifier: "none",
     allowInTextInput: false,
     labelKey: "shortcuts.next_page",
+    group: "navigation",
   },
   {
+    id: "first-page",
     action: "first-page",
     keys: ["Home"],
     modifier: "none",
     allowInTextInput: false,
     labelKey: "shortcuts.first_page",
+    group: "navigation",
   },
   {
+    id: "last-page",
     action: "last-page",
     keys: ["End"],
     modifier: "none",
     allowInTextInput: false,
     labelKey: "shortcuts.last_page",
+    group: "navigation",
   },
   {
+    id: "close-search",
     action: "close-search",
     keys: ["Escape"],
     modifier: "none",
     allowInTextInput: true,
     labelKey: "shortcuts.close_search",
+    group: "navigation",
   },
   {
+    id: "previous-search-match-f3",
     action: "previous-search-match",
     keys: ["F3"],
     modifier: "none",
     shift: true,
     allowInTextInput: true,
     labelKey: "shortcuts.previous_search_match",
+    group: "navigation",
   },
   {
+    id: "next-search-match-f3",
     action: "next-search-match",
     keys: ["F3"],
     modifier: "none",
     shift: false,
     allowInTextInput: true,
     labelKey: "shortcuts.next_search_match",
+    group: "navigation",
   },
   {
+    id: "previous-search-match-enter",
     action: "previous-search-match",
     keys: ["Enter"],
     modifier: "none",
@@ -185,8 +236,10 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     allowInTextInput: true,
     searchInputOnly: true,
     labelKey: "shortcuts.previous_search_match",
+    group: "navigation",
   },
   {
+    id: "next-search-match-enter",
     action: "next-search-match",
     keys: ["Enter"],
     modifier: "none",
@@ -194,30 +247,37 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     allowInTextInput: true,
     searchInputOnly: true,
     labelKey: "shortcuts.next_search_match",
+    group: "navigation",
   },
   {
+    id: "previous-field",
     action: "previous-field",
     keys: ["Tab"],
     modifier: "none",
     shift: true,
     allowInTextInput: true,
     labelKey: "shortcuts.previous_field",
+    group: "forms",
   },
   {
+    id: "next-field",
     action: "next-field",
     keys: ["Tab"],
     modifier: "none",
     shift: false,
     allowInTextInput: true,
     labelKey: "shortcuts.next_field",
+    group: "forms",
   },
   {
+    id: "confirm-next-field",
     action: "confirm-next-field",
     keys: ["Enter"],
     modifier: "none",
     shift: false,
     allowInTextInput: true,
     labelKey: "shortcuts.confirm_next_field",
+    group: "forms",
   },
 ];
 

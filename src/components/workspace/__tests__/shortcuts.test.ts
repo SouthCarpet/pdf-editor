@@ -196,9 +196,26 @@ describe("resolveShortcut", () => {
       type: "previous-search-match",
     });
   });
+
+  it("Shift+/ resolves the registered question-mark shortcut only outside text input", () => {
+    expect(resolveShortcut(key({ key: "?", shiftKey: true }), false)).toEqual({
+      type: "open-shortcuts",
+    });
+    expect(resolveShortcut(key({ key: "?", shiftKey: true }), true)).toBeNull();
+  });
 });
 
 describe("WORKSPACE_SHORTCUTS", () => {
+  it("registers the shortcut overlay in the view group", () => {
+    const row = WORKSPACE_SHORTCUTS.find((shortcut) => shortcut.id === "open-shortcuts");
+    expect(row).toMatchObject({
+      action: "open-shortcuts",
+      keys: ["?"],
+      shift: true,
+      allowInTextInput: false,
+      group: "view",
+    });
+  });
   it("registers delete-pending on Delete and Backspace so the T3.3 overlay can list it", () => {
     const spec = WORKSPACE_SHORTCUTS.find((s) => s.action === "delete-pending");
     expect(spec).toBeDefined();

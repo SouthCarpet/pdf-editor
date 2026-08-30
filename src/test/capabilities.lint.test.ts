@@ -60,4 +60,28 @@ describe("Tauri capability lint (T1.0, plan 062)", () => {
 
     expect(violations.some((v) => v.includes("needs permission opener:allow-reveal-item-in-dir"))).toBe(true);
   });
+
+  it("fails when core:event:allow-listen is removed from the granted set", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("core:event:allow-listen")).toBe(true);
+
+    granted.delete("core:event:allow-listen");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission core:event:allow-listen"))).toBe(true);
+  });
+
+  it("fails when allow-startup-paths is removed from the granted set", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("allow-startup-paths")).toBe(true);
+
+    granted.delete("allow-startup-paths");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission allow-startup-paths"))).toBe(true);
+  });
 });

@@ -25,6 +25,7 @@ pub mod recovery;
 pub mod render;
 pub mod session;
 pub mod split;
+pub mod startup;
 pub mod tessdata;
 pub mod unlock;
 pub mod update;

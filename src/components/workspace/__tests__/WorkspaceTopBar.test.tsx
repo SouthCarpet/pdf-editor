@@ -212,5 +212,19 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByRole("menuitem", { name: "Rozdeliť" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Optimalizovať" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Odomknúť" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Klávesové skratky/ })).toBeInTheDocument();
+  });
+
+  it("opens keyboard shortcuts from the overflow menu", async () => {
+    const onOpenShortcuts = vi.fn();
+    const user = userEvent.setup();
+    renderWithRouter(
+      <WorkspaceTopBar path={DOC_A} onOpenShortcuts={onOpenShortcuts} />,
+    );
+
+    await user.click(await screen.findByRole("button", { name: /Ďalšie nástroje/ }));
+    await user.click(screen.getByRole("menuitem", { name: /Klávesové skratky/ }));
+
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
   });
 });

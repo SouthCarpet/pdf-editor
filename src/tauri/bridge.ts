@@ -100,6 +100,18 @@ export async function listenEvent<T>(
   return await listen<T>(event, (e) => handler(e.payload));
 }
 
+/** Existing PDF arguments passed to the first application process. */
+export async function startupPaths(): Promise<string[]> {
+  return await invoke<string[]>("startup_paths");
+}
+
+/** PDF arguments forwarded when Explorer launches a second app process. */
+export async function onOpenPaths(
+  handler: (paths: string[]) => void,
+): Promise<UnlistenFn> {
+  return await listenEvent<string[]>("open-paths", handler);
+}
+
 /** A native OS drag-and-drop over the app window. */
 export type FileDropEvent =
   | { kind: "over" }

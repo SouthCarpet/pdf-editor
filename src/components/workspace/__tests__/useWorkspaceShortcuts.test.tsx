@@ -51,6 +51,7 @@ function Harness({
   onConfirmNextField,
   onPreviousPage,
   onOpenSearch,
+  onOpenShortcuts,
   searchOpen,
   onCloseSearch,
   onStripEscape,
@@ -62,6 +63,7 @@ function Harness({
   onConfirmNextField?: () => void;
   onPreviousPage?: () => void;
   onOpenSearch?: () => void;
+  onOpenShortcuts?: () => void;
   searchOpen?: boolean;
   onCloseSearch?: () => void;
   onStripEscape?: () => void;
@@ -73,6 +75,7 @@ function Harness({
     onConfirmNextField,
     onPreviousPage,
     onOpenSearch,
+    onOpenShortcuts,
     searchOpen,
     onCloseSearch,
   });
@@ -262,6 +265,21 @@ describe("useWorkspaceShortcuts", () => {
     fireEvent.keyDown(getByTestId("strip-text"), { key: "f", ctrlKey: true });
     expect(onPreviousPage).toHaveBeenCalledTimes(1);
     expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
+  // Oracle: T3.3 R1 assigns Shift+/ to the overlay on the page, never
+  // while the same character is being typed into a text input.
+  it("question mark opens shortcuts on the page but not inside a text input", () => {
+    const onOpenShortcuts = vi.fn();
+    const { baseElement, getByTestId } = render(
+      <Harness docId={DOC_A} onOpenShortcuts={onOpenShortcuts} />,
+    );
+
+    fireEvent.keyDown(baseElement, { key: "?", shiftKey: true });
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(getByTestId("draft"), { key: "?", shiftKey: true });
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1);
   });
 
   // Oracle: T3.1 R2 says an open search owns Escape before the existing

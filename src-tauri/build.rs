@@ -38,5 +38,9 @@ fn main() {
         println!("cargo:rerun-if-changed=native/rapidocr_ort.c");
         println!("cargo:rerun-if-changed=resources/ocr/include/onnxruntime_c_api.h");
     }
-    tauri_build::build()
+    tauri_build::try_build(
+        tauri_build::Attributes::new()
+            .app_manifest(tauri_build::AppManifest::new().commands(&["startup_paths"])),
+    )
+    .expect("failed to build Tauri application metadata")
 }

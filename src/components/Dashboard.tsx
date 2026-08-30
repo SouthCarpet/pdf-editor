@@ -1,13 +1,17 @@
 import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ToolTile } from "./ToolTile";
+import { Button } from "./ui/button";
+import { useOpenFiles } from "./opening/openFilesContext";
 import { TOOLS } from "@/config/tools";
 import { useRecentFiles } from "@/stores/recentFilesStore";
 
 export function Dashboard() {
   const { t } = useTranslation("dashboard");
   const navigate = useNavigate();
+  const { browseForPdfs } = useOpenFiles();
   const { files, refresh } = useRecentFiles();
   useEffect(() => {
     refresh().catch(() => {});
@@ -18,7 +22,13 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <h1 className="text-2xl font-bold">{t("title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">{t("title")}</h1>
+        <Button size="lg" className="gap-2" onClick={() => void browseForPdfs()}>
+          <FolderOpen className="h-5 w-5" />
+          {t("open_pdfs")}
+        </Button>
+      </div>
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("tools_heading")}</h2>

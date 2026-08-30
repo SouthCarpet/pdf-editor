@@ -284,7 +284,17 @@
     "open_search": "Otvoriť hľadanie",
     "close_search": "Zavrieť hľadanie",
     "next_search_match": "Ďalšia zhoda",
-    "previous_search_match": "Predošlá zhoda"
+    "previous_search_match": "Predošlá zhoda",
+    "open_shortcuts": "Klávesové skratky",
+    "title": "Klávesové skratky",
+    "description": "Prehľad skratiek dostupných v pracovnej ploche.",
+    "groups": {
+      "navigation": "Navigácia",
+      "forms": "Formuláre",
+      "edit": "Úpravy",
+      "view": "Zobrazenie",
+      "file": "Súbor"
+    }
   },
   "close_guard": {
     "title": "Neuložené zmeny",

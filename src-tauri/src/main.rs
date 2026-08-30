@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use pdf_editor_lib::app_state::AppState;
+use pdf_editor_lib::commands::startup::{pdf_paths_from_args, OPEN_PATHS_EVENT};
 use pdf_editor_lib::persistence::db::{create_pool, run_migrations};
 use pdf_editor_lib::specta_builder;
 use pdf_editor_lib::util::{
@@ -8,6 +9,7 @@ use pdf_editor_lib::util::{
     logging::init_logging,
     paths::{db_path, logs_dir},
 };
+use tauri::{Emitter, Manager};
 
 #[tokio::main]
 async fn main() {
@@ -61,6 +63,17 @@ async fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let paths = pdf_paths_from_args(args, std::path::Path::new(&cwd));
+            if !paths.is_empty() {
+                let _ = app.emit_to("main", OPEN_PATHS_EVENT, paths);
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .manage(state)
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

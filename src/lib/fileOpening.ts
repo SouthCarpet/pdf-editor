@@ -1,22 +1,11 @@
 export type MergePlacement = "before" | "after";
 
-function pathKey(path: string): string {
+export function pathKey(path: string): string {
   return path.replaceAll("\\", "/").toLowerCase();
 }
 
-export function normalizePdfPaths(paths: string[]): string[] {
-  const seen = new Set<string>();
-  const pdfs: string[] = [];
-
-  for (const path of paths) {
-    if (!/\.pdf$/i.test(path)) continue;
-    const key = pathKey(path);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    pdfs.push(path);
-  }
-
-  return pdfs;
+export function filterPdfPaths(paths: string[]): string[] {
+  return paths.filter((path) => /\.pdf$/i.test(path));
 }
 
 export function movePath(paths: string[], from: number, to: number): string[] {

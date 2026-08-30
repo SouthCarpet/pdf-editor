@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { composeMergeInputs, movePath, normalizePdfPaths } from "../fileOpening";
+import { composeMergeInputs, filterPdfPaths, movePath } from "../fileOpening";
 
 describe("file opening helpers", () => {
-  it("keeps only unique PDF paths while preserving input order", () => {
+  it("keeps PDF paths and ignores other file types while preserving input order", () => {
     expect(
-      normalizePdfPaths([
+      filterPdfPaths([
         "C:\\Docs\\First.PDF",
         "C:\\Docs\\notes.txt",
-        "c:/docs/first.pdf",
         "C:\\Docs\\Second.pdf",
       ])
     ).toEqual(["C:\\Docs\\First.PDF", "C:\\Docs\\Second.pdf"]);

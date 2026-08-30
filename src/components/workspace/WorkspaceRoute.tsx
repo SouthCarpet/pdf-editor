@@ -17,6 +17,7 @@ import type { OcrResult, TextDiffResult, VisualDiffPage } from "@/bindings";
 import { decodeDocId } from "@/lib/docId";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { usePdfDocument } from "@/hooks/usePdfDocument";
+import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { useWorkspace } from "@/stores/workspaceStore";
@@ -24,6 +25,7 @@ import { pickPaths, pickSavePath } from "@/tauri/bridge";
 import { ScanDetectedDialog, type OcrSelections } from "@/components/ScanDetectedDialog";
 import { CompareViewer } from "./CompareViewer";
 import { ComparePanel } from "./tools/ComparePanel";
+import { DocumentAutosave } from "./DocumentAutosave";
 import { Workspace } from "./Workspace";
 
 // AppError serialises as `{ key, data }` (see src-tauri/src/error.rs), and the
@@ -164,6 +166,9 @@ export function WorkspaceRoute() {
           pageCount: doc.page_count,
           dirty: false,
         });
+        if (useWorkspace.getState().zoomByDoc[doc.path] === undefined) {
+          useWorkspace.getState().setZoom(doc.path, useAppStore.getState().defaultZoom);
+        }
       }
       if (!cancelled) {
         setError(null);
@@ -291,6 +296,7 @@ export function WorkspaceRoute() {
   return (
     <>
       <Workspace pdf={pdfDoc.pdf} path={path} />
+      <DocumentAutosave key={path} path={path} />
       <ScanDetectedDialog open={ocrPromptOpen} onClose={closeOcrPrompt} onRunOcr={onRunOcr} />
       {(ocrResult || ocrError) && (
         <div

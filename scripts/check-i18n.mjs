@@ -31,7 +31,9 @@ import { createHash } from "node:crypto";
 const SRC = "src";
 const LOCALES = ["src/locales/en", "src/locales/sk"];
 const APP_ERROR_SOURCE = "src-tauri/src/error.rs";
+const SHORTCUT_SOURCE = "src/components/workspace/shortcuts.ts";
 const KEY_RE = /\bt\(\s*["'`]([A-Za-z0-9_.:-]+)["'`]/g;
+const SHORTCUT_LABEL_RE = /\blabelKey:\s*["']([A-Za-z0-9_.:-]+)["']/g;
 
 // Key families built at runtime, so no literal call site exists to find.
 // Each entry is a prefix. Justify every addition.
@@ -82,6 +84,10 @@ const files = walk(SRC);
 const calledKeys = new Set();
 for (const f of files) {
   for (const m of readFileSync(f, "utf8").matchAll(KEY_RE)) calledKeys.add(m[1]);
+}
+for (const match of readFileSync(SHORTCUT_SOURCE, "utf8").matchAll(SHORTCUT_LABEL_RE)) {
+  const key = match[1];
+  calledKeys.add(key.includes(":") ? key : `workspace:${key}`);
 }
 
 const locales = LOCALES.map((d) => ({ dir: d, data: loadLocale(d) }));

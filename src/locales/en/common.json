@@ -35,6 +35,8 @@
   "opening": {
     "drop_title": "Drop PDFs to open",
     "drop_description": "Drop one file to open it, or several to choose tabs or merge.",
+    "drop_description_tabs": "Each PDF opens in its own tab.",
+    "non_pdf_ignored": "Non-PDF files were ignored.",
     "multiple_title": "Open {{count}} PDFs",
     "multiple_description": "Choose how these documents should enter your workspace.",
     "open_tabs": "Open in new tabs",
@@ -88,6 +90,21 @@
     "ocr": "OCR",
     "pipeline": "Pipeline",
     "projects": "Projects"
+  },
+  "crop_panel": {
+    "description": "Drag the rectangle by its edges or corners. Sizes are millimetres.",
+    "x": "X",
+    "y": "Y",
+    "width": "Width",
+    "height": "Height",
+    "width_percent": "Width %",
+    "height_percent": "Height %",
+    "preset_a4": "A4",
+    "preset_margins": "Margins 10 mm",
+    "preset_full": "Full page",
+    "preview": "Preview",
+    "auto_detect": "Auto-detect",
+    "apply": "Apply crop"
   },
   "extract_panel": {
     "description": "Select pages to extract into a new PDF.",

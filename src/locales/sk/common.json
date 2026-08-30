@@ -35,6 +35,8 @@
   "opening": {
     "drop_title": "Pustite PDF na otvorenie",
     "drop_description": "Jeden súbor sa otvorí priamo, pri viacerých vyberiete karty alebo zlúčenie.",
+    "drop_description_tabs": "Každé PDF sa otvorí na vlastnej karte.",
+    "non_pdf_ignored": "Súbory, ktoré nie sú PDF, sa preskočili.",
     "multiple_title": "Otvoriť {{count}} PDF",
     "multiple_description": "Vyberte, ako sa majú tieto dokumenty otvoriť v pracovnom priestore.",
     "open_tabs": "Otvoriť na nových kartách",
@@ -88,6 +90,21 @@
     "ocr": "OCR",
     "pipeline": "Pipeline",
     "projects": "Projekty"
+  },
+  "crop_panel": {
+    "description": "Ťahajte obdĺžnik za hrany alebo rohy. Rozmery sú v milimetroch.",
+    "x": "X",
+    "y": "Y",
+    "width": "Šírka",
+    "height": "Výška",
+    "width_percent": "Šírka %",
+    "height_percent": "Výška %",
+    "preset_a4": "A4",
+    "preset_margins": "Okraje 10 mm",
+    "preset_full": "Celá strana",
+    "preview": "Náhľad",
+    "auto_detect": "Automaticky detegovať",
+    "apply": "Použiť orez"
   },
   "extract_panel": {
     "description": "Vyberte strany, ktoré sa majú extrahovať do nového PDF.",

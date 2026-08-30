@@ -1,25 +1,34 @@
-// Phase 11 Task 62 - Crop panel.
+// Phase 11 Task 62 / plan 062 T5.2 - Crop panel.
 //
-// The panel itself lives in the right-hand workspace slot. The dashed
-// rectangle overlay is rendered by the parent (Workspace.tsx) inside the
-// shared OverlayCanvas so it stacks above the PDF.js raster. We expose a
-// pair of imperative helpers on the panel - Auto-detect and Apply - and
-// hold the rectangle state locally; the parent reads it via the
-// `rect`/`onRectChange` props.
-import { useEffect, useState } from "react";
+// The dashed rectangle overlay is rendered by the parent (Workspace.tsx)
+// inside OverlayCanvas. T5.2 puts eight handles in `CropOverlay`; the
+// parent still holds `rect` and passes `onRectChange`. Apply clears
+// history (T2.2: undo covers crop operations before Apply).
+import { useEffect, useRef, useState } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
+import { usePdfDocument } from "@/hooks/usePdfDocument";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { historyStore } from "@/stores/historyStore";
+import { PdfViewer } from "../PdfViewer";
+import { commitCropRectChange } from "./cropHistory";
+import {
+  CROP_PREVIEW_BOX,
+  clampCropRect,
+  cropPreviewClip,
+  fromPercent,
+  mmToPt,
+  presetA4,
+  presetFullPage,
+  presetMargins,
+  toDisplay,
+  type CropPage,
+  type CropRect,
+} from "./cropModel";
 
-export interface CropRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+export type { CropRect };
 
 interface Props {
   docPath: string;
@@ -32,21 +41,54 @@ interface Props {
 export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }: Props) {
   const { t } = useTranslation("common");
   const [applyAll, setApplyAll] = useState(false);
+  const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const page = useWorkspace((s) => s.activePage);
+  const pageIndex = useWorkspace((s) => s.activePage);
+  const page: CropPage = { width: pageWidth, height: pageHeight };
+  const display = toDisplay(rect, page);
+  const onRectChangeRef = useRef(onRectChange);
+  useEffect(() => {
+    onRectChangeRef.current = onRectChange;
+  }, [onRectChange]);
+  const applyRect = (next: CropRect) => onRectChangeRef.current(next, false);
+  const pdfDoc = usePdfDocument(preview ? docPath : null);
 
-  // Reset the rectangle when the page geometry changes so the box doesn't
-  // run off the edge of a different-sized page.
   useEffect(() => {
     if (rect.x === 0 && rect.y === 0 && rect.width === 0 && rect.height === 0) {
       onRectChange(
-        { x: 20, y: 20, width: Math.max(pageWidth - 40, 10), height: Math.max(pageHeight - 40, 10) },
+        {
+          x: 20,
+          y: 20,
+          width: Math.max(pageWidth - 40, 10),
+          height: Math.max(pageHeight - 40, 10),
+        },
         false,
       );
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageWidth, pageHeight]);
+
+  function changeRect(next: CropRect) {
+    commitCropRectChange(docPath, rect, clampCropRect(next, page), applyRect);
+  }
+
+  function setMm(field: "x" | "y" | "width" | "height", mm: number) {
+    if (!Number.isFinite(mm)) return;
+    changeRect({ ...rect, [field]: mmToPt(mm) });
+  }
+
+  function setWidthPct(pct: number) {
+    if (!Number.isFinite(pct)) return;
+    const sized = fromPercent(page, pct, display.heightPct, "topLeft");
+    changeRect({ ...rect, width: sized.width });
+  }
+
+  function setHeightPct(pct: number) {
+    if (!Number.isFinite(pct)) return;
+    const sized = fromPercent(page, display.widthPct, pct, "topLeft");
+    changeRect({ ...rect, height: sized.height });
+  }
 
   async function autoDetect() {
     setBusy(true);
@@ -55,7 +97,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
       const result = await commands.cropPdfCmd({
         input: docPath,
         output: docPath + ".autodetect-probe.tmp",
-        page_index: page,
+        page_index: pageIndex,
         bbox: null,
         auto_detect: true,
         apply_to_all_pages: false,
@@ -66,7 +108,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         return;
       }
       const [x, y, w, h] = result.data.bbox_applied;
-      onRectChange({ x: x ?? 0, y: y ?? 0, width: w ?? pageWidth, height: h ?? pageHeight });
+      changeRect({ x: x ?? 0, y: y ?? 0, width: w ?? pageWidth, height: h ?? pageHeight });
     } finally {
       setBusy(false);
     }
@@ -87,7 +129,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
       const result = await commands.cropPdfCmd({
         input: docPath,
         output: out,
-        page_index: page,
+        page_index: pageIndex,
         bbox: [rect.x, rect.y, rect.width, rect.height],
         auto_detect: false,
         apply_to_all_pages: applyAll,
@@ -103,50 +145,94 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
     }
   }
 
+  const clip = cropPreviewClip(rect, page, CROP_PREVIEW_BOX);
+
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium">{t("tools.crop")}</h3>
-      <p className="text-xs text-[var(--color-muted)]">
-        Drag the dashed rectangle on the page to set the crop region, or use
-        Auto-detect to find the content bounding box.
-      </p>
+      <p className="text-xs text-[var(--color-muted)]">{t("crop_panel.description")}</p>
       <div className="grid grid-cols-2 gap-1 text-xs">
         <label className="flex flex-col">
-          x
+          {t("crop_panel.x")}
           <input
             type="number"
-            value={Math.round(rect.x)}
-            onChange={(e) => onRectChange({ ...rect, x: Number(e.target.value) })}
+            step="0.01"
+            value={display.xMm.toFixed(2)}
+            onChange={(e) => setMm("x", Number(e.target.value))}
             className="rounded border px-1 py-0.5"
           />
         </label>
         <label className="flex flex-col">
-          y
+          {t("crop_panel.y")}
           <input
             type="number"
-            value={Math.round(rect.y)}
-            onChange={(e) => onRectChange({ ...rect, y: Number(e.target.value) })}
+            step="0.01"
+            value={display.yMm.toFixed(2)}
+            onChange={(e) => setMm("y", Number(e.target.value))}
             className="rounded border px-1 py-0.5"
           />
         </label>
         <label className="flex flex-col">
-          width
+          {t("crop_panel.width")}
           <input
             type="number"
-            value={Math.round(rect.width)}
-            onChange={(e) => onRectChange({ ...rect, width: Number(e.target.value) })}
+            step="0.01"
+            value={display.widthMm.toFixed(2)}
+            onChange={(e) => setMm("width", Number(e.target.value))}
             className="rounded border px-1 py-0.5"
           />
         </label>
         <label className="flex flex-col">
-          height
+          {t("crop_panel.height")}
           <input
             type="number"
-            value={Math.round(rect.height)}
-            onChange={(e) => onRectChange({ ...rect, height: Number(e.target.value) })}
+            step="0.01"
+            value={display.heightMm.toFixed(2)}
+            onChange={(e) => setMm("height", Number(e.target.value))}
             className="rounded border px-1 py-0.5"
           />
         </label>
+        <label className="flex flex-col">
+          {t("crop_panel.width_percent")}
+          <input
+            type="number"
+            step="0.1"
+            value={display.widthPct.toFixed(1)}
+            onChange={(e) => setWidthPct(Number(e.target.value))}
+            className="rounded border px-1 py-0.5"
+          />
+        </label>
+        <label className="flex flex-col">
+          {t("crop_panel.height_percent")}
+          <input
+            type="number"
+            step="0.1"
+            value={display.heightPct.toFixed(1)}
+            onChange={(e) => setHeightPct(Number(e.target.value))}
+            className="rounded border px-1 py-0.5"
+          />
+        </label>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => changeRect(presetA4(page))}>
+          {t("crop_panel.preset_a4")}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => changeRect(presetMargins(page, 10))}
+        >
+          {t("crop_panel.preset_margins")}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => changeRect(presetFullPage(page))}
+        >
+          {t("crop_panel.preset_full")}
+        </Button>
       </div>
       <label className="flex items-center gap-2 text-xs">
         <input
@@ -154,14 +240,35 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
           checked={applyAll}
           onChange={(e) => setApplyAll(e.target.checked)}
         />
-        Apply to all pages
+        {t("crop.apply_to_all", { ns: "tools" })}
       </label>
+      <label className="flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={preview}
+          onChange={(e) => setPreview(e.target.checked)}
+        />
+        {t("crop_panel.preview")}
+      </label>
+      {preview && pdfDoc && (
+        <div
+          data-testid="crop-preview"
+          className="overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)]"
+          style={{
+            width: clip.fittedWidth,
+            height: clip.fittedHeight,
+            clipPath: `inset(${clip.inset.top}px ${clip.inset.right}px ${clip.inset.bottom}px ${clip.inset.left}px)`,
+          }}
+        >
+          <PdfViewer pdf={pdfDoc.pdf} pageIndex={pageIndex} zoom={1} fitBox={CROP_PREVIEW_BOX} />
+        </div>
+      )}
       <div className="flex flex-col gap-2">
         <Button size="sm" variant="outline" disabled={busy} onClick={autoDetect}>
-          Auto-detect
+          {t("crop_panel.auto_detect")}
         </Button>
         <Button size="sm" disabled={busy} onClick={apply}>
-          Apply crop
+          {t("crop_panel.apply")}
         </Button>
       </div>
       {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}

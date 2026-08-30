@@ -280,7 +280,17 @@
     "open_search": "Open search",
     "close_search": "Close search",
     "next_search_match": "Next search match",
-    "previous_search_match": "Previous search match"
+    "previous_search_match": "Previous search match",
+    "open_shortcuts": "Keyboard shortcuts",
+    "title": "Keyboard shortcuts",
+    "description": "Shortcuts available in the workspace.",
+    "groups": {
+      "navigation": "Navigation",
+      "forms": "Forms",
+      "edit": "Edit",
+      "view": "View",
+      "file": "File"
+    }
   },
   "close_guard": {
     "title": "Unsaved changes",
