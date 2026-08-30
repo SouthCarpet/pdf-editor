@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { historyStore } from "@/stores/historyStore";
 
 export interface CropRect {
   x: number;
@@ -25,7 +26,7 @@ interface Props {
   pageWidth: number;
   pageHeight: number;
   rect: CropRect;
-  onRectChange: (r: CropRect) => void;
+  onRectChange: (r: CropRect, recordHistory?: boolean) => void;
 }
 
 export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }: Props) {
@@ -39,7 +40,10 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
   // run off the edge of a different-sized page.
   useEffect(() => {
     if (rect.x === 0 && rect.y === 0 && rect.width === 0 && rect.height === 0) {
-      onRectChange({ x: 20, y: 20, width: Math.max(pageWidth - 40, 10), height: Math.max(pageHeight - 40, 10) });
+      onRectChange(
+        { x: 20, y: 20, width: Math.max(pageWidth - 40, 10), height: Math.max(pageHeight - 40, 10) },
+        false,
+      );
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageWidth, pageHeight]);
@@ -91,6 +95,8 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
       });
       if (result.status === "error") {
         setErr(JSON.stringify(result.error));
+      } else {
+        historyStore.getState().clear(docPath);
       }
     } finally {
       setBusy(false);

@@ -7,12 +7,14 @@
 // are set exactly, and so the event's `target` can be pinned to a specific
 // element - the DSL cannot express "this key, with this modifier, as if it
 // came from that input" as directly.
+import { useEffect } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
 import type { Annotation } from "@/bindings";
 import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace, ZOOM_DEFAULT, ZOOM_STEP } from "@/stores/workspaceStore";
+import { historyStore } from "@/stores/historyStore";
 import { useWorkspaceShortcuts } from "../useWorkspaceShortcuts";
 
 const DOC_A = "A:\\docs\\a.pdf";
@@ -32,6 +34,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
+  autosaveDelete: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -46,22 +49,45 @@ function Harness({
   onNextField,
   onPreviousField,
   onConfirmNextField,
+  onPreviousPage,
+  onOpenSearch,
+  searchOpen,
+  onCloseSearch,
+  onStripEscape,
 }: {
   docId: string;
   onDeletePending?: () => void;
   onNextField?: () => void;
   onPreviousField?: () => void;
   onConfirmNextField?: () => void;
+  onPreviousPage?: () => void;
+  onOpenSearch?: () => void;
+  searchOpen?: boolean;
+  onCloseSearch?: () => void;
+  onStripEscape?: () => void;
 }) {
   useWorkspaceShortcuts(docId, {
     onDeletePending,
     onNextField,
     onPreviousField,
     onConfirmNextField,
+    onPreviousPage,
+    onOpenSearch,
+    searchOpen,
+    onCloseSearch,
   });
+  useEffect(() => {
+    if (!onStripEscape) return;
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onStripEscape?.();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onStripEscape]);
   return (
     <div>
       <input data-testid="draft" />
+      <input data-testid="search" data-workspace-search-input />
       <div data-pending-annotation-host>
         <div role="group">
           <input data-testid="strip-text" type="text" />
@@ -77,10 +103,13 @@ describe("useWorkspaceShortcuts", () => {
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.autosaveDelete.mockReset();
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
     useWorkspace.setState({ zoomByDoc: {} });
+    historyStore.setState({ byDoc: {} });
   });
 
   it("Ctrl+Plus zooms in", () => {
@@ -94,6 +123,38 @@ describe("useWorkspaceShortcuts", () => {
     const { baseElement } = render(<Harness docId={DOC_A} />);
     fireEvent.keyDown(baseElement, { key: "0", ctrlKey: true });
     expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_DEFAULT);
+  });
+
+  it("Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z dispatch document history", () => {
+    let value = 1;
+    historyStore.getState().push(DOC_A, {
+      label: "text",
+      undo: () => {
+        value = 0;
+      },
+      redo: () => {
+        value = 1;
+      },
+    });
+    const { baseElement } = render(<Harness docId={DOC_A} />);
+
+    fireEvent.keyDown(baseElement, { key: "z", ctrlKey: true });
+    expect(value).toBe(0);
+    fireEvent.keyDown(baseElement, { key: "y", ctrlKey: true });
+    expect(value).toBe(1);
+    fireEvent.keyDown(baseElement, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(baseElement, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(value).toBe(1);
+  });
+
+  it("Ctrl+Z in the strip text input keeps the browser native undo path", () => {
+    const undo = vi.fn();
+    historyStore.getState().push(DOC_A, { label: "text", undo, redo: vi.fn() });
+    const { getByTestId } = render(<Harness docId={DOC_A} />);
+
+    fireEvent.keyDown(getByTestId("strip-text"), { key: "z", ctrlKey: true });
+
+    expect(undo).not.toHaveBeenCalled();
   });
 
   it("zoom shortcuts are ignored while a text input has focus", () => {
@@ -185,5 +246,52 @@ describe("useWorkspaceShortcuts", () => {
     fireEvent.keyDown(getByTestId("strip-text"), { key: "Enter" });
 
     expect(onConfirmNextField).toHaveBeenCalledTimes(1);
+  });
+
+  it("PageUp dispatches page navigation and Ctrl+F opens search from the strip", () => {
+    const onPreviousPage = vi.fn();
+    const onOpenSearch = vi.fn();
+    const { baseElement, getByTestId } = render(
+      <Harness
+        docId={DOC_A}
+        onPreviousPage={onPreviousPage}
+        onOpenSearch={onOpenSearch}
+      />,
+    );
+    fireEvent.keyDown(baseElement, { key: "PageUp" });
+    fireEvent.keyDown(getByTestId("strip-text"), { key: "f", ctrlKey: true });
+    expect(onPreviousPage).toHaveBeenCalledTimes(1);
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
+  // Oracle: T3.1 R2 says an open search owns Escape before the existing
+  // strip listener; with search closed, Escape must still reach the strip.
+  it("gives open search Escape precedence and preserves closed-search strip Escape", () => {
+    const onCloseSearch = vi.fn();
+    const onStripEscape = vi.fn();
+    const open = render(
+      <Harness
+        docId={DOC_A}
+        searchOpen
+        onCloseSearch={onCloseSearch}
+        onStripEscape={onStripEscape}
+      />,
+    );
+    fireEvent.keyDown(open.getByTestId("strip-text"), { key: "Escape" });
+    expect(onCloseSearch).toHaveBeenCalledTimes(1);
+    expect(onStripEscape).not.toHaveBeenCalled();
+    open.unmount();
+
+    const closed = render(
+      <Harness
+        docId={DOC_A}
+        searchOpen={false}
+        onCloseSearch={onCloseSearch}
+        onStripEscape={onStripEscape}
+      />,
+    );
+    fireEvent.keyDown(closed.getByTestId("strip-text"), { key: "Escape" });
+    expect(onCloseSearch).toHaveBeenCalledTimes(1);
+    expect(onStripEscape).toHaveBeenCalledTimes(1);
   });
 });

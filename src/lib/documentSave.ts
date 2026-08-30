@@ -10,9 +10,36 @@
 // Save / Save as.
 import { commands, type Annotation } from "@/bindings";
 import { pickSavePath } from "@/tauri/bridge";
+import { useAppStore } from "@/stores/appStore";
+import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
 import { NO_ANNOTATIONS, useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments, type DocId } from "@/stores/documentStore";
+import { useFilledFields } from "@/stores/filledFieldsStore";
+import { historyStore } from "@/stores/historyStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
+
+/** Directory the save dialog should open in: the user's default folder when
+ * set, otherwise the document's parent folder (today's behaviour). */
+export function saveDialogDefaultDir(
+  docPath: string,
+  defaultSaveFolder: string | null,
+): string {
+  if (defaultSaveFolder) return defaultSaveFolder;
+  const slash = Math.max(docPath.lastIndexOf("/"), docPath.lastIndexOf("\\"));
+  if (slash <= 0) return "";
+  return docPath.slice(0, slash);
+}
+
+function joinDir(dir: string, file: string): string {
+  if (!dir) return file;
+  const sep = dir.includes("\\") ? "\\" : "/";
+  return dir.endsWith("/") || dir.endsWith("\\") ? `${dir}${file}` : `${dir}${sep}${file}`;
+}
+
+function suggestedSaveFileName(docPath: string, existingPath: string | null): string {
+  const source = existingPath ?? docPath.replace(/\.pdf$/i, ".annotated.pdf");
+  return source.split(/[\\/]/).pop() ?? source;
+}
 
 /**
  * - "saved": the write succeeded (or there was nothing pending to write).
@@ -48,8 +75,10 @@ export async function saveDocument(
   const existingPath = useDocuments.getState().documents.get(docId)?.savedPath ?? null;
   let output = existingPath;
   if (options.forcePrompt || !output) {
+    const sourcePath = existingPath ?? docId;
+    const dir = saveDialogDefaultDir(sourcePath, useAppStore.getState().defaultSaveFolder);
     const picked = await pickSavePath({
-      defaultPath: existingPath ?? docId.replace(/\.pdf$/i, ".annotated.pdf"),
+      defaultPath: joinDir(dir, suggestedSaveFileName(docId, existingPath)),
       filters: [{ name: "PDF", extensions: ["pdf"] }],
     });
     if (!picked) return "cancelled";
@@ -66,6 +95,12 @@ export async function saveDocument(
 
   useDocuments.getState().setSavedPath(docId, output);
   useAnnotations.getState().clear(docId);
+  historyStore.getState().clear(docId);
+  clearAnnotationFieldLinks(docId);
+  useFilledFields.getState().clear(docId);
+  // Plan 062 T4.3: a successful Uložiť / Uložiť ako makes the autosave
+  // record stale. Drop it even if the IPC call fails; the PDF is written.
+  void Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
   // Plan 061 T1 fix wave (F2): this save flushes only the pending
   // annotations it just wrote. The `dirty` flag belongs to an in-progress
   // Edit Text draft (`EditTextPanel` sets and clears it) - a save here must

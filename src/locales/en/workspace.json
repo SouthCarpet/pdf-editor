@@ -3,12 +3,36 @@
   "save_status_clean": "All changes saved",
   "save_status_dirty": "Unsaved changes",
   "save_status_saving": "Saving...",
+  "save_toast": {
+    "saved": "PDF saved.",
+    "reveal": "Show in Explorer"
+  },
   "zoom_in": "Zoom in",
   "zoom_out": "Zoom out",
   "toolbar": {
     "more_tools": "More tools",
     "zoom_reset": "Reset zoom to 100%",
-    "convert": "Convert"
+    "convert": "Convert",
+    "zoom_modes": "Zoom mode",
+    "fit_width": "Fit width",
+    "fit_page": "Fit page"
+  },
+  "history": {
+    "undo": "Undo",
+    "redo": "Redo",
+    "undo_with_label": "Undo: {{label}}",
+    "redo_with_label": "Redo: {{label}}",
+    "entries": {
+      "add": "add",
+      "text": "text",
+      "style": "style",
+      "move": "move",
+      "resize": "resize",
+      "delete": "delete",
+      "edit": "edit",
+      "organize": "page order",
+      "crop": "crop"
+    }
   },
   "fit_width": "Fit width",
   "fit_page": "Fit page",
@@ -18,6 +42,18 @@
     "pages": "Pages {{count}}",
     "collapse": "Hide pages",
     "expand": "Show pages"
+  },
+  "navigation": {
+    "page_input": "Page number"
+  },
+  "search": {
+    "label": "Search document",
+    "open": "Search document",
+    "query": "Search query",
+    "placeholder": "Search in PDF",
+    "previous": "Previous match",
+    "next": "Next match",
+    "close": "Close search"
   },
   "compare": {
     "title": "Compare",
@@ -236,7 +272,15 @@
   "shortcuts": {
     "next_field": "Next field",
     "previous_field": "Previous field",
-    "confirm_next_field": "Confirm and next field"
+    "confirm_next_field": "Confirm and next field",
+    "previous_page": "Previous page",
+    "next_page": "Next page",
+    "first_page": "First page",
+    "last_page": "Last page",
+    "open_search": "Open search",
+    "close_search": "Close search",
+    "next_search_match": "Next search match",
+    "previous_search_match": "Previous search match"
   },
   "close_guard": {
     "title": "Unsaved changes",
@@ -246,5 +290,11 @@
     "cancel": "Cancel",
     "saving": "Saving…",
     "text_draft_hint": "Apply the text edit first, then save."
+  },
+  "autosave": {
+    "title": "Unsaved fills found from {{time}}",
+    "description": "Restore the fills or discard them.",
+    "restore": "Restore",
+    "discard": "Discard"
   }
 }

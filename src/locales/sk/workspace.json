@@ -3,12 +3,36 @@
   "save_status_clean": "Všetky zmeny sú uložené",
   "save_status_dirty": "Neuložené zmeny",
   "save_status_saving": "Ukladá sa...",
+  "save_toast": {
+    "saved": "PDF bolo uložené.",
+    "reveal": "Zobraziť v Prieskumníku"
+  },
   "zoom_in": "Priblížiť",
   "zoom_out": "Oddialiť",
   "toolbar": {
     "more_tools": "Ďalšie nástroje",
     "zoom_reset": "Obnoviť mierku na 100 %",
-    "convert": "Konvertovať"
+    "convert": "Konvertovať",
+    "zoom_modes": "Režim mierky",
+    "fit_width": "Na šírku",
+    "fit_page": "Celá strana"
+  },
+  "history": {
+    "undo": "Späť",
+    "redo": "Znova",
+    "undo_with_label": "Späť: {{label}}",
+    "redo_with_label": "Znova: {{label}}",
+    "entries": {
+      "add": "pridanie",
+      "text": "text",
+      "style": "štýl",
+      "move": "presun",
+      "resize": "veľkosť",
+      "delete": "odstránenie",
+      "edit": "úprava",
+      "organize": "poradie strán",
+      "crop": "orez"
+    }
   },
   "fit_width": "Prispôsobiť šírke",
   "fit_page": "Prispôsobiť strane",
@@ -18,6 +42,18 @@
     "pages": "Strany {{count}}",
     "collapse": "Skryť strany",
     "expand": "Zobraziť strany"
+  },
+  "navigation": {
+    "page_input": "Číslo strany"
+  },
+  "search": {
+    "label": "Hľadanie v dokumente",
+    "open": "Hľadať v dokumente",
+    "query": "Hľadaný text",
+    "placeholder": "Hľadať v PDF",
+    "previous": "Predošlá zhoda",
+    "next": "Ďalšia zhoda",
+    "close": "Zavrieť hľadanie"
   },
   "compare": {
     "title": "Porovnanie",
@@ -240,7 +276,15 @@
   "shortcuts": {
     "next_field": "Ďalšie pole",
     "previous_field": "Predošlé pole",
-    "confirm_next_field": "Potvrdiť a ďalšie pole"
+    "confirm_next_field": "Potvrdiť a ďalšie pole",
+    "previous_page": "Predošlá strana",
+    "next_page": "Ďalšia strana",
+    "first_page": "Prvá strana",
+    "last_page": "Posledná strana",
+    "open_search": "Otvoriť hľadanie",
+    "close_search": "Zavrieť hľadanie",
+    "next_search_match": "Ďalšia zhoda",
+    "previous_search_match": "Predošlá zhoda"
   },
   "close_guard": {
     "title": "Neuložené zmeny",
@@ -250,5 +294,11 @@
     "cancel": "Zrušiť",
     "saving": "Ukladá sa…",
     "text_draft_hint": "Najskôr použite Použiť v úprave textu. Potom uložte."
+  },
+  "autosave": {
+    "title": "Nájdené neuložené vyplnenie z {{time}}",
+    "description": "Obnoviť vyplnenie alebo ho zahodiť.",
+    "restore": "Obnoviť",
+    "discard": "Zahodiť"
   }
 }

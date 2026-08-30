@@ -89,6 +89,17 @@
     "pipeline": "Pipeline",
     "projects": "Projects"
   },
+  "extract_panel": {
+    "description": "Select pages to extract into a new PDF.",
+    "select_all": "Select all",
+    "clear": "Clear selection",
+    "invert": "Invert selection",
+    "range_label": "Page range",
+    "range_placeholder": "1-3, 5",
+    "apply_range": "Set range",
+    "extracting": "Extracting…",
+    "extract_count": "Extract {{count}}"
+  },
   "session": {
     "restore_prompt": "Restore your previous session ({{count}})?",
     "restore": "Restore",

@@ -32,6 +32,8 @@ import { useDocuments, type DocId } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { hasUnsavedWork, unsavedDocIds } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
+import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
+import { historyStore } from "@/stores/historyStore";
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -39,6 +41,8 @@ function fileName(path: string): string {
 
 function discardDocument(docId: DocId): void {
   useAnnotations.getState().clear(docId);
+  historyStore.getState().clear(docId);
+  clearAnnotationFieldLinks(docId);
   useDocuments.getState().markDirty(docId, false);
 }
 

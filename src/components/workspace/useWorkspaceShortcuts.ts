@@ -4,6 +4,7 @@
 // `shortcuts.ts` so it can be unit-tested without touching the DOM.
 import { useEffect } from "react";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { historyStore } from "@/stores/historyStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
 import { resolveShortcut, shortcutFocus, type ShortcutAction } from "./shortcuts";
@@ -13,34 +14,66 @@ function runAction(
   docId: string,
   zoom: ZoomActions,
   handlers: WorkspaceShortcutHandlers,
-): void {
+): boolean {
   switch (action.type) {
     case "zoom-in":
       zoom.zoomIn(docId);
-      return;
+      return true;
     case "zoom-out":
       zoom.zoomOut(docId);
-      return;
+      return true;
     case "zoom-reset":
       zoom.resetZoom(docId);
-      return;
+      return true;
     case "save":
       if (hasUnsavedWork(docId)) void saveDocument(docId);
-      return;
+      return true;
     case "save-as":
       if (hasUnsavedWork(docId)) void saveDocument(docId, { forcePrompt: true });
-      return;
+      return true;
+    case "undo":
+      historyStore.getState().undo(docId);
+      return true;
+    case "redo":
+      historyStore.getState().redo(docId);
+      return true;
     case "delete-pending":
       handlers.onDeletePending?.();
-      return;
+      return true;
     case "next-field":
       handlers.onNextField?.();
-      return;
+      return true;
     case "previous-field":
       handlers.onPreviousField?.();
-      return;
+      return true;
     case "confirm-next-field":
       handlers.onConfirmNextField?.();
+      return true;
+    case "previous-page":
+      handlers.onPreviousPage?.();
+      return handlers.onPreviousPage !== undefined;
+    case "next-page":
+      handlers.onNextPage?.();
+      return handlers.onNextPage !== undefined;
+    case "first-page":
+      handlers.onFirstPage?.();
+      return handlers.onFirstPage !== undefined;
+    case "last-page":
+      handlers.onLastPage?.();
+      return handlers.onLastPage !== undefined;
+    case "open-search":
+      handlers.onOpenSearch?.();
+      return handlers.onOpenSearch !== undefined;
+    case "next-search-match":
+      if (!handlers.searchOpen) return false;
+      handlers.onNextSearchMatch?.();
+      return handlers.onNextSearchMatch !== undefined;
+    case "previous-search-match":
+      if (!handlers.searchOpen) return false;
+      handlers.onPreviousSearchMatch?.();
+      return handlers.onPreviousSearchMatch !== undefined;
+    case "close-search":
+      return false;
   }
 }
 
@@ -56,6 +89,15 @@ interface WorkspaceShortcutHandlers {
   onNextField?: () => void;
   onPreviousField?: () => void;
   onConfirmNextField?: () => void;
+  onPreviousPage?: () => void;
+  onNextPage?: () => void;
+  onFirstPage?: () => void;
+  onLastPage?: () => void;
+  onOpenSearch?: () => void;
+  searchOpen?: boolean;
+  onCloseSearch?: () => void;
+  onNextSearchMatch?: () => void;
+  onPreviousSearchMatch?: () => void;
 }
 
 /** Registers the workspace keyboard shortcuts for the given document.
@@ -67,22 +109,60 @@ export function useWorkspaceShortcuts(
   const zoomIn = useWorkspace((s) => s.zoomIn);
   const zoomOut = useWorkspace((s) => s.zoomOut);
   const resetZoom = useWorkspace((s) => s.resetZoom);
-  const { onDeletePending, onNextField, onPreviousField, onConfirmNextField } = handlers;
+  const {
+    onDeletePending,
+    onNextField,
+    onPreviousField,
+    onConfirmNextField,
+    onPreviousPage,
+    onNextPage,
+    onFirstPage,
+    onLastPage,
+    onOpenSearch,
+    searchOpen = false,
+    onCloseSearch,
+    onNextSearchMatch,
+    onPreviousSearchMatch,
+  } = handlers;
 
   useEffect(() => {
+    // Capture gives an open search box first refusal on Escape. Stopping
+    // propagation here leaves the pending-annotation strip mounted; when
+    // search is closed, the event proceeds to the strip's document listener.
+    function onCaptureKeyDown(e: KeyboardEvent) {
+      const action = resolveShortcut(e, shortcutFocus(e.target));
+      if (action?.type !== "close-search" || !searchOpen || !onCloseSearch) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onCloseSearch();
+    }
+
     function onKeyDown(e: KeyboardEvent) {
       const action = resolveShortcut(e, shortcutFocus(e.target));
       if (!action) return;
-      e.preventDefault();
-      runAction(action, docId, { zoomIn, zoomOut, resetZoom }, {
+      const handled = runAction(action, docId, { zoomIn, zoomOut, resetZoom }, {
         onDeletePending,
         onNextField,
         onPreviousField,
         onConfirmNextField,
+        onPreviousPage,
+        onNextPage,
+        onFirstPage,
+        onLastPage,
+        onOpenSearch,
+        searchOpen,
+        onCloseSearch,
+        onNextSearchMatch,
+        onPreviousSearchMatch,
       });
+      if (handled) e.preventDefault();
     }
+    window.addEventListener("keydown", onCaptureKeyDown, true);
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onCaptureKeyDown, true);
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [
     docId,
     zoomIn,
@@ -92,5 +172,14 @@ export function useWorkspaceShortcuts(
     onNextField,
     onPreviousField,
     onConfirmNextField,
+    onPreviousPage,
+    onNextPage,
+    onFirstPage,
+    onLastPage,
+    onOpenSearch,
+    searchOpen,
+    onCloseSearch,
+    onNextSearchMatch,
+    onPreviousSearchMatch,
   ]);
 }

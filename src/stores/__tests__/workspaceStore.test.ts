@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { useWorkspace, ZOOM_DEFAULT, ZOOM_MAX, ZOOM_MIN, ZOOM_STEP } from "../workspaceStore";
+import { useAppStore } from "../appStore";
+import {
+  useWorkspace,
+  zoomForMode,
+  ZOOM_DEFAULT,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from "../workspaceStore";
 
 const DOC_A = "A:\\docs\\a.pdf";
 const DOC_B = "A:\\docs\\b.pdf";
@@ -11,8 +19,10 @@ describe("workspaceStore", () => {
       editSubTool: "forms",
       activePage: 0,
       zoomByDoc: {},
+      zoomModeByDoc: {},
       thumbnailStripCollapsed: false,
     });
+    useAppStore.setState({ defaultZoom: ZOOM_DEFAULT });
   });
 
   it("setTool changes the active workspace tool", () => {
@@ -34,6 +44,13 @@ describe("workspaceStore", () => {
   // for a document that was never touched.
   it("getZoom defaults to ZOOM_DEFAULT (100%) for an unseen document", () => {
     expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_DEFAULT);
+  });
+
+  it("getZoom falls back to appStore defaultZoom instead of the ZOOM_DEFAULT constant", () => {
+    useAppStore.setState({ defaultZoom: 1.5 });
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(1.5);
+    useWorkspace.getState().setZoom(DOC_A, 2);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(2);
   });
 
   it("setZoom clamps below ZOOM_MIN", () => {
@@ -93,6 +110,34 @@ describe("workspaceStore", () => {
     expect(useWorkspace.getState().getZoom(DOC_B)).toBeCloseTo(ZOOM_DEFAULT + ZOOM_STEP, 5);
   });
 
+  // Oracle: T3.1 R4 defines mode as per-document state, defaulting to custom.
+  it("keeps zoom modes independent per document", () => {
+    useWorkspace.getState().setZoomMode(DOC_A, "fit-width");
+    expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("fit-width");
+    expect(useWorkspace.getState().getZoomMode(DOC_B)).toBe("custom");
+  });
+
+  // Oracle: T3.1 R4 says fit recomputation preserves mode, while a numeric
+  // user zoom switches back to custom from the current derived value.
+  it("fit recomputation preserves mode and a zoom step switches to custom", () => {
+    useWorkspace.getState().setZoomMode(DOC_A, "fit-page");
+    useWorkspace.getState().applyZoomForMode(DOC_A, 0.75);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(0.75);
+    expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("fit-page");
+
+    useWorkspace.getState().zoomIn(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(0.85);
+    expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("custom");
+  });
+
+  it("resetZoom switches a fit mode back to custom at 100%", () => {
+    useWorkspace.getState().setZoomMode(DOC_A, "fit-width");
+    useWorkspace.getState().applyZoomForMode(DOC_A, 1.5);
+    useWorkspace.getState().resetZoom(DOC_A);
+    expect(useWorkspace.getState().getZoom(DOC_A)).toBe(ZOOM_DEFAULT);
+    expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("custom");
+  });
+
   // Plan 050 task D2-UX (R4): the Text tool's scanned-page empty state
   // drives these two through the store instead of prop-drilling callbacks
   // down from `WorkspaceRoute`.
@@ -119,5 +164,26 @@ describe("workspaceStore", () => {
     expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(true);
     useWorkspace.getState().setThumbnailStripCollapsed(false);
     expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(false);
+  });
+});
+
+describe("zoomForMode", () => {
+  // Oracle: T3.1 R4 defines width fit as box/page width and page fit as
+  // the smaller width/height ratio. Values use the brief's page/box cases.
+  it.each([
+    ["fit-width", { width: 600, height: 800 }, { width: 1200, height: 700 }, 2],
+    ["fit-page", { width: 600, height: 800 }, { width: 1200, height: 700 }, 0.88],
+    ["fit-width", { width: 600, height: 800 }, { width: 300, height: 900 }, 0.5],
+    ["fit-page", { width: 600, height: 800 }, { width: 300, height: 900 }, 0.5],
+    ["fit-width", { width: 800, height: 600 }, { width: 1200, height: 700 }, 1.5],
+    ["fit-page", { width: 800, height: 600 }, { width: 1200, height: 700 }, 1.17],
+    ["fit-width", { width: 800, height: 600 }, { width: 300, height: 900 }, 0.38],
+    ["fit-page", { width: 800, height: 600 }, { width: 300, height: 900 }, 0.38],
+  ] as const)("derives %s for page %o in box %o", (mode, page, box, expected) => {
+    expect(zoomForMode(mode, page, box)).toBeCloseTo(expected, 2);
+  });
+
+  it("does not derive a numeric zoom for custom mode", () => {
+    expect(zoomForMode("custom", { width: 600, height: 800 }, { width: 1200, height: 700 })).toBeNull();
   });
 });

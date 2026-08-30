@@ -76,6 +76,20 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(key({ key: "S", ctrlKey: true }), false)).toEqual({ type: "save" });
   });
 
+  it("Ctrl+Z resolves undo and both redo variants resolve redo", () => {
+    expect(resolveShortcut(key({ key: "z", ctrlKey: true }), false)).toEqual({ type: "undo" });
+    expect(resolveShortcut(key({ key: "y", ctrlKey: true }), false)).toEqual({ type: "redo" });
+    expect(resolveShortcut(key({ key: "z", ctrlKey: true, shiftKey: true }), false)).toEqual({
+      type: "redo",
+    });
+  });
+
+  it("leaves undo and redo to the browser while any text input has focus", () => {
+    expect(resolveShortcut(key({ key: "z", ctrlKey: true }), true)).toBeNull();
+    expect(resolveShortcut(key({ key: "y", ctrlKey: true }), true)).toBeNull();
+    expect(resolveShortcut(key({ key: "z", ctrlKey: true, shiftKey: true }), true)).toBeNull();
+  });
+
   // Plan 062 T1.1: Delete / Backspace clear a selected pending fill, but
   // only when the event is not typing into a text field. Oracle: Michal's
   // 2026-08-29 defect (click a filled cell, Delete does nothing) and R1
@@ -101,7 +115,12 @@ describe("resolveShortcut", () => {
   });
 
   it("Tab and Shift+Tab navigate when the strip text input is focused", () => {
-    const stripFocus = { isTextInput: true, isFormControl: true, isStripTextInput: true };
+    const stripFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: true,
+      isSearchInput: false,
+    };
     expect(resolveShortcut(key({ key: "Tab" }), stripFocus)).toEqual({ type: "next-field" });
     expect(resolveShortcut(key({ key: "Tab", shiftKey: true }), stripFocus)).toEqual({
       type: "previous-field",
@@ -109,7 +128,12 @@ describe("resolveShortcut", () => {
   });
 
   it("Enter confirms and navigates only from the strip text input", () => {
-    const stripFocus = { isTextInput: true, isFormControl: true, isStripTextInput: true };
+    const stripFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: true,
+      isSearchInput: false,
+    };
     expect(resolveShortcut(key({ key: "Enter" }), stripFocus)).toEqual({
       type: "confirm-next-field",
     });
@@ -117,8 +141,60 @@ describe("resolveShortcut", () => {
   });
 
   it("Tab does not navigate from another form control such as the colour input", () => {
-    const colorFocus = { isTextInput: true, isFormControl: true, isStripTextInput: false };
+    const colorFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: false,
+      isSearchInput: false,
+    };
     expect(resolveShortcut(key({ key: "Tab" }), colorFocus)).toBeNull();
+  });
+
+  // Oracle: T3.1 R2 requires page keys on the page and forbids them in
+  // the pending-annotation strip input.
+  it("PageUp navigates on the page but not from the strip text input", () => {
+    const stripFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: true,
+      isSearchInput: false,
+    };
+    expect(resolveShortcut(key({ key: "PageUp" }), false)).toEqual({ type: "previous-page" });
+    expect(resolveShortcut(key({ key: "PageUp" }), stripFocus)).toBeNull();
+  });
+
+  it("PageDown, Home and End map to next, first and last page", () => {
+    expect(resolveShortcut(key({ key: "PageDown" }), false)).toEqual({ type: "next-page" });
+    expect(resolveShortcut(key({ key: "Home" }), false)).toEqual({ type: "first-page" });
+    expect(resolveShortcut(key({ key: "End" }), false)).toEqual({ type: "last-page" });
+  });
+
+  // Oracle: T3.1 R2 explicitly allows Ctrl+F from the strip input.
+  it("Ctrl+F opens search from the strip text input", () => {
+    const stripFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: true,
+      isSearchInput: false,
+    };
+    expect(resolveShortcut(key({ key: "f", ctrlKey: true }), stripFocus)).toEqual({
+      type: "open-search",
+    });
+  });
+
+  it("Enter and Shift+Enter navigate matches only in the search input", () => {
+    const searchFocus = {
+      isTextInput: true,
+      isFormControl: true,
+      isStripTextInput: false,
+      isSearchInput: true,
+    };
+    expect(resolveShortcut(key({ key: "Enter" }), searchFocus)).toEqual({
+      type: "next-search-match",
+    });
+    expect(resolveShortcut(key({ key: "Enter", shiftKey: true }), searchFocus)).toEqual({
+      type: "previous-search-match",
+    });
   });
 });
 
@@ -139,6 +215,30 @@ describe("WORKSPACE_SHORTCUTS", () => {
       "confirm-next-field",
     ]);
     expect(rows.every(({ allowInTextInput }) => allowInTextInput)).toBe(true);
+  });
+
+  it("registers undo and both redo rows outside text inputs", () => {
+    const rows = WORKSPACE_SHORTCUTS.filter(
+      (spec) => spec.action === "undo" || spec.action === "redo",
+    );
+    expect(rows.map(({ action, keys, shift }) => ({ action, keys, shift }))).toEqual([
+      { action: "redo", keys: ["z"], shift: true },
+      { action: "redo", keys: ["y"], shift: false },
+      { action: "undo", keys: ["z"], shift: false },
+    ]);
+    expect(rows.every(({ allowInTextInput }) => !allowInTextInput)).toBe(true);
+  });
+
+  it("registers all page navigation rows outside text inputs", () => {
+    const actions = ["previous-page", "next-page", "first-page", "last-page"];
+    const rows = WORKSPACE_SHORTCUTS.filter((spec) => actions.includes(spec.action));
+    expect(rows.map(({ action, keys }) => ({ action, keys }))).toEqual([
+      { action: "previous-page", keys: ["PageUp"] },
+      { action: "next-page", keys: ["PageDown"] },
+      { action: "first-page", keys: ["Home"] },
+      { action: "last-page", keys: ["End"] },
+    ]);
+    expect(rows.every(({ allowInTextInput }) => !allowInTextInput)).toBe(true);
   });
 });
 
@@ -183,5 +283,11 @@ describe("shortcutFocus", () => {
     expect(shortcutFocus(stripText).isStripTextInput).toBe(true);
     expect(shortcutFocus(color).isStripTextInput).toBe(false);
     host.remove();
+  });
+
+  it("recognises the workspace search input", () => {
+    const input = document.createElement("input");
+    input.setAttribute("data-workspace-search-input", "");
+    expect(shortcutFocus(input).isSearchInput).toBe(true);
   });
 });

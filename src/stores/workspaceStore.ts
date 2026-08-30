@@ -2,9 +2,16 @@
 // the user is on, and the current zoom factor per open document.
 // Persistence belongs to the document store; this one is wiped on app reload.
 import { create } from "zustand";
+import { useAppStore } from "@/stores/appStore";
 
 export type WorkspaceTool = "edit" | "organize" | "crop" | "extract" | "ocr" | "compare";
 export type EditSubTool = "forms" | "annotations" | "text";
+export type ZoomMode = "custom" | "fit-width" | "fit-page";
+
+export interface ViewerSize {
+  width: number;
+  height: number;
+}
 
 // Plan 060 task T1 (R1): zoom range and step. 25-400% matches the clamp the
 // zoom field already had (nothing under a quarter size, nothing past 4x -
@@ -23,14 +30,38 @@ export function clampZoom(z: number): number {
   return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z)) * 100) / 100;
 }
 
+/** Derives the numeric scale for a fit mode. `custom` deliberately has no
+ * derived value because its scale is the user's current numeric zoom. */
+export function zoomForMode(
+  mode: ZoomMode,
+  pageSize: ViewerSize,
+  boxSize: ViewerSize,
+): number | null {
+  if (
+    mode === "custom" ||
+    pageSize.width <= 0 ||
+    pageSize.height <= 0 ||
+    boxSize.width <= 0 ||
+    boxSize.height <= 0
+  ) {
+    return null;
+  }
+  const widthScale = boxSize.width / pageSize.width;
+  const scale =
+    mode === "fit-width" ? widthScale : Math.min(widthScale, boxSize.height / pageSize.height);
+  return clampZoom(scale);
+}
+
 interface WorkspaceState {
   activeTool: WorkspaceTool;
   /** Sub-tool inside the Edit panel (Phase 12). */
   editSubTool: EditSubTool;
   activePage: number;
   /** Zoom factor (1 = 100%) keyed by document path. A document not present
-   * here is at ZOOM_DEFAULT - see `getZoom`. */
+   * here is at the settings default zoom - see `getZoom`. */
   zoomByDoc: Record<string, number>;
+  /** Zoom behavior keyed by document path. Missing documents are custom. */
+  zoomModeByDoc: Record<string, ZoomMode>;
   // Plan 050 task D2-UX (R4): the scanned-page dialog is owned here, not as
   // local `WorkspaceRoute` state, so the Text tool's empty state can open it
   // without threading a callback down through `Workspace`.
@@ -52,9 +83,13 @@ interface WorkspaceState {
   setTool: (t: WorkspaceTool) => void;
   setEditSubTool: (t: EditSubTool) => void;
   setActivePage: (n: number) => void;
-  /** Current zoom for a document, or ZOOM_DEFAULT if it was never set. */
+  /** Current zoom for a document, or the settings default zoom if it was never set. */
   getZoom: (docId: string) => number;
+  getZoomMode: (docId: string) => ZoomMode;
   setZoom: (docId: string, z: number) => void;
+  setZoomMode: (docId: string, mode: ZoomMode) => void;
+  /** Stores a fit-derived scale without leaving the selected fit mode. */
+  applyZoomForMode: (docId: string, z: number) => void;
   zoomIn: (docId: string) => void;
   zoomOut: (docId: string) => void;
   resetZoom: (docId: string) => void;
@@ -69,15 +104,27 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   editSubTool: "forms",
   activePage: 0,
   zoomByDoc: {},
+  zoomModeByDoc: {},
   ocrPromptOpen: false,
   autoDetectFormsRequest: 0,
   thumbnailStripCollapsed: false,
   setTool: (t) => set({ activeTool: t }),
   setEditSubTool: (t) => set({ editSubTool: t }),
   setActivePage: (n) => set({ activePage: Math.max(0, n) }),
-  getZoom: (docId) => get().zoomByDoc[docId] ?? ZOOM_DEFAULT,
+  getZoom: (docId) => get().zoomByDoc[docId] ?? useAppStore.getState().defaultZoom,
   setZoom: (docId, z) =>
-    set((s) => ({ zoomByDoc: { ...s.zoomByDoc, [docId]: clampZoom(z) } })),
+    set((s) => ({
+      zoomByDoc: { ...s.zoomByDoc, [docId]: clampZoom(z) },
+      zoomModeByDoc: { ...s.zoomModeByDoc, [docId]: "custom" },
+    })),
+  getZoomMode: (docId) => get().zoomModeByDoc[docId] ?? "custom",
+  setZoomMode: (docId, mode) =>
+    set((s) => ({ zoomModeByDoc: { ...s.zoomModeByDoc, [docId]: mode } })),
+  applyZoomForMode: (docId, z) =>
+    set((s) => {
+      if ((s.zoomModeByDoc[docId] ?? "custom") === "custom") return s;
+      return { zoomByDoc: { ...s.zoomByDoc, [docId]: clampZoom(z) } };
+    }),
   zoomIn: (docId) => get().setZoom(docId, get().getZoom(docId) + ZOOM_STEP),
   zoomOut: (docId) => get().setZoom(docId, get().getZoom(docId) - ZOOM_STEP),
   resetZoom: (docId) => get().setZoom(docId, ZOOM_DEFAULT),

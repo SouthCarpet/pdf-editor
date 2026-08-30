@@ -42,5 +42,12 @@
   "update_available": "Newer local commit available",
   "up_to_date": "Up to date",
   "check_unavailable": "Unavailable: {{reason}}",
-  "check_now": "Check now"
+  "check_now": "Check now",
+  "saving_opening": "Saving and opening",
+  "default_save_folder": "Save folder",
+  "pick_folder": "Choose folder",
+  "clear_folder": "Clear",
+  "no_save_folder": "None chosen",
+  "default_zoom": "Default zoom",
+  "open_last_at_start": "Open last document at start"
 }

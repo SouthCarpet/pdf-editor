@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main window: dialog, fs (read user-selected PDFs), shell open.",
+  "description": "Default permissions for the main window: dialog, fs (read user-selected PDFs), reveal saved PDFs, shell open.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,9 +9,15 @@
     "core:window:allow-destroy",
     "dialog:default",
     "fs:default",
+    "fs:allow-exists",
+    "fs:allow-stat",
     "fs:allow-read-file",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    {
+      "identifier": "opener:allow-reveal-item-in-dir",
+      "allow": [{ "path": "**/*.pdf" }]
+    },
     {
       "identifier": "fs:scope",
       "allow": [

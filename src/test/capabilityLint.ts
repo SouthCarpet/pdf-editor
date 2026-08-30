@@ -132,6 +132,7 @@ export const CALL_PERMISSIONS: Record<string, string> = {
   "plugin-fs:writeTextFile": "fs:allow-write-text-file",
   "plugin-fs:readDir": "fs:allow-read-dir",
   "plugin-fs:exists": "fs:allow-exists",
+  "plugin-fs:stat": "fs:allow-stat",
   "plugin-fs:remove": "fs:allow-remove",
   "plugin-fs:mkdir": "fs:allow-mkdir",
 

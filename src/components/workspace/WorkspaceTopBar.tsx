@@ -7,10 +7,12 @@
 //     document, a shortcut into the Convert tool, an overflow for the
 //     other document-level tools, and the zoom indicator (R1).
 import { useState } from "react";
+import { useStore } from "zustand";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Minus, Plus } from "lucide-react";
+import { Check, ChevronDown, Minus, Plus, Redo2, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ToastAction, toast } from "@/components/ui/toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +22,10 @@ import {
 import { useWorkspace, ZOOM_DEFAULT, type WorkspaceTool } from "@/stores/workspaceStore";
 import { useHasUnsavedWork } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
+import { EMPTY_DOCUMENT_HISTORY, historyStore } from "@/stores/historyStore";
+import { useDocuments } from "@/stores/documentStore";
+import { revealSavedFile } from "@/tauri/bridge";
+import { parsePageInput } from "./pageNavigation";
 
 const TOOLS: WorkspaceTool[] = ["edit", "organize", "crop", "extract", "ocr", "compare"];
 
@@ -37,9 +43,60 @@ const OVERFLOW_TOOLS = [
 interface Props {
   /** Absolute path of the document currently open in the workspace. */
   path: string;
+  pageCount?: number;
+  activePage?: number;
+  onSelectPage?: (pageIndex: number) => void;
+  onOpenSearch?: () => void;
 }
 
-export function WorkspaceTopBar({ path }: Props) {
+interface PageBoxProps {
+  activePage: number;
+  pageCount: number;
+  onSelectPage: (pageIndex: number) => void;
+}
+
+function PageBox({ activePage, pageCount, onSelectPage }: PageBoxProps) {
+  const { t } = useTranslation("workspace");
+  const [draft, setDraft] = useState(String(activePage + 1));
+
+  function commit() {
+    const page = parsePageInput(draft, pageCount);
+    if (page === null) {
+      setDraft(String(activePage + 1));
+      return;
+    }
+    setDraft(String(page));
+    onSelectPage(page - 1);
+  }
+
+  return (
+    <div className="mr-2 flex h-10 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs tabular-nums text-[var(--color-muted)]">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={draft}
+        aria-label={t("navigation.page_input")}
+        disabled={pageCount < 1}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        className="w-8 bg-transparent text-right tabular-nums text-[var(--color-foreground)] focus-visible:outline-none"
+      />
+      <span aria-hidden="true" className="px-1">/</span>
+      <span>{pageCount}</span>
+    </div>
+  );
+}
+
+export function WorkspaceTopBar({
+  path,
+  pageCount: pageCountProp,
+  activePage: activePageProp,
+  onSelectPage,
+  onOpenSearch,
+}: Props) {
   const { t } = useTranslation("common");
   const navigate = useNavigate();
   const tool = useWorkspace((s) => s.activeTool);
@@ -48,7 +105,17 @@ export function WorkspaceTopBar({ path }: Props) {
   const zoomIn = useWorkspace((s) => s.zoomIn);
   const zoomOut = useWorkspace((s) => s.zoomOut);
   const resetZoom = useWorkspace((s) => s.resetZoom);
+  const zoomMode = useWorkspace((s) => s.zoomModeByDoc[path] ?? "custom");
+  const setZoomMode = useWorkspace((s) => s.setZoomMode);
+  const storedActivePage = useWorkspace((s) => s.activePage);
+  const setStoredActivePage = useWorkspace((s) => s.setActivePage);
+  const storedPageCount = useDocuments((s) => s.documents.get(path)?.pageCount ?? 0);
+  const activePage = activePageProp ?? storedActivePage;
+  const pageCount = pageCountProp ?? storedPageCount;
   const canSave = useHasUnsavedWork(path);
+  const history = useStore(historyStore, (state) => state.byDoc[path] ?? EMPTY_DOCUMENT_HISTORY);
+  const undoEntry = history.undo.at(-1);
+  const redoEntry = history.redo.at(-1);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState(false);
   const toolLabels: Record<WorkspaceTool, string> = {
@@ -59,6 +126,16 @@ export function WorkspaceTopBar({ path }: Props) {
     ocr: t("common:tools.ocr"),
     compare: t("common:tools.compare"),
   };
+  const undoTitle = undoEntry
+    ? t("workspace:history.undo_with_label", {
+        label: t(`workspace:history.entries.${undoEntry.label}`, { defaultValue: undoEntry.label }),
+      })
+    : t("workspace:history.undo");
+  const redoTitle = redoEntry
+    ? t("workspace:history.redo_with_label", {
+        label: t(`workspace:history.entries.${redoEntry.label}`, { defaultValue: redoEntry.label }),
+      })
+    : t("workspace:history.redo");
 
   async function onSave() {
     setBusy(true);
@@ -66,6 +143,7 @@ export function WorkspaceTopBar({ path }: Props) {
     try {
       const outcome = await saveDocument(path);
       if (outcome === "nothing-to-save") setHint(true);
+      if (outcome === "saved") showSavedToast();
     } finally {
       setBusy(false);
     }
@@ -77,9 +155,23 @@ export function WorkspaceTopBar({ path }: Props) {
     try {
       const outcome = await saveDocument(path, { forcePrompt: true });
       if (outcome === "nothing-to-save") setHint(true);
+      if (outcome === "saved") showSavedToast();
     } finally {
       setBusy(false);
     }
+  }
+
+  function showSavedToast() {
+    const savedPath = useDocuments.getState().documents.get(path)?.savedPath;
+    if (!savedPath) return;
+    toast({
+      title: t("workspace:save_toast.saved"),
+      action: (
+        <ToastAction altText={t("workspace:save_toast.reveal")} onClick={() => void revealSavedFile(savedPath)}>
+          {t("workspace:save_toast.reveal")}
+        </ToastAction>
+      ),
+    });
   }
 
   function selectTool(nextTool: WorkspaceTool) {
@@ -106,6 +198,29 @@ export function WorkspaceTopBar({ path }: Props) {
       ))}
 
       <div aria-hidden="true" className="mx-1 h-6 w-px bg-[var(--color-border)]" />
+
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-10"
+        title={undoTitle}
+        disabled={undoEntry === undefined}
+        onClick={() => historyStore.getState().undo(path)}
+      >
+        <Undo2 className="mr-1 size-4" aria-hidden="true" />
+        {t("workspace:history.undo")}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="h-10"
+        title={redoTitle}
+        disabled={redoEntry === undefined}
+        onClick={() => historyStore.getState().redo(path)}
+      >
+        <Redo2 className="mr-1 size-4" aria-hidden="true" />
+        {t("workspace:history.redo")}
+      </Button>
 
       <Button size="sm" variant="ghost" disabled={!canSave || busy} onClick={() => void onSave()}>
         {t("save")}
@@ -146,6 +261,24 @@ export function WorkspaceTopBar({ path }: Props) {
       </DropdownMenu>
 
       <div className="ml-auto flex items-center gap-1">
+        {onOpenSearch && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-10 w-10 p-0 active:scale-[0.96] transition-transform"
+            aria-label={t("workspace:search.open")}
+            onClick={onOpenSearch}
+          >
+            <Search className="size-4" aria-hidden="true" />
+          </Button>
+        )}
+        <PageBox
+          key={activePage}
+          activePage={activePage}
+          pageCount={pageCount}
+          onSelectPage={onSelectPage ?? setStoredActivePage}
+        />
         <Button
           size="sm"
           variant="ghost"
@@ -163,6 +296,35 @@ export function WorkspaceTopBar({ path }: Props) {
         >
           {Math.round(zoom * 100)}%
         </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-10 w-8 p-0"
+              aria-label={t("workspace:toolbar.zoom_modes")}
+            >
+              <ChevronDown className="size-3.5" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-width")}>
+              <Check
+                className={zoomMode === "fit-width" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
+                aria-hidden="true"
+              />
+              {t("workspace:toolbar.fit_width")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-page")}>
+              <Check
+                className={zoomMode === "fit-page" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
+                aria-hidden="true"
+              />
+              {t("workspace:toolbar.fit_page")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           size="sm"
           variant="ghost"

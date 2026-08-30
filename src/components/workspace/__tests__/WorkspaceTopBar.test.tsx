@@ -4,7 +4,7 @@
 // minimal-router harness from `ToolTile.test.tsx` since these buttons only
 // need a valid `href`, not a real destination screen.
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMemoryHistory,
@@ -18,7 +18,9 @@ import type { Annotation } from "@/bindings";
 import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace, ZOOM_DEFAULT } from "@/stores/workspaceStore";
+import { historyStore } from "@/stores/historyStore";
 import { WorkspaceTopBar } from "../WorkspaceTopBar";
+import { Toaster } from "@/components/ui/toaster";
 
 const DOC_A = "A:\\docs\\a.pdf";
 const OUTPUT_PATH = "A:\\docs\\a.annotated.pdf";
@@ -37,6 +39,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
+  autosaveDelete: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -53,7 +56,7 @@ function renderWithRouter(node: React.ReactNode) {
     routeTree: rootRoute.addChildren([indexRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
   });
-  return render(<RouterProvider router={router} />);
+  return render(<><RouterProvider router={router} /><Toaster /></>);
 }
 
 describe("WorkspaceTopBar", () => {
@@ -63,10 +66,13 @@ describe("WorkspaceTopBar", () => {
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.autosaveDelete.mockReset();
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
-    useWorkspace.setState({ activeTool: "edit", zoomByDoc: {} });
+    useWorkspace.setState({ activeTool: "edit", zoomByDoc: {}, zoomModeByDoc: {} });
+    historyStore.setState({ byDoc: {} });
   });
 
   it("renders the workspace tool row and the zoom indicator at 100% by default", async () => {
@@ -80,6 +86,21 @@ describe("WorkspaceTopBar", () => {
     renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
     expect(await screen.findByRole("button", { name: "Uložiť" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Uložiť ako" })).toBeDisabled();
+  });
+
+  it("disables history buttons when empty and enables redo after undo", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+    expect(await screen.findByRole("button", { name: "Späť" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Znova" })).toBeDisabled();
+
+    useAnnotations.getState().add(DOC_A, NOTE);
+    const undo = await screen.findByRole("button", { name: "Späť" });
+    expect(undo).toBeEnabled();
+    expect(undo).toHaveAttribute("title", "Späť: pridanie");
+
+    await user.click(undo);
+    expect(await screen.findByRole("button", { name: "Znova" })).toBeEnabled();
   });
 
   it("Uložiť saves pending work through the shared save flow and clears it", async () => {
@@ -110,6 +131,19 @@ describe("WorkspaceTopBar", () => {
     await waitFor(() => expect(fakeBridge.pickSavePath).toHaveBeenCalledTimes(1));
   });
 
+  it("the successful-save toast reveals the saved path in Explorer", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    const user = userEvent.setup();
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+
+    await user.click(await screen.findByRole("button", { name: "Uložiť" }));
+    const [revealAction] = await screen.findAllByRole("button", { name: "Zobraziť v Prieskumníku" });
+    fireEvent.click(revealAction);
+
+    expect(fakeBridge.revealSavedFile).toHaveBeenCalledWith(OUTPUT_PATH);
+  });
+
   it("the zoom buttons step the displayed percentage up and down", async () => {
     const user = userEvent.setup();
     renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
@@ -130,6 +164,34 @@ describe("WorkspaceTopBar", () => {
     await user.click(await screen.findByText("250%"));
 
     expect(await screen.findByText("100%")).toBeInTheDocument();
+  });
+
+  // Oracle: T3.1 R1 defines a one-based editable page box with a text total.
+  it("submits the editable page number on Enter", async () => {
+    const onSelectPage = vi.fn();
+    const user = userEvent.setup();
+    renderWithRouter(
+      <WorkspaceTopBar
+        path={DOC_A}
+        pageCount={12}
+        activePage={2}
+        onSelectPage={onSelectPage}
+      />,
+    );
+    const input = await screen.findByRole("textbox", { name: "Číslo strany" });
+    expect(input).toHaveValue("3");
+    expect(screen.getByText("12")).toBeInTheDocument();
+    await user.clear(input);
+    await user.type(input, "8{Enter}");
+    expect(onSelectPage).toHaveBeenCalledWith(7);
+  });
+
+  it("selects fit-width from the zoom mode menu", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+    await user.click(await screen.findByRole("button", { name: "Režim mierky" }));
+    await user.click(screen.getByRole("menuitem", { name: "Na šírku" }));
+    expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("fit-width");
   });
 
   it("links Konvertovať to the Convert tool with the active document", async () => {

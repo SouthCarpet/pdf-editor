@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 import { cn } from "@/lib/utils";
+import { historyStore } from "@/stores/historyStore";
 import { PdfViewer } from "../PdfViewer";
 
 interface PageState {
@@ -62,10 +63,18 @@ export function OrganizePanel({ pdf, docPath }: Props) {
         blank: null,
       }));
   const setPages = (updater: PageState[] | ((p: PageState[]) => PageState[])) => {
-    setState((s) => ({
-      pdf,
-      pages: typeof updater === "function" ? (updater as (p: PageState[]) => PageState[])(s.pdf === pdf ? s.pages : pages) : updater,
-    }));
+    const before = pages;
+    const after =
+      typeof updater === "function"
+        ? (updater as (p: PageState[]) => PageState[])(before)
+        : updater;
+    if (after === before) return;
+    setState({ pdf, pages: after });
+    historyStore.getState().push(docPath, {
+      label: "organize",
+      undo: () => setState({ pdf, pages: before }),
+      redo: () => setState({ pdf, pages: after }),
+    });
   };
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
@@ -240,6 +249,8 @@ export function OrganizePanel({ pdf, docPath }: Props) {
       const r3 = await commands.saveDocument(current, out);
       if (r3.status === "error") {
         setErr(JSON.stringify(r3.error));
+      } else {
+        historyStore.getState().clear(docPath);
       }
     } finally {
       setBusy(false);

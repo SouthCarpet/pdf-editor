@@ -14,10 +14,20 @@ export type ShortcutAction =
   | { type: "zoom-reset" }
   | { type: "save" }
   | { type: "save-as" }
+  | { type: "undo" }
+  | { type: "redo" }
   | { type: "delete-pending" }
   | { type: "next-field" }
   | { type: "previous-field" }
-  | { type: "confirm-next-field" };
+  | { type: "confirm-next-field" }
+  | { type: "previous-page" }
+  | { type: "next-page" }
+  | { type: "first-page" }
+  | { type: "last-page" }
+  | { type: "open-search" }
+  | { type: "close-search" }
+  | { type: "next-search-match" }
+  | { type: "previous-search-match" };
 
 /** One row of the workspace shortcut table. T3.3's overlay iterates this
  * list, so a shortcut that is not here cannot appear there. */
@@ -31,11 +41,21 @@ export interface ShortcutBinding {
    * still zooms in on layouts where "+" needs Shift). */
   shift?: boolean;
   allowInTextInput: boolean;
+  /** Enter-based search navigation is only active in the search query. */
+  searchInputOnly?: boolean;
   /** Catalog key the T3.3 overlay will pass to `t()`. */
   labelKey: string;
 }
 
 export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
+  {
+    action: "open-search",
+    keys: ["f"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "shortcuts.open_search",
+  },
   {
     action: "save-as",
     keys: ["s"],
@@ -51,6 +71,30 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     shift: false,
     allowInTextInput: true,
     labelKey: "save",
+  },
+  {
+    action: "redo",
+    keys: ["z"],
+    modifier: "ctrl",
+    shift: true,
+    allowInTextInput: false,
+    labelKey: "history.redo",
+  },
+  {
+    action: "redo",
+    keys: ["y"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: false,
+    labelKey: "history.redo",
+  },
+  {
+    action: "undo",
+    keys: ["z"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: false,
+    labelKey: "history.undo",
   },
   {
     action: "zoom-reset",
@@ -83,6 +127,75 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     labelKey: "pending_annotation.delete",
   },
   {
+    action: "previous-page",
+    keys: ["PageUp"],
+    modifier: "none",
+    allowInTextInput: false,
+    labelKey: "shortcuts.previous_page",
+  },
+  {
+    action: "next-page",
+    keys: ["PageDown"],
+    modifier: "none",
+    allowInTextInput: false,
+    labelKey: "shortcuts.next_page",
+  },
+  {
+    action: "first-page",
+    keys: ["Home"],
+    modifier: "none",
+    allowInTextInput: false,
+    labelKey: "shortcuts.first_page",
+  },
+  {
+    action: "last-page",
+    keys: ["End"],
+    modifier: "none",
+    allowInTextInput: false,
+    labelKey: "shortcuts.last_page",
+  },
+  {
+    action: "close-search",
+    keys: ["Escape"],
+    modifier: "none",
+    allowInTextInput: true,
+    labelKey: "shortcuts.close_search",
+  },
+  {
+    action: "previous-search-match",
+    keys: ["F3"],
+    modifier: "none",
+    shift: true,
+    allowInTextInput: true,
+    labelKey: "shortcuts.previous_search_match",
+  },
+  {
+    action: "next-search-match",
+    keys: ["F3"],
+    modifier: "none",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "shortcuts.next_search_match",
+  },
+  {
+    action: "previous-search-match",
+    keys: ["Enter"],
+    modifier: "none",
+    shift: true,
+    allowInTextInput: true,
+    searchInputOnly: true,
+    labelKey: "shortcuts.previous_search_match",
+  },
+  {
+    action: "next-search-match",
+    keys: ["Enter"],
+    modifier: "none",
+    shift: false,
+    allowInTextInput: true,
+    searchInputOnly: true,
+    labelKey: "shortcuts.next_search_match",
+  },
+  {
     action: "previous-field",
     keys: ["Tab"],
     modifier: "none",
@@ -112,6 +225,7 @@ export interface ShortcutFocus {
   isTextInput: boolean;
   isFormControl: boolean;
   isStripTextInput: boolean;
+  isSearchInput: boolean;
 }
 
 /** The subset of `KeyboardEvent` the resolver reads. Kept narrow so tests
@@ -147,10 +261,11 @@ export function resolveShortcut(
 ): ShortcutAction | null {
   const context: ShortcutFocus =
     typeof focus === "boolean"
-      ? { isTextInput: focus, isFormControl: focus, isStripTextInput: false }
+      ? { isTextInput: focus, isFormControl: focus, isStripTextInput: false, isSearchInput: false }
       : focus;
   for (const spec of WORKSPACE_SHORTCUTS) {
     if (!bindingMatches(spec, e)) continue;
+    if (spec.searchInputOnly && !context.isSearchInput) continue;
     if (context.isTextInput && !spec.allowInTextInput) return null;
     if (
       (spec.action === "next-field" || spec.action === "previous-field") &&
@@ -175,7 +290,12 @@ export function isTextInputTarget(target: EventTarget | null): boolean {
 
 export function shortcutFocus(target: EventTarget | null): ShortcutFocus {
   if (!(target instanceof HTMLElement)) {
-    return { isTextInput: false, isFormControl: false, isStripTextInput: false };
+    return {
+      isTextInput: false,
+      isFormControl: false,
+      isStripTextInput: false,
+      isSearchInput: false,
+    };
   }
   const isStripTextInput =
     target instanceof HTMLInputElement &&
@@ -186,5 +306,6 @@ export function shortcutFocus(target: EventTarget | null): ShortcutFocus {
     isFormControl:
       target.matches("input, textarea, select, button") || target.isContentEditable === true,
     isStripTextInput,
+    isSearchInput: target.hasAttribute("data-workspace-search-input"),
   };
 }

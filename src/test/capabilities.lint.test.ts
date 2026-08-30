@@ -36,4 +36,28 @@ describe("Tauri capability lint (T1.0, plan 062)", () => {
 
     expect(violations.some((v) => v.includes("needs permission core:window:allow-destroy"))).toBe(true);
   });
+
+  it("fails when fs:allow-stat is removed from default.json", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("fs:allow-stat")).toBe(true);
+
+    granted.delete("fs:allow-stat");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission fs:allow-stat"))).toBe(true);
+  });
+
+  it("fails when opener:allow-reveal-item-in-dir is removed from default.json", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("opener:allow-reveal-item-in-dir")).toBe(true);
+
+    granted.delete("opener:allow-reveal-item-in-dir");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission opener:allow-reveal-item-in-dir"))).toBe(true);
+  });
 });

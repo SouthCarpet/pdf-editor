@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@/i18n";
+import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
+import { useRecentFiles } from "@/stores/recentFilesStore";
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
@@ -60,6 +62,8 @@ describe("OpenFilesProvider", () => {
     mocks.openDocument.mockReset();
     mocks.mergePdfs.mockReset();
     useDocuments.setState({ documents: new Map(), activeDocId: null });
+    useRecentFiles.setState({ files: [], loading: false });
+    useAppStore.setState({ openLastDocumentAtStart: false });
   });
 
   it("opens every selected PDF as a visible document tab", async () => {
@@ -120,5 +124,41 @@ describe("OpenFilesProvider", () => {
     await waitFor(() =>
       expect(useDocuments.getState().documents.has("C:/merged.pdf")).toBe(true),
     );
+  });
+
+  it("opens the most recent file at start when the setting is on and the file exists", async () => {
+    useAppStore.setState({ openLastDocumentAtStart: true });
+    fakeBridge.invokeCommand.mockResolvedValue([
+      { path: "C:/last.pdf", display_name: "last.pdf", last_opened_at: "x" },
+    ]);
+    fakeBridge.pathExists.mockResolvedValue(true);
+    mocks.openDocument.mockImplementation(async (path: string) => opened(path));
+
+    render(
+      <OpenFilesProvider>
+        <div>child</div>
+      </OpenFilesProvider>,
+    );
+
+    await waitFor(() => expect(mocks.openDocument).toHaveBeenCalledWith("C:/last.pdf"));
+    expect(useAppStore.getState().openLastDocumentAtStart).toBe(true);
+  });
+
+  it("does nothing at start when the most recent file is gone and leaves the setting on", async () => {
+    useAppStore.setState({ openLastDocumentAtStart: true });
+    fakeBridge.invokeCommand.mockResolvedValue([
+      { path: "C:/missing.pdf", display_name: "missing.pdf", last_opened_at: "x" },
+    ]);
+    fakeBridge.pathExists.mockResolvedValue(false);
+
+    render(
+      <OpenFilesProvider>
+        <div>child</div>
+      </OpenFilesProvider>,
+    );
+
+    await waitFor(() => expect(fakeBridge.pathExists).toHaveBeenCalledWith("C:/missing.pdf"));
+    expect(mocks.openDocument).not.toHaveBeenCalled();
+    expect(useAppStore.getState().openLastDocumentAtStart).toBe(true);
   });
 });

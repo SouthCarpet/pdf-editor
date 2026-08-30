@@ -42,5 +42,12 @@
   "update_available": "Je dostupný novší lokálny commit",
   "up_to_date": "Aktuálne",
   "check_unavailable": "Nedostupné: {{reason}}",
-  "check_now": "Skontrolovať"
+  "check_now": "Skontrolovať",
+  "saving_opening": "Ukladanie a otváranie",
+  "default_save_folder": "Priečinok na ukladanie",
+  "pick_folder": "Vybrať priečinok",
+  "clear_folder": "Vymazať",
+  "no_save_folder": "Nevybraný",
+  "default_zoom": "Predvolené priblíženie",
+  "open_last_at_start": "Otvoriť posledný dokument pri štarte"
 }

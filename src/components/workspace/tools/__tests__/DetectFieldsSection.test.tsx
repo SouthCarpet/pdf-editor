@@ -46,6 +46,7 @@ const commandFakes = vi.hoisted(() => ({
   detectScannedFormFieldsCmd: vi.fn(),
   applyAnnotationsCmd: vi.fn(),
   autosavePut: vi.fn(),
+  autosaveDelete: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
@@ -99,6 +100,7 @@ describe("forms panel on a scanned page", () => {
       applied.push(args);
       return { status: "ok", data: null };
     });
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useWorkspace.setState({ autoDetectFormsRequest: 0 });
     Object.assign(globalThis.crypto, { randomUUID: () => "00000000-0000-4000-8000-000000000000" });

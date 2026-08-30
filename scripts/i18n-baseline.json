@@ -219,7 +219,6 @@
     "src/components/ui/font-picker.tsx  12 literal(s)  sha256:5ad317ee5cad686c",
     "src/components/workspace/tools/CropPanel.tsx  3 literal(s)  sha256:08a152013be89ae4",
     "src/components/workspace/tools/EditAnnotationsPanel.tsx  3 literal(s)  sha256:ecaa5ec808223672",
-    "src/components/workspace/tools/ExtractPanel.tsx  2 literal(s)  sha256:7042db2089ba064c",
     "src/components/workspace/tools/OrganizePanel.tsx  11 literal(s)  sha256:65f72d3fbaf85d58",
     "src/test/themeTokens.spec.tsx  2 literal(s)  sha256:d99c11391cc25453"
   ]

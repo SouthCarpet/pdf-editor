@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { Annotation } from "@/bindings";
 import { useAnnotations } from "../annotationsStore";
+import { historyStore } from "../historyStore";
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 
@@ -45,6 +46,7 @@ function storedFreeText(index = 0): FreeText {
 describe("annotationsStore", () => {
   beforeEach(() => {
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
+    historyStore.setState({ byDoc: {} });
   });
 
   it("add appears with the given rect, size and colour, and returns its client id", () => {

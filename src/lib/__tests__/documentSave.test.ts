@@ -25,10 +25,13 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
+  autosaveDelete: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
 import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
+import { useAppStore } from "@/stores/appStore";
+import { ZOOM_DEFAULT } from "@/stores/workspaceStore";
 import { saveDocument } from "../documentSave";
 import { hasUnsavedWork } from "../unsavedWork";
 
@@ -37,9 +40,16 @@ describe("saveDocument", () => {
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.autosaveDelete.mockReset();
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
+    useAppStore.setState({
+      defaultSaveFolder: null,
+      defaultZoom: ZOOM_DEFAULT,
+      openLastDocumentAtStart: false,
+    });
   });
 
   it("returns 'saved' with nothing pending and no other dirty state", async () => {
@@ -68,6 +78,38 @@ describe("saveDocument", () => {
       expect.objectContaining({ input: DOC_A, output: OUTPUT_PATH }),
     );
     expect(useDocuments.getState().documents.get(DOC_A)?.savedPath).toBe(OUTPUT_PATH);
+    expect(fakeBridge.pickSavePath).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: OUTPUT_PATH }),
+    );
+  });
+
+  it("the first save opens the dialog in defaultSaveFolder when that setting is set", async () => {
+    useAppStore.getState().setDefaultSaveFolder("D:\\filled");
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue("D:\\filled\\a.annotated.pdf");
+
+    await saveDocument(DOC_A);
+
+    expect(fakeBridge.pickSavePath).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: "D:\\filled\\a.annotated.pdf" }),
+    );
+  });
+
+  it("Save-as opens the dialog in defaultSaveFolder when that setting is set", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    await saveDocument(DOC_A);
+    fakeBridge.pickSavePath.mockClear();
+
+    useAppStore.getState().setDefaultSaveFolder("D:\\filled");
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue("D:\\filled\\a.annotated.pdf");
+
+    await saveDocument(DOC_A, { forcePrompt: true });
+
+    expect(fakeBridge.pickSavePath).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: "D:\\filled\\a.annotated.pdf" }),
+    );
   });
 
   it("a later save reuses the remembered path without prompting again", async () => {
@@ -138,6 +180,16 @@ describe("saveDocument", () => {
     expect(useAnnotations.getState().byDoc[DOC_A]).toHaveLength(0);
     expect(useDocuments.getState().documents.get(DOC_A)?.dirty).toBe(false);
     expect(hasUnsavedWork(DOC_A)).toBe(false);
+    expect(commandFakes.autosaveDelete).toHaveBeenCalledWith(DOC_A);
+  });
+
+  it("does not delete the autosave record when the path dialog is cancelled", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(null);
+
+    await saveDocument(DOC_A);
+
+    expect(commandFakes.autosaveDelete).not.toHaveBeenCalled();
   });
 
   it("after a successful save with a text draft, the dirty flag (and hasUnsavedWork) stays true", async () => {

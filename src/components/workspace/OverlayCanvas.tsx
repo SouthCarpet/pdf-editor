@@ -10,14 +10,15 @@ interface Props {
   width: number;
   height: number;
   children?: ReactNode;
+  interactive?: boolean;
 }
 
-export function OverlayCanvas({ width, height, children }: Props) {
+export function OverlayCanvas({ width, height, children, interactive = true }: Props) {
   return (
     <Stage
       width={width}
       height={height}
-      style={{ position: "absolute", inset: 0, pointerEvents: "auto" }}
+      style={{ position: "absolute", inset: 0, pointerEvents: interactive ? "auto" : "none" }}
     >
       <Layer>{children}</Layer>
     </Stage>

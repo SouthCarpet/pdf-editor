@@ -34,6 +34,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
+  autosaveDelete: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -66,6 +67,7 @@ describe("CloseGuardDialog - window scope", () => {
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });
@@ -240,6 +242,7 @@ describe("CloseGuardDialog - tab scope", () => {
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });

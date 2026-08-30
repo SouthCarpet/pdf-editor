@@ -22,6 +22,9 @@ const dropHandlers = new Set<DropHandler>();
 export const fakeBridge = {
   pickPaths: vi.fn<() => Promise<string[]>>(async () => []),
   pickSavePath: vi.fn<() => Promise<string | null>>(async () => null),
+  pathExists: vi.fn<(path: string) => Promise<boolean>>(async () => false),
+  fileMtimeMs: vi.fn<(path: string) => Promise<number | null>>(async () => null),
+  revealSavedFile: vi.fn<(path: string) => Promise<void>>(async () => {}),
   invokeCommand: vi.fn<(command: string, args?: unknown) => Promise<unknown>>(
     async () => null,
   ),
@@ -46,6 +49,9 @@ export function resetFakeBridge(): void {
   dropHandlers.clear();
   fakeBridge.pickPaths.mockReset().mockResolvedValue([]);
   fakeBridge.pickSavePath.mockReset().mockResolvedValue(null);
+  fakeBridge.pathExists.mockReset().mockResolvedValue(false);
+  fakeBridge.fileMtimeMs.mockReset().mockResolvedValue(null);
+  fakeBridge.revealSavedFile.mockReset().mockResolvedValue(undefined);
   fakeBridge.invokeCommand.mockReset().mockResolvedValue(null);
   fakeBridge.listenEvent
     .mockReset()

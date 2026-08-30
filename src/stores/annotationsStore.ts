@@ -5,6 +5,7 @@
 // serializing to the Rust command schema.
 import { create } from "zustand";
 import type { Annotation } from "@/bindings";
+import { createAnnotationHistoryActions } from "./annotationHistory";
 
 type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
 
@@ -45,43 +46,18 @@ interface AnnotationsState {
   clear: (docPath: string) => void;
 }
 
-export const useAnnotations = create<AnnotationsState>((set) => ({
-  mode: "highlight",
-  byDoc: {},
-  setMode: (mode) => set({ mode }),
-  add: (docPath, ann) => {
-    const clientId = crypto.randomUUID();
-    set((s) => ({
-      byDoc: {
-        ...s.byDoc,
-        [docPath]: [
-          ...(s.byDoc[docPath] ?? []),
-          { ...ann, __clientId: clientId } as ClientAnnotation,
-        ],
-      },
-    }));
-    return clientId;
-  },
-  update: (docPath, clientId, patch) =>
-    set((s) => ({
-      byDoc: {
-        ...s.byDoc,
-        [docPath]: (s.byDoc[docPath] ?? []).map((a) =>
-          a.__clientId === clientId ? ({ ...a, ...patch } as ClientAnnotation) : a,
-        ),
-      },
-    })),
-  remove: (docPath, clientId) =>
-    set((s) => ({
-      byDoc: {
-        ...s.byDoc,
-        [docPath]: (s.byDoc[docPath] ?? []).filter(
-          (a) => a.__clientId !== clientId,
-        ),
-      },
-    })),
-  replace: (docPath, list) =>
-    set((s) => ({ byDoc: { ...s.byDoc, [docPath]: list } })),
-  clear: (docPath) =>
-    set((s) => ({ byDoc: { ...s.byDoc, [docPath]: [] } })),
-}));
+export const useAnnotations = create<AnnotationsState>((set, get) => {
+  const historyActions = createAnnotationHistoryActions({
+    get: (docPath) => get().byDoc[docPath] ?? NO_ANNOTATIONS,
+    set: (docPath, list) =>
+      set((state) => ({ byDoc: { ...state.byDoc, [docPath]: list } })),
+    createClientId: () => crypto.randomUUID(),
+  });
+
+  return {
+    mode: "highlight",
+    byDoc: {},
+    setMode: (mode) => set({ mode }),
+    ...historyActions,
+  };
+});

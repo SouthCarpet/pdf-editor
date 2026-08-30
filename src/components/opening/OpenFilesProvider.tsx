@@ -18,8 +18,12 @@ import {
   normalizePdfPaths,
   type MergePlacement,
 } from "@/lib/fileOpening";
+import { documentToOpenAtStart } from "@/lib/documentToOpenAtStart";
+import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
-import { onFileDrop, pickPaths, pickSavePath } from "@/tauri/bridge";
+import { useRecentFiles } from "@/stores/recentFilesStore";
+import { useWorkspace } from "@/stores/workspaceStore";
+import { onFileDrop, pathExists, pickPaths, pickSavePath } from "@/tauri/bridge";
 import { OpenFilesContext, type OpenFilesContextValue } from "./openFilesContext";
 
 type DialogStep = "choose" | "merge";
@@ -70,6 +74,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      const defaultZoom = useAppStore.getState().defaultZoom;
       for (const document of opened) {
         addDocument({
           id: document.path,
@@ -77,6 +82,9 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
           pageCount: document.page_count,
           dirty: false,
         });
+        if (useWorkspace.getState().zoomByDoc[document.path] === undefined) {
+          useWorkspace.getState().setZoom(document.path, defaultZoom);
+        }
       }
 
       const last = opened.at(-1);
@@ -148,6 +156,42 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
     return () => {
       disposed = true;
       unlisten?.();
+    };
+  }, []);
+
+  const openLastAtStart = useEffectEvent((path: string) => {
+    requestOpen([path]);
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (!useAppStore.getState().openLastDocumentAtStart) return;
+      try {
+        await useRecentFiles.getState().refresh();
+      } catch {
+        return;
+      }
+      if (cancelled) return;
+      const files = useRecentFiles.getState().files;
+      const candidate = files[0]?.path;
+      if (!candidate) return;
+      let onDisk = false;
+      try {
+        onDisk = await pathExists(candidate);
+      } catch {
+        onDisk = false;
+      }
+      if (cancelled) return;
+      const toOpen = documentToOpenAtStart(
+        useAppStore.getState().openLastDocumentAtStart,
+        files,
+        (path) => path === candidate && onDisk,
+      );
+      if (toOpen) openLastAtStart(toOpen);
+    })();
+    return () => {
+      cancelled = true;
     };
   }, []);
 

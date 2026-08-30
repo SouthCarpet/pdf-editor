@@ -16,6 +16,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { exists, stat } from "@tauri-apps/plugin-fs";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 export type { UnlistenFn };
 
@@ -54,6 +56,29 @@ export async function pickSavePath(
   options: PickSavePathOptions,
 ): Promise<string | null> {
   return await save(options);
+}
+
+/** Whether a path exists on disk. Used at start for "open last document". */
+export async function pathExists(path: string): Promise<boolean> {
+  return await exists(path);
+}
+
+/** File mtime in epoch milliseconds, or null when `stat` fails or the
+ * platform leaves mtime empty. Recovery treats null as "mtime unavailable"
+ * and offers any autosave record. */
+export async function fileMtimeMs(path: string): Promise<number | null> {
+  try {
+    const info = await stat(path);
+    if (info.mtime === null) return null;
+    return info.mtime.getTime();
+  } catch {
+    return null;
+  }
+}
+
+/** Reveals a saved file in the platform file explorer. */
+export async function revealSavedFile(path: string): Promise<void> {
+  await revealItemInDir(path);
 }
 
 /** Calls a Tauri command that has no generated binding. */

@@ -89,6 +89,17 @@
     "pipeline": "Pipeline",
     "projects": "Projekty"
   },
+  "extract_panel": {
+    "description": "Vyberte strany, ktoré sa majú extrahovať do nového PDF.",
+    "select_all": "Vybrať všetko",
+    "clear": "Zrušiť výber",
+    "invert": "Invertovať",
+    "range_label": "Rozsah strán",
+    "range_placeholder": "1-3, 5",
+    "apply_range": "Nastaviť rozsah",
+    "extracting": "Extrahuje sa…",
+    "extract_count": "Extrahovať {{count}}"
+  },
   "session": {
     "restore_prompt": "Obnoviť predchádzajúcu reláciu ({{count}})?",
     "restore": "Obnoviť",
