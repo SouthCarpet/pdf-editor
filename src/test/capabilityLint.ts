@@ -160,6 +160,7 @@ export const CALL_PERMISSIONS: Record<string, string> = {
 
 const APP_COMMAND_PERMISSIONS: Record<string, string> = {
   startup_paths: "allow-startup-paths",
+  renderPageThumbnail: "allow-render-page-thumbnail",
 };
 
 interface ImportedName {
@@ -276,6 +277,22 @@ export function scanFile(filePath: string, text: string): { calls: CallSite[]; u
       const permission = `${pluginName}:allow-${command.replace(/_/g, "-")}`;
       calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
     }
+  }
+
+  // Generated Specta bindings use camelCase command methods. Most app
+  // commands are allowed by default; only commands listed in build.rs's
+  // AppManifest need an explicit permission and therefore appear here.
+  const bindingCommandRe = /\bcommands\s*\.\s*(\w+)\s*\(/g;
+  for (const m of text.matchAll(bindingCommandRe)) {
+    const command = m[1];
+    const permission = APP_COMMAND_PERMISSIONS[command];
+    if (!permission) continue;
+    calls.push({
+      file: filePath,
+      line: lineNumberAt(text, m.index ?? 0),
+      permission,
+      detail: `commands.${command}(...)`,
+    });
   }
 
   return { calls, unknown };

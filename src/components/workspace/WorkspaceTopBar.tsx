@@ -6,7 +6,7 @@
 //   - plan 060 task T1 (R2/R3): global Save / Save as for the active
 //     document, a shortcut into the Convert tool, an overflow for the
 //     other document-level tools, and the zoom indicator (R1).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -28,6 +28,11 @@ import { EMPTY_DOCUMENT_HISTORY, historyStore } from "@/stores/historyStore";
 import { useDocuments } from "@/stores/documentStore";
 import { revealSavedFile } from "@/tauri/bridge";
 import { parsePageInput } from "./pageNavigation";
+import { PrintDialog } from "./PrintDialog";
+import {
+  WORKSPACE_PRINT_REQUEST_EVENT,
+  type WorkspacePrintRequestDetail,
+} from "./printRequest";
 
 const TOOLS: WorkspaceTool[] = ["edit", "organize", "crop", "extract", "ocr", "compare"];
 
@@ -139,6 +144,7 @@ export function WorkspaceTopBar({
   const storedActivePage = useWorkspace((s) => s.activePage);
   const setStoredActivePage = useWorkspace((s) => s.setActivePage);
   const storedPageCount = useDocuments((s) => s.documents.get(path)?.pageCount ?? 0);
+  const hasDocument = useDocuments((s) => path.length > 0 && s.documents.has(path));
   const activePage = activePageProp ?? storedActivePage;
   const pageCount = pageCountProp ?? storedPageCount;
   const canSave = useHasUnsavedWork(path);
@@ -147,6 +153,8 @@ export function WorkspaceTopBar({
   const redoEntry = history.redo.at(-1);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printHint, setPrintHint] = useState(false);
   const toolLabels: Record<WorkspaceTool, string> = {
     edit: t("common:tools.edit"),
     organize: t("common:tools.organize"),
@@ -213,6 +221,21 @@ export function WorkspaceTopBar({
     });
   }
 
+  useEffect(() => {
+    function onPrintRequest(event: Event) {
+      const { docId } = (event as CustomEvent<WorkspacePrintRequestDetail>).detail;
+      if (docId !== path) return;
+      if (!hasDocument) {
+        setPrintHint(true);
+        return;
+      }
+      setPrintHint(false);
+      setPrintOpen(true);
+    }
+    window.addEventListener(WORKSPACE_PRINT_REQUEST_EVENT, onPrintRequest);
+    return () => window.removeEventListener(WORKSPACE_PRINT_REQUEST_EVENT, onPrintRequest);
+  }, [hasDocument, path]);
+
   return (
     <div className="flex items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1">
       {TOOLS.map((id) => (
@@ -257,9 +280,32 @@ export function WorkspaceTopBar({
       <Button size="sm" variant="ghost" disabled={!canSave || busy} onClick={() => void onSaveAs()}>
         {t("save_as")}
       </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        disabled={!hasDocument || busy}
+        onClick={() => {
+          setPrintHint(false);
+          setPrintOpen(true);
+        }}
+      >
+        {t("workspace:print.action")}
+      </Button>
+      <PrintDialog
+        open={printOpen}
+        path={path}
+        pageCount={pageCount}
+        disabled={!hasDocument}
+        onOpenChange={setPrintOpen}
+      />
       {hint && (
         <span role="status" className="text-xs text-[var(--color-muted)]">
           {t("workspace:close_guard.text_draft_hint")}
+        </span>
+      )}
+      {printHint && (
+        <span role="status" className="text-xs text-[var(--color-muted)]">
+          {t("workspace:print.no_document")}
         </span>
       )}
 

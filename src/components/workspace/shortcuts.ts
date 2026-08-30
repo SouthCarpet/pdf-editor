@@ -14,6 +14,7 @@ export type ShortcutAction =
   | { type: "zoom-reset" }
   | { type: "save" }
   | { type: "save-as" }
+  | { type: "print" }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "delete-pending" }
@@ -63,6 +64,16 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     allowInTextInput: true,
     labelKey: "shortcuts.open_search",
     group: "navigation",
+  },
+  {
+    id: "print",
+    action: "print",
+    keys: ["p"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "print.action",
+    group: "file",
   },
   {
     id: "save-as",

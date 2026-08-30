@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-render-page-thumbnail"
+description = "Enables the render_page_thumbnail command without any pre-configured scope."
+commands.allow = ["render_page_thumbnail"]
+
+[[permission]]
+identifier = "deny-render-page-thumbnail"
+description = "Denies the render_page_thumbnail command without any pre-configured scope."
+commands.deny = ["render_page_thumbnail"]

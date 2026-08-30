@@ -183,6 +183,18 @@ describe("useWorkspaceShortcuts", () => {
     expect(commandFakes.applyAnnotationsCmd).not.toHaveBeenCalled();
   });
 
+  it("Ctrl+P requests print for the active document from a text input", () => {
+    const onPrintRequest = vi.fn();
+    window.addEventListener("pdf-editor:workspace-print-request", onPrintRequest);
+    const { getByTestId } = render(<Harness docId={DOC_A} />);
+
+    fireEvent.keyDown(getByTestId("draft"), { key: "p", ctrlKey: true });
+
+    expect(onPrintRequest).toHaveBeenCalledTimes(1);
+    expect((onPrintRequest.mock.calls[0][0] as CustomEvent).detail).toEqual({ docId: DOC_A });
+    window.removeEventListener("pdf-editor:workspace-print-request", onPrintRequest);
+  });
+
   // Plan 062 T1.1: the window listener must dispatch Delete / Backspace
   // into the workspace delete path when focus is not a text input.
   it("Delete calls onDeletePending when focus is not a text input", () => {

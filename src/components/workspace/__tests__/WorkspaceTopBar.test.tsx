@@ -4,7 +4,7 @@
 // minimal-router harness from `ToolTile.test.tsx` since these buttons only
 // need a valid `href`, not a real destination screen.
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMemoryHistory,
@@ -21,6 +21,7 @@ import { useWorkspace, ZOOM_DEFAULT } from "@/stores/workspaceStore";
 import { historyStore } from "@/stores/historyStore";
 import { WorkspaceTopBar } from "../WorkspaceTopBar";
 import { Toaster } from "@/components/ui/toaster";
+import { requestWorkspacePrint } from "../printRequest";
 
 const DOC_A = "A:\\docs\\a.pdf";
 const OUTPUT_PATH = "A:\\docs\\a.annotated.pdf";
@@ -129,6 +130,41 @@ describe("WorkspaceTopBar", () => {
     await user.click(await screen.findByRole("button", { name: "Uložiť ako" }));
 
     await waitFor(() => expect(fakeBridge.pickSavePath).toHaveBeenCalledTimes(1));
+  });
+
+  it("places Tlačiť after Uložiť ako and before Konvertovať and opens pre-flight", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+
+    const saveAs = await screen.findByRole("button", { name: "Uložiť ako" });
+    const print = screen.getByRole("button", { name: "Tlačiť" });
+    const convert = screen.getByRole("link", { name: "Konvertovať" });
+    expect(saveAs.compareDocumentPosition(print) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(print.compareDocumentPosition(convert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.click(print);
+    expect(await screen.findByRole("heading", { name: "Tlač" })).toBeInTheDocument();
+  });
+
+  it("disables Tlačiť when there is no open document", async () => {
+    useDocuments.setState({ documents: new Map(), activeDocId: null });
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+
+    expect(await screen.findByRole("button", { name: "Tlačiť" })).toBeDisabled();
+  });
+
+  it("shows a muted status when Ctrl+P is requested without an open document", async () => {
+    useDocuments.setState({ documents: new Map(), activeDocId: null });
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+    await screen.findByRole("button", { name: "Tlačiť" });
+
+    act(() => requestWorkspacePrint(DOC_A));
+
+    expect(
+      await screen.findByText("Najskôr otvorte dokument.", {
+        selector: 'span[role="status"]',
+      }),
+    ).toBeInTheDocument();
   });
 
   it("the successful-save toast reveals the saved path in Explorer", async () => {

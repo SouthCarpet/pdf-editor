@@ -84,4 +84,28 @@ describe("Tauri capability lint (T1.0, plan 062)", () => {
 
     expect(violations.some((v) => v.includes("needs permission allow-startup-paths"))).toBe(true);
   });
+
+  it("fails when the print renderer permission is removed from the granted set", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("allow-render-page-thumbnail")).toBe(true);
+
+    granted.delete("allow-render-page-thumbnail");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission allow-render-page-thumbnail"))).toBe(true);
+  });
+
+  it("fails when temporary print-file removal is no longer allowed", () => {
+    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
+    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
+    const granted = expandGrantedPermissions(acl, rawEntries);
+    expect(granted.has("fs:allow-remove")).toBe(true);
+
+    granted.delete("fs:allow-remove");
+    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
+
+    expect(violations.some((v) => v.includes("needs permission fs:allow-remove"))).toBe(true);
+  });
 });

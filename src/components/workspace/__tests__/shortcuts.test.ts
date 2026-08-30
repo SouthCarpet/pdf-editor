@@ -76,6 +76,11 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(key({ key: "S", ctrlKey: true }), false)).toEqual({ type: "save" });
   });
 
+  it("Ctrl+P opens print even while a text input has focus", () => {
+    expect(resolveShortcut(key({ key: "p", ctrlKey: true }), false)).toEqual({ type: "print" });
+    expect(resolveShortcut(key({ key: "p", ctrlKey: true }), true)).toEqual({ type: "print" });
+  });
+
   it("Ctrl+Z resolves undo and both redo variants resolve redo", () => {
     expect(resolveShortcut(key({ key: "z", ctrlKey: true }), false)).toEqual({ type: "undo" });
     expect(resolveShortcut(key({ key: "y", ctrlKey: true }), false)).toEqual({ type: "redo" });
@@ -206,6 +211,18 @@ describe("resolveShortcut", () => {
 });
 
 describe("WORKSPACE_SHORTCUTS", () => {
+  it("registers Ctrl+P in the file group and allows it in text input", () => {
+    const row = WORKSPACE_SHORTCUTS.find((shortcut) => shortcut.id === "print");
+    expect(row).toMatchObject({
+      action: "print",
+      keys: ["p"],
+      modifier: "ctrl",
+      shift: false,
+      allowInTextInput: true,
+      group: "file",
+    });
+  });
+
   it("registers the shortcut overlay in the view group", () => {
     const row = WORKSPACE_SHORTCUTS.find((shortcut) => shortcut.id === "open-shortcuts");
     expect(row).toMatchObject({

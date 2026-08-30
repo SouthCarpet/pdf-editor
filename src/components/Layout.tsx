@@ -8,6 +8,7 @@ import { DocumentTabs } from "./opening/DocumentTabs";
 import { OpenFilesProvider } from "./opening/OpenFilesProvider";
 import { UpdateNotice } from "./UpdateNotice";
 import { useUpdateStore } from "@/stores/updateStore";
+import { PrintShortcutStatus } from "./workspace/PrintShortcutStatus";
 
 export function Layout({ children }: { children: ReactNode }) {
   const checkForUpdate = useUpdateStore((state) => state.check);
@@ -26,6 +27,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <SessionRestorePrompt />
           <Onboarding />
           <CloseGuardDialog />
+          <PrintShortcutStatus />
           <main className="min-h-0 flex-1 overflow-auto p-6">{children}</main>
         </div>
       </OpenFilesProvider>

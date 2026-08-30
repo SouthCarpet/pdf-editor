@@ -8,6 +8,7 @@ import { historyStore } from "@/stores/historyStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
 import { resolveShortcut, shortcutFocus, type ShortcutAction } from "./shortcuts";
+import { requestWorkspacePrint } from "./printRequest";
 
 function runAction(
   action: ShortcutAction,
@@ -30,6 +31,9 @@ function runAction(
       return true;
     case "save-as":
       if (hasUnsavedWork(docId)) void saveDocument(docId, { forcePrompt: true });
+      return true;
+    case "print":
+      requestWorkspacePrint(docId);
       return true;
     case "undo":
       historyStore.getState().undo(docId);
