@@ -12,10 +12,15 @@ import { commands, type Annotation } from "@/bindings";
 import { pickSavePath } from "@/tauri/bridge";
 import { useAppStore } from "@/stores/appStore";
 import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
-import { NO_ANNOTATIONS, useAnnotations } from "@/stores/annotationsStore";
+import {
+  NO_ANNOTATIONS,
+  useAnnotations,
+  type ClientAnnotation,
+} from "@/stores/annotationsStore";
 import { useDocuments, type DocId } from "@/stores/documentStore";
 import { useFilledFields } from "@/stores/filledFieldsStore";
 import { historyStore } from "@/stores/historyStore";
+import { usePrefillStore } from "@/stores/prefillStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 
 /** Directory the save dialog should open in: the user's default folder when
@@ -63,6 +68,33 @@ function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clien
   return rest;
 }
 
+async function applyAnnotationsCopy(
+  docId: DocId,
+  output: string,
+  pending: readonly ClientAnnotation[],
+): Promise<boolean> {
+  const result = await commands.applyAnnotationsCmd({
+    input: docId,
+    output,
+    annotations: pending.map(stripClientId) as Annotation[],
+    job_id: crypto.randomUUID(),
+  });
+  return result.status === "ok";
+}
+
+/**
+ * Writes a flattened copy for printing through the same Rust apply path as
+ * Save, without changing the open document, its save path, or pending state.
+ * An empty pending list still writes a temporary copy of the source PDF.
+ */
+export async function writePendingAnnotationsCopy(
+  docId: DocId,
+  output: string,
+): Promise<boolean> {
+  const pending = useAnnotations.getState().byDoc[docId] ?? NO_ANNOTATIONS;
+  return applyAnnotationsCopy(docId, output, pending);
+}
+
 export async function saveDocument(
   docId: DocId,
   options: SaveDocumentOptions = {},
@@ -85,13 +117,10 @@ export async function saveDocument(
     output = picked;
   }
 
-  const result = await commands.applyAnnotationsCmd({
-    input: docId,
-    output,
-    annotations: pending.map(stripClientId) as Annotation[],
-    job_id: crypto.randomUUID(),
-  });
-  if (result.status !== "ok") return "failed";
+  if (!(await applyAnnotationsCopy(docId, output, pending))) return "failed";
+
+  // Plan 062 T6.2: a successful save is the moment this fill becomes "the last fill".
+  usePrefillStore.getState().recordFill(docId, pending);
 
   useDocuments.getState().setSavedPath(docId, output);
   useAnnotations.getState().clear(docId);

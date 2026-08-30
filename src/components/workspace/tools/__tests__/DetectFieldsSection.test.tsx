@@ -14,7 +14,10 @@ import "@/i18n";
 import type { Annotation, DetectedFormField } from "@/bindings";
 import { DetectedFieldFill } from "@/components/workspace/DetectedFieldFill";
 import { EditFormsPanel } from "../EditFormsPanel";
+import { fieldPositionKey, templateKey } from "@/components/workspace/prefill/templateHash";
 import { useAnnotations } from "@/stores/annotationsStore";
+import { useFilledFields } from "@/stores/filledFieldsStore";
+import { usePrefillStore } from "@/stores/prefillStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
@@ -102,6 +105,9 @@ describe("forms panel on a scanned page", () => {
     });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
+    useFilledFields.setState({ byDoc: {} });
+    localStorage.removeItem("pdf-editor-prefill");
+    usePrefillStore.setState({ records: [], layoutsByDoc: {}, dismissedDocIds: [] });
     useWorkspace.setState({ autoDetectFormsRequest: 0 });
     Object.assign(globalThis.crypto, { randomUUID: () => "00000000-0000-4000-8000-000000000000" });
   });
@@ -227,5 +233,67 @@ describe("forms panel on a scanned page", () => {
     await waitFor(() =>
       expect(commandFakes.detectScannedFormFieldsCmd).toHaveBeenCalledTimes(1)
     );
+  });
+
+  it("offers Predvyplniť for a matching last fill and does not apply until that button is clicked", async () => {
+    detected = [BOX_FIELD, UNDERLINE_FIELD];
+    const pageSize = { width: 0, height: 0 };
+    usePrefillStore.setState({
+      records: [
+        {
+          templateKey: templateKey(pageSize, detected),
+          savedAt: Date.parse("2026-07-31T10:00:00Z"),
+          values: {
+            [fieldPositionKey(BOX_FIELD)]: "Peter Novák",
+            [fieldPositionKey(UNDERLINE_FIELD)]: "31. 8. 2026",
+          },
+        },
+      ],
+      layoutsByDoc: {},
+      dismissedDocIds: [],
+    });
+
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(await screen.findByRole("button", { name: "Nájsť polia" }));
+
+    expect(await screen.findByText(/Rovnaký formulár ako/)).toBeInTheDocument();
+    expect(screen.getByText(/Predvyplniť ako minule/)).toBeInTheDocument();
+    expect(useAnnotations.getState().byDoc[DOC_PATH]).toBeUndefined();
+
+    await user.click(screen.getByRole("button", { name: "Predvyplniť" }));
+
+    const pending = useAnnotations.getState().byDoc[DOC_PATH];
+    expect(pending).toHaveLength(1);
+    expect(pending[0].type).toBe("free_text");
+    if (pending[0].type !== "free_text") throw new Error("expected FreeText");
+    expect(pending[0].contents).toBe("Peter Novák");
+    expect(screen.queryByText(/Predvyplniť ako minule/)).toBeNull();
+  });
+
+  it("hides the prefill banner for this document after Nie", async () => {
+    detected = [BOX_FIELD];
+    usePrefillStore.setState({
+      records: [
+        {
+          templateKey: templateKey({ width: 0, height: 0 }, detected),
+          savedAt: Date.parse("2026-07-31T10:00:00Z"),
+          values: { [fieldPositionKey(BOX_FIELD)]: "Peter Novák" },
+        },
+      ],
+      layoutsByDoc: {},
+      dismissedDocIds: [],
+    });
+
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.click(await screen.findByRole("button", { name: "Nájsť polia" }));
+    expect(await screen.findByText(/Predvyplniť ako minule/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Nie" }));
+
+    expect(screen.queryByText(/Predvyplniť ako minule/)).toBeNull();
+    expect(useAnnotations.getState().byDoc[DOC_PATH]).toBeUndefined();
+    expect(usePrefillStore.getState().isDismissed(DOC_PATH)).toBe(true);
   });
 });

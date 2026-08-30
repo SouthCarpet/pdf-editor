@@ -168,6 +168,9 @@
     "detect_submit": "Vložiť",
     "detect_save": "Uložiť vyplnenú kópiu",
     "detect_saved": "Vyplnená kópia bola uložená.",
+    "prefill_banner": "Rovnaký formulár ako {{date}}. Predvyplniť ako minule?",
+    "prefill_apply": "Predvyplniť",
+    "prefill_dismiss": "Nie",
     "field_count": "{{count}} polí",
     "field_count_one": "{{count}} pole",
     "field_count_few": "{{count}} polia",
@@ -310,5 +313,25 @@
     "description": "Obnoviť vyplnenie alebo ho zahodiť.",
     "restore": "Obnoviť",
     "discard": "Zahodiť"
+  },
+  "print": {
+    "title": "Tlač",
+    "description": "Pripravte strany a potom vyberte tlačiareň a nastavenia.",
+    "content_label": "Obsah tlače",
+    "filled": "S vyplnením",
+    "original": "Iba originál",
+    "as_image": "Tlačiť ako obrázok",
+    "image_always_note": "Všetky strany sa tlačia ako obrázok.",
+    "image_tooltip": "Táto verzia vždy tlačí všetky strany ako obrázok.",
+    "booklet": "Poradie brožúry",
+    "booklet_note": "Nastavte obojstrannú tlač s otočením na krátkej hrane",
+    "reverse": "Obrátené poradie",
+    "preparing": "Pripravuje sa…",
+    "progress": "{{current}} / {{total}}",
+    "cancelled": "Príprava tlače bola zrušená.",
+    "error": "Tlač sa nepodarilo pripraviť.",
+    "stop": "Zastaviť",
+    "action": "Tlačiť",
+    "no_document": "Najskôr otvorte dokument."
   }
 }

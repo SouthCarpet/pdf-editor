@@ -19,6 +19,8 @@ interface Props {
   onSelectPage?: (pageIndex: number) => void;
   detectedFields?: DetectedFormField[] | null;
   onDetectedFields?: (fields: DetectedFormField[]) => void;
+  /** PDF-point page size (scale-1 viewport). Workspace should pass `basePageSize`. */
+  pageSize?: { width: number; height: number };
   // Plan 050 task D2-UX-2 (R7a): forwarded to `DetectFieldsSection` so the
   // auto-detect dedup survives this panel remounting. Optional so a caller
   // that never triggers `requestAutoDetectForms` (a raw render in a test,
@@ -40,6 +42,7 @@ export function EditFormsPanel({
   detectedFields = null,
   onDetectedFields,
   autoDetectHandledRef,
+  pageSize,
 }: Props) {
   const fallbackAutoDetectHandledRef = useRef(0);
   const resolvedAutoDetectHandledRef = autoDetectHandledRef ?? fallbackAutoDetectHandledRef;
@@ -143,6 +146,7 @@ export function EditFormsPanel({
           fields={detectedFields}
           onDetected={onDetectedFields ?? (() => {})}
           autoDetectHandledRef={resolvedAutoDetectHandledRef}
+          pageSize={pageSize}
         />
       ) : (
         <>

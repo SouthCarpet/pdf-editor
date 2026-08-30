@@ -8,13 +8,23 @@
 //
 // It lives in its own file so the edit to `EditFormsPanel` stays small:
 // the panel renders this in the empty-state branch and owns nothing else.
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type DetectedFormField } from "@/bindings";
-import { useAnnotations } from "@/stores/annotationsStore";
-import { useWorkspace } from "@/stores/workspaceStore";
+import { applyPrefillFills } from "@/components/workspace/prefill/applyPrefill";
+import {
+  formatPrefillDate,
+  prefillOffer,
+  shouldShowPrefillBanner,
+} from "@/components/workspace/prefill/prefillOffer";
+import { templateKey } from "@/components/workspace/prefill/templateHash";
 import { saveDocument } from "@/lib/documentSave";
+import { useAnnotations } from "@/stores/annotationsStore";
+import { useFilledFields } from "@/stores/filledFieldsStore";
+import { EMPTY_FILLED_FIELDS } from "@/components/workspace/filledFieldsState";
+import { usePrefillStore } from "@/stores/prefillStore";
+import { useWorkspace } from "@/stores/workspaceStore";
 
 const DETECT_DPI = 150;
 
@@ -30,7 +40,10 @@ interface Props {
   // this component dies with it, so switching away from Forms and back
   // reset the dedup and re-ran detection for a request already consumed.
   autoDetectHandledRef: RefObject<number>;
+  pageSize?: { width: number; height: number };
 }
+
+const FALLBACK_PAGE_SIZE = { width: 0, height: 0 };
 
 export function DetectFieldsSection({
   docPath,
@@ -38,9 +51,16 @@ export function DetectFieldsSection({
   fields,
   onDetected,
   autoDetectHandledRef,
+  pageSize,
 }: Props) {
-  const { t } = useTranslation("workspace");
+  const { t, i18n } = useTranslation("workspace");
   const annotations = useAnnotations((s) => s.byDoc[docPath]);
+  const resolvedPageSize = pageSize ?? FALLBACK_PAGE_SIZE;
+  const pageKey = `${docPath}\u0000${pageIndex}`;
+  const filledMarks = useFilledFields((s) => s.byDoc[docPath] ?? EMPTY_FILLED_FIELDS);
+  const filledIds = filledMarks.key === pageKey ? filledMarks.ids : EMPTY_FILLED_FIELDS.ids;
+  const records = usePrefillStore((s) => s.records);
+  const dismissed = usePrefillStore((s) => s.dismissedDocIds.includes(docPath));
   const [busy, setBusy] = useState<"detect" | "save" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -73,6 +93,39 @@ export function DetectFieldsSection({
     autoDetectHandledRef.current = autoDetectRequest;
     void onDetect();
   }, [autoDetectRequest, autoDetectHandledRef, onDetect]);
+
+  useEffect(() => {
+    if (fields === null || fields.length === 0) return;
+    usePrefillStore.getState().rememberLayout(docPath, resolvedPageSize, fields);
+  }, [docPath, fields, resolvedPageSize]);
+
+  const matchingRecord = useMemo(() => {
+    if (fields === null || fields.length === 0) return undefined;
+    const key = templateKey(resolvedPageSize, fields);
+    return records.find((record) => record.templateKey === key);
+  }, [fields, records, resolvedPageSize]);
+
+  const showPrefill = shouldShowPrefillBanner({
+    record: matchingRecord,
+    fields: fields ?? [],
+    filledIds,
+    dismissed,
+  });
+
+  function onPrefill() {
+    if (fields === null || matchingRecord === undefined) return;
+    const valuesByFieldId = prefillOffer(matchingRecord, fields, filledIds);
+    applyPrefillFills({
+      docPath,
+      pageKey,
+      fields,
+      valuesByFieldId,
+    });
+  }
+
+  function onDismissPrefill() {
+    usePrefillStore.getState().dismissOffer(docPath);
+  }
 
   async function onSaveFilled() {
     const pending = annotations ?? [];
@@ -116,6 +169,27 @@ export function DetectFieldsSection({
           <p className="text-xs text-[var(--color-muted)]">
             {t("forms.detected_field_count", { count: fields.length })}
           </p>
+          {showPrefill && matchingRecord !== undefined && (
+            <div
+              role="region"
+              aria-label={t("forms.prefill_apply")}
+              className="space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-accent-soft)] px-2 py-2"
+            >
+              <p className="text-[11px] leading-relaxed text-[var(--color-accent-soft-foreground)]">
+                {t("forms.prefill_banner", {
+                  date: formatPrefillDate(matchingRecord.savedAt, i18n.language),
+                })}
+              </p>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={onPrefill}>
+                  {t("forms.prefill_apply")}
+                </Button>
+                <Button size="sm" variant="outline" onClick={onDismissPrefill}>
+                  {t("forms.prefill_dismiss")}
+                </Button>
+              </div>
+            </div>
+          )}
           <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
             {t("forms.detect_hint")}
           </p>

@@ -167,6 +167,9 @@
     "detect_submit": "Insert",
     "detect_save": "Save filled copy",
     "detect_saved": "Filled copy saved.",
+    "prefill_banner": "Same form as {{date}}. Fill like last time?",
+    "prefill_apply": "Fill",
+    "prefill_dismiss": "No",
     "field_count": "{{count}} fields",
     "field_count_one": "{{count}} field",
     "field_count_other": "{{count}} fields",
@@ -306,5 +309,25 @@
     "description": "Restore the fills or discard them.",
     "restore": "Restore",
     "discard": "Discard"
+  },
+  "print": {
+    "title": "Print",
+    "description": "Prepare the pages, then choose the printer and settings.",
+    "content_label": "Print content",
+    "filled": "With fills",
+    "original": "Original only",
+    "as_image": "Print as image",
+    "image_always_note": "All pages are printed as images.",
+    "image_tooltip": "This version always prints every page as an image.",
+    "booklet": "Booklet order",
+    "booklet_note": "Choose two-sided printing with flip on the short edge",
+    "reverse": "Reverse order",
+    "preparing": "Preparing…",
+    "progress": "{{current}} / {{total}}",
+    "cancelled": "Print preparation was cancelled.",
+    "error": "The document could not be prepared for printing.",
+    "stop": "Stop",
+    "action": "Print",
+    "no_document": "Open a document first."
   }
 }

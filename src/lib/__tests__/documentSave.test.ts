@@ -32,7 +32,10 @@ vi.mock("@/bindings", () => ({ commands: commandFakes }));
 import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 import { useAppStore } from "@/stores/appStore";
 import { ZOOM_DEFAULT } from "@/stores/workspaceStore";
-import { saveDocument } from "../documentSave";
+import type { DetectedFormField } from "@/bindings";
+import { fieldPositionKey, templateKey } from "@/components/workspace/prefill/templateHash";
+import { usePrefillStore } from "@/stores/prefillStore";
+import { saveDocument, writePendingAnnotationsCopy } from "../documentSave";
 import { hasUnsavedWork } from "../unsavedWork";
 
 describe("saveDocument", () => {
@@ -50,6 +53,8 @@ describe("saveDocument", () => {
       defaultZoom: ZOOM_DEFAULT,
       openLastDocumentAtStart: false,
     });
+    localStorage.removeItem("pdf-editor-prefill");
+    usePrefillStore.setState({ records: [], layoutsByDoc: {}, dismissedDocIds: [] });
   });
 
   it("returns 'saved' with nothing pending and no other dirty state", async () => {
@@ -206,6 +211,53 @@ describe("saveDocument", () => {
     expect(hasUnsavedWork(DOC_A)).toBe(true);
   });
 
+  it("records the latest fill for a remembered template on a successful save", async () => {
+    const nameField: DetectedFormField = {
+      id: "0:0",
+      page_index: 0,
+      rect: [100, 700, 250, 724],
+      kind: "box",
+      confidence: 0.9,
+    };
+    const fill: Annotation = {
+      type: "free_text",
+      page: 0,
+      rect: nameField.rect,
+      contents: "Peter Novák",
+      style: {
+        font_family: "Helvetica",
+        font_postscript_name: "Helvetica",
+        size_pt: 12,
+        bold: false,
+        italic: false,
+        underline: false,
+        strikethrough: false,
+        color: [0, 0, 0],
+        background: null,
+        align: "left",
+        vertical_align: "top",
+        letter_spacing: 0,
+        line_height_multiplier: 1.2,
+      },
+      background_fill: null,
+      border_color: [0, 0, 0],
+      border_width: 0,
+      auto_resize: false,
+    };
+    const pageSize = { width: 595, height: 842 };
+    usePrefillStore.getState().rememberLayout(DOC_A, pageSize, [nameField]);
+    useAnnotations.getState().add(DOC_A, fill);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+
+    const outcome = await saveDocument(DOC_A);
+
+    expect(outcome).toBe("saved");
+    const stored = usePrefillStore
+      .getState()
+      .recordForTemplate(templateKey(pageSize, [nameField]));
+    expect(stored?.values).toEqual({ [fieldPositionKey(nameField)]: "Peter Novák" });
+  });
+
   it("saving one document does not touch another document's pending work or path", async () => {
     useAnnotations.getState().add(DOC_A, NOTE);
     useAnnotations.getState().add(OTHER_PATH, NOTE);
@@ -214,5 +266,18 @@ describe("saveDocument", () => {
     await saveDocument(DOC_A);
 
     expect(useAnnotations.getState().byDoc[OTHER_PATH]).toHaveLength(1);
+  });
+
+  it("writes a temporary print copy without clearing pending annotations or changing the save path", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+
+    const written = await writePendingAnnotationsCopy(DOC_A, OTHER_PATH);
+
+    expect(written).toBe(true);
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ input: DOC_A, output: OTHER_PATH }),
+    );
+    expect(useAnnotations.getState().byDoc[DOC_A]).toHaveLength(1);
+    expect(useDocuments.getState().documents.get(DOC_A)?.savedPath).toBeUndefined();
   });
 });

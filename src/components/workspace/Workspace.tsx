@@ -698,6 +698,7 @@ export function Workspace({ pdf, path }: Props) {
                     setDetectState({ key: ocrPageKey, fields });
                   }}
                   autoDetectHandledRef={autoDetectHandledRef}
+                  pageSize={basePageSize}
                 />
               )}
               {editSubTool === "annotations" && (
