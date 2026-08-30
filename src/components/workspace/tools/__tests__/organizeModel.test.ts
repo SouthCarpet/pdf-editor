@@ -242,6 +242,38 @@ describe("buildApplyPlan", () => {
     expect(plan.stages[0]).toEqual({ type: "reorder", new_order: [1, 2, 2] });
     expect(plan.finalPageCount).toBe(3);
   });
+
+  it("emits an empty reorder that drops every original before a surviving blank", () => {
+    // Oracle: T5.1 R1 — delete all originals, add one blank; the walk is one page
+    // and the stage list contains the deletion (empty keep list).
+    let state = insertBlankAfter(createOrganizeState(2), "p1");
+    state = toggleDeleted(state, "p0");
+    state = toggleDeleted(state, "p1");
+
+    const plan = buildApplyPlan(state);
+
+    expect(plan.finalPageCount).toBe(1);
+    expect(pageCountFromStages(plan)).toBe(1);
+    expect(plan.stages[0]).toEqual({ type: "reorder", new_order: [] });
+    expect(plan.stages[1]).toMatchObject({ type: "insert_blank", after_page_index: -1 });
+  });
+
+  it("emits after_page_index -1 when a blank occupies the first slot", () => {
+    // Oracle: T5.1 R2 — insert before page 1 is after_page_index -1, not 0.
+    let state = insertBlankAfter(createOrganizeState(2), "p0");
+    const blankId = state.pages[1]!.id;
+    state = movePages(state, [blankId], 0);
+
+    const plan = buildApplyPlan(state);
+
+    expect(ids(state)).toEqual([blankId, "p0", "p1"]);
+    expect(plan.stages[0]).toEqual({ type: "reorder", new_order: [1, 2] });
+    expect(plan.stages[1]).toMatchObject({
+      type: "insert_blank",
+      after_page_index: -1,
+    });
+    expect(pageCountFromStages(plan)).toBe(3);
+  });
 });
 
 describe("mergeImportSplit", () => {

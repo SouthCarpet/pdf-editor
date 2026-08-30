@@ -124,9 +124,8 @@ pub async fn reorder_pages_cmd(
 pub struct InsertBlankPageArgs {
     pub input: String,
     pub output: String,
-    /// Insert a blank page AFTER this 0-based page index. Use `-1` (or
-    /// `0` with `after_page_index = -1` equivalent) to insert at the
-    /// beginning. The Rust side normalizes negative indices to 0.
+    /// Insert a blank page AFTER this 0-based page index. Use `-1` to
+    /// insert before the first page. `0` still means after page 1.
     pub after_page_index: i32,
     pub width: f32,
     pub height: f32,
@@ -142,7 +141,7 @@ pub async fn insert_blank_page_cmd(
     let _token = state.cancellation.register(&args.job_id);
     let input = PathBuf::from(&args.input);
     let output = PathBuf::from(&args.output);
-    let after = args.after_page_index.max(0) as u32;
+    let after = args.after_page_index;
     let w = args.width;
     let h = args.height;
     tokio::task::spawn_blocking(move || insert_blank_page(&input, after, &output, w, h))

@@ -247,7 +247,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           pendingExtract = { path: dest, count: stage.pages.length };
         } else if (stage.type === "merge_import") {
           if (!pendingExtract) continue;
-          if (!hasCurrent) {
+          if (!hasCurrent || pageCount === 0) {
             current = pendingExtract.path;
             pageCount = pendingExtract.count;
             hasCurrent = true;

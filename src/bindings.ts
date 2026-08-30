@@ -521,9 +521,8 @@ export type InsertBlankPageArgs = {
 	input: string,
 	output: string,
 	/**
-	 *  Insert a blank page AFTER this 0-based page index. Use `-1` (or
-	 *  `0` with `after_page_index = -1` equivalent) to insert at the
-	 *  beginning. The Rust side normalizes negative indices to 0.
+	 *  Insert a blank page AFTER this 0-based page index. Use `-1` to
+	 *  insert before the first page. `0` still means after page 1.
 	 */
 	after_page_index: number,
 	width: number | null,

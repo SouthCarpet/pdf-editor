@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type * as pdfjs from "pdfjs-dist";
+import { commands } from "@/bindings";
 import i18n from "@/i18n";
 import { historyStore } from "@/stores/historyStore";
+import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 import { OrganizePanel } from "../OrganizePanel";
 
 vi.mock("../../PdfViewer", () => ({
@@ -73,3 +75,42 @@ describe("OrganizePanel selection and undo", () => {
     expect(restored).toEqual(["thumb-0", "thumb-1", "thumb-2", "thumb-3"]);
   });
 });
+
+describe("OrganizePanel apply plan", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    historyStore.setState({ byDoc: {} });
+    resetFakeBridge();
+    vi.mocked(commands.reorderPagesCmd).mockReset();
+    vi.mocked(commands.insertBlankPageCmd).mockReset();
+    vi.mocked(commands.saveDocument).mockReset();
+  });
+
+  it("Apply after deleting every original and inserting a blank reorders empty then inserts", async () => {
+    const ok = { status: "ok" as const, data: { output_paths: ["stage.pdf"] } };
+    fakeBridge.pickSavePath.mockResolvedValue("A:\\docs\\order.organized.pdf");
+    vi.mocked(commands.reorderPagesCmd).mockResolvedValue(ok);
+    vi.mocked(commands.insertBlankPageCmd).mockResolvedValue(ok);
+    vi.mocked(commands.saveDocument).mockResolvedValue({ status: "ok", data: null });
+
+    const user = userEvent.setup();
+    render(<OrganizePanel pdf={pdf} docPath={DOC} />);
+    const cards = screen.getAllByRole("option");
+    fireEvent.click(cards[0]);
+    fireEvent.click(cards[3], { shiftKey: true });
+    await user.click(screen.getByRole("button", { name: "Delete selected" }));
+    await user.click(screen.getAllByRole("button", { name: "Insert blank page after" })[0]);
+    await user.click(screen.getByRole("button", { name: "Apply changes" }));
+
+    await waitFor(() => {
+      expect(commands.reorderPagesCmd).toHaveBeenCalled();
+    });
+    expect(vi.mocked(commands.reorderPagesCmd).mock.calls[0]?.[0]).toMatchObject({
+      new_order: [],
+    });
+    expect(vi.mocked(commands.insertBlankPageCmd).mock.calls[0]?.[0]).toMatchObject({
+      after_page_index: -1,
+    });
+  });
+});
+

@@ -126,6 +126,17 @@ describe("presetA4", () => {
       height: 500,
     });
   });
+
+  it("clamps portrait A4 onto a US Letter page (612 x 792 pt)", () => {
+    // Hand-checked oracle: 210 mm = 595.275590... pt, 297 mm = 841.889... pt.
+    // Height clamps to 792; x centres the remaining width. Asserted to 4 d.p.
+    // (the brief's rounding); y and height are exact integers.
+    const next = presetA4({ width: 612, height: 792 });
+    expect(next.x).toBeCloseTo(8.3622, 4);
+    expect(next.y).toBe(0);
+    expect(next.width).toBeCloseTo(595.2756, 4);
+    expect(next.height).toBe(792);
+  });
 });
 
 describe("presetMargins and presetFullPage", () => {

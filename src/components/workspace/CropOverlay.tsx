@@ -4,11 +4,10 @@
 import { useEffect, useRef } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { Group, Rect } from "react-konva";
+import { readToken, withAlpha } from "@/lib/tokens";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { commitCropDragEnd } from "./tools/cropHistory";
 import {
-  CROP_ACCENT,
-  CROP_DIM_FILL,
   CROP_HANDLE_CURSOR,
   cropHandlePositions,
   moveCropRect,
@@ -39,6 +38,9 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
   const handleStartRef = useRef<CropRect>(rect);
   const handleOriginRef = useRef({ x: 0, y: 0 });
   const page = { width, height };
+  // Read live tokens each render (Konva cannot resolve CSS variables). Hex is jsdom fallback.
+  const accent = readToken("--color-accent", "#1d4ed8");
+  const dimFill = withAlpha(readToken("--color-background", "#fafafa"), 0.4);
 
   useEffect(() => {
     applyRef.current = (next) => {
@@ -88,13 +90,13 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
   return (
     <OverlayCanvas width={width} height={height}>
       <Group>
-        <Rect x={0} y={0} width={width} height={rect.y} fill={CROP_DIM_FILL} listening={false} />
+        <Rect x={0} y={0} width={width} height={rect.y} fill={dimFill} listening={false} />
         <Rect
           x={0}
           y={rect.y + rect.height}
           width={width}
           height={Math.max(0, height - rect.y - rect.height)}
-          fill={CROP_DIM_FILL}
+          fill={dimFill}
           listening={false}
         />
         <Rect
@@ -102,7 +104,7 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
           y={rect.y}
           width={rect.x}
           height={rect.height}
-          fill={CROP_DIM_FILL}
+          fill={dimFill}
           listening={false}
         />
         <Rect
@@ -110,7 +112,7 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
           y={rect.y}
           width={Math.max(0, width - rect.x - rect.width)}
           height={rect.height}
-          fill={CROP_DIM_FILL}
+          fill={dimFill}
           listening={false}
         />
         <Rect
@@ -118,7 +120,7 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
           y={rect.y}
           width={rect.width}
           height={rect.height}
-          stroke={CROP_ACCENT}
+          stroke={accent}
           strokeWidth={1}
           fill="transparent"
           draggable
@@ -134,8 +136,8 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
             height={HANDLE_SIZE}
-            fill={CROP_ACCENT}
-            stroke={CROP_ACCENT}
+            fill={accent}
+            stroke={accent}
             strokeWidth={1}
             draggable
             onMouseEnter={(e) => setCursor(e, CROP_HANDLE_CURSOR[handle])}

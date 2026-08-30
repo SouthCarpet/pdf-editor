@@ -56,7 +56,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
 
   useEffect(() => {
     if (rect.x === 0 && rect.y === 0 && rect.width === 0 && rect.height === 0) {
-      onRectChange(
+      onRectChangeRef.current(
         {
           x: 20,
           y: 20,
@@ -66,8 +66,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         false,
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageWidth, pageHeight]);
+  }, [pageWidth, pageHeight, rect.x, rect.y, rect.width, rect.height]);
 
   function changeRect(next: CropRect) {
     commitCropRectChange(docPath, rect, clampCropRect(next, page), applyRect);

@@ -29,11 +29,6 @@ export const A4_WIDTH_MM = 210;
 export const A4_HEIGHT_MM = 297;
 export const MIN_CROP_SIZE_PT = MIN_RESIZE_SIZE_PT;
 
-/** `--color-accent` light token (#1d4ed8). Konva cannot resolve CSS variables. */
-export const CROP_ACCENT = "#1d4ed8";
-/** `--color-background` light token (#fafafa) at 40% opacity. */
-export const CROP_DIM_FILL = "rgba(250, 250, 250, 0.4)";
-
 export const CROP_HANDLE_CURSOR: Record<CropHandle, string> = {
   n: "ns-resize",
   s: "ns-resize",

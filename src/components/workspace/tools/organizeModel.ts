@@ -247,12 +247,13 @@ export function buildApplyPlan(state: OrganizeState): ApplyPlan {
   const core = kept.filter(isCore);
   const stages: ApplyStage[] = [];
 
-  if (core.length > 0) {
-    stages.push({
-      type: "reorder",
-      new_order: core.map((page) => (page.originalIndex ?? 0) + 1),
-    });
-  }
+  // Always emit reorder, including an empty keep list. `reorderPagesCmd`
+  // treats `new_order` as the complete page list, so `[]` deletes every
+  // original before blank/import stages run against the result.
+  stages.push({
+    type: "reorder",
+    new_order: core.map((page) => (page.originalIndex ?? 0) + 1),
+  });
 
   let outputIndex = -1;
   let index = 0;

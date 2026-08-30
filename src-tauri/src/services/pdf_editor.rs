@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use lopdf::{Document, Object, ObjectId};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 
@@ -145,15 +145,21 @@ pub fn rotate_pages(input: &Path, page_rotations: &[(u32, i64)], output: &Path) 
 }
 
 /// Insert a single blank page into the document AFTER the given 0-based
-/// page index. The new page's MediaBox is `(0, 0, width, height)` in PDF
+/// page index. Pass a negative index (`-1`) to insert before the first
+/// page. The new page's MediaBox is `(0, 0, width, height)` in PDF
 /// user-space (72 pt) units. Phase 11 Task 63 — Organize tool.
+///
+/// `after_page_index` is `impl Into<i64>` so pipeline callers can keep
+/// passing `u32` (0 = after the first page) while `insert_blank_page_cmd`
+/// can pass `-1` for prepend.
 pub fn insert_blank_page(
     input: &Path,
-    after_page_index: u32,
+    after_page_index: impl Into<i64>,
     output: &Path,
     width: f32,
     height: f32,
 ) -> Result<()> {
+    let after_page_index = after_page_index.into();
     let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages_id: ObjectId = doc
         .catalog()
@@ -189,7 +195,13 @@ pub fn insert_blank_page(
     let mut kid_order: Vec<ObjectId> = (1..=pages_map.len() as u32)
         .filter_map(|n| pages_map.get(&n).copied())
         .collect();
-    let insert_at = (after_page_index as usize + 1).min(kid_order.len());
+    let insert_at = if after_page_index < 0 {
+        0
+    } else {
+        (after_page_index as usize)
+            .saturating_add(1)
+            .min(kid_order.len())
+    };
     kid_order.insert(insert_at, blank_id);
 
     if let Some(obj) = doc.objects.get_mut(&pages_id) {
@@ -213,10 +225,25 @@ pub fn reorder_pages(input: &Path, new_order: &[u32], output: &Path) -> Result<(
     let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     let pages = doc.get_pages();
     let mut new_kids: Vec<Object> = Vec::with_capacity(new_order.len());
+    let mut seen = HashSet::new();
     for &page_num in new_order {
-        if let Some(&page_id) = pages.get(&page_num) {
+        let Some(&page_id) = pages.get(&page_num) else {
+            continue;
+        };
+        if seen.insert(page_id) {
             new_kids.push(Object::Reference(page_id));
+            continue;
         }
+        // Repeated index: clone the page dictionary so each copy can carry
+        // its own /Rotate. Content streams and resources stay shared.
+        let cloned = doc
+            .get_object(page_id)
+            .ok()
+            .and_then(|obj| obj.as_dict().ok())
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("page {page_num} is not a dictionary"))?;
+        let clone_id = doc.add_object(Object::Dictionary(cloned));
+        new_kids.push(Object::Reference(clone_id));
     }
     let pages_dict_id: ObjectId = doc
         .catalog()
@@ -233,4 +260,154 @@ pub fn reorder_pages(input: &Path, new_order: &[u32], output: &Path) -> Result<(
     doc.compress();
     doc.save(output)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::pdf_guard::load_guarded;
+    use tempfile::tempdir;
+
+    fn write_n_page_pdf(path: &Path, n: u32) {
+        let mut doc = Document::with_version("1.7");
+        let pages_id = doc.new_object_id();
+        let mut kids = Vec::new();
+        for _ in 0..n {
+            let contents_id = doc.add_object(Object::Stream(lopdf::Stream::new(
+                lopdf::Dictionary::new(),
+                Vec::new(),
+            )));
+            let mut page = lopdf::Dictionary::new();
+            page.set("Type", Object::Name(b"Page".to_vec()));
+            page.set("Parent", pages_id);
+            page.set(
+                "MediaBox",
+                vec![
+                    Object::Integer(0),
+                    Object::Integer(0),
+                    Object::Integer(595),
+                    Object::Integer(842),
+                ],
+            );
+            page.set("Resources", lopdf::Dictionary::new());
+            page.set("Contents", Object::Reference(contents_id));
+            let page_id = doc.add_object(Object::Dictionary(page));
+            kids.push(Object::Reference(page_id));
+        }
+        let count = kids.len() as i64;
+        let mut pages_dict = lopdf::Dictionary::new();
+        pages_dict.set("Type", "Pages");
+        pages_dict.set("Kids", kids);
+        pages_dict.set("Count", count);
+        doc.objects
+            .insert(pages_id, Object::Dictionary(pages_dict));
+        let catalog_id = doc.new_object_id();
+        let mut catalog = lopdf::Dictionary::new();
+        catalog.set("Type", "Catalog");
+        catalog.set("Pages", pages_id);
+        doc.objects
+            .insert(catalog_id, Object::Dictionary(catalog));
+        doc.trailer.set("Root", catalog_id);
+        doc.save(path).expect("write fixture pdf");
+    }
+
+    fn page_count(path: &Path) -> usize {
+        load_guarded(path).unwrap().get_pages().len()
+    }
+
+    fn kid_ids(path: &Path) -> Vec<ObjectId> {
+        let doc = load_guarded(path).unwrap();
+        let pages = doc.get_pages();
+        (1..=pages.len() as u32)
+            .filter_map(|n| pages.get(&n).copied())
+            .collect()
+    }
+
+    fn page_rotate(path: &Path, page_1based: u32) -> i64 {
+        let doc = load_guarded(path).unwrap();
+        let pages = doc.get_pages();
+        let page_id = *pages.get(&page_1based).expect("page");
+        doc.get_object(page_id)
+            .ok()
+            .and_then(|obj| obj.as_dict().ok())
+            .and_then(|dict| dict.get(b"Rotate").ok())
+            .and_then(|obj| obj.as_i64().ok())
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn reorder_empty_keep_list_drops_every_original_page() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 2);
+        let out = tmp.path().join("empty.pdf");
+        reorder_pages(&src, &[], &out).unwrap();
+        assert_eq!(page_count(&out), 0);
+    }
+
+    #[test]
+    fn delete_all_pages_also_yields_empty_document() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 2);
+        let out = tmp.path().join("deleted.pdf");
+        delete_pages(&src, &[1, 2], &out).unwrap();
+        assert_eq!(page_count(&out), 0);
+    }
+
+    #[test]
+    fn empty_reorder_then_prepend_blank_yields_one_page() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 2);
+        let empty = tmp.path().join("empty.pdf");
+        reorder_pages(&src, &[], &empty).unwrap();
+        let out = tmp.path().join("blank.pdf");
+        insert_blank_page(&empty, -1i32, &out, 595.0, 842.0).unwrap();
+        assert_eq!(page_count(&out), 1);
+    }
+
+    #[test]
+    fn insert_blank_after_negative_one_prepends_before_page_one() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 2);
+        let before = kid_ids(&src);
+        let out = tmp.path().join("prepended.pdf");
+        insert_blank_page(&src, -1i32, &out, 595.0, 842.0).unwrap();
+        let after = kid_ids(&out);
+        assert_eq!(after.len(), 3);
+        assert_eq!(after[1], before[0]);
+        assert_eq!(after[2], before[1]);
+        assert_ne!(after[0], before[0]);
+    }
+
+    #[test]
+    fn insert_blank_after_zero_still_inserts_after_the_first_page() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 2);
+        let before = kid_ids(&src);
+        let out = tmp.path().join("after-first.pdf");
+        insert_blank_page(&src, 0u32, &out, 595.0, 842.0).unwrap();
+        let after = kid_ids(&out);
+        assert_eq!(after.len(), 3);
+        assert_eq!(after[0], before[0]);
+        assert_eq!(after[2], before[1]);
+        assert_ne!(after[1], before[0]);
+    }
+
+    #[test]
+    fn reorder_repeated_index_then_rotate_copy_leaves_original_unrotated() {
+        let tmp = tempdir().unwrap();
+        let src = tmp.path().join("src.pdf");
+        write_n_page_pdf(&src, 1);
+        let dup = tmp.path().join("dup.pdf");
+        reorder_pages(&src, &[1, 1], &dup).unwrap();
+        assert_eq!(page_count(&dup), 2);
+        let rotated = tmp.path().join("rot.pdf");
+        rotate_pages(&dup, &[(2, 90)], &rotated).unwrap();
+        assert_eq!(page_rotate(&rotated, 1), 0);
+        assert_eq!(page_rotate(&rotated, 2), 90);
+    }
 }
