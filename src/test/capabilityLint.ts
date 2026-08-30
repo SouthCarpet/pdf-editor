@@ -158,10 +158,13 @@ export const CALL_PERMISSIONS: Record<string, string> = {
   "api/path:normalize": "core:path:allow-normalize",
 };
 
-const APP_COMMAND_PERMISSIONS: Record<string, string> = {
-  startup_paths: "allow-startup-paths",
-  renderPageThumbnail: "allow-render-page-thumbnail",
-};
+// App commands are allowed by default and MUST stay that way: putting any of
+// them into a tauri_build::AppManifest command list in src-tauri/build.rs
+// switches EVERY app command to the ACL, and the unlisted ones (for example
+// check_for_update, open_document) fail at runtime with "not allowed by ACL"
+// (found by Michal in the 2026-08-30 build). This map therefore stays empty;
+// a companion test asserts build.rs carries no AppManifest command list.
+const APP_COMMAND_PERMISSIONS: Record<string, string> = {};
 
 interface ImportedName {
   local: string;

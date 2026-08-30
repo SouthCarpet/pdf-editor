@@ -73,28 +73,13 @@ describe("Tauri capability lint (T1.0, plan 062)", () => {
     expect(violations.some((v) => v.includes("needs permission core:event:allow-listen"))).toBe(true);
   });
 
-  it("fails when allow-startup-paths is removed from the granted set", () => {
-    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
-    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
-    const granted = expandGrantedPermissions(acl, rawEntries);
-    expect(granted.has("allow-startup-paths")).toBe(true);
-
-    granted.delete("allow-startup-paths");
-    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
-
-    expect(violations.some((v) => v.includes("needs permission allow-startup-paths"))).toBe(true);
-  });
-
-  it("fails when the print renderer permission is removed from the granted set", () => {
-    const acl = JSON.parse(readFileSync(join(REPO_ROOT, "src-tauri/gen/schemas/acl-manifests.json"), "utf8"));
-    const rawEntries = loadCapabilityEntries(join(REPO_ROOT, "src-tauri/capabilities"));
-    const granted = expandGrantedPermissions(acl, rawEntries);
-    expect(granted.has("allow-render-page-thumbnail")).toBe(true);
-
-    granted.delete("allow-render-page-thumbnail");
-    const { violations } = lintCapabilities({ repoRoot: REPO_ROOT, grantedOverride: granted });
-
-    expect(violations.some((v) => v.includes("needs permission allow-render-page-thumbnail"))).toBe(true);
+  it("build.rs carries no AppManifest command list (every app command must stay allowed by default)", () => {
+    // Listing ANY app command in tauri_build::AppManifest puts EVERY app
+    // command under the ACL; the unlisted ones then fail at runtime with
+    // "not allowed by ACL" (check_for_update and open_document broke this
+    // way in the 2026-08-30 build).
+    const buildRs = readFileSync(join(REPO_ROOT, "src-tauri/build.rs"), "utf8");
+    expect(buildRs).not.toMatch(/AppManifest::new|app_manifest\s*\(/);
   });
 
   it("fails when temporary print-file removal is no longer allowed", () => {
@@ -108,4 +93,5 @@ describe("Tauri capability lint (T1.0, plan 062)", () => {
 
     expect(violations.some((v) => v.includes("needs permission fs:allow-remove"))).toBe(true);
   });
+
 });

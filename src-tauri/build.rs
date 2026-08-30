@@ -38,8 +38,11 @@ fn main() {
         println!("cargo:rerun-if-changed=native/rapidocr_ort.c");
         println!("cargo:rerun-if-changed=resources/ocr/include/onnxruntime_c_api.h");
     }
-    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
-        tauri_build::AppManifest::new().commands(&["startup_paths", "render_page_thumbnail"]),
-    ))
-    .expect("failed to build Tauri application metadata")
+    // No AppManifest command list here, on purpose. Listing ANY app command
+    // puts EVERY app command under the ACL: only the listed ones get
+    // permissions, and the rest fail at runtime with "not allowed by ACL"
+    // (check_for_update and open_document broke this way on 2026-08-30).
+    // App commands are this app's own code and stay allowed by default;
+    // capabilities/default.json grants plugin and window permissions only.
+    tauri_build::build()
 }

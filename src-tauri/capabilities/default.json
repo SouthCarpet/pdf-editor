@@ -9,8 +9,6 @@
     "core:window:allow-destroy",
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "allow-startup-paths",
-    "allow-render-page-thumbnail",
     "dialog:default",
     "fs:default",
     "fs:allow-exists",
