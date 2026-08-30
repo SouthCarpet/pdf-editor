@@ -1065,6 +1065,12 @@ export type TextStyle = {
 	/**  Optional text highlight background, RGBA in 0..1 (alpha in `[3]`). */
 	background: [(number | null), (number | null), (number | null), (number | null)] | null,
 	align: TextAlign,
+	/**
+	 *  Vertical placement of the complete line block inside its rectangle.
+	 *  Defaults to top so TextStyle JSON written before this field existed
+	 *  keeps loading with the original placement.
+	 */
+	vertical_align?: VerticalAlign,
 	/**  Letter spacing in PDF points (`Tc`). 0 = default. */
 	letter_spacing: number | null,
 	/**  Line height multiplier. 1.0 = single, 1.5 = 1.5x, etc. */
@@ -1088,6 +1094,8 @@ export type VersionCheck = {
 	behind: boolean,
 	error: string | null,
 };
+
+export type VerticalAlign = "top" | "middle" | "bottom";
 
 export type VisualDiffPage = {
 	page_index: number,

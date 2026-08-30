@@ -25,7 +25,7 @@ import {
 class FakeViewport {
   constructor(
     public scale: number,
-    private pageHeight = 792,
+    private pageHeight = 792
   ) {}
 
   convertToViewportRectangle(rect: number[]): number[] {
@@ -64,6 +64,7 @@ function freeText(overrides: Partial<Extract<Annotation, { type: "free_text" }>>
       color: [1, 0, 0],
       background: null,
       align: "left",
+      vertical_align: "top",
       letter_spacing: 0,
       line_height_multiplier: 1.2,
     },

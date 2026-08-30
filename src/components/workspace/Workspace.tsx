@@ -12,11 +12,12 @@ import { Rect } from "react-konva";
 import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { ZOOM_DEFAULT, useWorkspace } from "@/stores/workspaceStore";
-import { DetectedFieldFill } from "./DetectedFieldFill";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay } from "./EditPageOverlay";
 import { deletePendingAnnotation } from "./deletePending";
-import { EMPTY_FILLED_FIELDS, markFieldFilled } from "./filledFieldsState";
+import { selectAdjacentField, selectDetectedField } from "./fieldNavigation";
+import type { FieldDirection } from "./fieldOrder";
+import { EMPTY_FILLED_FIELDS } from "./filledFieldsState";
 import { OcrSelectionOverlay } from "./OcrSelectionOverlay";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { PendingAnnotationControls } from "./PendingAnnotationControls";
@@ -67,6 +68,7 @@ export function Workspace({ pdf, path }: Props) {
   const updateAnnotation = useAnnotations((s) => s.update);
   const removeAnnotation = useAnnotations((s) => s.remove);
   const mainRef = useRef<HTMLElement>(null);
+  const pendingAnnotationHostRef = useRef<HTMLDivElement>(null);
   const wheelAnchorRef = useRef<WheelAnchor | null>(null);
 
   // Track the rendered viewport size of the active page so the overlay
@@ -101,11 +103,6 @@ export function Workspace({ pdf, path }: Props) {
     key: string;
     fields: DetectedFormField[] | null;
   }>({ key: "", fields: null });
-  const [fillTarget, setFillTarget] = useState<{
-    key: string;
-    field: DetectedFormField;
-    screenRect: ScreenRect;
-  } | null>(null);
   const [filledState, setFilledState] = useState(EMPTY_FILLED_FIELDS);
   // Plan 050 task D2-UX: the pending FreeText annotation selected for
   // editing in the control strip (R2). Keyed like the state above so a
@@ -150,8 +147,85 @@ export function Workspace({ pdf, path }: Props) {
     setSelectedPending(null);
   }, [selectedFreeText, removeAnnotation, path, ocrPageKey]);
 
-  // R1: Ctrl+plus/minus/0, Save, and Delete/Backspace on a selected fill.
-  useWorkspaceShortcuts(path, { onDeletePending: handleDeletePending });
+  const applyFieldSelection = useCallback(
+    (selection: ReturnType<typeof selectDetectedField>) => {
+      setFilledState(selection.filled);
+      setSelectedPending({ key: ocrPageKey, clientId: selection.clientId });
+    },
+    [ocrPageKey],
+  );
+
+  const handleSelectField = useCallback(
+    (field: DetectedFormField) => {
+      applyFieldSelection(
+        selectDetectedField({
+          field,
+          filled: filledState,
+          pageKey: ocrPageKey,
+          docPath: path,
+          addAnnotation,
+        }),
+      );
+    },
+    [addAnnotation, applyFieldSelection, filledState, ocrPageKey, path],
+  );
+
+  const moveFieldSelection = useCallback(
+    (direction: FieldDirection) => {
+      if (detectedFields === null) return;
+      const currentFieldId =
+        selectedPendingId === null
+          ? undefined
+          : filledState.fieldIdByClientId[selectedPendingId];
+      if (currentFieldId === undefined) return;
+      const selection = selectAdjacentField({
+        fields: detectedFields,
+        currentId: currentFieldId,
+        direction,
+        filled: filledState,
+        pageKey: ocrPageKey,
+        docPath: path,
+        addAnnotation,
+      });
+      if (selection !== null) applyFieldSelection(selection);
+    },
+    [
+      addAnnotation,
+      applyFieldSelection,
+      detectedFields,
+      filledState,
+      ocrPageKey,
+      path,
+      selectedPendingId,
+    ],
+  );
+
+  const handleNextField = useCallback(() => moveFieldSelection("next"), [moveFieldSelection]);
+  const handlePreviousField = useCallback(
+    () => moveFieldSelection("previous"),
+    [moveFieldSelection],
+  );
+  const handleConfirm = useCallback(() => setSelectedPending(null), []);
+  const handleConfirmNextField = useCallback(() => {
+    handleConfirm();
+    handleNextField();
+  }, [handleConfirm, handleNextField]);
+
+  useWorkspaceShortcuts(path, {
+    onDeletePending: handleDeletePending,
+    onNextField: handleNextField,
+    onPreviousField: handlePreviousField,
+    onConfirmNextField: handleConfirmNextField,
+  });
+
+  useEffect(() => {
+    if (selectedPending === null) return;
+    const input = pendingAnnotationHostRef.current?.querySelector<HTMLInputElement>(
+      '[role="group"] input[type="text"]',
+    );
+    input?.focus();
+    input?.select();
+  }, [selectedPending]);
 
   const selectPage = useCallback(
     (index: number) => {
@@ -259,7 +333,12 @@ export function Workspace({ pdf, path }: Props) {
           ref={mainRef}
           className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6"
         >
-          <div className="relative" style={{ width: pageSize.width, height: pageSize.height }}>
+          <div
+            ref={pendingAnnotationHostRef}
+            data-pending-annotation-host
+            className="relative"
+            style={{ width: pageSize.width, height: pageSize.height }}
+          >
             <PdfViewer pdf={pdf} pageIndex={activePage} zoom={zoom} className="shadow-lg" />
             {activeTool === "crop" && pageSize.width > 0 && (
               <OverlayCanvas width={pageSize.width} height={pageSize.height}>
@@ -296,33 +375,13 @@ export function Workspace({ pdf, path }: Props) {
                   viewport={pageViewport}
                   detectedFields={editSubTool === "forms" ? detectedFields : null}
                   filledIds={filledIds}
-                  onPickField={(field, screenRect) =>
-                    setFillTarget({ key: ocrPageKey, field, screenRect })
-                  }
+                  onPickField={handleSelectField}
                   pendingAnnotations={pendingAnnotations}
                   selectedPendingId={selectedPendingId}
                   onSelectPending={(clientId) => setSelectedPending({ key: ocrPageKey, clientId })}
                   onPendingRectChange={(clientId, rect) =>
                     updateAnnotation(path, clientId, { rect })
                   }
-                />
-              )}
-            {fillTarget !== null &&
-              fillTarget.key === ocrPageKey &&
-              activeTool === "edit" &&
-              editSubTool === "forms" && (
-                <DetectedFieldFill
-                  field={fillTarget.field}
-                  screenRect={fillTarget.screenRect}
-                  onSubmit={(annotation) => {
-                    const clientId = addAnnotation(path, annotation);
-                    setFilledState((current) =>
-                      markFieldFilled(current, ocrPageKey, fillTarget.field.id, clientId),
-                    );
-                    setFillTarget(null);
-                    setSelectedPending({ key: ocrPageKey, clientId });
-                  }}
-                  onCancel={() => setFillTarget(null)}
                 />
               )}
             {selectedFreeText &&
@@ -349,7 +408,12 @@ export function Workspace({ pdf, path }: Props) {
                       style: { ...selectedFreeText.style, color: hexToRgb01(hex) },
                     })
                   }
-                  onConfirm={() => setSelectedPending(null)}
+                  styleEditing={{
+                    style: selectedFreeText.style,
+                    onChange: (style) =>
+                      updateAnnotation(path, selectedFreeText.__clientId, { style }),
+                  }}
+                  onConfirm={handleConfirm}
                   onDelete={handleDeletePending}
                 />
               )}
@@ -397,7 +461,6 @@ export function Workspace({ pdf, path }: Props) {
                   detectedFields={detectedFields}
                   onDetectedFields={(fields) => {
                     setDetectState({ key: ocrPageKey, fields });
-                    setFillTarget(null);
                   }}
                   autoDetectHandledRef={autoDetectHandledRef}
                 />

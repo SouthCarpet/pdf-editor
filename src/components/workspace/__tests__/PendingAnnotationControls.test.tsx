@@ -6,10 +6,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { TextStyle } from "@/bindings";
 import i18n from "@/i18n";
 import { PendingAnnotationControls } from "../PendingAnnotationControls";
 
 const SCREEN_RECT = { x: 10, y: 20, width: 100, height: 24 };
+const STYLE: TextStyle = {
+  font_family: "Helvetica",
+  font_postscript_name: "Helvetica",
+  size_pt: 14,
+  bold: false,
+  italic: false,
+  underline: false,
+  strikethrough: false,
+  color: [0, 0, 0],
+  background: null,
+  align: "left",
+  vertical_align: "top",
+  letter_spacing: 0,
+  line_height_multiplier: 1.2,
+};
 
 describe("PendingAnnotationControls", () => {
   beforeEach(async () => {
@@ -28,7 +44,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     expect(screen.getByDisplayValue("Peter")).toBeInTheDocument();
@@ -51,7 +67,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     await user.click(screen.getByRole("button", { name: "Zväčšiť písmo" }));
@@ -75,7 +91,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     await user.click(screen.getByRole("button", { name: "Zmenšiť písmo" }));
@@ -96,7 +112,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     await user.type(screen.getByDisplayValue(""), "X");
@@ -117,7 +133,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={onChangeColor}
         onDelete={vi.fn()}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     await user.click(screen.getByRole("button", { name: "#dc2626" }));
@@ -138,7 +154,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={onDelete}
         onConfirm={vi.fn()}
-      />,
+      />
     );
 
     await user.click(screen.getByRole("button", { name: "Odstrániť" }));
@@ -159,7 +175,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={onConfirm}
-      />,
+      />
     );
 
     await user.click(screen.getByRole("button", { name: "Potvrdiť" }));
@@ -180,7 +196,7 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={onConfirm}
-      />,
+      />
     );
 
     await user.keyboard("{Escape}");
@@ -201,11 +217,81 @@ describe("PendingAnnotationControls", () => {
         onChangeColor={vi.fn()}
         onDelete={vi.fn()}
         onConfirm={onConfirm}
-      />,
+      />
     );
 
     await user.click(screen.getByDisplayValue("Peter"));
     await user.keyboard("{Enter}");
     expect(onConfirm).toHaveBeenCalled();
+  });
+
+  it("reports Standard-14 family and face changes through one complete style patch", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PendingAnnotationControls
+        screenRect={SCREEN_RECT}
+        text="Peter"
+        sizePt={14}
+        colorHex="#000000"
+        onChangeText={vi.fn()}
+        onChangeSize={vi.fn()}
+        onChangeColor={vi.fn()}
+        onDelete={vi.fn()}
+        onConfirm={vi.fn()}
+        styleEditing={{ style: STYLE, onChange }}
+      />
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Písmo" }), "Times");
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        font_family: "Times",
+        font_postscript_name: "Times-Roman",
+      })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Tučné" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ bold: true, font_postscript_name: "Helvetica-Bold" })
+    );
+
+    await user.click(screen.getByRole("button", { name: "Kurzíva" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ italic: true, font_postscript_name: "Helvetica-Oblique" })
+    );
+  });
+
+  it("reports decoration and horizontal and vertical alignment style patches", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PendingAnnotationControls
+        screenRect={SCREEN_RECT}
+        text="Peter"
+        sizePt={14}
+        colorHex="#000000"
+        onChangeText={vi.fn()}
+        onChangeSize={vi.fn()}
+        onChangeColor={vi.fn()}
+        onDelete={vi.fn()}
+        onConfirm={vi.fn()}
+        styleEditing={{ style: STYLE, onChange }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: "Podčiarknutie" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ underline: true }));
+
+    await user.click(screen.getByRole("button", { name: "Prečiarknutie" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ strikethrough: true }));
+
+    await user.click(screen.getByRole("button", { name: "Na stred" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ align: "center" }));
+
+    await user.click(screen.getByRole("button", { name: "Dole" }));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ vertical_align: "bottom" })
+    );
   });
 });

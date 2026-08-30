@@ -14,13 +14,14 @@
 // Image-based stamps embed the raw image bytes as a `/Subtype /Image`
 // XObject and render through the annotation's `/AP /N` appearance stream.
 use anyhow::{Context, Result};
+use lopdf::content::{Content, Operation};
 use lopdf::{dictionary, Document, Object, ObjectId, Stream};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts::{find_by_postscript_name, is_standard_14};
-use crate::services::text_style::{TextAlign, TextStyle};
+use crate::services::text_style::{textBlockOffset, TextAlign, TextStyle};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -466,6 +467,24 @@ fn build_annot_dict(
             dr.set("Font", Object::Dictionary(font_dict));
             d.set("DR", Object::Dictionary(dr));
 
+            // An explicit appearance makes the saved PDF use the same
+            // horizontal and vertical placement as the pending preview.
+            // /Q remains present for viewers that regenerate the appearance.
+            let ap_stream = build_free_text_ap_stream(FreeTextAppearance {
+                alias: &alias,
+                font_id,
+                rect,
+                contents,
+                style,
+                background_fill: *background_fill,
+                border_color: *border_color,
+                border_width: *border_width,
+            })?;
+            let ap_id = doc.add_object(Object::Stream(ap_stream));
+            let mut ap = lopdf::Dictionary::new();
+            ap.set("N", Object::Reference(ap_id));
+            d.set("AP", Object::Dictionary(ap));
+
             Ok((d, Some((alias, font_id))))
         }
         Annotation::Stamp {
@@ -595,6 +614,260 @@ fn ensure_page_font(page: &mut lopdf::Dictionary, alias: &str, font_id: ObjectId
     fonts.set(alias.as_bytes().to_vec(), Object::Reference(font_id));
 }
 
+const FREE_TEXT_HORIZONTAL_INSET_PT: f32 = 2.0;
+const DECORATION_THICKNESS_EM: f32 = 0.06;
+const UNDERLINE_OFFSET_EM: f32 = -0.12;
+const STRIKETHROUGH_OFFSET_EM: f32 = 0.30;
+
+fn free_text_lines(contents: &str) -> Vec<&str> {
+    contents
+        .split('\n')
+        .map(|line| line.strip_suffix('\r').unwrap_or(line))
+        .collect()
+}
+
+struct FreeTextAppearance<'a> {
+    alias: &'a str,
+    font_id: ObjectId,
+    rect: &'a [f32; 4],
+    contents: &'a str,
+    style: &'a TextStyle,
+    background_fill: Option<[f32; 4]>,
+    border_color: [f32; 3],
+    border_width: f32,
+}
+
+fn build_free_text_ap_stream(input: FreeTextAppearance<'_>) -> Result<Stream> {
+    let FreeTextAppearance {
+        alias,
+        font_id,
+        rect,
+        contents,
+        style,
+        background_fill,
+        border_color,
+        border_width,
+    } = input;
+    let width = (rect[2] - rect[0]).abs().max(1.0);
+    let height = (rect[3] - rect[1]).abs().max(1.0);
+    let local_rect = [0.0, 0.0, width, height];
+    let lines = free_text_lines(contents);
+    let top_offset = textBlockOffset(
+        local_rect,
+        &lines,
+        style.size_pt,
+        style.line_height_multiplier,
+        style.vertical_align,
+    );
+    let line_step = style.size_pt * style.line_height_multiplier;
+    let first_baseline = height - top_offset - style.size_pt;
+
+    let mut operations = vec![Operation::new("q", vec![])];
+    let mut resources = lopdf::Dictionary::new();
+    if let Some(fill) = background_fill {
+        let mut ext_g_state = lopdf::Dictionary::new();
+        ext_g_state.set(
+            "BG",
+            dictionary! {
+                "Type" => "ExtGState",
+                "ca" => fill[3].clamp(0.0, 1.0),
+                "CA" => fill[3].clamp(0.0, 1.0),
+            },
+        );
+        resources.set("ExtGState", Object::Dictionary(ext_g_state));
+        operations.extend([
+            Operation::new("q", vec![]),
+            Operation::new("gs", vec![Object::Name(b"BG".to_vec())]),
+            Operation::new(
+                "rg",
+                vec![
+                    Object::Real(fill[0]),
+                    Object::Real(fill[1]),
+                    Object::Real(fill[2]),
+                ],
+            ),
+            Operation::new(
+                "re",
+                vec![
+                    Object::Real(0.0),
+                    Object::Real(0.0),
+                    Object::Real(width),
+                    Object::Real(height),
+                ],
+            ),
+            Operation::new("f", vec![]),
+            Operation::new("Q", vec![]),
+        ]);
+    }
+    if border_width > 0.0 {
+        let half_width = border_width / 2.0;
+        operations.extend([
+            Operation::new(
+                "RG",
+                vec![
+                    Object::Real(border_color[0]),
+                    Object::Real(border_color[1]),
+                    Object::Real(border_color[2]),
+                ],
+            ),
+            Operation::new("w", vec![Object::Real(border_width)]),
+            Operation::new(
+                "re",
+                vec![
+                    Object::Real(half_width),
+                    Object::Real(half_width),
+                    Object::Real((width - border_width).max(0.0)),
+                    Object::Real((height - border_width).max(0.0)),
+                ],
+            ),
+            Operation::new("S", vec![]),
+        ]);
+    }
+    operations.extend([
+        Operation::new(
+            "rg",
+            vec![
+                Object::Real(style.color[0]),
+                Object::Real(style.color[1]),
+                Object::Real(style.color[2]),
+            ],
+        ),
+        Operation::new("BT", vec![]),
+        Operation::new(
+            "Tf",
+            vec![
+                Object::Name(alias.as_bytes().to_vec()),
+                Object::Real(style.size_pt),
+            ],
+        ),
+        Operation::new("Tc", vec![Object::Real(style.letter_spacing)]),
+    ]);
+
+    let mut line_layout = Vec::with_capacity(lines.len());
+    for (index, line) in lines.iter().enumerate() {
+        let line_width = estimated_line_width(line, style)
+            .min((width - 2.0 * FREE_TEXT_HORIZONTAL_INSET_PT).max(0.0));
+        let x = aligned_line_x(width, line_width, style.align);
+        let baseline = first_baseline - index as f32 * line_step;
+        operations.push(Operation::new(
+            "Tm",
+            vec![
+                Object::Real(1.0),
+                Object::Real(0.0),
+                Object::Real(0.0),
+                Object::Real(1.0),
+                Object::Real(x),
+                Object::Real(baseline),
+            ],
+        ));
+        operations.push(Operation::new(
+            "Tj",
+            vec![Object::string_literal((*line).to_string())],
+        ));
+        line_layout.push((x, baseline, line_width));
+    }
+    operations.push(Operation::new("ET", vec![]));
+
+    let thickness = (style.size_pt * DECORATION_THICKNESS_EM).max(0.5);
+    if style.underline {
+        add_decoration_rectangles(
+            &mut operations,
+            &line_layout,
+            style.size_pt * UNDERLINE_OFFSET_EM,
+            thickness,
+        );
+    }
+    if style.strikethrough {
+        add_decoration_rectangles(
+            &mut operations,
+            &line_layout,
+            style.size_pt * STRIKETHROUGH_OFFSET_EM,
+            thickness,
+        );
+    }
+    operations.push(Operation::new("Q", vec![]));
+
+    let mut font_resources = lopdf::Dictionary::new();
+    font_resources.set(alias.as_bytes().to_vec(), Object::Reference(font_id));
+    resources.set("Font", Object::Dictionary(font_resources));
+    let content = Content { operations }.encode()?;
+
+    Ok(Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "FormType" => 1i64,
+            "BBox" => Object::Array(vec![
+                Object::Real(0.0),
+                Object::Real(0.0),
+                Object::Real(width),
+                Object::Real(height),
+            ]),
+            "Resources" => Object::Dictionary(resources),
+        },
+        content,
+    ))
+}
+
+fn aligned_line_x(width: f32, line_width: f32, align: TextAlign) -> f32 {
+    let content_width = (width - 2.0 * FREE_TEXT_HORIZONTAL_INSET_PT).max(0.0);
+    match align {
+        TextAlign::Left | TextAlign::Justify => FREE_TEXT_HORIZONTAL_INSET_PT,
+        TextAlign::Center => FREE_TEXT_HORIZONTAL_INSET_PT + (content_width - line_width) / 2.0,
+        TextAlign::Right => FREE_TEXT_HORIZONTAL_INSET_PT + content_width - line_width,
+    }
+}
+
+fn estimated_line_width(line: &str, style: &TextStyle) -> f32 {
+    let em_width: f32 = line
+        .chars()
+        .map(|character| standard_font_character_width(&style.font_family, character))
+        .sum();
+    let spacing_count = line.chars().count().saturating_sub(1) as f32;
+    em_width * style.size_pt + spacing_count * style.letter_spacing
+}
+
+fn standard_font_character_width(family: &str, character: char) -> f32 {
+    if family == "Courier" {
+        return 0.6;
+    }
+
+    match (family, character) {
+        ("Times", ' ') => 0.25,
+        ("Times", 'i' | 'l' | 'I' | 'j' | 't' | 'f') => 0.278,
+        ("Times", 'M' | 'W') => 0.889,
+        ("Times", _) => 0.5,
+        (_, ' ') => 0.278,
+        (_, 'i' | 'l' | 'I' | 'j' | 't' | 'f') => 0.278,
+        (_, 'M') => 0.833,
+        (_, 'W') => 0.944,
+        (_, _) => 0.556,
+    }
+}
+
+fn add_decoration_rectangles(
+    operations: &mut Vec<Operation>,
+    line_layout: &[(f32, f32, f32)],
+    baseline_offset: f32,
+    thickness: f32,
+) {
+    for (x, baseline, width) in line_layout {
+        if *width <= 0.0 {
+            continue;
+        }
+        operations.push(Operation::new(
+            "re",
+            vec![
+                Object::Real(*x),
+                Object::Real(*baseline + baseline_offset),
+                Object::Real(*width),
+                Object::Real(thickness),
+            ],
+        ));
+        operations.push(Operation::new("f", vec![]));
+    }
+}
+
 /// Read raw image bytes and embed as a `/Subtype /Image` XObject. JPEGs
 /// are passed through with DCTDecode; other formats decode to RGB8 and
 /// store uncompressed (lopdf applies FlateDecode on save).
@@ -663,4 +936,236 @@ fn build_image_ap_stream(image_id: ObjectId, rect: &[f32; 4]) -> Stream {
         },
         content.into_bytes(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::text_style::{TextAlign, VerticalAlign};
+
+    const STANDARD_FACES: &[(&str, &str, &str)] = &[
+        ("Helvetica", "Helvetica", "Helv"),
+        ("Helvetica", "Helvetica-Bold", "HelvB"),
+        ("Helvetica", "Helvetica-Oblique", "HelvO"),
+        ("Helvetica", "Helvetica-BoldOblique", "HelvBO"),
+        ("Times", "Times-Roman", "TiR"),
+        ("Times", "Times-Bold", "TiB"),
+        ("Times", "Times-Italic", "TiI"),
+        ("Times", "Times-BoldItalic", "TiBI"),
+        ("Courier", "Courier", "Cou"),
+        ("Courier", "Courier-Bold", "CouB"),
+        ("Courier", "Courier-Oblique", "CouO"),
+        ("Courier", "Courier-BoldOblique", "CouBO"),
+    ];
+
+    fn free_text(style: TextStyle, contents: &str) -> Annotation {
+        Annotation::FreeText {
+            page: 0,
+            rect: [0.0, 0.0, 100.0, 40.0],
+            contents: contents.to_string(),
+            style,
+            background_fill: None,
+            border_color: [0.0, 0.0, 0.0],
+            border_width: 0.0,
+            auto_resize: false,
+        }
+    }
+
+    fn build_free_text(style: TextStyle, contents: &str) -> (lopdf::Dictionary, Document) {
+        let mut doc = Document::with_version("1.7");
+        let (dict, _) = build_annot_dict(&free_text(style, contents), &mut doc)
+            .expect("build FreeText annotation");
+        (dict, doc)
+    }
+
+    fn appearance_content(dict: &lopdf::Dictionary, doc: &Document) -> Content {
+        let ap = dict.get(b"AP").expect("/AP").as_dict().expect("/AP dict");
+        let id = ap
+            .get(b"N")
+            .expect("/AP /N")
+            .as_reference()
+            .expect("/AP /N reference");
+        let stream = doc
+            .get_object(id)
+            .expect("appearance object")
+            .as_stream()
+            .expect("appearance stream");
+        Content::decode(&stream.content).expect("decode appearance")
+    }
+
+    fn number(object: &Object) -> f32 {
+        match object {
+            Object::Integer(value) => *value as f32,
+            Object::Real(value) => *value,
+            other => panic!("expected PDF number, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn standard_faces_emit_expected_alias_and_type1_resource() {
+        for &(family, postscript_name, alias) in STANDARD_FACES {
+            let style = TextStyle {
+                font_family: family.to_string(),
+                font_postscript_name: postscript_name.to_string(),
+                size_pt: 10.0,
+                ..TextStyle::default()
+            };
+            let (dict, doc) = build_free_text(style, "Text");
+
+            let da = dict.get(b"DA").expect("/DA").as_str().expect("/DA string");
+            assert_eq!(
+                std::str::from_utf8(da).expect("UTF-8 /DA"),
+                format!("/{alias} 10 Tf 0 0 0 rg"),
+                "wrong /DA for {postscript_name}"
+            );
+
+            let dr = dict.get(b"DR").expect("/DR").as_dict().expect("/DR dict");
+            let fonts = dr
+                .get(b"Font")
+                .expect("/DR /Font")
+                .as_dict()
+                .expect("/Font dict");
+            let font_id = fonts
+                .get(alias.as_bytes())
+                .expect("font alias")
+                .as_reference()
+                .expect("font reference");
+            let font = doc
+                .get_object(font_id)
+                .expect("font object")
+                .as_dict()
+                .expect("font dictionary");
+            assert_eq!(
+                font.get(b"Subtype").expect("/Subtype").as_name().unwrap(),
+                b"Type1",
+                "wrong font subtype for {postscript_name}"
+            );
+            assert_eq!(
+                font.get(b"BaseFont").expect("/BaseFont").as_name().unwrap(),
+                postscript_name.as_bytes(),
+                "wrong /BaseFont for {postscript_name}"
+            );
+
+            let appearance = appearance_content(&dict, &doc);
+            let tf_alias = appearance
+                .operations
+                .iter()
+                .find(|operation| operation.operator == "Tf")
+                .expect("appearance /Tf")
+                .operands[0]
+                .as_name()
+                .expect("appearance font alias");
+            assert_eq!(
+                tf_alias,
+                alias.as_bytes(),
+                "wrong AP alias for {postscript_name}"
+            );
+        }
+    }
+
+    #[test]
+    fn horizontal_alignment_emits_matching_q_and_text_position() {
+        let cases = [
+            (TextAlign::Left, 0, 2.0),
+            (TextAlign::Center, 1, 41.67),
+            (TextAlign::Right, 2, 81.34),
+        ];
+
+        for (align, expected_q, expected_x) in cases {
+            let style = TextStyle {
+                size_pt: 10.0,
+                align,
+                ..TextStyle::default()
+            };
+            let (dict, doc) = build_free_text(style, "MM");
+            assert_eq!(
+                dict.get(b"Q").expect("/Q").as_i64().expect("integer /Q"),
+                expected_q
+            );
+
+            let appearance = appearance_content(&dict, &doc);
+            let tm = appearance
+                .operations
+                .iter()
+                .find(|operation| operation.operator == "Tm")
+                .expect("text matrix");
+            assert!(
+                (number(&tm.operands[4]) - expected_x).abs() < 0.01,
+                "appearance X does not match /Q {expected_q}"
+            );
+        }
+    }
+
+    #[test]
+    fn underline_draws_one_rectangle_per_line_at_minus_point_twelve_em() {
+        let style = TextStyle {
+            size_pt: 10.0,
+            underline: true,
+            ..TextStyle::default()
+        };
+        let (dict, doc) = build_free_text(style, "first\nsecond");
+        let appearance = appearance_content(&dict, &doc);
+        let rectangles: Vec<&Operation> = appearance
+            .operations
+            .iter()
+            .filter(|operation| operation.operator == "re")
+            .collect();
+
+        assert_eq!(rectangles.len(), 2);
+        assert!((number(&rectangles[0].operands[1]) - 28.8).abs() < 0.01);
+        assert!((number(&rectangles[1].operands[1]) - 16.8).abs() < 0.01);
+        assert!((number(&rectangles[0].operands[3]) - 0.6).abs() < 0.01);
+    }
+
+    #[test]
+    fn strikethrough_draws_one_rectangle_per_line_at_point_three_em() {
+        let style = TextStyle {
+            size_pt: 10.0,
+            strikethrough: true,
+            ..TextStyle::default()
+        };
+        let (dict, doc) = build_free_text(style, "first\nsecond");
+        let appearance = appearance_content(&dict, &doc);
+        let rectangles: Vec<&Operation> = appearance
+            .operations
+            .iter()
+            .filter(|operation| operation.operator == "re")
+            .collect();
+
+        assert_eq!(rectangles.len(), 2);
+        assert!((number(&rectangles[0].operands[1]) - 33.0).abs() < 0.01);
+        assert!((number(&rectangles[1].operands[1]) - 21.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn decorations_off_emit_no_rectangle_operators() {
+        let (dict, doc) = build_free_text(TextStyle::default(), "first\nsecond");
+        let appearance = appearance_content(&dict, &doc);
+
+        assert!(
+            appearance
+                .operations
+                .iter()
+                .all(|operation| operation.operator != "re"),
+            "plain text appearance must not contain decoration rectangles"
+        );
+    }
+
+    #[test]
+    fn middle_vertical_alignment_moves_first_baseline_by_shared_offset() {
+        let style = TextStyle {
+            size_pt: 10.0,
+            vertical_align: VerticalAlign::Middle,
+            ..TextStyle::default()
+        };
+        let (dict, doc) = build_free_text(style, "first\nsecond");
+        let appearance = appearance_content(&dict, &doc);
+        let first_tm = appearance
+            .operations
+            .iter()
+            .find(|operation| operation.operator == "Tm")
+            .expect("first text matrix");
+
+        assert_eq!(number(&first_tm.operands[5]), 22.0);
+    }
 }

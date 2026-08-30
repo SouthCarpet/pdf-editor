@@ -43,12 +43,33 @@ import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 function Harness({
   docId,
   onDeletePending,
+  onNextField,
+  onPreviousField,
+  onConfirmNextField,
 }: {
   docId: string;
   onDeletePending?: () => void;
+  onNextField?: () => void;
+  onPreviousField?: () => void;
+  onConfirmNextField?: () => void;
 }) {
-  useWorkspaceShortcuts(docId, { onDeletePending });
-  return <input data-testid="draft" />;
+  useWorkspaceShortcuts(docId, {
+    onDeletePending,
+    onNextField,
+    onPreviousField,
+    onConfirmNextField,
+  });
+  return (
+    <div>
+      <input data-testid="draft" />
+      <div data-pending-annotation-host>
+        <div role="group">
+          <input data-testid="strip-text" type="text" />
+          <input data-testid="strip-color" type="color" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 describe("useWorkspaceShortcuts", () => {
@@ -126,5 +147,43 @@ describe("useWorkspaceShortcuts", () => {
     fireEvent.keyDown(getByTestId("draft"), { key: "Delete" });
     fireEvent.keyDown(getByTestId("draft"), { key: "Backspace" });
     expect(onDeletePending).not.toHaveBeenCalled();
+  });
+
+  it("Tab and Shift+Tab dispatch from the strip text input", () => {
+    const onNextField = vi.fn();
+    const onPreviousField = vi.fn();
+    const { getByTestId } = render(
+      <Harness
+        docId={DOC_A}
+        onNextField={onNextField}
+        onPreviousField={onPreviousField}
+      />,
+    );
+
+    fireEvent.keyDown(getByTestId("strip-text"), { key: "Tab" });
+    fireEvent.keyDown(getByTestId("strip-text"), { key: "Tab", shiftKey: true });
+
+    expect(onNextField).toHaveBeenCalledTimes(1);
+    expect(onPreviousField).toHaveBeenCalledTimes(1);
+  });
+
+  it("Tab from another form control does not navigate", () => {
+    const onNextField = vi.fn();
+    const { getByTestId } = render(<Harness docId={DOC_A} onNextField={onNextField} />);
+
+    fireEvent.keyDown(getByTestId("strip-color"), { key: "Tab" });
+
+    expect(onNextField).not.toHaveBeenCalled();
+  });
+
+  it("Enter in the strip text input dispatches confirm and next", () => {
+    const onConfirmNextField = vi.fn();
+    const { getByTestId } = render(
+      <Harness docId={DOC_A} onConfirmNextField={onConfirmNextField} />,
+    );
+
+    fireEvent.keyDown(getByTestId("strip-text"), { key: "Enter" });
+
+    expect(onConfirmNextField).toHaveBeenCalledTimes(1);
   });
 });

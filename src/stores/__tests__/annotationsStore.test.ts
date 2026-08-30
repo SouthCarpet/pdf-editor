@@ -26,6 +26,7 @@ function freeText(overrides: Partial<FreeText> = {}): FreeText {
       color: [0, 0, 0],
       background: null,
       align: "left",
+      vertical_align: "top",
       letter_spacing: 0,
       line_height_multiplier: 1.2,
     },

@@ -23,6 +23,8 @@ import {
   type ResizeEdge,
 } from "./pendingAnnotationGeometry";
 import type { ScreenRect } from "./detectedFieldGeometry";
+import { standardFontPreviewFamily } from "./standardTextStyle";
+import { textBlockOffset } from "./textBlockPlacement";
 
 type PendingFreeText = ClientAnnotation & FreeTextAnnotation;
 
@@ -68,7 +70,7 @@ export function PendingFreeTextLayer({
   onRectChange,
 }: Props) {
   const items = annotations.filter(
-    (a): a is PendingFreeText => a.type === "free_text" && a.page === page,
+    (a): a is PendingFreeText => a.type === "free_text" && a.page === page
   );
 
   return (
@@ -103,6 +105,25 @@ function PendingFreeTextItem({
   const rendered = freeTextRenderProps(item, viewport);
   if (rendered === null) return null;
   const { screen, fontSizePx, colorCss, backgroundCss } = rendered;
+  const lines = item.contents.split(/\r?\n/);
+  const lineHeight = item.style.line_height_multiplier ?? 1.2;
+  const verticalOffsetPx = textBlockOffset(
+    [0, 0, screen.width, screen.height],
+    lines,
+    fontSizePx,
+    lineHeight,
+    item.style.vertical_align ?? "top"
+  );
+  const horizontalInsetPx = 2 * viewport.scale;
+  const fontStyle = [item.style.bold ? "bold" : "", item.style.italic ? "italic" : ""]
+    .filter(Boolean)
+    .join(" ");
+  const textDecoration = [
+    item.style.underline ? "underline" : "",
+    item.style.strikethrough ? "line-through" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function onDragEnd(e: KonvaEventObject<DragEvent>) {
     const next: ScreenRect = {
@@ -150,13 +171,18 @@ function PendingFreeTextItem({
         onDragEnd={onDragEnd}
       />
       <Text
-        x={screen.x + 2}
-        y={screen.y + 1}
-        width={Math.max(screen.width - 4, 1)}
+        x={screen.x + horizontalInsetPx}
+        y={screen.y + verticalOffsetPx}
+        width={Math.max(screen.width - 2 * horizontalInsetPx, 1)}
         text={item.contents}
         fontSize={fontSizePx}
+        fontFamily={standardFontPreviewFamily(item.style.font_family)}
+        fontStyle={fontStyle || "normal"}
+        textDecoration={textDecoration || undefined}
+        lineHeight={lineHeight}
         fill={colorCss}
         align={item.style.align}
+        wrap="none"
         listening={false}
       />
       {selected &&

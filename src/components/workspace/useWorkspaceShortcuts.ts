@@ -1,18 +1,18 @@
 // Plan 060 task T1 (R1/R2): wires `resolveShortcut` to real keydown events,
 // once per mounted workspace (not once per panel), and dispatches into the
-// zoom store / shared save flow. The resolution logic itself lives in
+// zoom store / shared save and field-navigation flows. Resolution lives in
 // `shortcuts.ts` so it can be unit-tested without touching the DOM.
 import { useEffect } from "react";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
-import { isTextInputTarget, resolveShortcut, type ShortcutAction } from "./shortcuts";
+import { resolveShortcut, shortcutFocus, type ShortcutAction } from "./shortcuts";
 
 function runAction(
   action: ShortcutAction,
   docId: string,
   zoom: ZoomActions,
-  onDeletePending: (() => void) | undefined,
+  handlers: WorkspaceShortcutHandlers,
 ): void {
   switch (action.type) {
     case "zoom-in":
@@ -31,7 +31,16 @@ function runAction(
       if (hasUnsavedWork(docId)) void saveDocument(docId, { forcePrompt: true });
       return;
     case "delete-pending":
-      onDeletePending?.();
+      handlers.onDeletePending?.();
+      return;
+    case "next-field":
+      handlers.onNextField?.();
+      return;
+    case "previous-field":
+      handlers.onPreviousField?.();
+      return;
+    case "confirm-next-field":
+      handlers.onConfirmNextField?.();
   }
 }
 
@@ -44,6 +53,9 @@ interface ZoomActions {
 interface WorkspaceShortcutHandlers {
   /** Plan 062 T1.1: Delete / Backspace on a selected pending fill. */
   onDeletePending?: () => void;
+  onNextField?: () => void;
+  onPreviousField?: () => void;
+  onConfirmNextField?: () => void;
 }
 
 /** Registers the workspace keyboard shortcuts for the given document.
@@ -55,16 +67,30 @@ export function useWorkspaceShortcuts(
   const zoomIn = useWorkspace((s) => s.zoomIn);
   const zoomOut = useWorkspace((s) => s.zoomOut);
   const resetZoom = useWorkspace((s) => s.resetZoom);
-  const onDeletePending = handlers.onDeletePending;
+  const { onDeletePending, onNextField, onPreviousField, onConfirmNextField } = handlers;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      const action = resolveShortcut(e, isTextInputTarget(e.target));
+      const action = resolveShortcut(e, shortcutFocus(e.target));
       if (!action) return;
       e.preventDefault();
-      runAction(action, docId, { zoomIn, zoomOut, resetZoom }, onDeletePending);
+      runAction(action, docId, { zoomIn, zoomOut, resetZoom }, {
+        onDeletePending,
+        onNextField,
+        onPreviousField,
+        onConfirmNextField,
+      });
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [docId, zoomIn, zoomOut, resetZoom, onDeletePending]);
+  }, [
+    docId,
+    zoomIn,
+    zoomOut,
+    resetZoom,
+    onDeletePending,
+    onNextField,
+    onPreviousField,
+    onConfirmNextField,
+  ]);
 }

@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import {
   isTextInputTarget,
   resolveShortcut,
+  shortcutFocus,
   WORKSPACE_SHORTCUTS,
   type ShortcutKeyEvent,
 } from "../shortcuts";
@@ -98,6 +99,27 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(key({ key: "Delete", ctrlKey: true }), false)).toBeNull();
     expect(resolveShortcut(key({ key: "Backspace", ctrlKey: true }), false)).toBeNull();
   });
+
+  it("Tab and Shift+Tab navigate when the strip text input is focused", () => {
+    const stripFocus = { isTextInput: true, isFormControl: true, isStripTextInput: true };
+    expect(resolveShortcut(key({ key: "Tab" }), stripFocus)).toEqual({ type: "next-field" });
+    expect(resolveShortcut(key({ key: "Tab", shiftKey: true }), stripFocus)).toEqual({
+      type: "previous-field",
+    });
+  });
+
+  it("Enter confirms and navigates only from the strip text input", () => {
+    const stripFocus = { isTextInput: true, isFormControl: true, isStripTextInput: true };
+    expect(resolveShortcut(key({ key: "Enter" }), stripFocus)).toEqual({
+      type: "confirm-next-field",
+    });
+    expect(resolveShortcut(key({ key: "Enter" }), false)).toBeNull();
+  });
+
+  it("Tab does not navigate from another form control such as the colour input", () => {
+    const colorFocus = { isTextInput: true, isFormControl: true, isStripTextInput: false };
+    expect(resolveShortcut(key({ key: "Tab" }), colorFocus)).toBeNull();
+  });
 });
 
 describe("WORKSPACE_SHORTCUTS", () => {
@@ -107,6 +129,16 @@ describe("WORKSPACE_SHORTCUTS", () => {
     expect(spec?.keys).toEqual(["Delete", "Backspace"]);
     expect(spec?.modifier).toBe("none");
     expect(spec?.allowInTextInput).toBe(false);
+  });
+
+  it("registers all three field-navigation rows for the shortcut overlay", () => {
+    const rows = WORKSPACE_SHORTCUTS.filter((spec) => spec.action.includes("field"));
+    expect(rows.map(({ action }) => action)).toEqual([
+      "previous-field",
+      "next-field",
+      "confirm-next-field",
+    ]);
+    expect(rows.every(({ allowInTextInput }) => allowInTextInput)).toBe(true);
   });
 });
 
@@ -131,5 +163,25 @@ describe("isTextInputTarget", () => {
 
   it("is false for a plain button", () => {
     expect(isTextInputTarget(document.createElement("button"))).toBe(false);
+  });
+});
+
+describe("shortcutFocus", () => {
+  it("recognises only the text input inside the pending annotation strip", () => {
+    const host = document.createElement("div");
+    host.dataset.pendingAnnotationHost = "";
+    const group = document.createElement("div");
+    group.setAttribute("role", "group");
+    const stripText = document.createElement("input");
+    stripText.type = "text";
+    const color = document.createElement("input");
+    color.type = "color";
+    group.append(stripText, color);
+    host.append(group);
+    document.body.append(host);
+
+    expect(shortcutFocus(stripText).isStripTextInput).toBe(true);
+    expect(shortcutFocus(color).isStripTextInput).toBe(false);
+    host.remove();
   });
 });

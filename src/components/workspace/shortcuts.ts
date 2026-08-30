@@ -5,7 +5,8 @@
 //
 // Rule: shortcuts are ignored while a text input has focus (typing "+"
 // into a field must not zoom the page; Delete/Backspace in a field must
-// edit the text), except Ctrl+S / Ctrl+Shift+S, which always save.
+// edit the text), except saves and the field-navigation keys registered
+// for the pending-annotation strip.
 
 export type ShortcutAction =
   | { type: "zoom-in" }
@@ -13,7 +14,10 @@ export type ShortcutAction =
   | { type: "zoom-reset" }
   | { type: "save" }
   | { type: "save-as" }
-  | { type: "delete-pending" };
+  | { type: "delete-pending" }
+  | { type: "next-field" }
+  | { type: "previous-field" }
+  | { type: "confirm-next-field" };
 
 /** One row of the workspace shortcut table. T3.3's overlay iterates this
  * list, so a shortcut that is not here cannot appear there. */
@@ -78,7 +82,37 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     allowInTextInput: false,
     labelKey: "pending_annotation.delete",
   },
+  {
+    action: "previous-field",
+    keys: ["Tab"],
+    modifier: "none",
+    shift: true,
+    allowInTextInput: true,
+    labelKey: "shortcuts.previous_field",
+  },
+  {
+    action: "next-field",
+    keys: ["Tab"],
+    modifier: "none",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "shortcuts.next_field",
+  },
+  {
+    action: "confirm-next-field",
+    keys: ["Enter"],
+    modifier: "none",
+    shift: false,
+    allowInTextInput: true,
+    labelKey: "shortcuts.confirm_next_field",
+  },
 ];
+
+export interface ShortcutFocus {
+  isTextInput: boolean;
+  isFormControl: boolean;
+  isStripTextInput: boolean;
+}
 
 /** The subset of `KeyboardEvent` the resolver reads. Kept narrow so tests
  * can pass a plain object instead of constructing a real `KeyboardEvent`. */
@@ -104,16 +138,28 @@ function bindingMatches(spec: ShortcutBinding, e: ShortcutKeyEvent): boolean {
 }
 
 /** Resolves one keydown into a workspace shortcut action, or `null` if the
- * event is not one of ours. `isTextInputFocused` gates every action except
- * those marked `allowInTextInput` (save / save-as). Bindings come from
- * `WORKSPACE_SHORTCUTS` so the T3.3 overlay cannot drift. */
+ * event is not one of ours. The focus context permits field navigation in
+ * the strip text input, but not in another form control. Bindings come
+ * from `WORKSPACE_SHORTCUTS` so the T3.3 overlay cannot drift. */
 export function resolveShortcut(
   e: ShortcutKeyEvent,
-  isTextInputFocused: boolean,
+  focus: ShortcutFocus | boolean,
 ): ShortcutAction | null {
+  const context: ShortcutFocus =
+    typeof focus === "boolean"
+      ? { isTextInput: focus, isFormControl: focus, isStripTextInput: false }
+      : focus;
   for (const spec of WORKSPACE_SHORTCUTS) {
     if (!bindingMatches(spec, e)) continue;
-    if (isTextInputFocused && !spec.allowInTextInput) return null;
+    if (context.isTextInput && !spec.allowInTextInput) return null;
+    if (
+      (spec.action === "next-field" || spec.action === "previous-field") &&
+      context.isFormControl &&
+      !context.isStripTextInput
+    ) {
+      return null;
+    }
+    if (spec.action === "confirm-next-field" && !context.isStripTextInput) return null;
     return { type: spec.action };
   }
   return null;
@@ -125,4 +171,20 @@ export function isTextInputTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable === true;
+}
+
+export function shortcutFocus(target: EventTarget | null): ShortcutFocus {
+  if (!(target instanceof HTMLElement)) {
+    return { isTextInput: false, isFormControl: false, isStripTextInput: false };
+  }
+  const isStripTextInput =
+    target instanceof HTMLInputElement &&
+    target.type === "text" &&
+    target.closest('[data-pending-annotation-host] [role="group"]') !== null;
+  return {
+    isTextInput: isTextInputTarget(target),
+    isFormControl:
+      target.matches("input, textarea, select, button") || target.isContentEditable === true,
+    isStripTextInput,
+  };
 }
