@@ -15,12 +15,16 @@
 // XObject and render through the annotation's `/AP /N` appearance stream.
 use anyhow::{Context, Result};
 use lopdf::content::{Content, Operation};
-use lopdf::{dictionary, Document, Object, ObjectId, Stream};
+use lopdf::{dictionary, Document, Object, ObjectId, Stream, StringFormat};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::path::Path;
+use tracing::warn;
 
 use crate::services::font_embed::FontSubsetter;
-use crate::services::fonts::{find_by_postscript_name, is_standard_14};
+use crate::services::fonts::{
+    find_by_postscript_name, is_standard_14, list_system_fonts, SystemFont,
+};
 use crate::services::text_style::{textBlockOffset, TextAlign, TextStyle};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -287,7 +291,7 @@ fn build_annot_dict(
             ..
         } => {
             let mut d = dictionary! { "Type" => "Annot", "Subtype" => "Text" };
-            d.set("Contents", Object::string_literal(contents.clone()));
+            d.set("Contents", pdf_text_string(contents));
             d.set("Name", Object::Name(note_icon_name(*icon).to_vec()));
             d.set("C", color_array(color));
             d.set(
@@ -402,7 +406,7 @@ fn build_annot_dict(
         } => {
             let mut d = dictionary! { "Type" => "Annot", "Subtype" => "FreeText" };
             d.set("Rect", rect_array(rect));
-            d.set("Contents", Object::string_literal(contents.clone()));
+            d.set("Contents", pdf_text_string(contents));
             d.set("Q", Object::Integer(align_value(style.align)));
             d.set("C", color_array(border_color));
             d.set("BS", build_bs(*border_width, BorderStyle::Solid));
@@ -418,38 +422,9 @@ fn build_annot_dict(
                 opacity_keys(&mut d, fc[3]);
             }
 
-            // Resolve the font reference. Standard 14 gets a Type1 dict;
-            // anything else is embedded as Type0 CIDFont via FontSubsetter.
-            let (alias, font_id) = if is_standard_14(&style.font_postscript_name) {
-                let alias = font_alias_for_ps(&style.font_postscript_name);
-                let font_id = doc.add_object(dictionary! {
-                    "Type" => "Font",
-                    "Subtype" => "Type1",
-                    "BaseFont" => Object::Name(style.font_postscript_name.as_bytes().to_vec()),
-                    "Encoding" => "WinAnsiEncoding",
-                });
-                (alias, font_id)
-            } else {
-                let sys =
-                    find_by_postscript_name(&style.font_postscript_name).with_context(|| {
-                        format!(
-                            "font not installed on this system: {}",
-                            style.font_postscript_name
-                        )
-                    })?;
-                if sys.file_path.is_empty() {
-                    anyhow::bail!(
-                        "font {} has no file path; cannot embed",
-                        style.font_postscript_name
-                    );
-                }
-                let mut sub = FontSubsetter::new_from_path(std::path::Path::new(&sys.file_path))?;
-                sub.add_text(contents);
-                let (font_id, tag) = sub.write_to_pdf(doc)?;
-                // PDF-safe resource alias: tag prefix + simple variant.
-                let alias = format!("F{}", &tag[..3]);
-                (alias, font_id)
-            };
+            let resolved_font = resolve_free_text_font(doc, contents, style)?;
+            let alias = resolved_font.alias;
+            let font_id = resolved_font.font_id;
 
             // /DA "default appearance" — names the font, size, and color.
             let da = format!(
@@ -475,6 +450,7 @@ fn build_annot_dict(
                 font_id,
                 rect,
                 contents,
+                lines: &resolved_font.lines,
                 style,
                 background_fill: *background_fill,
                 border_color: *border_color,
@@ -588,6 +564,292 @@ fn font_alias_for_ps(ps: &str) -> String {
     }
 }
 
+fn win_ansi_byte(character: char) -> Option<u8> {
+    match character {
+        ' '..='~' => Some(character as u8),
+        '\u{00a0}'..='\u{00ff}' => Some(character as u8),
+        '€' => Some(0x80),
+        '‚' => Some(0x82),
+        'ƒ' => Some(0x83),
+        '„' => Some(0x84),
+        '…' => Some(0x85),
+        '†' => Some(0x86),
+        '‡' => Some(0x87),
+        'ˆ' => Some(0x88),
+        '‰' => Some(0x89),
+        'Š' => Some(0x8a),
+        '‹' => Some(0x8b),
+        'Œ' => Some(0x8c),
+        'Ž' => Some(0x8e),
+        '‘' => Some(0x91),
+        '’' => Some(0x92),
+        '“' => Some(0x93),
+        '”' => Some(0x94),
+        '•' => Some(0x95),
+        '–' => Some(0x96),
+        '—' => Some(0x97),
+        '˜' => Some(0x98),
+        '™' => Some(0x99),
+        'š' => Some(0x9a),
+        '›' => Some(0x9b),
+        'œ' => Some(0x9c),
+        'ž' => Some(0x9e),
+        'Ÿ' => Some(0x9f),
+        _ => None,
+    }
+}
+
+fn encode_win_ansi(text: &str) -> std::result::Result<Vec<u8>, char> {
+    text.chars()
+        .map(|character| win_ansi_byte(character).ok_or(character))
+        .collect()
+}
+
+fn first_unencodable_free_text_character(contents: &str) -> Option<char> {
+    free_text_lines(contents)
+        .into_iter()
+        .find_map(|line| encode_win_ansi(line).err())
+}
+
+fn pdf_doc_encoding_byte(character: char) -> Option<u8> {
+    match character {
+        '\u{02d8}' => Some(0x18),
+        '\u{02c7}' => Some(0x19),
+        '\u{02c6}' => Some(0x1a),
+        '\u{02d9}' => Some(0x1b),
+        '\u{02dd}' => Some(0x1c),
+        '\u{02db}' => Some(0x1d),
+        '\u{02da}' => Some(0x1e),
+        '\u{02dc}' => Some(0x1f),
+        ' '..='~' => Some(character as u8),
+        '•' => Some(0x80),
+        '†' => Some(0x81),
+        '‡' => Some(0x82),
+        '…' => Some(0x83),
+        '—' => Some(0x84),
+        '–' => Some(0x85),
+        'ƒ' => Some(0x86),
+        '⁄' => Some(0x87),
+        '‹' => Some(0x88),
+        '›' => Some(0x89),
+        '−' => Some(0x8a),
+        '‰' => Some(0x8b),
+        '„' => Some(0x8c),
+        '“' => Some(0x8d),
+        '”' => Some(0x8e),
+        '‘' => Some(0x8f),
+        '’' => Some(0x90),
+        '‚' => Some(0x91),
+        '™' => Some(0x92),
+        'ﬁ' => Some(0x93),
+        'ﬂ' => Some(0x94),
+        'Ł' => Some(0x95),
+        'Œ' => Some(0x96),
+        'Š' => Some(0x97),
+        'Ÿ' => Some(0x98),
+        'Ž' => Some(0x99),
+        'ı' => Some(0x9a),
+        'ł' => Some(0x9b),
+        'œ' => Some(0x9c),
+        'š' => Some(0x9d),
+        'ž' => Some(0x9e),
+        '€' => Some(0xa0),
+        '\u{00a1}'..='\u{00ac}' => Some(character as u8),
+        '\u{00ae}'..='\u{00ff}' => Some(character as u8),
+        _ => None,
+    }
+}
+
+fn pdf_text_string(text: &str) -> Object {
+    let pdf_doc_bytes: Option<Vec<u8>> = text.chars().map(pdf_doc_encoding_byte).collect();
+    if let Some(bytes) = pdf_doc_bytes {
+        return Object::String(bytes, StringFormat::Literal);
+    }
+
+    let mut bytes = Vec::with_capacity(2 + text.len() * 2);
+    lopdf::encode_utf16_be(text, &mut bytes);
+    Object::String(bytes, StringFormat::Hexadecimal)
+}
+
+struct AppearanceLine {
+    bytes: Vec<u8>,
+    width_em: f32,
+    character_count: usize,
+}
+
+struct ResolvedFreeTextFont {
+    alias: String,
+    font_id: ObjectId,
+    lines: Vec<AppearanceLine>,
+}
+
+enum Standard14TextPlan<'a> {
+    Type1 {
+        appearance_text: Cow<'a, str>,
+        replaced_character: Option<char>,
+    },
+    Embedded(SystemFont),
+}
+
+fn standard_14_fallback_face(postscript_name: &str) -> Option<(&'static str, &'static str)> {
+    match postscript_name {
+        "Helvetica" => Some(("Arial", "Regular")),
+        "Helvetica-Bold" => Some(("Arial", "Bold")),
+        "Helvetica-Oblique" => Some(("Arial", "Italic")),
+        "Helvetica-BoldOblique" => Some(("Arial", "BoldItalic")),
+        "Times-Roman" => Some(("Times New Roman", "Regular")),
+        "Times-Bold" => Some(("Times New Roman", "Bold")),
+        "Times-Italic" => Some(("Times New Roman", "Italic")),
+        "Times-BoldItalic" => Some(("Times New Roman", "BoldItalic")),
+        "Courier" => Some(("Courier New", "Regular")),
+        "Courier-Bold" => Some(("Courier New", "Bold")),
+        "Courier-Oblique" => Some(("Courier New", "Italic")),
+        "Courier-BoldOblique" => Some(("Courier New", "BoldItalic")),
+        _ => None,
+    }
+}
+
+fn find_standard_14_fallback(
+    postscript_name: &str,
+    fonts: impl IntoIterator<Item = SystemFont>,
+) -> Option<SystemFont> {
+    let (family, style) = standard_14_fallback_face(postscript_name)?;
+    let target_weight = if style.starts_with("Bold") { 700 } else { 400 };
+    fonts
+        .into_iter()
+        .filter(|font| {
+            !font.is_standard_14
+                && !font.file_path.is_empty()
+                && font.family.eq_ignore_ascii_case(family)
+                && font.style == style
+        })
+        .min_by_key(|font| font.weight.abs_diff(target_weight))
+}
+
+fn standard_14_text_plan<'a>(
+    postscript_name: &str,
+    contents: &'a str,
+    fonts: impl IntoIterator<Item = SystemFont>,
+) -> Standard14TextPlan<'a> {
+    let Some(first_unencodable) = first_unencodable_free_text_character(contents) else {
+        return Standard14TextPlan::Type1 {
+            appearance_text: Cow::Borrowed(contents),
+            replaced_character: None,
+        };
+    };
+
+    if let Some(font) = find_standard_14_fallback(postscript_name, fonts) {
+        return Standard14TextPlan::Embedded(font);
+    }
+
+    let replacement = contents
+        .chars()
+        .map(|character| {
+            if matches!(character, '\r' | '\n') || win_ansi_byte(character).is_some() {
+                character
+            } else {
+                '?'
+            }
+        })
+        .collect();
+    Standard14TextPlan::Type1 {
+        appearance_text: Cow::Owned(replacement),
+        replaced_character: Some(first_unencodable),
+    }
+}
+
+fn standard_14_font(doc: &mut Document, postscript_name: &str) -> (String, ObjectId) {
+    let alias = font_alias_for_ps(postscript_name);
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => Object::Name(postscript_name.as_bytes().to_vec()),
+        "Encoding" => "WinAnsiEncoding",
+    });
+    (alias, font_id)
+}
+
+fn standard_appearance_lines(contents: &str, family: &str) -> Vec<AppearanceLine> {
+    free_text_lines(contents)
+        .into_iter()
+        .map(|line| AppearanceLine {
+            bytes: encode_win_ansi(line).expect("caller guarantees WinAnsi text"),
+            width_em: line
+                .chars()
+                .map(|character| standard_font_character_width(family, character))
+                .sum(),
+            character_count: line.chars().count(),
+        })
+        .collect()
+}
+
+fn embedded_font(
+    doc: &mut Document,
+    font: &SystemFont,
+    contents: &str,
+) -> Result<ResolvedFreeTextFont> {
+    if font.file_path.is_empty() {
+        anyhow::bail!(
+            "font {} has no file path; cannot embed",
+            font.postscript_name
+        );
+    }
+    let mut subsetter = FontSubsetter::new_from_path(std::path::Path::new(&font.file_path))?;
+    subsetter.add_text(contents);
+    let lines = free_text_lines(contents)
+        .into_iter()
+        .map(|line| AppearanceLine {
+            bytes: subsetter.encode_text_as_cids(line),
+            width_em: subsetter.text_width_em(line),
+            character_count: line.chars().count(),
+        })
+        .collect();
+    let (font_id, tag) = subsetter.write_to_pdf(doc)?;
+    Ok(ResolvedFreeTextFont {
+        alias: format!("F{}", &tag[..3]),
+        font_id,
+        lines,
+    })
+}
+
+fn resolve_free_text_font(
+    doc: &mut Document,
+    contents: &str,
+    style: &TextStyle,
+) -> Result<ResolvedFreeTextFont> {
+    if !is_standard_14(&style.font_postscript_name) {
+        let font = find_by_postscript_name(&style.font_postscript_name).with_context(|| {
+            format!(
+                "font not installed on this system: {}",
+                style.font_postscript_name
+            )
+        })?;
+        return embedded_font(doc, &font, contents);
+    }
+
+    match standard_14_text_plan(&style.font_postscript_name, contents, list_system_fonts()) {
+        Standard14TextPlan::Embedded(font) => embedded_font(doc, &font, contents),
+        Standard14TextPlan::Type1 {
+            appearance_text,
+            replaced_character,
+        } => {
+            if let Some(character) = replaced_character {
+                warn!(
+                    standard_font = %style.font_postscript_name,
+                    unsupported_character = %character,
+                    "metric-compatible system font is unavailable; replacing non-WinAnsi characters in the FreeText appearance"
+                );
+            }
+            let (alias, font_id) = standard_14_font(doc, &style.font_postscript_name);
+            Ok(ResolvedFreeTextFont {
+                alias,
+                font_id,
+                lines: standard_appearance_lines(&appearance_text, &style.font_family),
+            })
+        }
+    }
+}
+
 /// Insert (alias -> font_id) into page.Resources.Font, creating
 /// intermediate dictionaries as needed.
 fn ensure_page_font(page: &mut lopdf::Dictionary, alias: &str, font_id: ObjectId) {
@@ -631,6 +893,7 @@ struct FreeTextAppearance<'a> {
     font_id: ObjectId,
     rect: &'a [f32; 4],
     contents: &'a str,
+    lines: &'a [AppearanceLine],
     style: &'a TextStyle,
     background_fill: Option<[f32; 4]>,
     border_color: [f32; 3],
@@ -643,6 +906,7 @@ fn build_free_text_ap_stream(input: FreeTextAppearance<'_>) -> Result<Stream> {
         font_id,
         rect,
         contents,
+        lines: appearance_lines,
         style,
         background_fill,
         border_color,
@@ -743,9 +1007,10 @@ fn build_free_text_ap_stream(input: FreeTextAppearance<'_>) -> Result<Stream> {
         Operation::new("Tc", vec![Object::Real(style.letter_spacing)]),
     ]);
 
-    let mut line_layout = Vec::with_capacity(lines.len());
-    for (index, line) in lines.iter().enumerate() {
-        let line_width = estimated_line_width(line, style)
+    let mut line_layout = Vec::with_capacity(appearance_lines.len());
+    for (index, line) in appearance_lines.iter().enumerate() {
+        let spacing_count = line.character_count.saturating_sub(1) as f32;
+        let line_width = (line.width_em * style.size_pt + spacing_count * style.letter_spacing)
             .min((width - 2.0 * FREE_TEXT_HORIZONTAL_INSET_PT).max(0.0));
         let x = aligned_line_x(width, line_width, style.align);
         let baseline = first_baseline - index as f32 * line_step;
@@ -762,7 +1027,10 @@ fn build_free_text_ap_stream(input: FreeTextAppearance<'_>) -> Result<Stream> {
         ));
         operations.push(Operation::new(
             "Tj",
-            vec![Object::string_literal((*line).to_string())],
+            vec![Object::String(
+                line.bytes.clone(),
+                StringFormat::Hexadecimal,
+            )],
         ));
         line_layout.push((x, baseline, line_width));
     }
@@ -816,15 +1084,6 @@ fn aligned_line_x(width: f32, line_width: f32, align: TextAlign) -> f32 {
         TextAlign::Center => FREE_TEXT_HORIZONTAL_INSET_PT + (content_width - line_width) / 2.0,
         TextAlign::Right => FREE_TEXT_HORIZONTAL_INSET_PT + content_width - line_width,
     }
-}
-
-fn estimated_line_width(line: &str, style: &TextStyle) -> f32 {
-    let em_width: f32 = line
-        .chars()
-        .map(|character| standard_font_character_width(&style.font_family, character))
-        .sum();
-    let spacing_count = line.chars().count().saturating_sub(1) as f32;
-    em_width * style.size_pt + spacing_count * style.letter_spacing
 }
 
 fn standard_font_character_width(family: &str, character: char) -> f32 {
@@ -998,6 +1257,123 @@ mod tests {
             Object::Integer(value) => *value as f32,
             Object::Real(value) => *value,
             other => panic!("expected PDF number, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn encode_win_ansi_saris_uses_windows_extra_codes() {
+        assert_eq!(
+            encode_win_ansi("Šariš"),
+            Ok(vec![0x8a, b'a', b'r', b'i', 0x9a])
+        );
+    }
+
+    #[test]
+    fn encode_win_ansi_zilina_uses_windows_extra_code() {
+        assert_eq!(
+            encode_win_ansi("Žilina"),
+            Ok(vec![0x8e, b'i', b'l', b'i', b'n', b'a'])
+        );
+    }
+
+    #[test]
+    fn encode_win_ansi_dlzka_returns_first_unencodable_character() {
+        assert_eq!(encode_win_ansi("dĺžka"), Err('ĺ'));
+    }
+
+    #[test]
+    fn standard_14_plan_keeps_win_ansi_zilina_on_type1_face() {
+        let plan = standard_14_text_plan("Helvetica-Bold", "Žilina", Vec::new());
+
+        match plan {
+            Standard14TextPlan::Type1 {
+                appearance_text,
+                replaced_character,
+            } => {
+                assert_eq!(appearance_text, "Žilina");
+                assert_eq!(replaced_character, None);
+            }
+            Standard14TextPlan::Embedded(font) => {
+                panic!("Žilina unexpectedly selected embedded {}", font.family)
+            }
+        }
+    }
+
+    #[test]
+    fn standard_14_plan_uses_matching_fallback_for_dlzka() {
+        let arial_bold = SystemFont {
+            family: "Arial".to_string(),
+            postscript_name: "Arial-BoldMT".to_string(),
+            style: "Bold".to_string(),
+            weight: 700,
+            italic: false,
+            monospace: false,
+            file_path: "arial-bold.ttf".to_string(),
+            is_standard_14: false,
+        };
+
+        let plan = standard_14_text_plan("Helvetica-Bold", "dĺžka", vec![arial_bold]);
+
+        match plan {
+            Standard14TextPlan::Embedded(font) => {
+                assert_eq!(font.family, "Arial");
+                assert_eq!(font.style, "Bold");
+            }
+            Standard14TextPlan::Type1 { .. } => {
+                panic!("dĺžka must use the installed Arial Bold fallback")
+            }
+        }
+    }
+
+    #[test]
+    fn standard_14_plan_replaces_only_unencodable_characters_without_fallback() {
+        let plan = standard_14_text_plan("Helvetica-Bold", "dĺžka čaj", Vec::new());
+
+        match plan {
+            Standard14TextPlan::Type1 {
+                appearance_text,
+                replaced_character,
+            } => {
+                assert_eq!(appearance_text, "d?žka ?aj");
+                assert_eq!(replaced_character, Some('ĺ'));
+                assert_eq!(
+                    encode_win_ansi(&appearance_text),
+                    Ok(b"d?\x9eka ?aj".to_vec())
+                );
+            }
+            Standard14TextPlan::Embedded(font) => {
+                panic!("missing fallback unexpectedly selected {}", font.family)
+            }
+        }
+    }
+
+    #[test]
+    fn pdf_text_string_uses_pdf_doc_encoding_when_all_characters_fit() {
+        let encoded = pdf_text_string("Šariš €");
+
+        match encoded {
+            Object::String(bytes, StringFormat::Literal) => {
+                assert_eq!(bytes, vec![0x97, b'a', b'r', b'i', 0x9d, b' ', 0xa0]);
+            }
+            other => panic!("expected literal PDFDocEncoding string, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn pdf_text_string_uses_utf16be_with_bom_when_pdf_doc_encoding_cannot_fit() {
+        let encoded = pdf_text_string("Ľubomír");
+
+        match encoded {
+            Object::String(bytes, StringFormat::Hexadecimal) => {
+                assert_eq!(
+                    bytes,
+                    vec![
+                        0xfe, 0xff, 0x01, 0x3d, 0x00, 0x75, 0x00, 0x62, 0x00, 0x6f, 0x00, 0x6d,
+                        0x00, 0xed, 0x00, 0x72,
+                    ]
+                );
+            }
+            other => panic!("expected hexadecimal UTF-16BE string, got {other:?}"),
         }
     }
 

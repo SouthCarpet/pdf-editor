@@ -1,7 +1,11 @@
 use lopdf::content::Content;
-use lopdf::{Document, Object};
+use lopdf::{dictionary, Document, Object};
 use pdf_editor_lib::services::annotations::{apply_annotations, Annotation};
+use pdf_editor_lib::services::fonts::list_system_fonts;
+use pdf_editor_lib::services::text_extractor::extract_text_with_mupdf;
 use pdf_editor_lib::services::text_style::{TextAlign, TextStyle, VerticalAlign};
+use pdf_editor_lib::sidecars::manager::SidecarManager;
+use pdf_editor_lib::sidecars::qpdf::QpdfWrapper;
 use std::path::Path;
 use tempfile::TempDir;
 
@@ -293,6 +297,150 @@ fn apply_annotations_roundtrips_all_twelve_standard_text_faces_and_styles() {
             case.postscript_name
         );
     }
+}
+
+#[test]
+fn ascii_helvetica_bold_stays_unembedded_type1_standard_14() {
+    let temp = TempDir::new().expect("temporary output directory");
+    let output = temp.path().join("ascii-standard-14.pdf");
+    let annotation = Annotation::FreeText {
+        page: 0,
+        rect: [10.0, 10.0, 210.0, 50.0],
+        contents: "Plain ASCII text".to_string(),
+        style: TextStyle {
+            font_family: "Helvetica".to_string(),
+            font_postscript_name: "Helvetica-Bold".to_string(),
+            bold: true,
+            ..TextStyle::default()
+        },
+        background_fill: None,
+        border_color: [0.0, 0.0, 0.0],
+        border_width: 0.0,
+        auto_resize: false,
+    };
+
+    apply_annotations(Path::new(SAMPLE), &output, &[annotation])
+        .expect("apply ASCII FreeText annotation");
+
+    let doc = pdf_editor_lib::services::pdf_guard::load_guarded(&output).expect("reload ASCII PDF");
+    let entries = page_annotation_entries(&doc);
+    let dict = referenced_dictionary(&doc, &entries[0]);
+    let font = annotation_font_dictionary(&doc, dict, "HelvB");
+    assert_eq!(
+        font.get(b"Subtype").expect("/Subtype").as_name().unwrap(),
+        b"Type1",
+        "ASCII Helvetica-Bold must remain a Standard-14 Type1 resource"
+    );
+}
+
+#[tokio::test]
+async fn helvetica_bold_slovak_free_text_roundtrips_exactly_through_extractor() {
+    assert_slovak_free_text_roundtrip("Helvetica", "Helvetica-Bold", true, false).await;
+}
+
+#[tokio::test]
+async fn times_italic_slovak_free_text_roundtrips_exactly_through_extractor() {
+    assert_slovak_free_text_roundtrip("Times", "Times-Italic", false, true).await;
+}
+
+async fn assert_slovak_free_text_roundtrip(
+    family: &str,
+    postscript_name: &str,
+    bold: bool,
+    italic: bool,
+) {
+    const SLOVAK_TEXT: &str = "Ľubomír Šťastný, Čadca";
+
+    let required_style = match postscript_name {
+        "Helvetica-Bold" => ("Arial", "Bold"),
+        "Times-Italic" => ("Times New Roman", "Italic"),
+        _ => panic!("round-trip test has no fallback mapping for {postscript_name}"),
+    };
+    let has_fallback = list_system_fonts().into_iter().any(|font| {
+        !font.is_standard_14
+            && !font.file_path.is_empty()
+            && font.family.eq_ignore_ascii_case(required_style.0)
+            && font.style == required_style.1
+    });
+    if !has_fallback {
+        eprintln!(
+            "SKIP: {postscript_name} Slovak round-trip needs installed {} {}",
+            required_style.0, required_style.1
+        );
+        return;
+    }
+
+    let temp = TempDir::new().expect("temporary output directory");
+    let input = temp.path().join("blank.pdf");
+    let output = temp.path().join("slovak-free-text.pdf");
+    let flattened = temp.path().join("slovak-free-text-flattened.pdf");
+    write_blank_pdf(&input);
+    let annotation = Annotation::FreeText {
+        page: 0,
+        rect: [72.0, 700.0, 500.0, 740.0],
+        contents: SLOVAK_TEXT.to_string(),
+        style: TextStyle {
+            font_family: family.to_string(),
+            font_postscript_name: postscript_name.to_string(),
+            size_pt: 12.0,
+            bold,
+            italic,
+            ..TextStyle::default()
+        },
+        background_fill: None,
+        border_color: [0.0, 0.0, 0.0],
+        border_width: 0.0,
+        auto_resize: false,
+    };
+
+    apply_annotations(&input, &output, &[annotation]).expect("apply Slovak FreeText annotation");
+
+    let manager = SidecarManager::new(1);
+    QpdfWrapper::new(manager.clone())
+        .flatten_annotations(&output, &flattened, None)
+        .await
+        .expect("flatten FreeText appearance into page content");
+    let extracted = extract_text_with_mupdf(&flattened, manager)
+        .await
+        .expect("extract saved FreeText through services::text_extractor");
+    assert_eq!(
+        extracted.trim(),
+        SLOVAK_TEXT,
+        "saved {postscript_name} FreeText must extract exactly"
+    );
+}
+
+fn write_blank_pdf(path: &Path) {
+    let mut doc = Document::with_version("1.7");
+    let pages_id = doc.new_object_id();
+    let page_id = doc.new_object_id();
+    let catalog_id = doc.new_object_id();
+    doc.set_object(
+        page_id,
+        dictionary! {
+            "Type" => "Page",
+            "Parent" => Object::Reference(pages_id),
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Resources" => dictionary! {},
+        },
+    );
+    doc.set_object(
+        pages_id,
+        dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1,
+        },
+    );
+    doc.set_object(
+        catalog_id,
+        dictionary! {
+            "Type" => "Catalog",
+            "Pages" => Object::Reference(pages_id),
+        },
+    );
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+    doc.save(path).expect("save blank PDF fixture");
 }
 
 fn page_annotation_entries(doc: &Document) -> Vec<Object> {

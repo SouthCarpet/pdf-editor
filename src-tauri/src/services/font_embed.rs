@@ -460,6 +460,23 @@ impl FontSubsetter {
         }
         out
     }
+
+    /// Return the text's horizontal advance in em units using the same
+    /// glyph IDs and advances emitted in the Type0 font's `/W` array.
+    pub fn text_width_em(&self, text: &str) -> f32 {
+        let Ok(face) = Face::parse(&self.font_data, 0) else {
+            return 0.0;
+        };
+        let units_per_em = face.units_per_em() as f32;
+        let scale = 1000.0 / units_per_em;
+        text.chars()
+            .map(|character| {
+                let glyph = face.glyph_index(character).unwrap_or(GlyphId(0));
+                let advance = face.glyph_hor_advance(glyph).unwrap_or(0);
+                ((advance as f32 * scale) as i64) as f32 / 1000.0
+            })
+            .sum()
+    }
 }
 
 /// Compute (start, end) byte offsets of glyph `g` inside the glyf table,
