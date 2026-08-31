@@ -299,14 +299,12 @@ mod tests {
         pages_dict.set("Type", "Pages");
         pages_dict.set("Kids", kids);
         pages_dict.set("Count", count);
-        doc.objects
-            .insert(pages_id, Object::Dictionary(pages_dict));
+        doc.objects.insert(pages_id, Object::Dictionary(pages_dict));
         let catalog_id = doc.new_object_id();
         let mut catalog = lopdf::Dictionary::new();
         catalog.set("Type", "Catalog");
         catalog.set("Pages", pages_id);
-        doc.objects
-            .insert(catalog_id, Object::Dictionary(catalog));
+        doc.objects.insert(catalog_id, Object::Dictionary(catalog));
         doc.trailer.set("Root", catalog_id);
         doc.save(path).expect("write fixture pdf");
     }
