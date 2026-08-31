@@ -8,13 +8,15 @@
 import { useEffect, useRef } from "react";
 import { commands } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
-import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
+import { clearAnnotationFieldLinks, linkAnnotationToFilledField } from "@/stores/annotationHistory";
 import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
 import { filledMarksFor, useFilledFields } from "@/stores/filledFieldsStore";
 import { historyStore } from "@/stores/historyStore";
 import {
   EMPTY_FILLED_FIELDS,
+  markFieldFilled,
+  unmarkFieldForClientId,
   type FilledFieldsState,
 } from "./filledFieldsState";
 
@@ -140,6 +142,30 @@ function parseFilledMarks(value: unknown): SerializedFilledMarks | null {
   return { key: row.key, ids: row.ids, fieldIdByClientId };
 }
 
+/** Rebuilds the annotation-to-filled-field links a restore would otherwise
+ * lose (plan 062 final fix wave F5). `linkAnnotationToFilledField` is only
+ * ever called live, while the user fills a field; a crash-recovery restore
+ * skipped it, so Delete and undo on a restored fill never updated the
+ * detected-field overlay. Detected-field ids carry their page
+ * (`"{page_index}:{ordinal}"`), so each link can be rebuilt against the
+ * exact page it belongs to, the same key format `Workspace.tsx` uses. */
+function relinkFilledFields(docPath: string, fieldIdByClientId: Record<string, string>): void {
+  for (const [clientId, fieldId] of Object.entries(fieldIdByClientId)) {
+    const pageIndex = fieldId.slice(0, fieldId.indexOf(":"));
+    const pageKey = `${docPath}\u0000${pageIndex}`;
+    linkAnnotationToFilledField(docPath, clientId, {
+      mark: () =>
+        useFilledFields
+          .getState()
+          .setFilled(docPath, (current) => markFieldFilled(current, pageKey, fieldId, clientId)),
+      unmark: () =>
+        useFilledFields
+          .getState()
+          .setFilled(docPath, (current) => unmarkFieldForClientId(current, pageKey, clientId)),
+    });
+  }
+}
+
 /** Undo history starts empty after a restore: the snapshot is the new
  * baseline, so Ctrl+Z must not walk back into the pre-crash session. */
 export function restoreAutosaveRecord(docPath: string, record: AutosaveRecord): void {
@@ -149,6 +175,7 @@ export function restoreAutosaveRecord(docPath: string, record: AutosaveRecord): 
   useFilledFields.getState().restore(docPath, deserializeFilledMarks(record.filledMarks));
   historyStore.getState().clear(docPath);
   clearAnnotationFieldLinks(docPath);
+  relinkFilledFields(docPath, record.filledMarks.fieldIdByClientId);
   useDocuments.getState().markDirty(docPath, true);
 }
 

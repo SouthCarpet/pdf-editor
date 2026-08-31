@@ -75,7 +75,7 @@ export function DocumentAutosave({ path }: { path: string }) {
         if (!isOpen) setOffer(null);
       }}
     >
-      <DialogContent>
+      <DialogContent closeLabel={t("common:close")}>
         <DialogHeader>
           <DialogTitle>{t("autosave.title", { time })}</DialogTitle>
           <DialogDescription>{t("autosave.description")}</DialogDescription>

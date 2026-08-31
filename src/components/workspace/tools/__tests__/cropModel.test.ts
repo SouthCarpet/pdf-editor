@@ -12,6 +12,7 @@ import {
   presetMargins,
   ptToMm,
   resizeCropRect,
+  scaleCropRect,
   toDisplay,
   type CropPage,
   type CropRect,
@@ -172,6 +173,26 @@ describe("toDisplay and mm conversion", () => {
     expect(display.heightPct).toBe(50);
     expect(A4_WIDTH_MM).toBe(210);
     expect(A4_HEIGHT_MM).toBe(297);
+  });
+});
+
+describe("scaleCropRect", () => {
+  it("converts a full-page crop between PDF points and on-screen pixels at any zoom (F1 regression)", () => {
+    // 612 x 792 pt (US Letter) rendered at zoom 1.5 measures 918 x 1188 px
+    // on screen. The overlay drags in screen pixels; the stored rect and
+    // what Apply sends must stay in real PDF points regardless of zoom.
+    const page: CropPage = { width: 612, height: 792 };
+    const zoom = 1.5;
+    const points = presetFullPage(page);
+    const screen = scaleCropRect(points, zoom);
+    expect(screen).toEqual({ x: 0, y: 0, width: 918, height: 1188 });
+    expect(scaleCropRect(screen, 1 / zoom)).toEqual(points);
+    expect(points).toEqual({ x: 0, y: 0, width: 612, height: 792 });
+  });
+
+  it("is a no-op at factor 1", () => {
+    const rect: CropRect = { x: 12, y: 34, width: 56, height: 78 };
+    expect(scaleCropRect(rect, 1)).toEqual(rect);
   });
 });
 

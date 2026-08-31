@@ -10,6 +10,7 @@
 // A plain `<Group>`, not its own `Stage`: see the comment in
 // `DetectedFieldsOverlay.tsx` for why two overlapping Konva stages block
 // each other's clicks. `EditPageOverlay` mounts the one `Stage`.
+import { useState } from "react";
 import type { PageViewport } from "pdfjs-dist";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Vector2d } from "konva/lib/types";
@@ -22,7 +23,7 @@ import {
   type FreeTextAnnotation,
   type ResizeEdge,
 } from "./pendingAnnotationGeometry";
-import type { ScreenRect } from "./detectedFieldGeometry";
+import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { standardFontPreviewFamily } from "./standardTextStyle";
 import { textBlockOffset } from "./textBlockPlacement";
 
@@ -102,9 +103,17 @@ function PendingFreeTextItem({
   onSelect: () => void;
   onRectChange: (rect: [number, number, number, number]) => void;
 }) {
+  // Resize handles preview locally while dragging and commit once on
+  // release (plan 062 final fix wave F6). `onRectChange` pushes one undo
+  // entry per call, like `updateAnnotation`, so a per-move commit burned
+  // one history entry per pixel of drag instead of one per gesture - the
+  // same fix the crop overlay already applies to its own drag. Declared
+  // before the early return below so hook order stays stable.
+  const [previewScreen, setPreviewScreen] = useState<ScreenRect | null>(null);
   const rendered = freeTextRenderProps(item, viewport);
   if (rendered === null) return null;
-  const { screen, fontSizePx, colorCss, backgroundCss } = rendered;
+  const { screen: baseScreen, fontSizePx, colorCss, backgroundCss } = rendered;
+  const screen = previewScreen ?? baseScreen;
   const lines = item.contents.split(/\r?\n/);
   const lineHeight = item.style.line_height_multiplier ?? 1.2;
   const verticalOffsetPx = textBlockOffset(
@@ -141,16 +150,33 @@ function PendingFreeTextItem({
   // rect through `toPdfRect`, so the resize maths never has to special-
   // case the wire annotation's nullable `rect` tuple. The font size is
   // never touched here (R2): only `rect` is patched.
+  function edgeResizeRect(
+    edge: ResizeEdge,
+    axis: "x" | "y",
+    e: KonvaEventObject<DragEvent>,
+  ): [number, number, number, number] {
+    const currentRect = toPdfRect(screen, viewport);
+    const screenValue = (axis === "x" ? e.target.x() : e.target.y()) + HANDLE_SIZE / 2;
+    const point =
+      axis === "x"
+        ? viewport.convertToPdfPoint(screenValue, screen.y)
+        : viewport.convertToPdfPoint(screen.x, screenValue);
+    const valuePt = axis === "x" ? point[0] : point[1];
+    return resizeRectEdge(currentRect, edge, valuePt);
+  }
+
   function onEdgeDragMove(edge: ResizeEdge, axis: "x" | "y") {
     return (e: KonvaEventObject<DragEvent>) => {
-      const currentRect = toPdfRect(screen, viewport);
-      const screenValue = (axis === "x" ? e.target.x() : e.target.y()) + HANDLE_SIZE / 2;
-      const point =
-        axis === "x"
-          ? viewport.convertToPdfPoint(screenValue, screen.y)
-          : viewport.convertToPdfPoint(screen.x, screenValue);
-      const valuePt = axis === "x" ? point[0] : point[1];
-      onRectChange(resizeRectEdge(currentRect, edge, valuePt));
+      const next = toScreenRect(edgeResizeRect(edge, axis, e), viewport);
+      if (next !== null) setPreviewScreen(next);
+    };
+  }
+
+  function onEdgeDragEnd(edge: ResizeEdge, axis: "x" | "y") {
+    return (e: KonvaEventObject<DragEvent>) => {
+      const next = edgeResizeRect(edge, axis, e);
+      setPreviewScreen(null);
+      onRectChange(next);
     };
   }
 
@@ -189,6 +215,7 @@ function PendingFreeTextItem({
         edgeHandles(screen).map(({ edge, x, y, axis }) => (
           <Rect
             key={edge}
+            name={`resize-${edge}`}
             x={x - HANDLE_SIZE / 2}
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
@@ -201,6 +228,7 @@ function PendingFreeTextItem({
                 : { x: x - HANDLE_SIZE / 2, y: pos.y }
             }
             onDragMove={onEdgeDragMove(edge, axis)}
+            onDragEnd={onEdgeDragEnd(edge, axis)}
           />
         ))}
     </Group>

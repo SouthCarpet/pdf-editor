@@ -3,10 +3,6 @@
   "unused": [
     "common:add",
     "common:apply",
-    "common:ocr_options.language_hint_rapidocr",
-    "common:ocr_options.language_hint_tesseract",
-    "common:ocr_result.failed_title",
-    "common:ocr_result.title",
     "common:opening.after_active",
     "common:opening.before_active",
     "common:reset",
@@ -45,8 +41,6 @@
     "settings:discard",
     "settings:general",
     "settings:language_label",
-    "settings:ocr_add_language",
-    "settings:ocr_adding_language",
     "settings:ocr_language_builtin",
     "settings:ocr_language_user",
     "settings:ocr_remove_language",
@@ -190,12 +184,9 @@
     "workspace:forms.kind.radio",
     "workspace:forms.kind.signature",
     "workspace:forms.kind.text",
-    "workspace:ocr_edit.saved_erase",
-    "workspace:ocr_edit.saved_replacement",
     "workspace:save_status_clean",
     "workspace:save_status_dirty",
     "workspace:save_status_saving",
-    "workspace:tools.edit_forms",
     "workspace:tools.ocr"
   ],
   "literals": [

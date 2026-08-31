@@ -32,8 +32,15 @@ const SRC = "src";
 const LOCALES = ["src/locales/en", "src/locales/sk"];
 const APP_ERROR_SOURCE = "src-tauri/src/error.rs";
 const SHORTCUT_SOURCE = "src/components/workspace/shortcuts.ts";
+const EDIT_SUBTOOL_SOURCE = "src/components/workspace/tools/EditSubToolToggle.tsx";
+const SIGNATURE_STAMP_SOURCE = "src/components/workspace/tools/signatureStampAssets.ts";
 const KEY_RE = /\bt\(\s*["'`]([A-Za-z0-9_.:-]+)["'`]/g;
 const SHORTCUT_LABEL_RE = /\blabelKey:\s*["']([A-Za-z0-9_.:-]+)["']/g;
+const STAMP_NAME_KEY_RE = /\bnameKey:\s*["']([A-Za-z0-9_.:-]+)["']/g;
+// `t(cond ? "keyA" : "keyB")`: neither literal follows `t(` directly, so
+// `KEY_RE` never sees either branch (SignaturePanel.tsx's ink-color label).
+const TERNARY_KEY_RE =
+  /\bt\(\s*[^()]*?\?\s*["'`]([A-Za-z0-9_.:-]+)["'`]\s*:\s*["'`]([A-Za-z0-9_.:-]+)["'`]\s*\)/g;
 
 // Key families built at runtime, so no literal call site exists to find.
 // Each entry is a prefix. Justify every addition.
@@ -83,9 +90,27 @@ function loadLocale(dir) {
 const files = walk(SRC);
 const calledKeys = new Set();
 for (const f of files) {
-  for (const m of readFileSync(f, "utf8").matchAll(KEY_RE)) calledKeys.add(m[1]);
+  const src = readFileSync(f, "utf8");
+  for (const m of src.matchAll(KEY_RE)) calledKeys.add(m[1]);
+  // Both ternary branches are real `t()` calls, just not literal ones
+  // `KEY_RE` can see; treat their keys exactly like any other bare call.
+  for (const m of src.matchAll(TERNARY_KEY_RE)) {
+    calledKeys.add(m[1]);
+    calledKeys.add(m[2]);
+  }
 }
 for (const match of readFileSync(SHORTCUT_SOURCE, "utf8").matchAll(SHORTCUT_LABEL_RE)) {
+  const key = match[1];
+  calledKeys.add(key.includes(":") ? key : `workspace:${key}`);
+}
+// EditSubToolToggle and the signature stamp gallery build their `t()` key
+// from a data literal (`labelKey`/`nameKey`), the same indirection as
+// `shortcuts.ts`'s `labelKey`. Both call sites use `useTranslation("workspace")`.
+for (const match of readFileSync(EDIT_SUBTOOL_SOURCE, "utf8").matchAll(SHORTCUT_LABEL_RE)) {
+  const key = match[1];
+  calledKeys.add(key.includes(":") ? key : `workspace:${key}`);
+}
+for (const match of readFileSync(SIGNATURE_STAMP_SOURCE, "utf8").matchAll(STAMP_NAME_KEY_RE)) {
   const key = match[1];
   calledKeys.add(key.includes(":") ? key : `workspace:${key}`);
 }

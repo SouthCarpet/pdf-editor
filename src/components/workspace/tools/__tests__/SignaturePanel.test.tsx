@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@/i18n";
 import type { SignatureRecord } from "@/bindings";
@@ -21,10 +21,12 @@ const commandFakes = vi.hoisted(() => ({
 }));
 const dialogFakes = vi.hoisted(() => ({ open: vi.fn() }));
 const fsFakes = vi.hoisted(() => ({ readFile: vi.fn() }));
+const tokenFakes = vi.hoisted(() => ({ readToken: vi.fn() }));
 
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 vi.mock("@tauri-apps/plugin-dialog", () => dialogFakes);
 vi.mock("@tauri-apps/plugin-fs", () => fsFakes);
+vi.mock("@/lib/tokens", () => ({ readToken: tokenFakes.readToken }));
 
 import { useSignatureStore } from "@/stores/signatureStore";
 import { SignaturePanel } from "../SignaturePanel";
@@ -40,6 +42,14 @@ describe("SignaturePanel", () => {
     commandFakes.signatureDelete.mockReset();
     dialogFakes.open.mockReset();
     fsFakes.readFile.mockReset();
+    tokenFakes.readToken.mockReset();
+    tokenFakes.readToken.mockImplementation((name: string, fallback: string) =>
+      name === "--color-foreground"
+        ? "rgb(10, 20, 30)"
+        : name === "--color-accent"
+          ? "rgb(40, 50, 60)"
+          : fallback,
+    );
     commandFakes.signatureList.mockResolvedValue({ status: "ok", data: [SAVED] });
     commandFakes.signatureDelete.mockResolvedValue({ status: "ok", data: null });
     fsFakes.readFile.mockImplementation(() => new Promise(() => undefined));
@@ -118,5 +128,45 @@ describe("SignaturePanel", () => {
         "Invoices",
       ),
     );
+  });
+
+  it("draws with a themed ink colour, not a fixed hex (Minor 2 / F8)", async () => {
+    // A literal near-black ("#111827") nearly vanishes on the dark canvas
+    // background (`--color-control`). Ink must come from `readToken`.
+    const context = {
+      setTransform: vi.fn(),
+      beginPath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      stroke: vi.fn(),
+      save: vi.fn(),
+      clearRect: vi.fn(),
+      restore: vi.fn(),
+      strokeStyle: "",
+      lineWidth: 0,
+      lineCap: "",
+      lineJoin: "",
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D,
+    );
+    const user = userEvent.setup();
+    render(<SignaturePanel onChoose={() => undefined} />);
+    await user.click(screen.getByRole("button", { name: "Draw" }));
+
+    expect(tokenFakes.readToken).toHaveBeenCalledWith("--color-foreground", expect.any(String));
+    expect(tokenFakes.readToken).toHaveBeenCalledWith("--color-accent", expect.any(String));
+
+    const blackSwatch = screen.getByRole("button", { name: "Black" }).querySelector("span");
+    const blueSwatch = screen.getByRole("button", { name: "Blue" }).querySelector("span");
+    expect(blackSwatch).toHaveStyle({ backgroundColor: "rgb(10, 20, 30)" });
+    expect(blueSwatch).toHaveStyle({ backgroundColor: "rgb(40, 50, 60)" });
+
+    await user.click(screen.getByRole("button", { name: "Blue" }));
+    const canvas = screen.getByLabelText("Signature drawing area");
+    // jsdom does not implement the Pointer Capture API.
+    canvas.setPointerCapture = vi.fn();
+    fireEvent.pointerDown(canvas, { clientX: 10, clientY: 10 });
+    expect(context.strokeStyle).toBe("rgb(40, 50, 60)");
   });
 });

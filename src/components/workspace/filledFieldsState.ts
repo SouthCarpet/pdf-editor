@@ -22,18 +22,23 @@ export const EMPTY_FILLED_FIELDS: FilledFieldsState = {
   fieldIdByClientId: {},
 };
 
-/** Records that `fieldId` is now filled by the annotation `clientId`. */
+/** Records that `fieldId` is now filled by the annotation `clientId`.
+ * Detected-field ids already carry the page (`"{page_index}:{ordinal}"`,
+ * see `form_field_detection.rs`), so they cannot collide across pages: a
+ * page switch used to reset `ids`/`fieldIdByClientId` to empty here, which
+ * meant a multi-page fill only ever autosaved the last page touched (plan
+ * 062 final fix wave F5). Accumulate instead; `key` still tracks the most
+ * recently touched page for the callers that gate a per-page view on it. */
 export function markFieldFilled(
   current: FilledFieldsState,
   key: string,
   fieldId: string,
   clientId: string,
 ): FilledFieldsState {
-  const base = current.key === key ? current : { key, ids: new Set<string>(), fieldIdByClientId: {} };
   return {
     key,
-    ids: new Set(base.ids).add(fieldId),
-    fieldIdByClientId: { ...base.fieldIdByClientId, [clientId]: fieldId },
+    ids: new Set(current.ids).add(fieldId),
+    fieldIdByClientId: { ...current.fieldIdByClientId, [clientId]: fieldId },
   };
 }
 

@@ -184,6 +184,61 @@ describe("store-level restore", () => {
     expect(historyStore.getState().canRedo(DOC)).toBe(false);
     expect(useDocuments.getState().documents.get(DOC)?.dirty).toBe(true);
   });
+
+  it("relinks a restored fill so Delete unmarks its field (F5 regression)", () => {
+    // Before the fix, `restoreAutosaveRecord` cleared the annotation-field
+    // links and never rebuilt them, so Delete on a restored fill left the
+    // detected-field overlay showing it as filled forever.
+    const record = serializePendingState(
+      [pending("client-keep", "Hodiny")],
+      {
+        key: `${DOC}\u00000`,
+        ids: ["0:0"],
+        fieldIdByClientId: { "client-keep": "0:0" },
+      },
+      1_700_000_000_000,
+    );
+
+    restoreAutosaveRecord(DOC, record);
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("0:0")).toBe(true);
+
+    useAnnotations.getState().remove(DOC, "client-keep");
+
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("0:0")).toBe(false);
+    expect(useFilledFields.getState().byDoc[DOC].fieldIdByClientId["client-keep"]).toBeUndefined();
+  });
+
+  it("restores fills spanning two pages, and each relinks to its own field (F5 regression)", () => {
+    // `markFieldFilled` used to wipe every other page's marks on a page
+    // switch, so a multi-page fill only ever autosaved the last page's
+    // overlay. Both pages' marks must come back from one record.
+    const record = serializePendingState(
+      [pending("client-p0", "Prvá"), pending("client-p1", "Druhá")],
+      {
+        key: `${DOC}\u00001`,
+        ids: ["0:0", "1:0"],
+        fieldIdByClientId: { "client-p0": "0:0", "client-p1": "1:0" },
+      },
+      1_700_000_000_000,
+    );
+
+    restoreAutosaveRecord(DOC, record);
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("0:0")).toBe(true);
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("1:0")).toBe(true);
+    expect(useFilledFields.getState().byDoc[DOC].fieldIdByClientId).toEqual({
+      "client-p0": "0:0",
+      "client-p1": "1:0",
+    });
+
+    // Delete the page-1 field: relinking rebuilt its link against page 1,
+    // matching the store's currently tracked page, so it unmarks. (A
+    // cross-page unmark, page 0 while page 1 is the tracked key, is a
+    // separate, pre-existing limit of the single-key store shared with the
+    // live fill flow - not part of this fix.)
+    useAnnotations.getState().remove(DOC, "client-p1");
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("1:0")).toBe(false);
+    expect(useFilledFields.getState().byDoc[DOC].ids.has("0:0")).toBe(true);
+  });
 });
 
 describe("useDocumentAutosave (Tauri commands mocked)", () => {

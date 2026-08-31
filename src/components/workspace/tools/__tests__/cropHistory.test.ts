@@ -12,7 +12,7 @@ describe("commitCropRectChange", () => {
     historyStore.setState({ byDoc: {} });
   });
 
-  it("pushes one Orezanie entry and undo restores the previous rectangle", () => {
+  it("pushes one crop entry and undo restores the previous rectangle", () => {
     let current = START;
     commitCropRectChange(DOC, START, END, (rect) => {
       current = rect;
@@ -22,7 +22,7 @@ describe("commitCropRectChange", () => {
     const stack = historyStore.getState().byDoc[DOC].undo;
     expect(stack).toHaveLength(1);
     expect(stack[0].label).toBe(CROP_HISTORY_LABEL);
-    expect(stack[0].label).toBe("Orezanie");
+    expect(stack[0].label).toBe("crop");
 
     historyStore.getState().undo(DOC);
     expect(current).toEqual(START);
@@ -53,7 +53,7 @@ describe("commitCropDragEnd", () => {
     commitCropDragEnd(DOC, START, END, apply);
 
     expect(historyStore.getState().byDoc[DOC].undo).toHaveLength(1);
-    expect(historyStore.getState().byDoc[DOC].undo[0].label).toBe("Orezanie");
+    expect(historyStore.getState().byDoc[DOC].undo[0].label).toBe("crop");
     historyStore.getState().undo(DOC);
     expect(current).toEqual(START);
   });

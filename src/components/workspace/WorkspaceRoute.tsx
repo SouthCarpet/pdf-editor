@@ -291,7 +291,7 @@ export function WorkspaceRoute() {
     return <CompareWorkspace initialLeftPath={docId === "new" ? null : decodeDocId(docId)} />;
   }
   if (!path || !pdfDoc) {
-    return <div className="p-6 text-[var(--color-muted)]">Loading…</div>;
+    return <div className="p-6 text-[var(--color-muted)]">{t("loading")}</div>;
   }
   return (
     <>

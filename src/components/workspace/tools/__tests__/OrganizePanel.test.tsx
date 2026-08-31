@@ -5,6 +5,7 @@ import type * as pdfjs from "pdfjs-dist";
 import { commands } from "@/bindings";
 import i18n from "@/i18n";
 import { historyStore } from "@/stores/historyStore";
+import { useOrganizeStore } from "@/stores/organizeStore";
 import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 import { OrganizePanel } from "../OrganizePanel";
 
@@ -33,6 +34,7 @@ describe("OrganizePanel selection and undo", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     historyStore.setState({ byDoc: {} });
+    useOrganizeStore.setState({ byDoc: {} });
   });
 
   it("Shift-click selects a range from the anchor and Ctrl-click toggles", async () => {
@@ -74,12 +76,35 @@ describe("OrganizePanel selection and undo", () => {
     const restored = screen.getAllByTestId(/thumb-/).map((node) => node.getAttribute("data-testid"));
     expect(restored).toEqual(["thumb-0", "thumb-1", "thumb-2", "thumb-3"]);
   });
+
+  it("undo still applies after the panel unmounts (F4 regression: tool switch)", async () => {
+    // The panel unmounts when Workspace switches away from the Organize
+    // tool. Before the fix, undo/redo closed over the panel's own
+    // `setState`, so an undo fired after unmount was a silent no-op.
+    const user = userEvent.setup();
+    const { unmount } = render(<OrganizePanel pdf={pdf} docPath={DOC} />);
+    await user.click(screen.getByRole("button", { name: "Reverse order" }));
+    expect(historyStore.getState().canUndo(DOC)).toBe(true);
+
+    unmount();
+    act(() => {
+      historyStore.getState().undo(DOC);
+    });
+    expect(useOrganizeStore.getState().byDoc[DOC]?.org.pages.map((p) => p.originalIndex)).toEqual([
+      0, 1, 2, 3,
+    ]);
+
+    render(<OrganizePanel pdf={pdf} docPath={DOC} />);
+    const restored = screen.getAllByTestId(/thumb-/).map((node) => node.getAttribute("data-testid"));
+    expect(restored).toEqual(["thumb-0", "thumb-1", "thumb-2", "thumb-3"]);
+  });
 });
 
 describe("OrganizePanel apply plan", () => {
   beforeEach(async () => {
     await i18n.changeLanguage("en");
     historyStore.setState({ byDoc: {} });
+    useOrganizeStore.setState({ byDoc: {} });
     resetFakeBridge();
     vi.mocked(commands.reorderPagesCmd).mockReset();
     vi.mocked(commands.insertBlankPageCmd).mockReset();

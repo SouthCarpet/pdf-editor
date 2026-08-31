@@ -149,9 +149,15 @@ function PendingStampItem({
 }) {
   const url = useLocalPngUrl(item.image_path);
   const image = useHtmlImage(url);
-  const screen = toScreenRect(item.rect, viewport);
-  if (screen === null) return null;
-  const visible = screen;
+  // Corner handles preview locally while dragging and commit once on
+  // release (plan 062 final fix wave F6), the same fix as the crop
+  // overlay: `onRectChange` pushes one undo entry per call, so a
+  // per-move commit burned one history entry per pixel of drag. Declared
+  // before the early return below so hook order stays stable.
+  const [previewScreen, setPreviewScreen] = useState<ScreenRect | null>(null);
+  const baseScreen = toScreenRect(item.rect, viewport);
+  if (baseScreen === null) return null;
+  const visible = previewScreen ?? baseScreen;
   const currentRect = toPdfRect(visible, viewport);
   const widthPt = Math.abs(currentRect[2] - currentRect[0]);
   const heightPt = Math.abs(currentRect[3] - currentRect[1]);
@@ -178,14 +184,30 @@ function PendingStampItem({
     );
   }
 
-  function resize(corner: StampCorner) {
+  function cornerResizeRect(
+    corner: StampCorner,
+    event: KonvaEventObject<DragEvent>,
+  ): [number, number, number, number] {
+    const screenPoint: [number, number] = [
+      event.target.x() + HANDLE_SIZE / 2,
+      event.target.y() + HANDLE_SIZE / 2,
+    ];
+    const pdfPoint = viewport.convertToPdfPoint(screenPoint[0], screenPoint[1]);
+    return resizeStampRect(currentRect, corner, [pdfPoint[0], pdfPoint[1]], aspectRatio);
+  }
+
+  function onCornerDragMove(corner: StampCorner) {
     return (event: KonvaEventObject<DragEvent>) => {
-      const screenPoint: [number, number] = [
-        event.target.x() + HANDLE_SIZE / 2,
-        event.target.y() + HANDLE_SIZE / 2,
-      ];
-      const pdfPoint = viewport.convertToPdfPoint(screenPoint[0], screenPoint[1]);
-      onRectChange(resizeStampRect(currentRect, corner, [pdfPoint[0], pdfPoint[1]], aspectRatio));
+      const next = toScreenRect(cornerResizeRect(corner, event), viewport);
+      if (next !== null) setPreviewScreen(next);
+    };
+  }
+
+  function onCornerDragEnd(corner: StampCorner) {
+    return (event: KonvaEventObject<DragEvent>) => {
+      const next = cornerResizeRect(corner, event);
+      setPreviewScreen(null);
+      onRectChange(next);
     };
   }
 
@@ -224,6 +246,7 @@ function PendingStampItem({
         corners.map(({ corner, x, y }) => (
           <Rect
             key={corner}
+            name={`resize-${corner}`}
             x={x - HANDLE_SIZE / 2}
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
@@ -231,7 +254,8 @@ function PendingStampItem({
             fill="#111827"
             draggable
             dragBoundFunc={(position: Vector2d) => position}
-            onDragMove={resize(corner)}
+            onDragMove={onCornerDragMove(corner)}
+            onDragEnd={onCornerDragEnd(corner)}
           />
         ))}
     </Group>

@@ -49,12 +49,16 @@ describe("filledFieldsState", () => {
     expect(state.ids.has("0:0")).toBe(true);
   });
 
-  it("starts a fresh set when marking under a new key", () => {
+  it("keeps marks from another page when marking under a new key (F5 regression)", () => {
+    // Detected-field ids already carry the page ("0:0" vs "1:0"), so a
+    // page switch must not wipe the other page's marks: that wipe was why
+    // a multi-page fill only ever autosaved the last page's overlay.
     const state = markFieldFilled(EMPTY_FILLED_FIELDS, KEY, "0:0", "client-1");
-    const otherKey = "A:\\docs\\b.pdf\u00000";
+    const otherKey = "A:\\docs\\a.pdf\u00001";
     const next = markFieldFilled(state, otherKey, "1:0", "client-2");
     expect(next.key).toBe(otherKey);
-    expect(next.ids.has("0:0")).toBe(false);
+    expect(next.ids.has("0:0")).toBe(true);
     expect(next.ids.has("1:0")).toBe(true);
+    expect(next.fieldIdByClientId).toEqual({ "client-1": "0:0", "client-2": "1:0" });
   });
 });

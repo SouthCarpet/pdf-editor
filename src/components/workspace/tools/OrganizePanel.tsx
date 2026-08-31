@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { commands } from "@/bindings";
 import { cn } from "@/lib/utils";
 import { historyStore } from "@/stores/historyStore";
+import { useOrganizeStore } from "@/stores/organizeStore";
 import { pickPaths, pickSavePath } from "@/tauri/bridge";
 import { PdfViewer } from "../PdfViewer";
 import { parsePageRanges } from "./extractSelection";
@@ -44,15 +45,15 @@ const PDF_FILTER = [{ name: "PDF", extensions: ["pdf"] }];
 
 export function OrganizePanel({ pdf, docPath }: Props) {
   const { t } = useTranslation(["common", "tools"]);
-  const [bundle, setBundle] = useState(() => ({
-    pdf,
-    org: createOrganizeState(pdf.numPages),
-  }));
-  if (bundle.pdf !== pdf) {
-    setBundle({ pdf, org: createOrganizeState(pdf.numPages) });
-  }
+  // Staged plan lives in `organizeStore`, not local state (plan 062 final
+  // fix wave F4). The panel unmounts on a tool switch and remounts later;
+  // the store outlives it, so an undo/redo pushed while the panel was open
+  // still applies once the panel is gone.
+  const storedBundle = useOrganizeStore((s) => s.byDoc[docPath]);
   const org =
-    bundle.pdf === pdf ? bundle.org : createOrganizeState(pdf.numPages);
+    storedBundle !== undefined && storedBundle.pdf === pdf
+      ? storedBundle.org
+      : createOrganizeState(pdf.numPages);
 
   const [dragIds, setDragIds] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -69,7 +70,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
   );
 
   function setOrg(next: OrganizeState) {
-    setBundle({ pdf, org: next });
+    useOrganizeStore.getState().setOrg(docPath, pdf, next);
   }
 
   function commit(next: OrganizeState) {
@@ -79,8 +80,8 @@ export function OrganizePanel({ pdf, docPath }: Props) {
     if (next.pages === before.pages && next.nextId === before.nextId) return;
     historyStore.getState().push(docPath, {
       label: "organize",
-      undo: () => setBundle({ pdf, org: before }),
-      redo: () => setBundle({ pdf, org: next }),
+      undo: () => useOrganizeStore.getState().setOrg(docPath, pdf, before),
+      redo: () => useOrganizeStore.getState().setOrg(docPath, pdf, next),
     });
   }
 
@@ -211,8 +212,13 @@ export function OrganizePanel({ pdf, docPath }: Props) {
         return `${out}.stage${stageN}_${label}.pdf`;
       };
 
-      const fail = (result: { status: "error"; error: unknown }) => {
-        setErr(JSON.stringify(result.error));
+      const fail = (result: { status: "error"; error: { key: string; data: unknown } }) => {
+        setErr(
+          t(`errors:${result.error.key}`, {
+            ...((result.error.data as Record<string, unknown> | null) ?? {}),
+            defaultValue: result.error.key,
+          }),
+        );
         return false;
       };
 
@@ -333,7 +339,12 @@ export function OrganizePanel({ pdf, docPath }: Props) {
 
       const saved = await commands.saveDocument(current, out);
       if (saved.status === "error") {
-        setErr(JSON.stringify(saved.error));
+        setErr(
+          t(`errors:${saved.error.key}`, {
+            ...((saved.error.data as Record<string, unknown> | null) ?? {}),
+            defaultValue: saved.error.key,
+          }),
+        );
       } else {
         historyStore.getState().clear(docPath);
       }

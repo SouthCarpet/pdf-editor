@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { SignatureRecord } from "@/bindings";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { readToken } from "@/lib/tokens";
 import { useSignatureStore } from "@/stores/signatureStore";
 import { useLocalPngUrl } from "../useLocalPngUrl";
 import {
@@ -203,7 +204,15 @@ function SignatureDrawingDialog({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawingRef = useRef(false);
   const [penWidth, setPenWidth] = useState(3);
-  const [color, setColor] = useState<"#111827" | "#1d4ed8">("#111827");
+  // Minor 2 (plan 062 final fix wave F8): themed ink, not a fixed hex. The
+  // dark canvas background is `--color-control`; a literal near-black
+  // ("#111827") nearly vanishes on it. Canvas 2D cannot resolve `var(...)`
+  // itself (same reason `CropOverlay` reads tokens), so `readToken`
+  // resolves the live value each render.
+  const [colorChoice, setColorChoice] = useState<"foreground" | "accent">("foreground");
+  const foregroundColor = readToken("--color-foreground", "#111827");
+  const accentColor = readToken("--color-accent", "#1d4ed8");
+  const color = colorChoice === "foreground" ? foregroundColor : accentColor;
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -324,19 +333,22 @@ function SignatureDrawingDialog({
           </fieldset>
           <fieldset className="flex items-center gap-1">
             <legend className="sr-only">{t("signature.drawing.color")}</legend>
-            {(["#111827", "#1d4ed8"] as const).map((value) => (
+            {(["foreground", "accent"] as const).map((choice) => (
               <button
-                key={value}
+                key={choice}
                 type="button"
-                aria-label={t(value === "#111827" ? "signature.drawing.black" : "signature.drawing.blue")}
-                aria-pressed={color === value}
-                onClick={() => setColor(value)}
+                aria-label={t(choice === "foreground" ? "signature.drawing.black" : "signature.drawing.blue")}
+                aria-pressed={colorChoice === choice}
+                onClick={() => setColorChoice(choice)}
                 className={cn(
                   "min-h-10 min-w-10 rounded-md p-2 transition-[scale,box-shadow] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2",
-                  color === value && "shadow-[0_0_0_2px_var(--color-focus)]",
+                  colorChoice === choice && "shadow-[0_0_0_2px_var(--color-focus)]",
                 )}
               >
-                <span className="block size-5 rounded-full" style={{ backgroundColor: value }} />
+                <span
+                  className="block size-5 rounded-full"
+                  style={{ backgroundColor: choice === "foreground" ? foregroundColor : accentColor }}
+                />
               </button>
             ))}
           </fieldset>

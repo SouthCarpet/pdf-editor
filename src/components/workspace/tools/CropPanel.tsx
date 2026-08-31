@@ -103,7 +103,12 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         job_id: crypto.randomUUID(),
       });
       if (result.status === "error") {
-        setErr(JSON.stringify(result.error));
+        setErr(
+          t(`errors:${result.error.key}`, {
+            ...((result.error.data as Record<string, unknown> | null) ?? {}),
+            defaultValue: result.error.key,
+          }),
+        );
         return;
       }
       const [x, y, w, h] = result.data.bbox_applied;
@@ -135,7 +140,12 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         job_id: crypto.randomUUID(),
       });
       if (result.status === "error") {
-        setErr(JSON.stringify(result.error));
+        setErr(
+          t(`errors:${result.error.key}`, {
+            ...((result.error.data as Record<string, unknown> | null) ?? {}),
+            defaultValue: result.error.key,
+          }),
+        );
       } else {
         historyStore.getState().clear(docPath);
       }

@@ -100,6 +100,9 @@ describe("CloseGuardDialog - window scope", () => {
     expect(tauriWindow.close).not.toHaveBeenCalled();
     expect(await screen.findByText("Neuložené zmeny")).toBeInTheDocument();
     expect(screen.getByText(/a\.pdf/)).toBeInTheDocument();
+    // F7 regression: the dialog's own X close button used the English
+    // default ("Close") regardless of the active locale.
+    expect(screen.getByRole("button", { name: "Zavrieť" })).toBeInTheDocument();
   });
 
   it("Zrušiť closes the dialog and leaves the window open and the work intact", async () => {

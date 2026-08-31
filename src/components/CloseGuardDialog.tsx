@@ -143,7 +143,7 @@ export function CloseGuardDialog() {
         if (!isOpen) dismiss();
       }}
     >
-      <DialogContent>
+      <DialogContent closeLabel={t("common:close")}>
         <DialogHeader>
           <DialogTitle>{t("close_guard.title")}</DialogTitle>
           <DialogDescription>{t("close_guard.description", { names })}</DialogDescription>

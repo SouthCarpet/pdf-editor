@@ -17,7 +17,6 @@ import {
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { linkAnnotationToFilledField } from "@/stores/annotationHistory";
 import { useFilledFields, type FilledFieldsUpdater } from "@/stores/filledFieldsStore";
-import { historyStore } from "@/stores/historyStore";
 import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay } from "./EditPageOverlay";
@@ -43,6 +42,7 @@ import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 import { WorkspaceSearchBar } from "./WorkspaceSearchBar";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { CropPanel, type CropRect } from "./tools/CropPanel";
+import { cropRectsEqual, scaleCropRect } from "./tools/cropModel";
 import { EditAnnotationsPanel } from "./tools/EditAnnotationsPanel";
 import { EditFormsPanel } from "./tools/EditFormsPanel";
 import { EditSubToolToggle } from "./tools/EditSubToolToggle";
@@ -137,7 +137,12 @@ export function Workspace({ pdf, path }: Props) {
   const [pageViewport, setPageViewport] = useState<pdfjs.PageViewport | null>(null);
 
   // Crop rectangle lives at the workspace level so it can be shared
-  // between the Konva overlay and the CropPanel.
+  // between the Konva overlay and the CropPanel. Stored in PDF points
+  // (page-base scale, like `basePageSize`/stamps), not on-screen pixels,
+  // so Apply sends real points to `crop_pdf_cmd` at any zoom (plan 062
+  // final fix wave F1). `CropOverlay` renders and drags in screen pixels,
+  // so it gets a `scaleCropRect(cropRect, zoom)` view and reports back
+  // through the inverse scale.
   const [cropRect, setCropRect] = useState<CropRect>({ x: 0, y: 0, width: 0, height: 0 });
   const ocrPageKey = `${path}\u0000${activePage}`;
   const [ocrPageState, setOcrPageState] = useState<{
@@ -278,27 +283,12 @@ export function Workspace({ pdf, path }: Props) {
     [ocrPageKey, path, setFilledState],
   );
 
-  const changeCropRect = useCallback(
-    (next: CropRect, recordHistory = true) => {
-      if (
-        next.x === cropRect.x &&
-        next.y === cropRect.y &&
-        next.width === cropRect.width &&
-        next.height === cropRect.height
-      ) {
-        return;
-      }
-      const before = cropRect;
-      setCropRect(next);
-      if (!recordHistory) return;
-      historyStore.getState().push(path, {
-        label: "crop",
-        undo: () => setCropRect(before),
-        redo: () => setCropRect(next),
-      });
-    },
-    [cropRect, path],
-  );
+  // History for crop edits is recorded once, by `cropHistory.ts` (plan 062
+  // final fix wave F2). This only ever applies the rect; it never pushes
+  // its own history entry, so there is one writer, not two.
+  const changeCropRect = useCallback((next: CropRect) => {
+    setCropRect((current) => (cropRectsEqual(current, next) ? current : next));
+  }, []);
 
   const handleSelectField = useCallback(
     (field: DetectedFormField) => {
@@ -686,8 +676,10 @@ export function Workspace({ pdf, path }: Props) {
         <CropOverlay
           width={pageSize.width}
           height={pageSize.height}
-          rect={cropRect}
-          onRectChange={changeCropRect}
+          rect={scaleCropRect(cropRect, zoom)}
+          onRectChange={(screenRect) =>
+            changeCropRect(scaleCropRect(screenRect, zoom > 0 ? 1 / zoom : 1))
+          }
           docPath={path}
         />
       )}
@@ -862,8 +854,8 @@ export function Workspace({ pdf, path }: Props) {
           {activeTool === "crop" && (
             <CropPanel
               docPath={path}
-              pageWidth={pageSize.width}
-              pageHeight={pageSize.height}
+              pageWidth={basePageSize.width}
+              pageHeight={basePageSize.height}
               rect={cropRect}
               onRectChange={changeCropRect}
             />

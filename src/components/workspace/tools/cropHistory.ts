@@ -1,10 +1,12 @@
 import { historyStore } from "@/stores/historyStore";
 import { cropRectsEqual, type CropRect } from "./cropModel";
 
-/** History entry label for crop-rectangle edits (plan 062 T5.2). Shown as-is
- * by `WorkspaceTopBar` when the label is not in its switch; Slovak UI copy
- * is "Orezanie". Apply clears this stack (T2.2: undo is for crop before Apply). */
-export const CROP_HISTORY_LABEL = "Orezanie";
+/** History entry label for crop-rectangle edits (plan 062 T5.2, relabelled
+ * in the final fix wave F2). `WorkspaceTopBar.historyEntryText` maps
+ * `"crop"` to the localized `workspace:history.entries.crop` string; a raw
+ * Slovak literal here showed up untranslated in the English UI. Apply
+ * clears this stack (T2.2: undo is for crop before Apply). */
+export const CROP_HISTORY_LABEL = "crop";
 
 export function commitCropRectChange(
   docPath: string,

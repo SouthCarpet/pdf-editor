@@ -155,7 +155,14 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
         pages,
         job_id: crypto.randomUUID(),
       });
-      if (result.status === "error") setErr(JSON.stringify(result.error));
+      if (result.status === "error") {
+        setErr(
+          t(`errors:${result.error.key}`, {
+            ...((result.error.data as Record<string, unknown> | null) ?? {}),
+            defaultValue: result.error.key,
+          }),
+        );
+      }
     } finally {
       setBusy(false);
     }

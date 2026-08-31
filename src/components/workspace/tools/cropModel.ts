@@ -54,6 +54,22 @@ export function cropRectsEqual(a: CropRect, b: CropRect): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
+/**
+ * Uniformly scale a crop rectangle. The stored crop rect lives in PDF
+ * points (page-base scale, like `basePageSize`); the overlay renders and
+ * drags in on-screen pixels at the current zoom. `scaleCropRect(rect,
+ * zoom)` converts points to screen; `scaleCropRect(rect, 1 / zoom)`
+ * converts back. Kept as one symmetric helper instead of two named ones.
+ */
+export function scaleCropRect(rect: CropRect, factor: number): CropRect {
+  return {
+    x: rect.x * factor,
+    y: rect.y * factor,
+    width: rect.width * factor,
+    height: rect.height * factor,
+  };
+}
+
 function toTuple(rect: CropRect): [number, number, number, number] {
   return [rect.x, rect.y, rect.x + rect.width, rect.y + rect.height];
 }
