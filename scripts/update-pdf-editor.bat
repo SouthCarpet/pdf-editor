@@ -23,6 +23,16 @@ timeout /t 1 /nobreak >nul
 goto wait_for_exit
 
 :build_frontend
+rem Guard for an artifact we have seen twice, weeks apart: a stray 82-byte
+rem msvcrt.lib appears in the crate build output directory. link.exe finds it
+rem before the real one, reports "LNK4003 invalid library format", and then
+rem leaves every C runtime symbol unresolved - 80 errors ending in "could not
+rem compile pdf-editor (lib)". Nothing in this repository writes that file and
+rem a correct build never needs it there, so remove it before building.
+for /d %%D in ("%CD%\src-tauri\target\release\build\pdf-editor-*") do (
+  if exist "%%D\out\msvcrt.lib" del /q "%%D\out\msvcrt.lib"
+)
+
 echo.
 echo [1/2] Building frontend...
 call npm run build
