@@ -21,6 +21,16 @@ const NOTE: Annotation = {
   color: [0, 0, 0],
 };
 
+const SIGNATURE_STAMP: Annotation = {
+  type: "stamp",
+  page: 0,
+  rect: [100, 200, 280, 260],
+  image_path: "A:\\signatures\\saved-signature.png",
+  scale: 1,
+  rotation: 0,
+  opacity: 1,
+};
+
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
 const commandFakes = vi.hoisted(() => ({
@@ -85,6 +95,21 @@ describe("saveDocument", () => {
     expect(useDocuments.getState().documents.get(DOC_A)?.savedPath).toBe(OUTPUT_PATH);
     expect(fakeBridge.pickSavePath).toHaveBeenCalledWith(
       expect.objectContaining({ defaultPath: OUTPUT_PATH }),
+    );
+  });
+
+  it("includes a pending signature stamp in the existing annotation save command", async () => {
+    useAnnotations.getState().add(DOC_A, SIGNATURE_STAMP);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+
+    await saveDocument(DOC_A);
+
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: DOC_A,
+        output: OUTPUT_PATH,
+        annotations: [SIGNATURE_STAMP],
+      }),
     );
   });
 

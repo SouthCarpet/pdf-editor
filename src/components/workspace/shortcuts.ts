@@ -12,6 +12,7 @@ export type ShortcutAction =
   | { type: "zoom-in" }
   | { type: "zoom-out" }
   | { type: "zoom-reset" }
+  | { type: "toggle-book-mode" }
   | { type: "save" }
   | { type: "save-as" }
   | { type: "print" }
@@ -23,6 +24,8 @@ export type ShortcutAction =
   | { type: "confirm-next-field" }
   | { type: "previous-page" }
   | { type: "next-page" }
+  | { type: "previous-spread" }
+  | { type: "next-spread" }
   | { type: "first-page" }
   | { type: "last-page" }
   | { type: "open-search" }
@@ -135,6 +138,16 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     group: "view",
   },
   {
+    id: "toggle-book-mode",
+    action: "toggle-book-mode",
+    keys: ["2"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: false,
+    labelKey: "toolbar.book_mode",
+    group: "view",
+  },
+  {
     id: "zoom-in",
     action: "zoom-in",
     keys: ["+", "="],
@@ -172,6 +185,26 @@ export const WORKSPACE_SHORTCUTS: readonly ShortcutBinding[] = [
     allowInTextInput: false,
     labelKey: "pending_annotation.delete",
     group: "edit",
+  },
+  {
+    id: "previous-spread",
+    action: "previous-spread",
+    keys: ["PageUp"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: false,
+    labelKey: "shortcuts.previous_spread",
+    group: "navigation",
+  },
+  {
+    id: "next-spread",
+    action: "next-spread",
+    keys: ["PageDown"],
+    modifier: "ctrl",
+    shift: false,
+    allowInTextInput: false,
+    labelKey: "shortcuts.next_spread",
+    group: "navigation",
   },
   {
     id: "previous-page",

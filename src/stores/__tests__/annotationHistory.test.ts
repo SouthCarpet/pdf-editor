@@ -9,6 +9,7 @@ import { useAnnotations } from "../annotationsStore";
 import { historyStore } from "../historyStore";
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
+type Stamp = Extract<Annotation, { type: "stamp" }>;
 
 const DOC_PATH = "A:\\scans\\hodiny.pdf";
 
@@ -43,6 +44,18 @@ function freeText(overrides: Partial<FreeText> = {}): FreeText {
 
 function stored(): FreeText & { __clientId: string } {
   return useAnnotations.getState().byDoc[DOC_PATH][0] as FreeText & { __clientId: string };
+}
+
+function stamp(): Stamp {
+  return {
+    type: "stamp",
+    page: 0,
+    rect: [100, 200, 280, 260],
+    image_path: "A:\\signatures\\saved.png",
+    scale: 1,
+    rotation: 0,
+    opacity: 1,
+  };
 }
 
 describe("annotation history wrapper", () => {
@@ -122,6 +135,19 @@ describe("annotation history wrapper", () => {
     useAnnotations.getState().update(DOC_PATH, clientId, { rect: [100, 700, 280, 724] });
 
     expect(historyStore.getState().byDoc[DOC_PATH].undo.at(-1)?.label).toBe("resize");
+  });
+
+  it("undoes a signature stamp resize through the annotation history", () => {
+    const clientId = useAnnotations.getState().add(DOC_PATH, stamp());
+    historyStore.getState().clear(DOC_PATH);
+
+    useAnnotations.getState().update(DOC_PATH, clientId, { rect: [100, 200, 340, 280] });
+    expect(historyStore.getState().byDoc[DOC_PATH].undo.at(-1)?.label).toBe("resize");
+
+    historyStore.getState().undo(DOC_PATH);
+    expect((useAnnotations.getState().byDoc[DOC_PATH][0] as Stamp).rect).toEqual([
+      100, 200, 280, 260,
+    ]);
   });
 
   it("undoing delete restores the same client id", () => {

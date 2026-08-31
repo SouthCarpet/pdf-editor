@@ -26,6 +26,9 @@ function runAction(
     case "zoom-reset":
       zoom.resetZoom(docId);
       return true;
+    case "toggle-book-mode":
+      handlers.onToggleBookMode?.();
+      return handlers.onToggleBookMode !== undefined;
     case "save":
       if (hasUnsavedWork(docId)) void saveDocument(docId);
       return true;
@@ -59,6 +62,12 @@ function runAction(
     case "next-page":
       handlers.onNextPage?.();
       return handlers.onNextPage !== undefined;
+    case "previous-spread":
+      handlers.onPreviousSpread?.();
+      return handlers.onPreviousSpread !== undefined;
+    case "next-spread":
+      handlers.onNextSpread?.();
+      return handlers.onNextSpread !== undefined;
     case "first-page":
       handlers.onFirstPage?.();
       return handlers.onFirstPage !== undefined;
@@ -98,6 +107,9 @@ interface WorkspaceShortcutHandlers {
   onConfirmNextField?: () => void;
   onPreviousPage?: () => void;
   onNextPage?: () => void;
+  onPreviousSpread?: () => void;
+  onNextSpread?: () => void;
+  onToggleBookMode?: () => void;
   onFirstPage?: () => void;
   onLastPage?: () => void;
   onOpenSearch?: () => void;
@@ -124,6 +136,9 @@ export function useWorkspaceShortcuts(
     onConfirmNextField,
     onPreviousPage,
     onNextPage,
+    onPreviousSpread,
+    onNextSpread,
+    onToggleBookMode,
     onFirstPage,
     onLastPage,
     onOpenSearch,
@@ -156,6 +171,9 @@ export function useWorkspaceShortcuts(
         onConfirmNextField,
         onPreviousPage,
         onNextPage,
+        onPreviousSpread,
+        onNextSpread,
+        onToggleBookMode,
         onFirstPage,
         onLastPage,
         onOpenSearch,
@@ -184,6 +202,9 @@ export function useWorkspaceShortcuts(
     onConfirmNextField,
     onPreviousPage,
     onNextPage,
+    onPreviousSpread,
+    onNextSpread,
+    onToggleBookMode,
     onFirstPage,
     onLastPage,
     onOpenSearch,

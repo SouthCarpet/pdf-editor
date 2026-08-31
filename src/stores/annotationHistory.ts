@@ -3,6 +3,8 @@ import type { ClientAnnotation } from "./annotationsStore";
 import { historyStore, type HistoryEntry } from "./historyStore";
 
 type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
+type StampAnnotation = Extract<Annotation, { type: "stamp" }>;
+export type EditableAnnotationPatch = Partial<FreeTextAnnotation> | Partial<StampAnnotation>;
 
 export const TEXT_EDIT_COALESCE_MS = 800;
 
@@ -11,7 +13,7 @@ export interface AnnotationHistoryActions {
   update: (
     docPath: string,
     clientId: string,
-    patch: Partial<FreeTextAnnotation>,
+    patch: EditableAnnotationPatch,
   ) => void;
   remove: (docPath: string, clientId: string) => void;
   replace: (docPath: string, list: ClientAnnotation[]) => void;
@@ -73,7 +75,7 @@ function syncFilledFields(
   }
 }
 
-function rectSize(rect: FreeTextAnnotation["rect"]): [number, number] {
+function rectSize(rect: FreeTextAnnotation["rect"] | StampAnnotation["rect"]): [number, number] {
   return [
     Math.abs((rect[2] ?? 0) - (rect[0] ?? 0)),
     Math.abs((rect[3] ?? 0) - (rect[1] ?? 0)),
@@ -81,13 +83,13 @@ function rectSize(rect: FreeTextAnnotation["rect"]): [number, number] {
 }
 
 function updateLabel(
-  before: FreeTextAnnotation,
-  patch: Partial<FreeTextAnnotation>,
+  before: FreeTextAnnotation | StampAnnotation,
+  patch: EditableAnnotationPatch,
 ): string {
-  if (patch.contents !== undefined && patch.style === undefined && patch.rect === undefined) {
+  if ("contents" in patch && patch.contents !== undefined && !("style" in patch) && patch.rect === undefined) {
     return "text";
   }
-  if (patch.style !== undefined) return "style";
+  if ("style" in patch && patch.style !== undefined) return "style";
   if (patch.rect !== undefined) {
     const [beforeWidth, beforeHeight] = rectSize(before.rect);
     const [afterWidth, afterHeight] = rectSize(patch.rect);
@@ -139,8 +141,9 @@ export function createAnnotationHistoryActions(
     update: (docPath, clientId, patch) => {
       const before = adapter.get(docPath);
       const annotation = before.find(
-        (candidate): candidate is ClientAnnotation & FreeTextAnnotation =>
-          candidate.__clientId === clientId && candidate.type === "free_text",
+        (candidate): candidate is ClientAnnotation & (FreeTextAnnotation | StampAnnotation) =>
+          candidate.__clientId === clientId &&
+          (candidate.type === "free_text" || candidate.type === "stamp"),
       );
       if (annotation === undefined) return;
       const after = before.map((candidate) =>

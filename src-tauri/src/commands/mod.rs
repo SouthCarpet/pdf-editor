@@ -24,6 +24,7 @@ pub mod projects;
 pub mod recovery;
 pub mod render;
 pub mod session;
+pub mod signatures;
 pub mod split;
 pub mod startup;
 pub mod tessdata;

@@ -72,7 +72,12 @@ describe("WorkspaceTopBar", () => {
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
-    useWorkspace.setState({ activeTool: "edit", zoomByDoc: {}, zoomModeByDoc: {} });
+    useWorkspace.setState({
+      activeTool: "edit",
+      zoomByDoc: {},
+      zoomModeByDoc: {},
+      bookModeByDoc: {},
+    });
     historyStore.setState({ byDoc: {} });
   });
 
@@ -228,6 +233,25 @@ describe("WorkspaceTopBar", () => {
     await user.click(await screen.findByRole("button", { name: "Režim mierky" }));
     await user.click(screen.getByRole("menuitem", { name: "Na šírku" }));
     expect(useWorkspace.getState().getZoomMode(DOC_A)).toBe("fit-width");
+  });
+
+  it("toggles Dvojstrana immediately before the zoom controls", async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} pageCount={12} />);
+
+    const toggle = await screen.findByRole("button", { name: "Dvojstrana" });
+    const zoomOut = screen.getByRole("button", { name: "Oddialiť" });
+    expect(toggle.compareDocumentPosition(zoomOut) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(useWorkspace.getState().bookModeByDoc[DOC_A]).toBe(true);
+  });
+
+  it("disables Dvojstrana for a one-page document", async () => {
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} pageCount={1} />);
+    expect(await screen.findByRole("button", { name: "Dvojstrana" })).toBeDisabled();
   });
 
   it("links Konvertovať to the Convert tool with the active document", async () => {

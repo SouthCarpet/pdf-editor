@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Check, ChevronDown, Minus, Plus, Redo2, Search, Undo2 } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Minus, Plus, Redo2, Search, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ToastAction, toast } from "@/components/ui/toast";
 import {
@@ -141,6 +141,8 @@ export function WorkspaceTopBar({
   const resetZoom = useWorkspace((s) => s.resetZoom);
   const zoomMode = useWorkspace((s) => s.zoomModeByDoc[path] ?? "custom");
   const setZoomMode = useWorkspace((s) => s.setZoomMode);
+  const bookMode = useWorkspace((s) => s.bookModeByDoc[path] ?? false);
+  const setBookMode = useWorkspace((s) => s.setBookMode);
   const storedActivePage = useWorkspace((s) => s.activePage);
   const setStoredActivePage = useWorkspace((s) => s.setActivePage);
   const storedPageCount = useDocuments((s) => s.documents.get(path)?.pageCount ?? 0);
@@ -359,6 +361,19 @@ export function WorkspaceTopBar({
           pageCount={pageCount}
           onSelectPage={onSelectPage ?? setStoredActivePage}
         />
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={bookMode ? "h-10 w-10 bg-[var(--color-accent-soft)] p-0" : "h-10 w-10 p-0"}
+          aria-label={t("workspace:toolbar.book_mode")}
+          aria-pressed={bookMode}
+          title={t("workspace:toolbar.book_mode")}
+          disabled={pageCount <= 1}
+          onClick={() => setBookMode(path, !bookMode)}
+        >
+          <BookOpen className="size-4" aria-hidden="true" />
+        </Button>
         <Button
           size="sm"
           variant="ghost"

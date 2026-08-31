@@ -5,7 +5,7 @@ import { create } from "zustand";
 import { useAppStore } from "@/stores/appStore";
 
 export type WorkspaceTool = "edit" | "organize" | "crop" | "extract" | "ocr" | "compare";
-export type EditSubTool = "forms" | "annotations" | "text";
+export type EditSubTool = "forms" | "annotations" | "text" | "signature";
 export type ZoomMode = "custom" | "fit-width" | "fit-page";
 
 export interface ViewerSize {
@@ -36,6 +36,7 @@ export function zoomForMode(
   mode: ZoomMode,
   pageSize: ViewerSize,
   boxSize: ViewerSize,
+  horizontalGap = 0,
 ): number | null {
   if (
     mode === "custom" ||
@@ -46,7 +47,9 @@ export function zoomForMode(
   ) {
     return null;
   }
-  const widthScale = boxSize.width / pageSize.width;
+  const availableWidth = boxSize.width - Math.max(0, horizontalGap);
+  if (availableWidth <= 0) return null;
+  const widthScale = availableWidth / pageSize.width;
   const scale =
     mode === "fit-width" ? widthScale : Math.min(widthScale, boxSize.height / pageSize.height);
   return clampZoom(scale);
@@ -62,6 +65,8 @@ interface WorkspaceState {
   zoomByDoc: Record<string, number>;
   /** Zoom behavior keyed by document path. Missing documents are custom. */
   zoomModeByDoc: Record<string, ZoomMode>;
+  /** Facing-page view keyed by document path. Missing documents use page view. */
+  bookModeByDoc: Record<string, boolean>;
   // Plan 050 task D2-UX (R4): the scanned-page dialog is owned here, not as
   // local `WorkspaceRoute` state, so the Text tool's empty state can open it
   // without threading a callback down through `Workspace`.
@@ -88,6 +93,7 @@ interface WorkspaceState {
   getZoomMode: (docId: string) => ZoomMode;
   setZoom: (docId: string, z: number) => void;
   setZoomMode: (docId: string, mode: ZoomMode) => void;
+  setBookMode: (docId: string, on: boolean) => void;
   /** Stores a fit-derived scale without leaving the selected fit mode. */
   applyZoomForMode: (docId: string, z: number) => void;
   zoomIn: (docId: string) => void;
@@ -105,6 +111,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   activePage: 0,
   zoomByDoc: {},
   zoomModeByDoc: {},
+  bookModeByDoc: {},
   ocrPromptOpen: false,
   autoDetectFormsRequest: 0,
   thumbnailStripCollapsed: false,
@@ -120,6 +127,17 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   getZoomMode: (docId) => get().zoomModeByDoc[docId] ?? "custom",
   setZoomMode: (docId, mode) =>
     set((s) => ({ zoomModeByDoc: { ...s.zoomModeByDoc, [docId]: mode } })),
+  setBookMode: (docId, on) =>
+    set((s) => {
+      const turningOn = on && !(s.bookModeByDoc[docId] ?? false);
+      return {
+        bookModeByDoc: { ...s.bookModeByDoc, [docId]: on },
+        activePage:
+          turningOn && s.activePage > 0 && s.activePage % 2 === 0
+            ? s.activePage - 1
+            : s.activePage,
+      };
+    }),
   applyZoomForMode: (docId, z) =>
     set((s) => {
       if ((s.zoomModeByDoc[docId] ?? "custom") === "custom") return s;

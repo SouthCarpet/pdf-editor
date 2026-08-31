@@ -15,7 +15,8 @@
     "convert": "Convert",
     "zoom_modes": "Zoom mode",
     "fit_width": "Fit width",
-    "fit_page": "Fit page"
+    "fit_page": "Fit page",
+    "book_mode": "Two-page view"
   },
   "history": {
     "undo": "Undo",
@@ -117,6 +118,7 @@
     "edit_text": "Text",
     "edit_annotations": "Annotations",
     "edit_forms": "Forms",
+    "edit_signature": "Signature",
     "crop": "Crop",
     "organize": "Organize",
     "extract": "Extract",
@@ -238,6 +240,39 @@
     "find_fields": "Find fields",
     "run_ocr": "Run OCR"
   },
+  "signature": {
+    "title": "Signature",
+    "description": "Choose a signature or stamp, then click the page.",
+    "draw": "Draw",
+    "upload": "Upload image",
+    "saved": "Saved signatures",
+    "loading": "Loading...",
+    "empty": "No signatures saved yet.",
+    "place_named": "Place {{name}}",
+    "delete_named": "Delete {{name}}",
+    "delete_confirm": "Delete signature {{name}}?",
+    "error": "The signature could not be processed: {{error}}",
+    "stamps": {
+      "title": "Stamps",
+      "paid": "Paid",
+      "approved": "Approved",
+      "copy": "Copy"
+    },
+    "drawing": {
+      "title": "Draw signature",
+      "description": "Draw your signature with a mouse or pen.",
+      "canvas": "Signature drawing area",
+      "pen_width": "Pen width",
+      "color": "Pen colour",
+      "black": "Black",
+      "blue": "Blue",
+      "clear": "Clear",
+      "name": "Signature name",
+      "cancel": "Cancel",
+      "save": "Save as signature",
+      "saving": "Saving..."
+    }
+  },
   "pending_annotation": {
     "title": "Edit inserted text",
     "text_label": "Text",
@@ -278,6 +313,8 @@
     "confirm_next_field": "Confirm and next field",
     "previous_page": "Previous page",
     "next_page": "Next page",
+    "previous_spread": "Previous spread",
+    "next_spread": "Next spread",
     "first_page": "First page",
     "last_page": "Last page",
     "open_search": "Open search",

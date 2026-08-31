@@ -11,6 +11,7 @@ import type * as pdfjs from "pdfjs-dist";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PdfViewer } from "./PdfViewer";
+import { thumbnailSelection } from "./thumbnailSelection";
 import {
   THUMBNAIL_BOX_HEIGHT,
   THUMBNAIL_BOX_WIDTH,
@@ -25,6 +26,7 @@ const THUMB_FIT_BOX = { width: THUMBNAIL_BOX_WIDTH, height: THUMBNAIL_BOX_HEIGHT
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
+  bookMode: boolean;
   onSelect: (i: number) => void;
   height: number;
   collapsed: boolean;
@@ -34,6 +36,7 @@ interface Props {
 interface RowExtras {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
+  bookMode: boolean;
   onSelect: (i: number) => void;
   pageCount: number;
 }
@@ -43,23 +46,25 @@ function Row({
   style,
   pdf,
   active,
+  bookMode,
   onSelect,
   pageCount,
 }: RowComponentProps<RowExtras>) {
   const { t } = useTranslation("workspace");
   const label = t("page_n_of_m", { n: index + 1, m: pageCount });
+  const selection = thumbnailSelection(index, active, pageCount, bookMode);
   return (
     <div style={style} className="px-2">
       <button
         type="button"
         aria-label={label}
-        aria-current={index === active ? "page" : undefined}
+        aria-current={selection.focused ? "page" : undefined}
         title={label}
         onClick={() => onSelect(index)}
         className={cn(
           "flex h-full w-full cursor-pointer flex-col items-center rounded border border-transparent",
-          index === active &&
-            "border-[var(--color-accent)] bg-[var(--color-accent-soft)]",
+          selection.highlighted && "bg-[var(--color-accent-soft)]",
+          selection.focused && "border-[var(--color-accent)]",
         )}
       >
         <div
@@ -83,6 +88,7 @@ function Row({
 export function ThumbnailStrip({
   pdf,
   active,
+  bookMode,
   onSelect,
   height,
   collapsed,
@@ -92,8 +98,8 @@ export function ThumbnailStrip({
   const listRef = useRef<ListImperativeAPI | null>(null);
   const pageCount = pdf.numPages;
   const rowProps = useMemo<RowExtras>(
-    () => ({ pdf, active, onSelect, pageCount }),
-    [pdf, active, onSelect, pageCount],
+    () => ({ pdf, active, bookMode, onSelect, pageCount }),
+    [pdf, active, bookMode, onSelect, pageCount],
   );
 
   useEffect(() => {

@@ -50,6 +50,9 @@ function Harness({
   onPreviousField,
   onConfirmNextField,
   onPreviousPage,
+  onPreviousSpread,
+  onNextSpread,
+  onToggleBookMode,
   onOpenSearch,
   onOpenShortcuts,
   searchOpen,
@@ -62,6 +65,9 @@ function Harness({
   onPreviousField?: () => void;
   onConfirmNextField?: () => void;
   onPreviousPage?: () => void;
+  onPreviousSpread?: () => void;
+  onNextSpread?: () => void;
+  onToggleBookMode?: () => void;
   onOpenSearch?: () => void;
   onOpenShortcuts?: () => void;
   searchOpen?: boolean;
@@ -74,6 +80,9 @@ function Harness({
     onPreviousField,
     onConfirmNextField,
     onPreviousPage,
+    onPreviousSpread,
+    onNextSpread,
+    onToggleBookMode,
     onOpenSearch,
     onOpenShortcuts,
     searchOpen,
@@ -277,6 +286,28 @@ describe("useWorkspaceShortcuts", () => {
     fireEvent.keyDown(getByTestId("strip-text"), { key: "f", ctrlKey: true });
     expect(onPreviousPage).toHaveBeenCalledTimes(1);
     expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it("Ctrl+2 toggles book mode and Ctrl+Page keys dispatch spread navigation", () => {
+    const onToggleBookMode = vi.fn();
+    const onPreviousSpread = vi.fn();
+    const onNextSpread = vi.fn();
+    const { baseElement } = render(
+      <Harness
+        docId={DOC_A}
+        onToggleBookMode={onToggleBookMode}
+        onPreviousSpread={onPreviousSpread}
+        onNextSpread={onNextSpread}
+      />,
+    );
+
+    fireEvent.keyDown(baseElement, { key: "2", ctrlKey: true });
+    fireEvent.keyDown(baseElement, { key: "PageUp", ctrlKey: true });
+    fireEvent.keyDown(baseElement, { key: "PageDown", ctrlKey: true });
+
+    expect(onToggleBookMode).toHaveBeenCalledTimes(1);
+    expect(onPreviousSpread).toHaveBeenCalledTimes(1);
+    expect(onNextSpread).toHaveBeenCalledTimes(1);
   });
 
   // Oracle: T3.3 R1 assigns Shift+/ to the overlay on the page, never

@@ -5,9 +5,10 @@
 // serializing to the Rust command schema.
 import { create } from "zustand";
 import type { Annotation } from "@/bindings";
-import { createAnnotationHistoryActions } from "./annotationHistory";
-
-type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
+import {
+  createAnnotationHistoryActions,
+  type EditableAnnotationPatch,
+} from "./annotationHistory";
 
 export type AnnotationMode =
   | "highlight"
@@ -38,9 +39,8 @@ interface AnnotationsState {
   /** Returns the generated client id, so a caller can select the new item
    * for immediate editing (Plan 050 task D2-UX, R2). */
   add: (docPath: string, ann: Annotation) => string;
-  /** Partial update of a pending FreeText annotation (font size, colour,
-   * text, rect) - the only kind the live-preview control strip edits. */
-  update: (docPath: string, clientId: string, patch: Partial<FreeTextAnnotation>) => void;
+  /** Partial update of a pending text or stamp annotation. */
+  update: (docPath: string, clientId: string, patch: EditableAnnotationPatch) => void;
   remove: (docPath: string, clientId: string) => void;
   replace: (docPath: string, list: ClientAnnotation[]) => void;
   clear: (docPath: string) => void;

@@ -466,7 +466,7 @@ fn build_annot_dict(
         Annotation::Stamp {
             rect,
             image_path,
-            scale: _,
+            scale,
             rotation,
             opacity,
             ..
@@ -478,13 +478,12 @@ fn build_annot_dict(
                 d.set("Rotate", Object::Real(*rotation));
             }
             d.set("Name", Object::Name(b"Approved".to_vec()));
-            if let Ok(image_id) = embed_stamp_image(doc, image_path) {
-                let ap_stream = build_image_ap_stream(image_id, rect);
-                let ap_id = doc.add_object(Object::Stream(ap_stream));
-                let mut ap = lopdf::Dictionary::new();
-                ap.set("N", Object::Reference(ap_id));
-                d.set("AP", Object::Dictionary(ap));
-            }
+            let image_id = embed_stamp_image(doc, image_path)?;
+            let ap_stream = build_image_ap_stream(image_id, rect, *scale, *rotation);
+            let ap_id = doc.add_object(Object::Stream(ap_stream));
+            let mut ap = lopdf::Dictionary::new();
+            ap.set("N", Object::Reference(ap_id));
+            d.set("AP", Object::Dictionary(ap));
             Ok((d, None))
         }
         Annotation::Ink {
@@ -1128,15 +1127,16 @@ fn add_decoration_rectangles(
 }
 
 /// Read raw image bytes and embed as a `/Subtype /Image` XObject. JPEGs
-/// are passed through with DCTDecode; other formats decode to RGB8 and
-/// store uncompressed (lopdf applies FlateDecode on save).
+/// are passed through with DCTDecode. Other formats decode to RGBA8, with
+/// alpha stored as a DeviceGray soft mask so transparent signatures stay
+/// transparent after saving.
 fn embed_stamp_image(doc: &mut Document, path: &str) -> Result<ObjectId> {
     let bytes = std::fs::read(path).with_context(|| format!("read stamp image {path}"))?;
     let is_jpeg = bytes.starts_with(&[0xFF, 0xD8, 0xFF]);
     if is_jpeg {
-        let (w, h) = image::load_from_memory(&bytes)
-            .map(|img| (img.width(), img.height()))
-            .unwrap_or((100, 100));
+        let image = image::load_from_memory(&bytes)
+            .with_context(|| format!("decode stamp image {path}"))?;
+        let (w, h) = (image.width(), image.height());
         let stream = Stream::new(
             dictionary! {
                 "Type" => "XObject",
@@ -1153,29 +1153,59 @@ fn embed_stamp_image(doc: &mut Document, path: &str) -> Result<ObjectId> {
     } else {
         let img = image::load_from_memory(&bytes)
             .with_context(|| format!("decode stamp image {path}"))?;
-        let rgb = img.to_rgb8();
-        let (w, h) = rgb.dimensions();
-        let raw = rgb.into_raw();
-        let stream = Stream::new(
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        let mut rgb = Vec::with_capacity((w * h * 3) as usize);
+        let mut alpha = Vec::with_capacity((w * h) as usize);
+        for pixel in rgba.pixels() {
+            rgb.extend_from_slice(&pixel.0[..3]);
+            alpha.push(pixel.0[3]);
+        }
+        let soft_mask = Stream::new(
             dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => w as i64,
+                "Height" => h as i64,
+                "ColorSpace" => "DeviceGray",
+                "BitsPerComponent" => 8i64,
+            },
+            alpha,
+        );
+        let soft_mask_id = doc.add_object(Object::Stream(soft_mask));
+        let mut image_dict = dictionary! {
                 "Type" => "XObject",
                 "Subtype" => "Image",
                 "Width" => w as i64,
                 "Height" => h as i64,
                 "ColorSpace" => "DeviceRGB",
                 "BitsPerComponent" => 8i64,
-            },
-            raw,
-        );
+        };
+        image_dict.set("SMask", Object::Reference(soft_mask_id));
+        let stream = Stream::new(image_dict, rgb);
         Ok(doc.add_object(Object::Stream(stream)))
     }
 }
 
 /// Form XObject (appearance stream) drawing the image into the annotation rect.
-fn build_image_ap_stream(image_id: ObjectId, rect: &[f32; 4]) -> Stream {
+fn build_image_ap_stream(
+    image_id: ObjectId,
+    rect: &[f32; 4],
+    scale: f32,
+    rotation_degrees: f32,
+) -> Stream {
     let w = (rect[2] - rect[0]).abs().max(1.0);
     let h = (rect[3] - rect[1]).abs().max(1.0);
-    let content = format!("q\n{w} 0 0 {h} 0 0 cm\n/Im0 Do\nQ\n", w = w, h = h);
+    let scale = scale.max(0.0);
+    let radians = rotation_degrees.to_radians();
+    let (sin, cos) = radians.sin_cos();
+    let a = w * scale * cos;
+    let b = w * scale * sin;
+    let c = -h * scale * sin;
+    let d = h * scale * cos;
+    let e = w / 2.0 - (a + c) / 2.0;
+    let f = h / 2.0 - (b + d) / 2.0;
+    let content = format!("q\n{a:.6} {b:.6} {c:.6} {d:.6} {e:.6} {f:.6} cm\n/Im0 Do\nQ\n");
     let mut xobj = lopdf::Dictionary::new();
     xobj.set("Im0", Object::Reference(image_id));
     let mut resources = lopdf::Dictionary::new();
@@ -1543,5 +1573,156 @@ mod tests {
             .expect("first text matrix");
 
         assert_eq!(number(&first_tm.operands[5]), 22.0);
+    }
+
+    fn write_single_page_pdf(path: &Path) {
+        let mut doc = Document::with_version("1.7");
+        let page_id = doc.new_object_id();
+        let pages_id = doc.new_object_id();
+        let catalog_id = doc.new_object_id();
+        doc.set_object(
+            page_id,
+            dictionary! {
+                "Type" => "Page",
+                "Parent" => Object::Reference(pages_id),
+                "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+                "Resources" => dictionary! {},
+            },
+        );
+        doc.set_object(
+            pages_id,
+            dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => 1,
+            },
+        );
+        doc.set_object(
+            catalog_id,
+            dictionary! {
+                "Type" => "Catalog",
+                "Pages" => Object::Reference(pages_id),
+            },
+        );
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+        doc.save(path).expect("save one-page PDF fixture");
+    }
+
+    #[test]
+    fn transparent_png_round_trip_keeps_soft_mask_and_rotated_scaled_matrix() {
+        let directory = tempfile::tempdir().expect("create isolated stamp fixture");
+        let input = directory.path().join("input.pdf");
+        let output = directory.path().join("output.pdf");
+        let png_path = directory.path().join("transparent.png");
+        write_single_page_pdf(&input);
+        image::RgbaImage::from_raw(
+            2,
+            2,
+            vec![
+                255, 0, 0, 255, 0, 0, 255, 0, 0, 255, 0, 128, 255, 255, 255, 64,
+            ],
+        )
+        .expect("valid RGBA fixture")
+        .save(&png_path)
+        .expect("save transparent PNG fixture");
+
+        apply_annotations(
+            &input,
+            &output,
+            &[Annotation::Stamp {
+                page: 0,
+                rect: [10.0, 20.0, 210.0, 120.0],
+                image_path: png_path.to_string_lossy().into_owned(),
+                scale: 0.5,
+                rotation: 90.0,
+                opacity: 1.0,
+            }],
+        )
+        .expect("apply transparent stamp");
+
+        let saved = crate::services::pdf_guard::load_guarded(&output)
+            .expect("load annotated output through the PDF guard");
+        let page_id = saved.get_pages()[&1];
+        let page = saved.get_dictionary(page_id).expect("page dictionary");
+        let annotation_id = page
+            .get(b"Annots")
+            .expect("page annotations")
+            .as_array()
+            .expect("annotations array")[0]
+            .as_reference()
+            .expect("stamp reference");
+        let annotation = saved
+            .get_dictionary(annotation_id)
+            .expect("stamp dictionary");
+        let appearance_id = annotation
+            .get(b"AP")
+            .expect("appearance dictionary")
+            .as_dict()
+            .expect("appearance dictionary")
+            .get(b"N")
+            .expect("normal appearance")
+            .as_reference()
+            .expect("normal appearance reference");
+        let appearance = saved
+            .get_object(appearance_id)
+            .expect("appearance object")
+            .as_stream()
+            .expect("appearance stream");
+        let image_id = appearance
+            .dict
+            .get(b"Resources")
+            .expect("appearance resources")
+            .as_dict()
+            .expect("resources dictionary")
+            .get(b"XObject")
+            .expect("image resources")
+            .as_dict()
+            .expect("image dictionary")
+            .get(b"Im0")
+            .expect("stamp image")
+            .as_reference()
+            .expect("stamp image reference");
+        let image = saved
+            .get_object(image_id)
+            .expect("image object")
+            .as_stream()
+            .expect("image stream");
+        assert!(
+            image.dict.get(b"SMask").is_ok(),
+            "the PNG alpha channel must be preserved through /SMask"
+        );
+
+        let content = Content::decode(&appearance.content).expect("decode appearance content");
+        let matrix = content
+            .operations
+            .iter()
+            .find(|operation| operation.operator == "cm")
+            .expect("image appearance matrix");
+        let values: Vec<f32> = matrix.operands.iter().map(number).collect();
+        assert!((values[0] - 0.0).abs() < 0.01, "90-degree matrix a");
+        assert!((values[1] - 100.0).abs() < 0.01, "90-degree matrix b");
+        assert!((values[2] + 50.0).abs() < 0.01, "90-degree matrix c");
+        assert!((values[3] - 0.0).abs() < 0.01, "90-degree matrix d");
+        assert!((values[4] - 125.0).abs() < 0.01, "centred matrix x");
+        assert!((values[5] - 0.0).abs() < 0.01, "centred matrix y");
+    }
+
+    #[test]
+    fn missing_stamp_image_returns_an_error_instead_of_a_placeholder() {
+        let mut doc = Document::with_version("1.7");
+        let annotation = Annotation::Stamp {
+            page: 0,
+            rect: [0.0, 0.0, 100.0, 50.0],
+            image_path: "definitely-missing-signature.png".to_string(),
+            scale: 1.0,
+            rotation: 0.0,
+            opacity: 1.0,
+        };
+
+        let error = build_annot_dict(&annotation, &mut doc).expect_err("missing image must fail");
+        assert!(
+            error.to_string().contains("read stamp image"),
+            "failure should identify the unreadable stamp: {error:#}"
+        );
     }
 }

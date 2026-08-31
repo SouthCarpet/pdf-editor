@@ -290,6 +290,26 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("session_clear")),
+	signatureList: () => typedError<SignatureRecord[], {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("signature_list")),
+	signatureImport: (path: string) => typedError<SignatureRecord, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("signature_import", { path })),
+	signatureCreateFromPngBytes: (bytes: number[], name: string) => typedError<SignatureRecord, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("signature_create_from_png_bytes", { bytes, name })),
+	signatureRename: (id: string, name: string) => typedError<SignatureRecord, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("signature_rename", { id, name })),
+	signatureDelete: (id: string) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("signature_delete", { id })),
 	startupPaths: () => __TAURI_INVOKE<string[]>("startup_paths"),
 };
 
@@ -996,6 +1016,14 @@ export type SetFormArgs = {
 	output: string,
 	updates: FormValueUpdate[],
 	job_id: string,
+};
+
+export type SignatureRecord = {
+	id: string,
+	name: string,
+	file_path: string,
+	width: number,
+	height: number,
 };
 
 export type SplitArgs = {

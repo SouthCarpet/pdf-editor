@@ -8,7 +8,12 @@
 // Organize/Extract panels are added in subsequent Phase 11 commits.
 import type * as pdfjs from "pdfjs-dist";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { commands, type DetectedFormField, type OcrSelectableWord } from "@/bindings";
+import {
+  commands,
+  type DetectedFormField,
+  type OcrSelectableWord,
+  type SignatureRecord,
+} from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { linkAnnotationToFilledField } from "@/stores/annotationHistory";
 import { useFilledFields, type FilledFieldsUpdater } from "@/stores/filledFieldsStore";
@@ -29,6 +34,7 @@ import { CropOverlay } from "./CropOverlay";
 import { PendingAnnotationControls } from "./PendingAnnotationControls";
 import { hexToRgb01, rgb01ToHex, type FreeTextAnnotation } from "./pendingAnnotationGeometry";
 import { PdfViewer } from "./PdfViewer";
+import { pagePairs, spreadFor, spreadIndexOf, type PagePair } from "./pagePairs";
 import { SearchHighlightLayer } from "./SearchHighlightLayer";
 import { ShortcutOverlay } from "./ShortcutOverlay";
 import { ThumbnailStrip } from "./ThumbnailStrip";
@@ -41,9 +47,11 @@ import { EditAnnotationsPanel } from "./tools/EditAnnotationsPanel";
 import { EditFormsPanel } from "./tools/EditFormsPanel";
 import { EditSubToolToggle } from "./tools/EditSubToolToggle";
 import { EditTextPanel } from "./tools/EditTextPanel";
+import { SignaturePanel } from "./tools/SignaturePanel";
 import { ExtractPanel } from "./tools/ExtractPanel";
 import { OrganizePanel } from "./tools/OrganizePanel";
 import { OcrEditPanel } from "./tools/OcrEditPanel";
+import { buildStampAnnotation, fitStampIntoDetectedBox } from "./signaturePlacement";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
@@ -71,6 +79,22 @@ interface CachedTextIndex {
 }
 
 const EMPTY_TEXT_INDEX: PageTextIndex[] = [];
+const BOOK_GAP = 8;
+
+interface PageMeasurement {
+  pageIndex: number;
+  base: { width: number; height: number };
+  rendered: { width: number; height: number };
+  viewport: pdfjs.PageViewport;
+}
+
+interface SpreadMeasurement {
+  pdf: pdfjs.PDFDocumentProxy;
+  key: string;
+  baseSize: { width: number; height: number };
+  renderedSize: { width: number; height: number };
+  pageSizes: Record<number, { width: number; height: number }>;
+}
 
 export function Workspace({ pdf, path }: Props) {
   const activeTool = useWorkspace((s) => s.activeTool);
@@ -83,6 +107,9 @@ export function Workspace({ pdf, path }: Props) {
   const zoomOut = useWorkspace((s) => s.zoomOut);
   const zoomMode = useWorkspace((s) => s.zoomModeByDoc[path] ?? "custom");
   const applyZoomForMode = useWorkspace((s) => s.applyZoomForMode);
+  const storedBookMode = useWorkspace((s) => s.bookModeByDoc[path] ?? false);
+  const setBookMode = useWorkspace((s) => s.setBookMode);
+  const bookMode = pdf.numPages > 1 && storedBookMode;
   const thumbnailStripCollapsed = useWorkspace((s) => s.thumbnailStripCollapsed);
   const setThumbnailStripCollapsed = useWorkspace((s) => s.setThumbnailStripCollapsed);
   const addAnnotation = useAnnotations((s) => s.add);
@@ -102,6 +129,7 @@ export function Workspace({ pdf, path }: Props) {
   });
   const [basePageSize, setBasePageSize] = useState({ width: 0, height: 0 });
   const [viewerBoxSize, setViewerBoxSize] = useState({ width: 0, height: 0 });
+  const [spreadMeasurement, setSpreadMeasurement] = useState<SpreadMeasurement | null>(null);
   // Plan 050 task D2: the viewport instance itself, not only its size. The
   // detected-fields overlay converts PDF points to screen pixels with its
   // `convertToViewportRectangle`, which already handles the Y flip, the
@@ -141,6 +169,7 @@ export function Workspace({ pdf, path }: Props) {
   const [selectedPending, setSelectedPending] = useState<{ key: string; clientId: string } | null>(
     null,
   );
+  const [stampPlacement, setStampPlacement] = useState<SignatureRecord | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [searchIndexRequested, setSearchIndexRequested] = useState(false);
@@ -161,12 +190,15 @@ export function Workspace({ pdf, path }: Props) {
   const selectedOcrWordIds = ocrSelection.key === ocrPageKey ? ocrSelection.ids : new Set<number>();
   const pendingAnnotations = useAnnotations((s) => s.byDoc[path] ?? NO_ANNOTATIONS);
   const selectedPendingId = selectedPending?.key === ocrPageKey ? selectedPending.clientId : null;
+  const selectedPendingAnnotation = pendingAnnotations.find(
+    (annotation) => annotation.__clientId === selectedPendingId,
+  );
   const selectedFreeText = pendingAnnotations.find(
     (a): a is ClientAnnotation & FreeTextAnnotation =>
       a.type === "free_text" && a.__clientId === selectedPendingId,
   );
   const hasPendingOnPage = pendingAnnotations.some(
-    (a) => a.type === "free_text" && a.page === activePage,
+    (a) => (a.type === "free_text" || a.type === "stamp") && a.page === activePage,
   );
   const cachedTextIndex =
     textIndexState?.path === path && textIndexState.pdf === pdf ? textIndexState : null;
@@ -181,10 +213,24 @@ export function Workspace({ pdf, path }: Props) {
   const currentSearchMatch = searchMatches[currentSearchMatchIndex];
   const currentPageMatches = searchMatches.filter((match) => match.page === activePage);
   const searchIndexing = cachedTextIndex?.pdf !== pdf || !cachedTextIndex.complete;
+  const activeSpread = useMemo<PagePair>(
+    () => spreadFor(activePage, pdf.numPages) ?? [null, activePage],
+    [activePage, pdf.numPages],
+  );
+  const spreadKey = bookMode
+    ? `spread:${activeSpread[0] ?? "empty"}:${activeSpread[1] ?? "empty"}`
+    : `page:${activePage}`;
+  const currentSpreadMeasurement =
+    spreadMeasurement?.pdf === pdf && spreadMeasurement.key === spreadKey
+      ? spreadMeasurement
+      : null;
+  const pairBaseSize = currentSpreadMeasurement?.baseSize ?? ZERO_SIZE;
+  const pairRenderedSize = currentSpreadMeasurement?.renderedSize ?? ZERO_SIZE;
+  const visiblePageSizes = currentSpreadMeasurement?.pageSizes ?? EMPTY_PAGE_SIZES;
 
   const handleDeletePending = useCallback(() => {
-    if (!selectedFreeText) return;
-    const clientId = selectedFreeText.__clientId;
+    if (!selectedPendingAnnotation) return;
+    const clientId = selectedPendingAnnotation.__clientId;
     const filled = deletePendingAnnotation({
       remove: removeAnnotation,
       filled: filledState,
@@ -194,7 +240,20 @@ export function Workspace({ pdf, path }: Props) {
     });
     setFilledState(filled);
     setSelectedPending(null);
-  }, [selectedFreeText, removeAnnotation, filledState, path, ocrPageKey, setFilledState]);
+  }, [selectedPendingAnnotation, removeAnnotation, filledState, path, ocrPageKey, setFilledState]);
+
+  const placeStamp = useCallback(
+    (rect: [number, number, number, number]) => {
+      if (stampPlacement === null) return;
+      const clientId = addAnnotation(
+        path,
+        buildStampAnnotation(activePage, rect, stampPlacement.file_path),
+      );
+      setSelectedPending({ key: ocrPageKey, clientId });
+      setStampPlacement(null);
+    },
+    [activePage, addAnnotation, ocrPageKey, path, stampPlacement],
+  );
 
   const applyFieldSelection = useCallback(
     (selection: ReturnType<typeof selectDetectedField>) => {
@@ -254,6 +313,21 @@ export function Workspace({ pdf, path }: Props) {
       );
     },
     [addAnnotation, applyFieldSelection, filledState, ocrPageKey, path],
+  );
+
+  const handlePickField = useCallback(
+    (field: DetectedFormField) => {
+      if (editSubTool === "signature" && stampPlacement !== null) {
+        const rect = fitStampIntoDetectedBox(
+          field,
+          stampPlacement.width / Math.max(stampPlacement.height, 1),
+        );
+        if (rect !== null) placeStamp(rect);
+        return;
+      }
+      if (editSubTool === "forms") handleSelectField(field);
+    },
+    [editSubTool, handleSelectField, placeStamp, stampPlacement],
   );
 
   const moveFieldSelection = useCallback(
@@ -334,6 +408,23 @@ export function Workspace({ pdf, path }: Props) {
   const previousSearchMatch = useCallback(() => moveSearchMatch(-1), [moveSearchMatch]);
   const previousPage = useCallback(() => selectPage(activePage - 1), [activePage, selectPage]);
   const nextPage = useCallback(() => selectPage(activePage + 1), [activePage, selectPage]);
+  const moveSpread = useCallback(
+    (direction: -1 | 1) => {
+      const spreads = pagePairs(pdf.numPages);
+      const current = spreadIndexOf(activePage, pdf.numPages);
+      if (current < 0) return;
+      const target = Math.min(Math.max(0, current + direction), spreads.length - 1);
+      const [left, right] = spreads[target];
+      selectPage(left ?? right ?? 0);
+    },
+    [activePage, pdf.numPages, selectPage],
+  );
+  const previousSpread = useCallback(() => moveSpread(-1), [moveSpread]);
+  const nextSpread = useCallback(() => moveSpread(1), [moveSpread]);
+  const toggleBookMode = useCallback(() => {
+    if (pdf.numPages <= 1) return;
+    setBookMode(path, !bookMode);
+  }, [bookMode, path, pdf.numPages, setBookMode]);
   const firstPage = useCallback(() => selectPage(0), [selectPage]);
   const lastPage = useCallback(() => selectPage(pdf.numPages - 1), [pdf.numPages, selectPage]);
 
@@ -355,6 +446,9 @@ export function Workspace({ pdf, path }: Props) {
     onConfirmNextField: handleConfirmNextField,
     onPreviousPage: previousPage,
     onNextPage: nextPage,
+    onPreviousSpread: previousSpread,
+    onNextSpread: nextSpread,
+    onToggleBookMode: toggleBookMode,
     onFirstPage: firstPage,
     onLastPage: lastPage,
     onOpenSearch: openSearch,
@@ -440,26 +534,68 @@ export function Workspace({ pdf, path }: Props) {
   }, []);
 
   useEffect(() => {
-    const derivedZoom = zoomForMode(zoomMode, basePageSize, viewerBoxSize);
+    const fitSize = bookMode ? pairBaseSize : basePageSize;
+    const derivedZoom = zoomForMode(zoomMode, fitSize, viewerBoxSize, bookMode ? BOOK_GAP : 0);
     if (derivedZoom !== null && derivedZoom !== zoom) applyZoomForMode(path, derivedZoom);
-  }, [applyZoomForMode, basePageSize, path, viewerBoxSize, zoom, zoomMode]);
+  }, [applyZoomForMode, basePageSize, bookMode, pairBaseSize, path, viewerBoxSize, zoom, zoomMode]);
 
-  // Resolve current page viewport size whenever the page or zoom changes.
+  // Measure every painted page at the shared zoom. The active page keeps
+  // the viewport used by the single editable overlay; the pair sizes drive
+  // fit modes and the wheel-anchor correction.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const page = await pdf.getPage(activePage + 1);
+    const visiblePages = bookMode
+      ? activeSpread.filter((pageIndex): pageIndex is number => pageIndex !== null)
+      : [activePage];
+
+    void Promise.all(
+      visiblePages.map(async (pageIndex): Promise<PageMeasurement> => {
+        const page = await pdf.getPage(pageIndex + 1);
+        const base = page.getViewport({ scale: 1 });
+        const viewport = page.getViewport({ scale: zoom });
+        return {
+          pageIndex,
+          base: { width: base.width, height: base.height },
+          rendered: { width: Math.ceil(viewport.width), height: Math.ceil(viewport.height) },
+          viewport,
+        };
+      }),
+    ).then((measurements) => {
       if (cancelled) return;
-      const base = page.getViewport({ scale: 1 });
-      const vp = page.getViewport({ scale: zoom });
-      setBasePageSize({ width: base.width, height: base.height });
-      setPageSize({ width: Math.ceil(vp.width), height: Math.ceil(vp.height) });
-      setPageViewport(vp);
-    })();
+      const active = measurements.find((measurement) => measurement.pageIndex === activePage);
+      if (!active) return;
+      setBasePageSize(active.base);
+      setPageSize(active.rendered);
+      setPageViewport(active.viewport);
+
+      const byPage = new Map(measurements.map((measurement) => [measurement.pageIndex, measurement]));
+      const left = byPage.get(activeSpread[0] ?? activeSpread[1] ?? activePage) ?? active;
+      const right = byPage.get(activeSpread[1] ?? activeSpread[0] ?? activePage) ?? active;
+      const pageSizes = Object.fromEntries(
+        measurements.map((measurement) => [measurement.pageIndex, measurement.rendered]),
+      );
+      setSpreadMeasurement({
+        pdf,
+        key: spreadKey,
+        baseSize: bookMode
+          ? {
+              width: left.base.width + right.base.width,
+              height: Math.max(left.base.height, right.base.height),
+            }
+          : active.base,
+        renderedSize: bookMode
+          ? {
+              width: left.rendered.width + BOOK_GAP + right.rendered.width,
+              height: Math.max(left.rendered.height, right.rendered.height),
+            }
+          : active.rendered,
+        pageSizes,
+      });
+    });
     return () => {
       cancelled = true;
     };
-  }, [pdf, activePage, zoom]);
+  }, [activePage, activeSpread, bookMode, pdf, spreadKey, zoom]);
 
   // R1: Ctrl+wheel zooms around the cursor. The anchor is captured on the
   // wheel event and applied once `pageSize` actually reflects the new
@@ -499,7 +635,7 @@ export function Workspace({ pdf, path }: Props) {
     // resizes once this state updates, and only then is a scroll
     // correction meaningful.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pageSize]);
+  }, [bookMode, pageSize, pairRenderedSize]);
 
   useEffect(() => {
     if (activeTool !== "ocr") return;
@@ -520,6 +656,148 @@ export function Workspace({ pdf, path }: Props) {
       cancelled = true;
     };
   }, [activeTool, activePage, ocrPageKey, path]);
+
+  const focusedPageSurface = (
+    <div
+      ref={pendingAnnotationHostRef}
+      data-pending-annotation-host
+      className="relative shrink-0"
+      style={{ width: pageSize.width, height: pageSize.height }}
+    >
+      <PdfViewer
+        pdf={pdf}
+        pageIndex={activePage}
+        zoom={zoom}
+        className={bookMode ? "block border border-[var(--color-border)]" : "shadow-lg"}
+      />
+      {searchOpen &&
+        pageSize.width > 0 &&
+        pageViewport !== null &&
+        currentPageMatches.length > 0 && (
+          <SearchHighlightLayer
+            width={pageSize.width}
+            height={pageSize.height}
+            viewport={pageViewport}
+            matches={currentPageMatches}
+            currentMatch={currentSearchMatch?.page === activePage ? currentSearchMatch : undefined}
+          />
+        )}
+      {activeTool === "crop" && pageSize.width > 0 && (
+        <CropOverlay
+          width={pageSize.width}
+          height={pageSize.height}
+          rect={cropRect}
+          onRectChange={changeCropRect}
+          docPath={path}
+        />
+      )}
+      {activeTool === "edit" &&
+        (editSubTool === "forms" ||
+          editSubTool === "annotations" ||
+          editSubTool === "signature") &&
+        pageSize.width > 0 &&
+        pageViewport !== null &&
+        (((editSubTool === "forms" || editSubTool === "signature") &&
+          detectedFields !== null &&
+          detectedFields.length > 0) ||
+          hasPendingOnPage ||
+          stampPlacement !== null) && (
+          <EditPageOverlay
+            width={pageSize.width}
+            height={pageSize.height}
+            page={activePage}
+            viewport={pageViewport}
+            detectedFields={
+              editSubTool === "forms" || editSubTool === "signature" ? detectedFields : null
+            }
+            filledIds={filledIds}
+            onPickField={handlePickField}
+            pendingAnnotations={pendingAnnotations}
+            selectedPendingId={selectedPendingId}
+            onSelectPending={(clientId) => setSelectedPending({ key: ocrPageKey, clientId })}
+            onPendingRectChange={(clientId, rect) => updateAnnotation(path, clientId, { rect })}
+            stampPlacement={
+              stampPlacement === null
+                ? null
+                : {
+                    imagePath: stampPlacement.file_path,
+                    aspectRatio: stampPlacement.width / Math.max(stampPlacement.height, 1),
+                  }
+            }
+            pageWidth={basePageSize.width}
+            pageHeight={basePageSize.height}
+            onPlaceStamp={placeStamp}
+          />
+        )}
+      {selectedFreeText &&
+        pageViewport !== null &&
+        activeTool === "edit" &&
+        (editSubTool === "forms" || editSubTool === "annotations") && (
+          <PendingAnnotationControls
+            screenRect={toScreenRect(selectedFreeText.rect, pageViewport) ?? EMPTY_SCREEN_RECT}
+            text={selectedFreeText.contents}
+            sizePt={selectedFreeText.style.size_pt ?? 12}
+            colorHex={rgb01ToHex(selectedFreeText.style.color)}
+            onChangeText={(text) =>
+              updateAnnotation(path, selectedFreeText.__clientId, { contents: text })
+            }
+            onChangeSize={(sizePt) =>
+              updateAnnotation(path, selectedFreeText.__clientId, {
+                style: { ...selectedFreeText.style, size_pt: sizePt },
+              })
+            }
+            onChangeColor={(hex) =>
+              updateAnnotation(path, selectedFreeText.__clientId, {
+                style: { ...selectedFreeText.style, color: hexToRgb01(hex) },
+              })
+            }
+            styleEditing={{
+              style: selectedFreeText.style,
+              onChange: (style) => updateAnnotation(path, selectedFreeText.__clientId, { style }),
+            }}
+            onConfirm={handleConfirm}
+            onDelete={handleDeletePending}
+          />
+        )}
+      {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (
+        <OcrSelectionOverlay
+          width={pageSize.width}
+          height={pageSize.height}
+          words={ocrWords}
+          selectedIds={selectedOcrWordIds}
+          onSelectionChange={(ids) => setOcrSelection({ key: ocrPageKey, ids })}
+        />
+      )}
+    </div>
+  );
+
+  function renderBookSlot(pageIndex: number | null, facingPageIndex: number | null) {
+    const size = visiblePageSizes[pageIndex ?? facingPageIndex ?? -1] ?? ZERO_SIZE;
+    if (pageIndex === null) {
+      return (
+        <div
+          aria-hidden="true"
+          className="shrink-0 border border-[var(--color-border)] bg-[var(--color-background)]"
+          style={{ width: size.width, height: size.height }}
+        />
+      );
+    }
+    if (pageIndex === activePage) return focusedPageSurface;
+    return (
+      <div
+        className="shrink-0 cursor-pointer"
+        style={{ width: size.width, height: size.height }}
+        onClick={() => setActivePage(pageIndex)}
+      >
+        <PdfViewer
+          pdf={pdf}
+          pageIndex={pageIndex}
+          zoom={zoom}
+          className="block border border-[var(--color-border)]"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -550,6 +828,7 @@ export function Workspace({ pdf, path }: Props) {
           <ThumbnailStrip
             pdf={pdf}
             active={activePage}
+            bookMode={bookMode}
             onSelect={selectPage}
             height={
               typeof window !== "undefined" ? window.innerHeight - (searchOpen ? 144 : 96) : 600
@@ -562,106 +841,22 @@ export function Workspace({ pdf, path }: Props) {
           ref={mainRef}
           className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6"
         >
-          <div
-            ref={pendingAnnotationHostRef}
-            data-pending-annotation-host
-            className="relative"
-            style={{ width: pageSize.width, height: pageSize.height }}
-          >
-            <PdfViewer pdf={pdf} pageIndex={activePage} zoom={zoom} className="shadow-lg" />
-            {searchOpen &&
-              pageSize.width > 0 &&
-              pageViewport !== null &&
-              currentPageMatches.length > 0 && (
-                <SearchHighlightLayer
-                  width={pageSize.width}
-                  height={pageSize.height}
-                  viewport={pageViewport}
-                  matches={currentPageMatches}
-                  currentMatch={
-                    currentSearchMatch?.page === activePage ? currentSearchMatch : undefined
-                  }
-                />
-              )}
-            {activeTool === "crop" && pageSize.width > 0 && (
-              <CropOverlay
-                width={pageSize.width}
-                height={pageSize.height}
-                rect={cropRect}
-                onRectChange={changeCropRect}
-                docPath={path}
-              />
-            )}
-            {activeTool === "edit" &&
-              (editSubTool === "forms" || editSubTool === "annotations") &&
-              pageSize.width > 0 &&
-              pageViewport !== null &&
-              // Plan 050 task D2-UX: an empty Konva `Stage` has nothing to
-              // show, so it stays unmounted rather than paying for one on
-              // every Edit-tool page (this also keeps a document with no
-              // pending annotations and no detected fields exactly as
-              // canvas-free as it was before this task).
-              ((editSubTool === "forms" && detectedFields !== null && detectedFields.length > 0) ||
-                hasPendingOnPage) && (
-                <EditPageOverlay
-                  width={pageSize.width}
-                  height={pageSize.height}
-                  page={activePage}
-                  viewport={pageViewport}
-                  detectedFields={editSubTool === "forms" ? detectedFields : null}
-                  filledIds={filledIds}
-                  onPickField={handleSelectField}
-                  pendingAnnotations={pendingAnnotations}
-                  selectedPendingId={selectedPendingId}
-                  onSelectPending={(clientId) => setSelectedPending({ key: ocrPageKey, clientId })}
-                  onPendingRectChange={(clientId, rect) =>
-                    updateAnnotation(path, clientId, { rect })
-                  }
-                />
-              )}
-            {selectedFreeText &&
-              pageViewport !== null &&
-              activeTool === "edit" &&
-              (editSubTool === "forms" || editSubTool === "annotations") && (
-                <PendingAnnotationControls
-                  screenRect={
-                    toScreenRect(selectedFreeText.rect, pageViewport) ?? EMPTY_SCREEN_RECT
-                  }
-                  text={selectedFreeText.contents}
-                  sizePt={selectedFreeText.style.size_pt ?? 12}
-                  colorHex={rgb01ToHex(selectedFreeText.style.color)}
-                  onChangeText={(text) =>
-                    updateAnnotation(path, selectedFreeText.__clientId, { contents: text })
-                  }
-                  onChangeSize={(sizePt) =>
-                    updateAnnotation(path, selectedFreeText.__clientId, {
-                      style: { ...selectedFreeText.style, size_pt: sizePt },
-                    })
-                  }
-                  onChangeColor={(hex) =>
-                    updateAnnotation(path, selectedFreeText.__clientId, {
-                      style: { ...selectedFreeText.style, color: hexToRgb01(hex) },
-                    })
-                  }
-                  styleEditing={{
-                    style: selectedFreeText.style,
-                    onChange: (style) =>
-                      updateAnnotation(path, selectedFreeText.__clientId, { style }),
-                  }}
-                  onConfirm={handleConfirm}
-                  onDelete={handleDeletePending}
-                />
-              )}
-            {activeTool === "ocr" && pageSize.width > 0 && ocrWords.length > 0 && (
-              <OcrSelectionOverlay
-                width={pageSize.width}
-                height={pageSize.height}
-                words={ocrWords}
-                selectedIds={selectedOcrWordIds}
-                onSelectionChange={(ids) => setOcrSelection({ key: ocrPageKey, ids })}
-              />
-            )}
-          </div>
+          {bookMode ? (
+            <div
+              data-book-spread
+              className="flex shrink-0 items-start"
+              style={{
+                gap: BOOK_GAP,
+                width: pairRenderedSize.width || undefined,
+                height: pairRenderedSize.height || undefined,
+              }}
+            >
+              {renderBookSlot(activeSpread[0], activeSpread[1])}
+              {renderBookSlot(activeSpread[1], activeSpread[0])}
+            </div>
+          ) : (
+            focusedPageSurface
+          )}
         </main>
         <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
           {activeTool === "crop" && (
@@ -709,6 +904,14 @@ export function Workspace({ pdf, path }: Props) {
                 />
               )}
               {editSubTool === "text" && <EditTextPanel docPath={path} />}
+              {editSubTool === "signature" && (
+                <SignaturePanel
+                  onChoose={(signature) => {
+                    setSelectedPending(null);
+                    setStampPlacement(signature);
+                  }}
+                />
+              )}
             </div>
           )}
           {/* Compare uses a separate workspace shell (see WorkspaceRoute). */}
@@ -719,6 +922,8 @@ export function Workspace({ pdf, path }: Props) {
 }
 
 const EMPTY_FIELD_IDS = new Set<string>();
+const ZERO_SIZE = { width: 0, height: 0 };
+const EMPTY_PAGE_SIZES: Record<number, { width: number; height: number }> = {};
 // Fallback only: a selected pending annotation always has a rect, so
 // `toScreenRect` only returns null for a malformed one from outside this app.
 const EMPTY_SCREEN_RECT: ScreenRect = { x: 0, y: 0, width: 0, height: 0 };

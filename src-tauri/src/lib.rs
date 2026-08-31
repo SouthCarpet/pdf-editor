@@ -110,6 +110,12 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::session::session_save,
             commands::session::session_list,
             commands::session::session_clear,
+            // Plan 062 T6.1 - reusable transparent PNG signature library.
+            commands::signatures::signature_list,
+            commands::signatures::signature_import,
+            commands::signatures::signature_create_from_png_bytes,
+            commands::signatures::signature_rename,
+            commands::signatures::signature_delete,
             // Plan 062 T4.1 - Explorer and command-line PDF arguments.
             commands::startup::startup_paths,
         ])

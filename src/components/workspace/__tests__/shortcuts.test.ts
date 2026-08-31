@@ -40,6 +40,13 @@ describe("resolveShortcut", () => {
     });
   });
 
+  it("Ctrl+2 toggles book mode only outside text input", () => {
+    expect(resolveShortcut(key({ key: "2", ctrlKey: true }), false)).toEqual({
+      type: "toggle-book-mode",
+    });
+    expect(resolveShortcut(key({ key: "2", ctrlKey: true }), true)).toBeNull();
+  });
+
   it("Cmd+Plus (metaKey) zooms in the same as Ctrl+Plus", () => {
     expect(resolveShortcut(key({ key: "+", metaKey: true }), false)).toEqual({ type: "zoom-in" });
   });
@@ -174,6 +181,15 @@ describe("resolveShortcut", () => {
     expect(resolveShortcut(key({ key: "End" }), false)).toEqual({ type: "last-page" });
   });
 
+  it("Ctrl+PageUp and Ctrl+PageDown move by spread", () => {
+    expect(resolveShortcut(key({ key: "PageUp", ctrlKey: true }), false)).toEqual({
+      type: "previous-spread",
+    });
+    expect(resolveShortcut(key({ key: "PageDown", ctrlKey: true }), false)).toEqual({
+      type: "next-spread",
+    });
+  });
+
   // Oracle: T3.1 R2 explicitly allows Ctrl+F from the strip input.
   it("Ctrl+F opens search from the strip text input", () => {
     const stripFocus = {
@@ -232,6 +248,27 @@ describe("WORKSPACE_SHORTCUTS", () => {
       allowInTextInput: false,
       group: "view",
     });
+  });
+
+  it("registers Ctrl+2 for book mode outside text inputs", () => {
+    const row = WORKSPACE_SHORTCUTS.find((shortcut) => shortcut.id === "toggle-book-mode");
+    expect(row).toMatchObject({
+      action: "toggle-book-mode",
+      keys: ["2"],
+      modifier: "ctrl",
+      shift: false,
+      allowInTextInput: false,
+      group: "view",
+    });
+  });
+
+  it("registers both Ctrl+Page spread navigation rows", () => {
+    const rows = WORKSPACE_SHORTCUTS.filter((shortcut) => shortcut.action.endsWith("spread"));
+    expect(rows.map(({ action, keys, modifier }) => ({ action, keys, modifier }))).toEqual([
+      { action: "previous-spread", keys: ["PageUp"], modifier: "ctrl" },
+      { action: "next-spread", keys: ["PageDown"], modifier: "ctrl" },
+    ]);
+    expect(rows.every(({ allowInTextInput }) => !allowInTextInput)).toBe(true);
   });
   it("registers delete-pending on Delete and Backspace so the T3.3 overlay can list it", () => {
     const spec = WORKSPACE_SHORTCUTS.find((s) => s.action === "delete-pending");

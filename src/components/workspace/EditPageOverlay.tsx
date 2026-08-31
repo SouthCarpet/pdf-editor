@@ -12,6 +12,7 @@ import { DetectedFieldsGroup } from "./DetectedFieldsOverlay";
 import type { ScreenRect } from "./detectedFieldGeometry";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { PendingFreeTextLayer } from "./PendingFreeTextLayer";
+import { PendingStampLayer } from "./PendingStampLayer";
 
 interface Props {
   width: number;
@@ -25,6 +26,10 @@ interface Props {
   selectedPendingId: string | null;
   onSelectPending: (clientId: string) => void;
   onPendingRectChange: (clientId: string, rect: [number, number, number, number]) => void;
+  stampPlacement: { imagePath: string; aspectRatio: number } | null;
+  pageWidth: number;
+  pageHeight: number;
+  onPlaceStamp: (rect: [number, number, number, number]) => void;
 }
 
 export function EditPageOverlay({
@@ -39,9 +44,25 @@ export function EditPageOverlay({
   selectedPendingId,
   onSelectPending,
   onPendingRectChange,
+  stampPlacement,
+  pageWidth,
+  pageHeight,
+  onPlaceStamp,
 }: Props) {
   return (
     <OverlayCanvas width={width} height={height}>
+      <PendingStampLayer
+        page={page}
+        pageWidth={pageWidth}
+        pageHeight={pageHeight}
+        viewport={viewport}
+        annotations={pendingAnnotations}
+        selectedId={selectedPendingId}
+        placement={stampPlacement}
+        onSelect={onSelectPending}
+        onRectChange={onPendingRectChange}
+        onPlace={onPlaceStamp}
+      />
       {detectedFields !== null && detectedFields.length > 0 && (
         <DetectedFieldsGroup
           fields={detectedFields}

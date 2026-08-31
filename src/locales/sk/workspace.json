@@ -15,7 +15,8 @@
     "convert": "Konvertovať",
     "zoom_modes": "Režim mierky",
     "fit_width": "Na šírku",
-    "fit_page": "Celá strana"
+    "fit_page": "Celá strana",
+    "book_mode": "Dvojstrana"
   },
   "history": {
     "undo": "Späť",
@@ -117,6 +118,7 @@
     "edit_text": "Text",
     "edit_annotations": "Anotácie",
     "edit_forms": "Formuláre",
+    "edit_signature": "Podpis",
     "crop": "Orezať",
     "organize": "Zoradiť",
     "extract": "Extrahovať",
@@ -242,6 +244,39 @@
     "find_fields": "Nájsť polia",
     "run_ocr": "Spustiť OCR"
   },
+  "signature": {
+    "title": "Podpis",
+    "description": "Vyberte podpis alebo pečiatku a kliknite na stranu.",
+    "draw": "Nakresliť",
+    "upload": "Nahrať obrázok",
+    "saved": "Uložené podpisy",
+    "loading": "Načítavajú sa...",
+    "empty": "Zatiaľ tu nie je žiadny podpis.",
+    "place_named": "Vložiť {{name}}",
+    "delete_named": "Odstrániť {{name}}",
+    "delete_confirm": "Odstrániť podpis {{name}}?",
+    "error": "Podpis sa nepodarilo spracovať: {{error}}",
+    "stamps": {
+      "title": "Pečiatky",
+      "paid": "Zaplatené",
+      "approved": "Schválené",
+      "copy": "Kópia"
+    },
+    "drawing": {
+      "title": "Nakresliť podpis",
+      "description": "Nakreslite podpis myšou alebo perom.",
+      "canvas": "Plocha na kreslenie podpisu",
+      "pen_width": "Hrúbka pera",
+      "color": "Farba pera",
+      "black": "Čierna",
+      "blue": "Modrá",
+      "clear": "Vymazať",
+      "name": "Názov podpisu",
+      "cancel": "Zrušiť",
+      "save": "Uložiť ako podpis",
+      "saving": "Ukladá sa..."
+    }
+  },
   "pending_annotation": {
     "title": "Úprava vloženého textu",
     "text_label": "Text",
@@ -282,6 +317,8 @@
     "confirm_next_field": "Potvrdiť a ďalšie pole",
     "previous_page": "Predošlá strana",
     "next_page": "Ďalšia strana",
+    "previous_spread": "Predošlá dvojstrana",
+    "next_spread": "Ďalšia dvojstrana",
     "first_page": "Prvá strana",
     "last_page": "Posledná strana",
     "open_search": "Otvoriť hľadanie",

@@ -20,6 +20,7 @@ describe("workspaceStore", () => {
       activePage: 0,
       zoomByDoc: {},
       zoomModeByDoc: {},
+      bookModeByDoc: {},
       thumbnailStripCollapsed: false,
     });
     useAppStore.setState({ defaultZoom: ZOOM_DEFAULT });
@@ -165,6 +166,41 @@ describe("workspaceStore", () => {
     useWorkspace.getState().setThumbnailStripCollapsed(false);
     expect(useWorkspace.getState().thumbnailStripCollapsed).toBe(false);
   });
+
+  // Oracle: T3.2 R2 makes book mode session-only and snaps a right page to
+  // its spread's left page when the mode is enabled.
+  it("keeps book mode off by default and independent per document", () => {
+    expect(useWorkspace.getState().bookModeByDoc[DOC_A] ?? false).toBe(false);
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    expect(useWorkspace.getState().bookModeByDoc[DOC_A]).toBe(true);
+    expect(useWorkspace.getState().bookModeByDoc[DOC_B] ?? false).toBe(false);
+  });
+
+  it("snaps an even zero-based page onto the left side when enabling book mode", () => {
+    useWorkspace.getState().setActivePage(4);
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    expect(useWorkspace.getState().activePage).toBe(3);
+  });
+
+  it("keeps the cover focused when enabling book mode", () => {
+    useWorkspace.getState().setActivePage(0);
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    expect(useWorkspace.getState().activePage).toBe(0);
+  });
+
+  it("keeps the focused page when disabling book mode", () => {
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    useWorkspace.getState().setActivePage(2);
+    useWorkspace.getState().setBookMode(DOC_A, false);
+    expect(useWorkspace.getState().activePage).toBe(2);
+  });
+
+  it("keeps a right-page focus when book mode is already on", () => {
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    useWorkspace.getState().setActivePage(2);
+    useWorkspace.getState().setBookMode(DOC_A, true);
+    expect(useWorkspace.getState().activePage).toBe(2);
+  });
 });
 
 describe("zoomForMode", () => {
@@ -185,5 +221,19 @@ describe("zoomForMode", () => {
 
   it("does not derive a numeric zoom for custom mode", () => {
     expect(zoomForMode("custom", { width: 600, height: 800 }, { width: 1200, height: 700 })).toBeNull();
+  });
+
+  // Oracle: T3.2 R5 fits the two page widths around a fixed 8 px gap and
+  // uses the tallest facing page for whole-spread fitting.
+  it("fits a facing pair and its fixed gap to width", () => {
+    expect(
+      zoomForMode("fit-width", { width: 1200, height: 800 }, { width: 908, height: 700 }, 8),
+    ).toBe(0.75);
+  });
+
+  it("fits the whole facing pair box using its tallest page", () => {
+    expect(
+      zoomForMode("fit-page", { width: 1200, height: 1000 }, { width: 1208, height: 700 }, 8),
+    ).toBe(0.7);
   });
 });
