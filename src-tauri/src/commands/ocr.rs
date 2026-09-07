@@ -22,7 +22,9 @@ use crate::services::ocr_engine::{
     words_to_plain_text, OcrBackend, OcrEngine, OcrOptions, OcrOutputMode, OcrRecognitionOptions,
     WordBox, LOW_CONFIDENCE_THRESHOLD,
 };
-use crate::services::ocr_geometry::{add_page_font_resource, page_geometry, OcrPageGeometry};
+use crate::services::ocr_geometry::{
+    add_page_font_resource, open_page_state_guard, page_geometry, OcrPageGeometry,
+};
 use lopdf::{dictionary, Document, Object, Stream};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -657,6 +659,16 @@ pub(crate) fn inject_word_layers(
         _ => None,
     };
 
+    // Plan 067 W5: the OCR layer is editable text, so the subset carries a
+    // fixed Latin editing alphabet on top of the recognized words. Without it
+    // the subset holds only what the scan contained and the first edit that
+    // types any other letter fails with EncodingMismatch. Registered once per
+    // document, before the content streams are built, because write_to_pdf
+    // needs the complete used_chars set.
+    if let Some(subsetter) = subsetter.as_mut() {
+        subsetter.add_editing_alphabet();
+    }
+
     // Build all content streams first so the subsetter sees every char.
     let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
     for (_, words, pixel_w, pixel_h, page_id, geometry, _) in &page_specs {
@@ -717,7 +729,15 @@ pub(crate) fn inject_word_layers(
                 Object::string_literal(key.engine.clone()),
             );
         }
-        let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, stream_bytes)));
+        // The page's own content can leave the CTM scaled (a scan's bare
+        // `<w> 0 0 <h> 0 0 cm /Im0 Do` is the common case). The guard pushes
+        // the graphics state in front of that content and hands back the `Q`
+        // this overlay opens with, so the text below is placed in the page's
+        // default space instead of the previous stream's leftovers.
+        let close_state_guard = open_page_state_guard(&mut doc, *page_id)?;
+        let mut content = close_state_guard.to_vec();
+        content.extend(stream_bytes);
+        let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, content)));
         if let Some(fid) = font_obj_id {
             add_page_font_resource(&mut doc, *page_id, b"AnimusOcrF", fid)?;
         }

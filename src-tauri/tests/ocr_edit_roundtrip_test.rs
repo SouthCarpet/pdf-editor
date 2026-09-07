@@ -121,3 +121,108 @@ async fn ocr_then_edit_preserves_diacritics() {
         "diacritics must round-trip via the Type0 CIDFont layer (joined: {joined})"
     );
 }
+
+/// Plan 067 W5 — the OCR layer must accept an edit that uses letters the scan
+/// never contained.
+///
+/// `scanned.pdf` reads "Ľubomír Šťastný, Čadca", so before W5 the embedded
+/// subset carried only those characters and `replace_run` refused anything
+/// else with `EncodingMismatch { detail: "font ToUnicode missing CIDs for: …" }`.
+/// The replacement string below is deliberately disjoint from the fixture: the
+/// Czech row (ě ř ů), the German row (ä ö ü ß) and two Slovak letters the scan
+/// does not use (ĺ ŕ), plus plain spaces, which the U+00A0 glyph collision
+/// would otherwise have taken away.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "needs real Tesseract + mutool sidecars + Slovak fixture; --features sidecar-tests"
+)]
+async fn ocr_layer_accepts_letters_the_scan_never_contained() {
+    const REPLACEMENT: &str = "Editované ěřů äöü ß ĺŕ";
+
+    let tmp = TempDir::new().unwrap();
+    let scanned = PathBuf::from("tests/fixtures/pdfs/scanned.pdf");
+    let ocred = tmp.path().join("ocred.pdf");
+    let edited = tmp.path().join("edited.pdf");
+
+    let opts = ocr_options();
+    let hocrs = ocr_pages(&scanned, tmp.path(), &opts).await;
+    inject_text_layers(&scanned, &ocred, &opts, &hocrs).expect("inject");
+
+    let runs = extract_runs(&ocred).expect("runs");
+    assert!(!runs.is_empty(), "OCR produced no editable runs");
+    let first = &runs[0];
+
+    replace_run(
+        &ocred,
+        &edited,
+        first.page,
+        first.operator_index,
+        REPLACEMENT,
+    )
+    .expect("replace_run with letters outside the recognized text");
+
+    let joined: String = extract_runs(&edited)
+        .expect("runs2")
+        .iter()
+        .map(|r| r.text.clone())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        joined.contains(REPLACEMENT),
+        "the edited run must read back verbatim (joined: {joined})"
+    );
+}
+
+fn ocr_options() -> OcrOptions {
+    OcrOptions {
+        engine: Default::default(),
+        language: "slk".into(),
+        dpi: 300,
+        psm: 3,
+        oem: 3,
+        output: OcrOutputMode::SearchablePdf,
+        deskew: true,
+        despeckle: false,
+        preserve_raster: true,
+    }
+}
+
+/// Render every page of `pdf` and run Tesseract over it, in the shape
+/// `inject_text_layers` expects: `(page index, hOCR, pixel width, pixel height)`.
+async fn ocr_pages(
+    pdf: &std::path::Path,
+    workdir: &std::path::Path,
+    opts: &OcrOptions,
+) -> Vec<(u32, String, u32, u32)> {
+    let mgr = SidecarManager::new(2);
+    let mupdf = MupdfWrapper::new(mgr.clone());
+    let tess = TesseractWrapper::new(mgr);
+    let page_count = lopdf::Document::load(pdf).unwrap().get_pages().len() as u32;
+    let mut hocrs = Vec::new();
+    for index in 0..page_count {
+        let raster = workdir.join(format!("ocr-pages-{index}.png"));
+        mupdf
+            .render_page_to_png(pdf, index, &raster, opts.dpi, None)
+            .await
+            .unwrap();
+        let (width, height) = png_dimensions(&raster);
+        let hocr = tess
+            .ocr_image_with_hocr(&raster, &opts.language, None)
+            .await
+            .unwrap();
+        hocrs.push((index, hocr, width, height));
+    }
+    hocrs
+}
+
+fn png_dimensions(path: &std::path::Path) -> (u32, u32) {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).unwrap();
+    let mut header = [0u8; 24];
+    file.read_exact(&mut header).unwrap();
+    (
+        u32::from_be_bytes([header[16], header[17], header[18], header[19]]),
+        u32::from_be_bytes([header[20], header[21], header[22], header[23]]),
+    )
+}

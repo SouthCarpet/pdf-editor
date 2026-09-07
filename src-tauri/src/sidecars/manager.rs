@@ -301,11 +301,48 @@ mod tests {
         }
     }
 
+    /// RAII guard: clears `PDF_EDITOR_INSTALL_DIR` for the duration of a test
+    /// and restores it on drop.
+    ///
+    /// Plan 067 W8: that variable is the FIRST branch of `sidecar_dll_dir`, so
+    /// the two tests below, which assert the second and third branches, only
+    /// held while nothing in the environment set it. The `sidecar-contract` CI
+    /// job now does set it (the installed-layout launch gate needs it), and
+    /// both tests failed there until this guard existed. A test of a fallback
+    /// chain has to own the whole chain. Callers must hold
+    /// `SIDECARS_DIR_TEST_LOCK` first, which also keeps the mutation off other
+    /// threads.
+    struct NoInstallDirOverrideGuard {
+        previous: Option<std::ffi::OsString>,
+    }
+
+    impl NoInstallDirOverrideGuard {
+        fn apply() -> Self {
+            let previous = std::env::var_os("PDF_EDITOR_INSTALL_DIR");
+            // SAFETY: the caller holds SIDECARS_DIR_TEST_LOCK, and every test
+            // that reads this variable takes the same lock, so no other thread
+            // reads the environment while it changes.
+            std::env::remove_var("PDF_EDITOR_INSTALL_DIR");
+            Self { previous }
+        }
+    }
+
+    impl Drop for NoInstallDirOverrideGuard {
+        fn drop(&mut self) {
+            // SAFETY: see above.
+            match self.previous.take() {
+                Some(value) => std::env::set_var("PDF_EDITOR_INSTALL_DIR", value),
+                None => std::env::remove_var("PDF_EDITOR_INSTALL_DIR"),
+            }
+        }
+    }
+
     #[test]
     fn sidecar_dll_dir_resolves_exe_relative_when_present() {
         let _lock = SIDECARS_DIR_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
+        let _no_override = NoInstallDirOverrideGuard::apply();
         let guard = ExeRelativeSidecarsDirGuard::create();
         let resolved = SidecarManager::sidecar_dll_dir();
         assert_eq!(
@@ -314,11 +351,31 @@ mod tests {
         );
     }
 
+    /// The counterpart of the two tests above: when the override IS set it must
+    /// win over both later branches, which is the whole reason the launch gate
+    /// can point at an installed layout.
+    #[test]
+    fn sidecar_dll_dir_prefers_the_install_dir_override() {
+        let _lock = SIDECARS_DIR_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let _no_override = NoInstallDirOverrideGuard::apply();
+        // SAFETY: the caller holds SIDECARS_DIR_TEST_LOCK; the guard above
+        // restores whatever the environment had.
+        std::env::set_var("PDF_EDITOR_INSTALL_DIR", "C:\\nowhere\\PDF Editor");
+        let resolved = SidecarManager::sidecar_dll_dir();
+        assert_eq!(
+            resolved,
+            PathBuf::from("C:\\nowhere\\PDF Editor").join("sidecars")
+        );
+    }
+
     #[test]
     fn sidecar_dll_dir_falls_back_to_manifest_dir_when_absent() {
         let _lock = SIDECARS_DIR_TEST_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
+        let _no_override = NoInstallDirOverrideGuard::apply();
         let exe = std::env::current_exe().expect("current_exe");
         let exe_relative = exe.parent().expect("parent").join("sidecars");
         assert!(

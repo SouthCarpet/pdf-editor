@@ -96,6 +96,15 @@ custom-protocol = ["tauri/custom-protocol"]
 # feature on after `scripts/fetch-sidecars.ps1` + `stage-sidecars.ps1`
 # + `generate-fixtures.ps1`. Devs can opt-in locally the same way.
 sidecar-tests = []
+# Plan 067 W2 — opt-in flag for tests that need a real LibreOffice install.
+# Deliberately NOT part of `sidecar-tests`: LibreOffice is not in
+# `scripts/sidecar-manifest.json`, `scripts/fetch-sidecars.ps1` never
+# downloads it and `scripts/stage-sidecars.ps1` says so in as many words
+# (lines 26 and 57). It ships as a bundled resource tree through
+# `tauri.conf.json`, not as an externalBin sidecar, so "the sidecars are
+# staged" and "LibreOffice is installed" are two different preconditions and
+# need two different switches.
+libreoffice-tests = []
 
 [dev-dependencies]
 tempfile = "3"

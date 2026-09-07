@@ -44,26 +44,26 @@ $png = Join-Path $env:TEMP "_seed.png"
 #    --allow-weak-crypto is required by qpdf 12.x to emit 128-bit files.
 & $Qpdf --allow-weak-crypto --encrypt "user" "owner" 128 -- (Join-Path $Pdfs "sample.pdf") (Join-Path $Pdfs "password-open.pdf")
 
-# 4. slovak-utf8.pdf  -  Slovak + Czech + German diacritics for UTF-8 round-trip
-$html = Join-Path $env:TEMP "_slovak.html"
-@"
-<!doctype html><html><body>
-<p>Priliz zltucky kon upal dabelske ody.</p>
-<p>Slovak: Priliz zltucky kon upal dabelske ody.</p>
-<p>Czech: Prilis zlutoucky kun upel dabelske ody.</p>
-<p>German: Falsches Uben von Xylophonmusik qualt jeden grosseren Zwerg.</p>
-</body></html>
-"@ | Set-Content $html -Encoding UTF8
+# 4. slovak-utf8.pdf  -  Slovak + Czech + German diacritics for UTF-8 round-trip.
+#    W6 (plan 067): produced by the mutool sidecar, not LibreOffice. CI never
+#    stages LibreOffice, so the seven tests that read this fixture failed in the
+#    `sidecar-contract` job every run; and the HTML this step used to write had
+#    itself lost its diacritics ("Priliz zltucky kon ..."), so even a machine
+#    WITH LibreOffice produced a fixture that could not satisfy the suite's
+#    EXPECTED_GRAPHEMES. See generate-slovak-fixture.js for the font choice.
+& $Mutool run (Join-Path $PSScriptRoot "generate-slovak-fixture.js") (Join-Path $Pdfs "slovak-utf8.pdf")
+if ($LASTEXITCODE -ne 0) { throw "generate-slovak-fixture.js failed (exit $LASTEXITCODE)" }
 
-if (Test-Path $Soffice) {
-    & $Soffice --headless --convert-to pdf --outdir $Pdfs $html
-    if (Test-Path (Join-Path $Pdfs "_slovak.pdf")) {
-        Move-Item -Force (Join-Path $Pdfs "_slovak.pdf") (Join-Path $Pdfs "slovak-utf8.pdf")
-    }
-}
-
-# 5. scanned.pdf  -  image-only PDF (no text layer; triggers OCR path)
-& $Mutool convert -F pdf -o (Join-Path $Pdfs "scanned.pdf") $png
+# 5. scanned.pdf  -  image-only PDF (no text layer; triggers OCR path).
+#    F3 (plan 066): must carry real, OCR-recognizable Slovak text with
+#    diacritics, not a blank placeholder - see generate-scanned-fixture.js
+#    for the rendering approach and why it needs the Y-axis flip.
+#    W3 (plan 067): its only input is the mutool sidecar, which this script
+#    already requires and sidecar-manifest.json pins by sha256. The earlier
+#    version read %WINDIR%\Fonts\arial.ttf, an unpinned system file that CI
+#    neither vendors nor stages.
+& $Mutool run (Join-Path $PSScriptRoot "generate-scanned-fixture.js") (Join-Path $Pdfs "scanned.pdf")
+if ($LASTEXITCODE -ne 0) { throw "generate-scanned-fixture.js failed (exit $LASTEXITCODE)" }
 
 # 6. large.pdf  -  50 copies of sample.pdf merged (perf bench input)
 $tmpList = Join-Path $env:TEMP "_largefiles.txt"

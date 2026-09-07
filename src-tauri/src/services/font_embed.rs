@@ -31,6 +31,26 @@ const TABLES_PASSTHROUGH: &[&[u8; 4]] = &[
     b"cmap",
 ];
 
+/// Inclusive codepoint ranges the OCR text layer always embeds, on top of
+/// whatever OCR actually recognized (plan 067 W5).
+///
+/// The OCR layer used to register only the recognized words, so the embedded
+/// subset carried only the characters the scan happened to contain and a user
+/// editing that text could not type any other letter — `replace_run` refused
+/// with `EncodingMismatch` because the `/ToUnicode` inverse had no CID for it.
+/// The ranges below cover every Latin letter a Slovak, Czech or German user can
+/// type: printable ASCII, Latin-1 Supplement, Latin Extended-A.
+///
+/// Characters the chosen font has no glyph for are skipped: `used_glyph_ids`
+/// and the `/ToUnicode` builder both go through `Face::glyph_index`, which
+/// returns `None` for them, so an incomplete font costs coverage, never
+/// validity.
+pub const OCR_EDITING_ALPHABET: &[(char, char)] = &[
+    ('\u{0020}', '\u{007E}'), // printable ASCII
+    ('\u{00A0}', '\u{00FF}'), // Latin-1 Supplement
+    ('\u{0100}', '\u{017F}'), // Latin Extended-A
+];
+
 /// In-memory subsetter for a single TTF font. Tracks the set of characters
 /// referenced by the document so build_subset() can emit a minimal font.
 pub struct FontSubsetter {
@@ -74,6 +94,18 @@ impl FontSubsetter {
     pub fn add_text(&mut self, text: &str) {
         for c in text.chars() {
             self.used_chars.insert(c);
+        }
+    }
+
+    /// Register every character of [`OCR_EDITING_ALPHABET`] so the emitted
+    /// subset can also encode letters the source text never used (plan 067 W5).
+    pub fn add_editing_alphabet(&mut self) {
+        for (first, last) in OCR_EDITING_ALPHABET {
+            for code in (*first as u32)..=(*last as u32) {
+                if let Some(character) = char::from_u32(code) {
+                    self.used_chars.insert(character);
+                }
+            }
         }
     }
 
@@ -419,11 +451,19 @@ impl FontSubsetter {
         let cid_font_id = doc.add_object(Object::Dictionary(cid_font));
 
         // /ToUnicode CMap stream.
+        // A CMap is one-way: one Unicode value per CID. Fonts do map several
+        // codepoints to one glyph — in Arial, U+00A0 shares the space glyph and
+        // U+00AD shares the hyphen glyph — so the map has to pick a winner.
+        // `used_chars` is ordered, so `or_insert` always keeps the LOWEST
+        // codepoint, which is the canonical character of each such pair (space
+        // over no-break space, hyphen-minus over soft hyphen). Overwriting
+        // instead would make a plain space unencodable as soon as
+        // OCR_EDITING_ALPHABET registers U+00A0 (plan 067 W5).
         let mut cid_to_codepoint: BTreeMap<u16, char> = BTreeMap::new();
         let parsed = Face::parse(&self.font_data, 0).ok();
         for c in &self.used_chars {
             if let Some(GlyphId(g)) = parsed.as_ref().and_then(|f| f.glyph_index(*c)) {
-                cid_to_codepoint.insert(g, *c);
+                cid_to_codepoint.entry(g).or_insert(*c);
             }
         }
         let cmap_bytes = cmap::build_to_unicode_cmap(&cid_to_codepoint);
@@ -733,5 +773,82 @@ mod tests {
         } else {
             panic!("expected Dictionary");
         }
+    }
+
+    /// Plan 067 W5. The editing alphabet must reach the emitted `/ToUnicode`
+    /// CMap, because `text_edit::encode_type0` inverts exactly that CMap to
+    /// decide whether an edit can be encoded. Letters absent from the scan
+    /// ('ě', 'ß', 'ĺ') and the plain space are the two ways this broke.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn editing_alphabet_reaches_the_to_unicode_cmap() {
+        let arial = std::path::PathBuf::from("C:\\Windows\\Fonts\\arial.ttf");
+        assert!(arial.exists(), "Windows Arial fixture is missing");
+        let mut sub = FontSubsetter::new_from_path(&arial).expect("load");
+        sub.add_text("Ubomir"); // stands in for a scan with no diacritics at all
+        sub.add_editing_alphabet();
+        let mut doc = lopdf::Document::with_version("1.7");
+        let (id, _) = sub.write_to_pdf(&mut doc).expect("write");
+        let encodable = to_unicode_targets(&doc, id);
+        for character in " -/0Aa~ěřůäöüßĺŕčžšý".chars() {
+            assert!(
+                encodable.contains(&character),
+                "'{character}' (U+{:04X}) is missing from /ToUnicode, so replace_run \
+                 would reject it",
+                character as u32
+            );
+        }
+    }
+
+    /// The same collision from the other side: U+00A0 and U+00AD share their
+    /// glyphs with space and hyphen in Arial, and a CMap holds one Unicode
+    /// value per CID. The canonical ASCII character has to win, or registering
+    /// the alphabet would take plain spaces away.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn glyph_sharing_codepoints_do_not_displace_their_ascii_twins() {
+        let arial = std::path::PathBuf::from("C:\\Windows\\Fonts\\arial.ttf");
+        let mut sub = FontSubsetter::new_from_path(&arial).expect("load");
+        sub.add_text("\u{00A0}\u{00AD}"); // no-break space + soft hyphen only
+        sub.add_editing_alphabet();
+        let mut doc = lopdf::Document::with_version("1.7");
+        let (id, _) = sub.write_to_pdf(&mut doc).expect("write");
+        let encodable = to_unicode_targets(&doc, id);
+        assert!(encodable.contains(&' '), "plain space lost its CID");
+        assert!(encodable.contains(&'-'), "plain hyphen lost its CID");
+    }
+
+    /// Every Unicode value the font's `/ToUnicode` CMap can produce, read back
+    /// out of the emitted PDF the way `encode_type0` reads it.
+    #[cfg(target_os = "windows")]
+    fn to_unicode_targets(doc: &Document, type0_id: ObjectId) -> BTreeSet<char> {
+        let font = doc.get_object(type0_id).unwrap().as_dict().unwrap();
+        let cmap_ref = font.get(b"ToUnicode").unwrap().as_reference().unwrap();
+        let stream = match doc.get_object(cmap_ref).unwrap() {
+            Object::Stream(s) => s,
+            other => panic!("ToUnicode is not a stream: {other:?}"),
+        };
+        let raw = stream
+            .decompressed_content()
+            .unwrap_or_else(|_| stream.content.clone());
+        let text = String::from_utf8_lossy(&raw).into_owned();
+        let mut found = BTreeSet::new();
+        // Every entry is `<cid> <utf16be>` on one line; we only need the target.
+        for line in text.lines() {
+            let hex: Vec<&str> = line
+                .split(['<', '>'])
+                .filter(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_hexdigit()))
+                .collect();
+            if hex.len() != 2 || hex[1].len() != 4 {
+                continue;
+            }
+            if let Ok(code) = u32::from_str_radix(hex[1], 16) {
+                if let Some(character) = char::from_u32(code) {
+                    found.insert(character);
+                }
+            }
+        }
+        assert!(!found.is_empty(), "parsed no CMap entries from:\n{text}");
+        found
     }
 }

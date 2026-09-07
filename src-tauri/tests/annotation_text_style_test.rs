@@ -334,11 +334,19 @@ fn ascii_helvetica_bold_stays_unembedded_type1_standard_14() {
 }
 
 #[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "needs real qpdf + mupdf sidecars to flatten and extract the FreeText appearance; --features sidecar-tests"
+)]
 async fn helvetica_bold_slovak_free_text_roundtrips_exactly_through_extractor() {
     assert_slovak_free_text_roundtrip("Helvetica", "Helvetica-Bold", true, false).await;
 }
 
 #[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "needs real qpdf + mupdf sidecars to flatten and extract the FreeText appearance; --features sidecar-tests"
+)]
 async fn times_italic_slovak_free_text_roundtrips_exactly_through_extractor() {
     assert_slovak_free_text_roundtrip("Times", "Times-Italic", false, true).await;
 }

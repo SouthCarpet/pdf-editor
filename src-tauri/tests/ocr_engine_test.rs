@@ -23,9 +23,14 @@ async fn ocr_makes_scanned_pdf_searchable() {
     let mupdf = MupdfWrapper::new(mgr.clone());
     let tess = TesseractWrapper::new(mgr.clone());
 
+    // `slk`, because the shared fixture is Slovak (`scripts/generate-scanned-fixture.js`
+    // renders "Ľubomír Šťastný, Čadca"). English recognizes it lossily —
+    // "'ubomir Stastny, Cadca" — so `eng` was never the cause of this test's
+    // failure, but it did make the assertion below meaningless about the
+    // language the fixture is written in.
     let opts = OcrOptions {
         engine: Default::default(),
-        language: "eng".into(),
+        language: "slk".into(),
         dpi: 300,
         psm: 3,
         oem: 3,
@@ -67,9 +72,16 @@ async fn ocr_makes_scanned_pdf_searchable() {
     let text = mupdf.extract_text(&ocred).await.unwrap();
     assert!(
         !text.trim().is_empty(),
-        "OCR text should be present after layer added, but Tesseract found none; \
-         tests/fixtures/pdfs/scanned.pdf looks like the placeholder 16x16 synthetic PNG \
-         instead of real scanned content. Regenerate it with real content via \
-         scripts/generate-fixtures.ps1 before running --features sidecar-tests."
+        "OCR text should be present after the layer was added, and a reader found none. \
+         Either tests/fixtures/pdfs/scanned.pdf carries no glyphs (regenerate it with \
+         scripts/generate-fixtures.ps1), or the injected text layer is not on the page \
+         at all — see ocr_layer_state_test.rs for the graphics-state case that put it \
+         900x off-page and produced exactly this empty result."
+    );
+    // The fixture's own text, so the assertion says the OCR layer carries the
+    // Slovak word with its diacritics, not merely that some bytes survived.
+    assert!(
+        text.contains("Čadca"),
+        "the Slovak fixture word must survive OCR and land in the text layer, extracted: {text:?}"
     );
 }

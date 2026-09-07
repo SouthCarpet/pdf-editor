@@ -48,6 +48,10 @@ src-tauri/tests/fixtures/pdfs/*.pdf
 src-tauri/tests/fixtures/docs/*.docx
 src-tauri/tests/fixtures/docs/*.odt
 src-tauri/tests/fixtures/images/*.png
+# ...except word_test.png (1.4 KB): image_to_pdf_test reads it in the plain
+# rust-unit job, which never runs generate-fixtures.ps1. Same reasoning as the
+# tracked PDFs above. sidecar-contract regenerates it with Ghostscript.
+!src-tauri/tests/fixtures/images/word_test.png
 src-tauri/tests/fixtures/images/*.jpg
 
 # IDE

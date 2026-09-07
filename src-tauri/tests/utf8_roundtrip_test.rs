@@ -7,8 +7,10 @@
 //! survives.
 //!
 //! Gated behind the `sidecar-tests` feature because it requires
-//! real qpdf / ghostscript / mutool / soffice / tesseract sidecars and
-//! the generated fixture set.
+//! real qpdf / ghostscript / mutool / tesseract sidecars and the generated
+//! fixture set. The one test that also needs LibreOffice at run time
+//! (`convert_to_docx_preserves_diacritics`) carries the `libreoffice-tests`
+//! feature on top.
 #![cfg(feature = "sidecar-tests")]
 
 use pdf_editor_lib::sidecars::ghostscript::{CompressionPreset, GhostscriptWrapper};
@@ -20,17 +22,18 @@ use tempfile::TempDir;
 
 const SLOVAK_FIXTURE: &str = "tests/fixtures/pdfs/slovak-utf8.pdf";
 
-/// `slovak-utf8.pdf` is only produced by `generate-fixtures.ps1` when
-/// LibreOffice (soffice) is staged at `src-tauri/resources/libreoffice/...`.
-/// This whole file is already gated behind `--features sidecar-tests`
-/// (opt-in to real fixtures), so a missing fixture here is a genuine setup
-/// problem: fail loudly instead of silently skipping to a false pass.
+/// `slovak-utf8.pdf` is produced by `generate-fixtures.ps1` step 4 from the
+/// mutool sidecar alone (plan 067 W6; it needed LibreOffice before, which CI
+/// never stages). This whole file is already gated behind `--features
+/// sidecar-tests` (opt-in to real fixtures), so a missing fixture here is a
+/// genuine setup problem: fail loudly instead of silently skipping to a false
+/// pass.
 fn require_slovak_fixture(test: &str) {
     assert!(
         Path::new(SLOVAK_FIXTURE).exists(),
-        "[{test}] {SLOVAK_FIXTURE} missing; stage LibreOffice at \
-         src-tauri/resources/libreoffice/... and re-run scripts/generate-fixtures.ps1 \
-         before running with --features sidecar-tests"
+        "[{test}] {SLOVAK_FIXTURE} missing; run scripts/fetch-sidecars.ps1, \
+         scripts/stage-sidecars.ps1 and scripts/generate-fixtures.ps1 before running \
+         with --features sidecar-tests"
     );
 }
 
@@ -81,6 +84,13 @@ async fn convert_to_txt_preserves_diacritics() {
     assert_all_diacritics_present(&body, "convert_to_txt");
 }
 
+/// W7 (plan 067): the only test in this file that needs LibreOffice at RUN
+/// time — `SofficeWrapper::convert` shells out to `soffice.exe`, which
+/// `scripts/stage-sidecars.ps1` states in as many words that it does not stage.
+/// `--include-ignored` (the shape the `sidecar-contract` job uses) runs ignored
+/// tests too, so only `cfg` can keep it out of that job. Run it with
+/// `--features "sidecar-tests libreoffice-tests"` once LibreOffice is staged.
+#[cfg(feature = "libreoffice-tests")]
 #[tokio::test]
 async fn convert_to_docx_preserves_diacritics() {
     require_slovak_fixture("convert_to_docx_preserves_diacritics");
@@ -89,6 +99,17 @@ async fn convert_to_docx_preserves_diacritics() {
     // the LibreOffice tree). We exercise the path by converting and
     // re-extracting via mutool on the resulting docx-PDF round-trip.
     use pdf_editor_lib::sidecars::soffice::SofficeWrapper;
+    // Same precondition as sidecar_soffice_test.rs: without it the failure
+    // reads "The system cannot find the path specified. (os error 3)", which
+    // says nothing about what is missing or how to supply it.
+    let soffice = Path::new("resources/libreoffice/App/libreoffice/program/soffice.exe");
+    assert!(
+        soffice.exists(),
+        "LibreOffice is not staged at {}; stage the bundled tree before running \
+         --features libreoffice-tests. scripts/fetch-sidecars.ps1 and \
+         scripts/stage-sidecars.ps1 do not provide it.",
+        soffice.display()
+    );
     let mgr = SidecarManager::new(2);
     let lo = SofficeWrapper::new(mgr.clone());
     let docx = lo

@@ -33,7 +33,198 @@ export interface UnknownCall {
 interface AclNamespace {
   default_permission?: { permissions: string[] };
 }
-type AclManifest = Record<string, AclNamespace>;
+export type AclManifest = Record<string, AclNamespace>;
+
+// F1 (plan 066): `src-tauri/gen/schemas/acl-manifests.json` is written by
+// `tauri_build::build()` during a cargo build and is gitignored
+// (`.gitignore:28`). The `frontend-unit` CI job runs only `pnpm install` +
+// `pnpm test`, no cargo build, so on a fresh checkout the file is absent and
+// every test in `capabilities.lint.test.ts` used to die with ENOENT - it
+// passed only on machines that happened to have a leftover release build.
+//
+// This is a vendored copy of the same `default_permission.permissions`
+// lists the generated file carries for every namespace our capability files
+// reference through a `<namespace>:default` entry (`core:default`,
+// `dialog:default`, `fs:default`, plus the `core:*` sub-namespaces
+// `core:default` itself expands to). It is data straight from Tauri's own
+// permission schema for the pinned `tauri = "=2.11"` (`CLAUDE.md`), not app
+// logic, so it changes only when that pin moves - and the sync test below
+// re-checks it against the real file whenever a build has produced one.
+// `lintCapabilities()` falls back to this only when the generated file is
+// missing; when it exists (any local run after a cargo build, or any CI job
+// that builds Rust before running this suite) the real file is still the
+// source of truth, so a genuine permission gap is caught either way.
+export const FALLBACK_ACL_MANIFEST: AclManifest = {
+  core: {
+    default_permission: {
+      permissions: [
+        "core:path:default",
+        "core:event:default",
+        "core:window:default",
+        "core:webview:default",
+        "core:app:default",
+        "core:image:default",
+        "core:resources:default",
+        "core:menu:default",
+        "core:tray:default",
+      ],
+    },
+  },
+  "core:app": {
+    default_permission: {
+      permissions: [
+        "allow-version",
+        "allow-name",
+        "allow-tauri-version",
+        "allow-identifier",
+        "allow-bundle-type",
+        "allow-register-listener",
+        "allow-remove-listener",
+        "allow-supports-multiple-windows",
+      ],
+    },
+  },
+  "core:event": {
+    default_permission: {
+      permissions: ["allow-listen", "allow-unlisten", "allow-emit", "allow-emit-to"],
+    },
+  },
+  "core:image": {
+    default_permission: {
+      permissions: ["allow-new", "allow-from-bytes", "allow-from-path", "allow-rgba", "allow-size"],
+    },
+  },
+  "core:menu": {
+    default_permission: {
+      permissions: [
+        "allow-new",
+        "allow-append",
+        "allow-prepend",
+        "allow-insert",
+        "allow-remove",
+        "allow-remove-at",
+        "allow-items",
+        "allow-get",
+        "allow-popup",
+        "allow-create-default",
+        "allow-set-as-app-menu",
+        "allow-set-as-window-menu",
+        "allow-text",
+        "allow-set-text",
+        "allow-is-enabled",
+        "allow-set-enabled",
+        "allow-set-accelerator",
+        "allow-set-as-windows-menu-for-nsapp",
+        "allow-set-as-help-menu-for-nsapp",
+        "allow-is-checked",
+        "allow-set-checked",
+        "allow-set-icon",
+      ],
+    },
+  },
+  "core:path": {
+    default_permission: {
+      permissions: [
+        "allow-resolve-directory",
+        "allow-resolve",
+        "allow-normalize",
+        "allow-join",
+        "allow-dirname",
+        "allow-extname",
+        "allow-basename",
+        "allow-is-absolute",
+      ],
+    },
+  },
+  "core:resources": {
+    default_permission: { permissions: ["allow-close"] },
+  },
+  "core:tray": {
+    default_permission: {
+      permissions: [
+        "allow-new",
+        "allow-get-by-id",
+        "allow-remove-by-id",
+        "allow-set-icon",
+        "allow-set-menu",
+        "allow-set-tooltip",
+        "allow-set-title",
+        "allow-set-visible",
+        "allow-set-temp-dir-path",
+        "allow-set-icon-as-template",
+        "allow-set-icon-with-as-template",
+        "allow-set-show-menu-on-left-click",
+      ],
+    },
+  },
+  "core:webview": {
+    default_permission: {
+      permissions: [
+        "allow-get-all-webviews",
+        "allow-webview-position",
+        "allow-webview-size",
+        "allow-internal-toggle-devtools",
+      ],
+    },
+  },
+  "core:window": {
+    default_permission: {
+      permissions: [
+        "allow-get-all-windows",
+        "allow-scale-factor",
+        "allow-inner-position",
+        "allow-outer-position",
+        "allow-inner-size",
+        "allow-outer-size",
+        "allow-is-fullscreen",
+        "allow-is-minimized",
+        "allow-is-maximized",
+        "allow-is-focused",
+        "allow-is-decorated",
+        "allow-is-resizable",
+        "allow-is-maximizable",
+        "allow-is-minimizable",
+        "allow-is-closable",
+        "allow-is-visible",
+        "allow-is-enabled",
+        "allow-title",
+        "allow-current-monitor",
+        "allow-primary-monitor",
+        "allow-monitor-from-point",
+        "allow-available-monitors",
+        "allow-cursor-position",
+        "allow-theme",
+        "allow-is-always-on-top",
+        "allow-activity-name",
+        "allow-scene-identifier",
+        "allow-internal-toggle-maximize",
+      ],
+    },
+  },
+  dialog: {
+    default_permission: { permissions: ["allow-message", "allow-save", "allow-open"] },
+  },
+  fs: {
+    default_permission: {
+      permissions: ["create-app-specific-dirs", "read-app-specific-dirs-recursive", "deny-default"],
+    },
+  },
+};
+
+/** Reads the generated ACL manifest; falls back to `FALLBACK_ACL_MANIFEST`
+ * when the file is absent (see the comment on that constant). Any other
+ * read/parse failure - a corrupt or partially-written file - still throws,
+ * so the lint never silently passes on a real problem. */
+export function loadAclManifest(aclPath: string): AclManifest {
+  let raw: string;
+  try {
+    raw = readFileSync(aclPath, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return FALLBACK_ACL_MANIFEST;
+    throw err;
+  }
+  return JSON.parse(raw) as AclManifest;
+}
 
 /**
  * R1: expands `*:default` permission sets through the ACL manifest, the way
@@ -343,10 +534,7 @@ export function lintCapabilities(options: { repoRoot: string; grantedOverride?: 
 
   const granted =
     options.grantedOverride ??
-    expandGrantedPermissions(
-      JSON.parse(readFileSync(aclPath, "utf8")) as AclManifest,
-      loadCapabilityEntries(capabilitiesDir),
-    );
+    expandGrantedPermissions(loadAclManifest(aclPath), loadCapabilityEntries(capabilitiesDir));
 
   const violations: string[] = [];
   const unknownCalls: string[] = [];

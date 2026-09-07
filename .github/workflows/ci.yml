@@ -67,6 +67,21 @@ jobs:
           }
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+      # Plan 067 W4. src/test/capabilityLint.ts carries a vendored copy of the
+      # Tauri ACL default-permission sets so the capability guard also works in
+      # `frontend-unit`, which never builds Rust. Nothing compared that copy
+      # with the real src-tauri/gen/schemas/acl-manifests.json in CI: the only
+      # job running Vitest is the one with no manifest, so the comparison
+      # always skipped and a `tauri` upgrade past the pinned `=2.11` could
+      # stale the fallback unnoticed. This job is the one place that has both
+      # halves - clippy above runs the build scripts that write the manifest,
+      # and pnpm install above provides Vitest - so the check runs here.
+      # PDF_EDITOR_REQUIRE_ACL_MANIFEST turns "no manifest" from a skip into a
+      # failure, so the guard cannot go quiet again.
+      - name: ACL fallback matches the generated manifest
+        env:
+          PDF_EDITOR_REQUIRE_ACL_MANIFEST: "1"
+        run: pnpm vitest run src/test/capabilities.lint.test.ts
 
   cargo-deny:
     runs-on: windows-latest
@@ -295,9 +310,18 @@ jobs:
         run: pwsh scripts/fetch-sidecars.ps1
       - shell: pwsh
         run: pwsh scripts/stage-sidecars.ps1
+      # W8 (plan 067): the installed-layout launch gate resolves sidecars
+      # through PDF_EDITOR_INSTALL_DIR, which needs the shape the MSI installs
+      # (unsuffixed exes + a sidecars\ DLL directory). Without it that test
+      # failed here on every run.
+      - name: Assemble the installed layout for the launch gate
+        shell: pwsh
+        run: pwsh scripts/assemble-install-layout.ps1 -OutDir "$env:RUNNER_TEMP\pdf-editor-install"
       - shell: pwsh
         run: pwsh scripts/generate-fixtures.ps1
       - run: cargo test --manifest-path src-tauri/Cargo.toml --features sidecar-tests -- --include-ignored
+        env:
+          PDF_EDITOR_INSTALL_DIR: ${{ runner.temp }}\pdf-editor-install
 
   privacy:
     runs-on: windows-latest

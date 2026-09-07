@@ -1,7 +1,7 @@
 // `services::text_extractor::extract_text` is a sync stub on this build
 // (mupdf Rust crate deferred). Route through MupdfWrapper — the real runtime
-// path — and skip gracefully when the fixture isn't present (slovak-utf8.pdf
-// is generated only if LibreOffice is staged).
+// path. `slovak-utf8.pdf` comes from `scripts/generate-fixtures.ps1` step 4,
+// which since plan 067 W6 needs only the mutool sidecar.
 
 use pdf_editor_lib::sidecars::manager::SidecarManager;
 use pdf_editor_lib::sidecars::mupdf::MupdfWrapper;
@@ -14,15 +14,15 @@ fn mupdf() -> MupdfWrapper {
 #[tokio::test]
 #[cfg_attr(
     not(feature = "sidecar-tests"),
-    ignore = "needs real mutool sidecar + LibreOffice-produced slovak-utf8 fixture; --features sidecar-tests"
+    ignore = "needs real mutool sidecar + the generated slovak-utf8 fixture; --features sidecar-tests"
 )]
 async fn extract_text_from_slovak_pdf_preserves_diacritics() {
     let path = Path::new("tests/fixtures/pdfs/slovak-utf8.pdf");
     assert!(
         path.exists(),
-        "tests/fixtures/pdfs/slovak-utf8.pdf missing; it requires a staged LibreOffice \
-         install so scripts/generate-fixtures.ps1 can produce it. Stage LibreOffice and \
-         regenerate fixtures before running --features sidecar-tests."
+        "tests/fixtures/pdfs/slovak-utf8.pdf missing; run scripts/fetch-sidecars.ps1, \
+         scripts/stage-sidecars.ps1 and scripts/generate-fixtures.ps1 before running \
+         --features sidecar-tests."
     );
     let text = mupdf().extract_text(path).await.unwrap();
     assert!(

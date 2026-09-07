@@ -142,6 +142,42 @@ pub(crate) fn page_geometry(doc: &Document, page_id: ObjectId) -> Result<OcrPage
     })
 }
 
+/// Opens a graphics-state guard in front of everything the page already
+/// draws, and returns the bytes the appended overlay must start with.
+///
+/// A page's /Contents array is concatenated into ONE content stream
+/// (ISO 32000-1, 7.8.2), so whatever graphics state an earlier stream leaves
+/// behind is still in force when a later one starts. Scanned pages routinely
+/// paint their image with a bare `<w> 0 0 <h> 0 0 cm /Im0 Do` and no `q`/`Q`
+/// around it, which leaves a page-sized scale on the CTM. An overlay appended
+/// after that inherits the scale: the invisible OCR text was drawn ~900x too
+/// large and hundreds of page widths to the right, so it rendered nowhere and
+/// no extractor could see it.
+///
+/// There is no operator that sets the CTM absolutely, so the fix is the one
+/// every PDF stamping tool uses: push the state before the page's own content
+/// and pop it again where the overlay begins. The closing `Q` is returned
+/// rather than documented, so an overlay cannot open the guard and forget to
+/// close it.
+pub(crate) fn open_page_state_guard(
+    doc: &mut Document,
+    page_id: ObjectId,
+) -> Result<&'static [u8]> {
+    let guard_id = doc.add_object(Object::Stream(lopdf::Stream::new(
+        lopdf::dictionary! { "AnimusOcrStateGuard" => true },
+        b"q\n".to_vec(),
+    )));
+    let page = doc.get_object_mut(page_id)?.as_dict_mut()?;
+    let mut contents: Vec<Object> = match page.get(b"Contents").cloned() {
+        Ok(Object::Array(items)) => items,
+        Ok(existing) => vec![existing],
+        Err(_) => Vec::new(),
+    };
+    contents.insert(0, Object::Reference(guard_id));
+    page.set("Contents", contents);
+    Ok(b"Q\n")
+}
+
 /// Adds a font resource without replacing any page resource or existing font
 /// binding. Indirect/inherited resource dictionaries are cloned inline so all
 /// original entries survive normalization.

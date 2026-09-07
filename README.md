@@ -14,7 +14,7 @@ Personal use project, not publicly distributed.
 - Unlock (Type A & B + secondary brute-force Recovery: Dictionary + Brute)
 - Convert PDF -> JPG / PNG / TIFF / TXT / HTML / DOCX / ODT / RTF / ePub / PDF/A
 - Convert images + DOCX / ODT / XLSX / PPTX / HTML / RTF / ePub -> PDF
-- OCR (Tesseract 5; bundles eng / slk / ces / deu; Slovak diacritics preserved via Type0 CIDFont)
+- OCR (Tesseract 5; bundles eng / slk / ces / deu; Slovak diacritics preserved via Type0 CIDFont). The OCR text layer embeds a full Latin editing alphabet (ASCII, Latin-1 Supplement, Latin Extended-A), not only the characters the scan contained, so you can edit the recognized text with any Slovak, Czech or German letter.
 - Pipeline (chained operations via xyflow node editor) + Projects (collections)
 - System font picker (all installed fonts, no Standard-14 fallback)
 - Full configurability per tool: ColorPicker, B/I/U/S, alignment, sliders for DPI/quality/etc.
