@@ -31,6 +31,13 @@ cc = "=1.2.62"
 # Delta J: pin Tauri core to 2.11.x (verified-stable). Plugins follow their
 # own release cadence and are compatible with tauri 2.11 at 2.x.
 tauri = { version = "=2.11", features = [] }
+# Cargo.lock is not committed, so the resolver takes the newest crates that tauri 2.11
+# accepts. The tauri 2.12 train (tauri-runtime, tauri-runtime-wry, tauri-macros,
+# tauri-build, tauri-utils 2.10) loosely matches tauri 2.11 but breaks its build
+# (E0308 in shared_app_impl, missing UnexpectedMenuKind). tauri-utils 2.10 is the
+# anchor of that train: pinning tauri-utils to the 2.11 train makes cargo pick the
+# matching 2.11 versions of all the others. Remove this line when tauri moves to 2.12.
+tauri-utils = { version = "=2.9.3", default-features = false }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "=2.5.4"
