@@ -57,6 +57,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+      # cargo-fuzz links AddressSanitizer. The MSVC ASan runtime DLL is not on PATH,
+      # so the target dies at start with 0xc0000135 (STATUS_DLL_NOT_FOUND).
+      - name: Put the MSVC ASan runtime on PATH
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $dll = Get-ChildItem -Path (Join-Path $vs 'VC\Tools\MSVC') -Recurse -Filter 'clang_rt.asan_dynamic-x86_64.dll' | Select-Object -First 1
+          if (-not $dll) { throw 'clang_rt.asan_dynamic-x86_64.dll not found' }
+          Write-Host "ASan runtime: $($dll.FullName)"
+          $dll.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - run: cargo install --locked cargo-fuzz
       - name: Run cargo-fuzz pdf_parse target (4h budget)
         working-directory: src-tauri
