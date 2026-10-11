@@ -9,7 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
-lopdf = "0.34"
+lopdf = "0.44"
 
 [[bin]]
 name = "pdf_parse"
