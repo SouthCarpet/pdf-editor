@@ -8,7 +8,9 @@ import {
   type FormValueUpdate,
 } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
+import { latestSavedSource } from "@/lib/documentSave";
 import { pickSavePath } from "@/tauri/bridge";
+import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 import { NO_FORM_DRAFT, useFormDrafts } from "@/stores/formDraftStore";
 // Plan 050 task D2 (added block): scanned pages have no AcroForm, so the
@@ -56,7 +58,12 @@ export function EditFormsPanel({
   // Plan 119 p1: the values in the file stay local; what the user typed
   // and what the last save wrote live in `formDraftStore`, so they survive
   // this panel unmounting on a sub-tool switch.
+  // Plan 119 p1b: "the file" is the latest saved copy, the same file the
+  // page view shows. It is read again after every save.
   const [fileValues, setFileValues] = useState<DraftValues>({});
+  const savedRevision = useDocuments(
+    (state) => state.documents.get(docPath)?.savedRevision ?? 0,
+  );
   const draft = useFormDrafts((state) => state.byDoc[docPath] ?? NO_FORM_DRAFT);
   const setDraftValue = useFormDrafts((state) => state.setValue);
   const markDraftSaved = useFormDrafts((state) => state.markSaved);
@@ -69,7 +76,7 @@ export function EditFormsPanel({
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const result = await commands.readFormFieldsCmd(docPath);
+      const result = await commands.readFormFieldsCmd(latestSavedSource(docPath));
       if (cancelled) return;
       if (result.status === "error") {
         setErr(formatCommandError(result.error));
@@ -86,13 +93,13 @@ export function EditFormsPanel({
     return () => {
       cancelled = true;
     };
-  }, [docPath]);
+  }, [docPath, savedRevision]);
 
   useAutosave(docPath, { tool: "forms", values }, 5000);
 
   const fields = fieldState.path === docPath ? fieldState.fields : null;
   // Unsaved: changed since the last save. Sent on save: changed from the
-  // file, because every save writes a new copy of the same input file.
+  // file the save starts from (the latest saved copy).
   const dirtyUpdates = useMemo(
     () => changedFields(fields, values, savedValues),
     [fields, savedValues, values],
@@ -109,17 +116,17 @@ export function EditFormsPanel({
 
   async function onSave() {
     if (dirtyUpdates.length === 0) return;
+    // Plan 119 p1b: what this save writes. A value typed while it writes is
+    // not in the file and stays unsaved.
+    const written = values;
     setBusy(true);
     setErr(null);
     setSaved(false);
     try {
-      const output = await pickSavePath({
-        defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
-      });
+      const output = await saveOutputPath(docPath);
       if (!output) return;
       const result = await commands.setFormValuesCmd({
-        input: docPath,
+        input: latestSavedSource(docPath),
         output,
         updates: updatesFromFile,
         job_id: crypto.randomUUID(),
@@ -128,7 +135,8 @@ export function EditFormsPanel({
         setErr(formatCommandError(result.error));
         return;
       }
-      markDraftSaved(docPath);
+      markDraftSaved(docPath, written);
+      useDocuments.getState().setSavedPath(docPath, output);
       setSaved(true);
     } finally {
       setBusy(false);
@@ -206,6 +214,17 @@ export function EditFormsPanel({
       )}
     </section>
   );
+}
+
+/** Plan 119 p1b: like the FreeText save, a later save writes over the saved
+ * copy without asking; the first one asks for a path. */
+async function saveOutputPath(docPath: string): Promise<string | null> {
+  const savedPath = useDocuments.getState().documents.get(docPath)?.savedPath;
+  if (savedPath) return savedPath;
+  return pickSavePath({
+    defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
 }
 
 function changedFields(

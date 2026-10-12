@@ -17,7 +17,9 @@ export const NO_FORM_DRAFT: FormDraft = { values: {}, saved: {} };
 interface FormDraftStore {
   byDoc: Record<string, FormDraft>;
   setValue: (docPath: string, fieldId: string, value: string | null) => void;
-  markSaved: (docPath: string) => void;
+  /** Records the values a save wrote (plan 119 p1b: the values at the
+   * moment the save started, not the ones typed while it wrote). */
+  markSaved: (docPath: string, written: FormValues) => void;
 }
 
 export const useFormDrafts = create<FormDraftStore>((set) => ({
@@ -32,9 +34,9 @@ export const useFormDrafts = create<FormDraftStore>((set) => ({
         },
       };
     }),
-  markSaved: (docPath) =>
+  markSaved: (docPath, written) =>
     set((current) => {
       const draft = current.byDoc[docPath] ?? NO_FORM_DRAFT;
-      return { byDoc: { ...current.byDoc, [docPath]: { ...draft, saved: { ...draft.values } } } };
+      return { byDoc: { ...current.byDoc, [docPath]: { ...draft, saved: { ...written } } } };
     }),
 }));
