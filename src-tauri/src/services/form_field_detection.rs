@@ -22,6 +22,11 @@ const MAX_WHITESPACE_DENSITY: f32 = 0.05;
 // room for a short value while discarding border-adjacent slivers.
 const MIN_SPLIT_UNDERLINE_WIDTH: u32 = 30;
 const VERTICAL_STROKE_TOLERANCE: u32 = 2;
+// A stroke within 3 px of a box edge is that edge: the box is the hole of
+// the mask after a one-pixel dilation, so it sits 1 to 2 px inside the line.
+const BOX_EDGE_TOLERANCE: u32 = 3;
+const MIN_STROKE_OVERLAP: f32 = 0.8;
+const MIN_NESTED_AREA: f32 = 0.5;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 pub struct DetectedFormField {
@@ -117,9 +122,13 @@ pub(crate) fn analyze_form_raster(
     page_index: u32,
 ) -> DetectionAnalysis {
     let mask = threshold(gray);
-    let boxes = find_box_candidates(&mask);
-    let underlines = suppress_box_bottom_underlines(find_underline_candidates(&mask), &boxes);
-    let underlines = split_underlines_at_vertical_strokes(&mask, underlines);
+    let all_boxes = find_box_candidates(&mask);
+    // Split first, suppress second (plan 119 p1, debug note 051): a table
+    // border that spans several cells only matches one cell box after the
+    // column split has cut it into per-cell segments.
+    let underlines = split_underlines_at_vertical_strokes(&mask, find_underline_candidates(&mask));
+    let underlines = suppress_underlines_on_boxes(underlines, &all_boxes);
+    let boxes = drop_container_boxes(all_boxes);
     let mut candidates: Vec<(PixelRect, DetectedFieldKind, f32)> = boxes
         .iter()
         .map(|candidate| {
@@ -442,7 +451,11 @@ fn ranges_overlap_with_tolerance(
     left_0 <= right_1.saturating_add(tolerance) && right_0 <= left_1.saturating_add(tolerance)
 }
 
-fn suppress_box_bottom_underlines(
+/// Drops every underline that is part of a box: its stroke lies on a box
+/// edge or inside the box (an inner baseline, a typed underscore run), over
+/// at least 80 % of the stroke's width. Such a line belongs to the visible
+/// cell the box already covers, so keeping it puts two fields in one cell.
+fn suppress_underlines_on_boxes(
     underlines: Vec<UnderlineCandidate>,
     boxes: &[BoxCandidate],
 ) -> Vec<UnderlineCandidate> {
@@ -450,19 +463,52 @@ fn suppress_box_bottom_underlines(
         .into_iter()
         .filter(|underline| {
             !boxes.iter().any(|box_candidate| {
-                // The ADR names the box bottom edge. A drawn rectangle has a
-                // top edge with the same geometry and clean whitespace above
-                // it, so it produces the same duplicate; both edges are
-                // suppressed here.
-                let vertical_match = underline.stroke_rect.y0.abs_diff(box_candidate.rect.y1) <= 3
-                    || underline.stroke_rect.y1.abs_diff(box_candidate.rect.y0) <= 3;
-                let overlap_start = underline.stroke_rect.x0.max(box_candidate.rect.x0);
-                let overlap_end = underline.stroke_rect.x1.min(box_candidate.rect.x1);
-                let overlap = overlap_end.saturating_sub(overlap_start);
-                vertical_match && overlap as f32 >= underline.stroke_rect.width() as f32 * 0.8
+                stroke_belongs_to_box(underline.stroke_rect, box_candidate.rect)
             })
         })
         .collect()
+}
+
+fn stroke_belongs_to_box(stroke: PixelRect, cell: PixelRect) -> bool {
+    // Compare the stroke's near side only: a scanned table border is up to
+    // five pixels thick, so its far side sits further from the hole.
+    let touches_box_rows =
+        stroke.y1 + BOX_EDGE_TOLERANCE >= cell.y0 && stroke.y0 <= cell.y1 + BOX_EDGE_TOLERANCE;
+    let overlap = stroke
+        .x1
+        .min(cell.x1)
+        .saturating_sub(stroke.x0.max(cell.x0));
+    touches_box_rows && overlap as f32 >= stroke.width() as f32 * MIN_STROKE_OVERLAP
+}
+
+/// Drops a box that holds another box covering at least half of its area:
+/// a double border or an inner frame draws one visible cell as two nested
+/// holes, and the inner one is where the value goes. A small box inside a
+/// large one (a checkbox in a corner) stays a separate field.
+fn drop_container_boxes(boxes: Vec<BoxCandidate>) -> Vec<BoxCandidate> {
+    let keep: Vec<bool> = boxes
+        .iter()
+        .map(|outer| {
+            !boxes.iter().any(|inner| {
+                inner.rect != outer.rect
+                    && contains(outer.rect, inner.rect)
+                    && area(inner.rect) as f32 >= area(outer.rect) as f32 * MIN_NESTED_AREA
+            })
+        })
+        .collect();
+    boxes
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(candidate, keep)| keep.then_some(candidate))
+        .collect()
+}
+
+fn contains(outer: PixelRect, inner: PixelRect) -> bool {
+    inner.x0 >= outer.x0 && inner.y0 >= outer.y0 && inner.x1 <= outer.x1 && inner.y1 <= outer.y1
+}
+
+fn area(rect: PixelRect) -> u64 {
+    u64::from(rect.width()) * u64::from(rect.height())
 }
 
 fn pixel_rect_to_pdf(
@@ -723,6 +769,179 @@ mod tests {
                 .iter()
                 .all(|field| field.kind != DetectedFieldKind::Underline),
             "the ADR's box-bottom NMS removes the duplicate underline"
+        );
+    }
+
+    fn kinds(analysis: &DetectionAnalysis) -> Vec<DetectedFieldKind> {
+        analysis.fields.iter().map(|field| field.kind).collect()
+    }
+
+    fn draw_grid(image: &mut GrayImage, xs: &[u32], ys: &[u32]) {
+        let (left, right) = (xs[0], xs[xs.len() - 1] + 1);
+        let (top, bottom) = (ys[0], ys[ys.len() - 1] + 1);
+        for &x in xs {
+            draw_vertical(image, x, top, bottom);
+        }
+        for &y in ys {
+            draw_horizontal(image, left, right, y);
+        }
+    }
+
+    // Plan 119 p1 (debug note 051): a table border that spans several
+    // cells overlapped each single cell by less than 80 %, so the box-edge
+    // rule kept it, and the column split then cut it into one underline per
+    // cell: every cell got a box and an underline.
+    #[test]
+    fn grid_cells_sharing_borders_yield_exactly_one_box_each() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_grid(&mut image, &[200, 500, 800], &[300, 400, 500]);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 4],
+            "four cells are four fields, no border may come back as an underline: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn one_row_of_adjacent_cells_yields_one_box_per_cell() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_grid(&mut image, &[200, 400, 600, 800], &[300, 360]);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 3],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn cell_with_an_inner_baseline_yields_one_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_horizontal(&mut image, 220, 580, 362);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "a baseline printed inside a cell is part of that cell: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn cell_with_a_label_and_underscores_yields_one_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 700, 380);
+        // A short printed label on the left, then a typed "_____" run.
+        for glyph in 0..4 {
+            let left = 215 + glyph * 12;
+            for x in left..left + 8 {
+                draw_vertical(&mut image, x, 350, 362);
+            }
+        }
+        draw_horizontal(&mut image, 280, 680, 362);
+        draw_horizontal(&mut image, 280, 680, 363);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn double_bordered_cell_yields_only_the_inner_box() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 420);
+        draw_box(&mut image, 206, 306, 794, 414);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+        let [x0, _, x1, _] = analysis.fields[0].rect;
+        assert!(
+            x0 > 206.0 && x1 <= 794.0,
+            "the inner rectangle (lines at x 206 and 794), not the outer one              (lines at 200 and 800), is the field: {:?}",
+            analysis.fields[0].rect
+        );
+    }
+
+    #[test]
+    fn small_box_inside_a_large_box_keeps_both_fields() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 460);
+        draw_box(&mut image, 700, 320, 760, 350);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 2],
+            "a checkbox in a corner of a large field covers less than half of it: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn rotated_page_grid_yields_one_box_per_cell_inside_the_page() {
+        let mut image = blank(PAGE_H, PAGE_W);
+        draw_grid(&mut image, &[300, 600, 900], &[200, 300, 400]);
+        let rotated = OcrPageGeometry {
+            origin_x: 0.0,
+            origin_y: 0.0,
+            width: PAGE_W as f32,
+            height: PAGE_H as f32,
+            rotation: 90,
+        };
+
+        let analysis = analyze_form_raster(&image, rotated, 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 4],
+            "{:?}",
+            analysis.fields
+        );
+        for field in &analysis.fields {
+            let [x0, y0, x1, y1] = field.rect;
+            assert!(
+                x0 >= 0.0 && y0 >= 0.0 && x1 <= PAGE_W as f32 && y1 <= PAGE_H as f32,
+                "{:?} is outside the unrotated MediaBox",
+                field.rect
+            );
+        }
+    }
+
+    #[test]
+    fn free_standing_underline_next_to_a_box_is_kept() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 500, 380);
+        draw_horizontal(&mut image, 600, 1000, 378);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box, DetectedFieldKind::Underline],
+            "a line outside every box is its own field: {:?}",
+            analysis.fields
         );
     }
 

@@ -25,15 +25,17 @@ const DPI: u32 = 150;
 const PAGE_WIDTH_PT: f32 = 595.44;
 const PAGE_HEIGHT_PT: f32 = 841.915_19;
 
-// Locked after splitting row-spanning underlines at table borders:
-// 327 fields, 170 box and 157 underline, on a 1241x1754 raster
-// (2026-08-29). The +/-10% band allows minor raster/toolchain drift while
-// remaining far enough above the stale 203-field result to catch rows being
-// joined back into single fields.
-const MIN_FIELDS: usize = 294;
-const MAX_FIELDS: usize = 360;
+// Locked after plan 119 p1 (debug note 051): 170 fields, all boxes, on a
+// 1241x1754 raster (2026-10-12). The earlier lock (327 fields: 170 box and
+// 157 underline, 2026-08-29) counted every table border a second time as an
+// underline inside the cell its box already covered. hodiny.pdf has no
+// free-standing line to write on ("Datum von:" and "Bis:" have none), so
+// zero underlines is the correct count. The +/-10% band allows minor
+// raster/toolchain drift; a field per cell border would leave it at once.
+const MIN_FIELDS: usize = 153;
+const MAX_FIELDS: usize = 187;
 const FIRST_MO_ROW_BOTTOM_PT: f32 = 624.0;
-const FIRST_MO_ROW_TOP_PT: f32 = 637.0;
+const FIRST_MO_ROW_TOP_PT: f32 = 642.0;
 const COLUMN_POSITION_TOLERANCE_PT: f32 = 0.5;
 
 async fn detect() -> DetectionAnalysis {
@@ -48,7 +50,7 @@ async fn detect() -> DetectionAnalysis {
     not(feature = "sidecar-tests"),
     ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
 )]
-async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
+async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
     let analysis = detect().await;
     let boxes = analysis
         .fields
@@ -70,9 +72,7 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
         .fields
         .iter()
         .filter(|field| {
-            field.kind == DetectedFieldKind::Underline
-                && field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT
-                && field.rect[3] <= FIRST_MO_ROW_TOP_PT
+            field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT && field.rect[3] <= FIRST_MO_ROW_TOP_PT
         })
         .map(|field| field.rect)
         .collect();
@@ -80,7 +80,10 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
     println!("hodiny first Mo row fields sorted by x: {first_mo_row_rects:#?}");
 
     assert!(boxes >= 1, "the sample has visible empty boxes");
-    assert!(underlines >= 1, "the sample has visible empty lines");
+    assert_eq!(
+        underlines, 0,
+        "every line on the sample is a table border, so none is its own field"
+    );
     assert!(
         (MIN_FIELDS..=MAX_FIELDS).contains(&analysis.fields.len()),
         "field count {} left the locked band [{MIN_FIELDS}, {MAX_FIELDS}] \
@@ -103,7 +106,8 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
     );
 
     // Oracle: the five column boundaries measured from the locked fixture's
-    // first Mo row after the split, allowing roughly one 150-DPI pixel.
+    // first Mo row, allowing roughly one 150-DPI pixel. They are the same
+    // columns the 2026-08-29 lock measured on the duplicate underlines.
     let expected_x_ranges = [
         [97.400_74, 153.058_3],
         [156.416_95, 214.473_56],
@@ -230,26 +234,19 @@ async fn detection_is_deterministic() {
     not(feature = "sidecar-tests"),
     ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
 )]
-async fn filling_one_box_and_one_underline_writes_rects_inside_the_detected_fields() {
+async fn filling_two_cells_writes_rects_inside_the_detected_fields() {
     let analysis = detect().await;
-    let box_field = first_of(&analysis.fields, DetectedFieldKind::Box);
-    let underline_field = first_of(&analysis.fields, DetectedFieldKind::Underline);
+    let cells = first_mo_row(&analysis.fields);
+    let (first, second) = (cells[0], cells[1]);
 
     let tmp = TempDir::new().unwrap();
     let output: PathBuf = tmp.path().join("hodiny.filled.pdf");
-    let annotations = vec![
-        free_text(box_field, "Peter"),
-        free_text(underline_field, "12.5"),
-    ];
+    let annotations = vec![free_text(first, "07:00"), free_text(second, "15:30")];
     apply_annotations(Path::new(HODINY), &output, &annotations).expect("fill the detected fields");
 
     let written = annotation_rects(&output);
     assert_eq!(written.len(), 2, "one FreeText per filled field");
-    println!(
-        "fill proof: box detected {:?}, written {:?}; underline detected {:?}, written {:?}",
-        box_field.rect, written[0], underline_field.rect, written[1]
-    );
-    for (annot, field) in written.iter().zip([box_field, underline_field]) {
+    for (annot, field) in written.iter().zip([first, second]) {
         for (index, value) in annot.iter().enumerate() {
             assert!(
                 (value - field.rect[index]).abs() < 0.01,
@@ -258,21 +255,82 @@ async fn filling_one_box_and_one_underline_writes_rects_inside_the_detected_fiel
             );
         }
     }
+}
 
-    // The underline fill rect is the expanded whitespace band, not the
-    // 1 to 5 pixel stroke (which would be under 2.5pt at 150 DPI).
-    let underline_height = underline_field.rect[3] - underline_field.rect[1];
-    assert!(
-        underline_height > 3.0,
-        "the underline fill rect was not expanded: {underline_height}pt"
+// Plan 119 p1 (debug note 053): the app's second save now starts from the
+// first saved copy and writes over it. Both saves' values must survive.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn a_second_save_over_the_saved_copy_keeps_the_first_values() {
+    let analysis = detect().await;
+    let cells = first_mo_row(&analysis.fields);
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
+
+    apply_annotations(Path::new(HODINY), &saved, &[free_text(cells[0], "07:00")])
+        .expect("first save");
+    apply_annotations(&saved, &saved, &[free_text(cells[1], "Štúrovo č. 5")])
+        .expect("second save over the saved copy");
+
+    assert_eq!(
+        annotation_contents(&saved),
+        vec!["07:00".to_string(), "Štúrovo č. 5".to_string()]
     );
 }
 
-fn first_of(fields: &[DetectedFormField], kind: DetectedFieldKind) -> &DetectedFormField {
-    fields
+fn first_mo_row(fields: &[DetectedFormField]) -> Vec<&DetectedFormField> {
+    let mut row: Vec<&DetectedFormField> = fields
         .iter()
-        .find(|field| field.kind == kind)
-        .unwrap_or_else(|| panic!("hodiny.pdf must yield at least one {kind:?} field"))
+        .filter(|field| {
+            field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT && field.rect[3] <= FIRST_MO_ROW_TOP_PT
+        })
+        .collect();
+    row.sort_by(|left, right| left.rect[0].total_cmp(&right.rect[0]));
+    assert_eq!(row.len(), 5, "the first Mo row has five value cells");
+    row
+}
+
+// Plan 119 p1 (debug note 051): the owner saw two fields inside one visible
+// cell of hodiny.pdf. Two fields that share half of the smaller one's area
+// are two fields in one cell.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn no_two_fields_share_one_visible_cell() {
+    let analysis = detect().await;
+    let mut shared = Vec::new();
+    for (index, left) in analysis.fields.iter().enumerate() {
+        for right in &analysis.fields[index + 1..] {
+            let overlap = overlap_area(left.rect, right.rect);
+            let smaller = rect_area(left.rect).min(rect_area(right.rect));
+            if smaller > 0.0 && overlap >= smaller * 0.5 {
+                shared.push((left.id.clone(), right.id.clone()));
+            }
+        }
+    }
+    assert!(
+        shared.is_empty(),
+        "{} field pairs share one cell: {shared:?}",
+        shared.len()
+    );
+}
+
+fn rect_area(rect: [f32; 4]) -> f32 {
+    (rect[2] - rect[0]).max(0.0) * (rect[3] - rect[1]).max(0.0)
+}
+
+fn overlap_area(left: [f32; 4], right: [f32; 4]) -> f32 {
+    rect_area([
+        left[0].max(right[0]),
+        left[1].max(right[1]),
+        left[2].min(right[2]),
+        left[3].min(right[3]),
+    ])
 }
 
 fn free_text(field: &DetectedFormField, contents: &str) -> Annotation {
@@ -292,8 +350,43 @@ fn free_text(field: &DetectedFormField, contents: &str) -> Annotation {
     }
 }
 
+/// Reads the `/Contents` of every annotation on page 1 of an exported PDF.
+fn annotation_contents(path: &Path) -> Vec<String> {
+    page_annotations(path)
+        .iter()
+        .map(|dict| pdf_text_string(dict.get(b"Contents").unwrap().as_str().unwrap()))
+        .collect()
+}
+
+/// A PDF text string is UTF-16BE behind a byte order mark, or
+/// PDFDocEncoding (Latin-1 for the characters these tests write).
+fn pdf_text_string(bytes: &[u8]) -> String {
+    match bytes {
+        [0xFE, 0xFF, rest @ ..] => String::from_utf16(
+            &rest
+                .chunks(2)
+                .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap(),
+        other => other.iter().map(|&byte| char::from(byte)).collect(),
+    }
+}
+
 /// Reads the `/Rect` of every annotation on page 1 of an exported PDF.
 fn annotation_rects(path: &Path) -> Vec<[f32; 4]> {
+    page_annotations(path)
+        .iter()
+        .map(|dict| {
+            let rect = dict.get(b"Rect").unwrap().as_array().unwrap();
+            let value = |index: usize| rect[index].as_float().unwrap();
+            [value(0), value(1), value(2), value(3)]
+        })
+        .collect()
+}
+
+/// Every annotation dictionary on page 1 of an exported PDF, in order.
+fn page_annotations(path: &Path) -> Vec<lopdf::Dictionary> {
     let doc =
         pdf_editor_lib::services::pdf_guard::load_guarded(path).expect("load the exported PDF");
     let page_id = *doc.get_pages().get(&1).expect("page 1");
@@ -305,14 +398,9 @@ fn annotation_rects(path: &Path) -> Vec<[f32; 4]> {
     };
     entries
         .iter()
-        .map(|entry| {
-            let dict = match entry {
-                Object::Reference(id) => doc.get_object(*id).unwrap().as_dict().unwrap(),
-                other => other.as_dict().unwrap(),
-            };
-            let rect = dict.get(b"Rect").unwrap().as_array().unwrap();
-            let value = |index: usize| rect[index].as_float().unwrap();
-            [value(0), value(1), value(2), value(3)]
+        .map(|entry| match entry {
+            Object::Reference(id) => doc.get_object(*id).unwrap().as_dict().unwrap().clone(),
+            other => other.as_dict().unwrap().clone(),
         })
         .collect()
 }
