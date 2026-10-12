@@ -16,16 +16,26 @@ export interface PdfDoc {
   numPages: number;
 }
 
-export function usePdfDocument(path: string | null): PdfDoc | null {
+/**
+ * `path` is the document's identity. `source` is the file to read for it
+ * (plan 119 p1: the last saved copy once the document was saved) and
+ * `revision` forces a reload of the same file after another save. While a
+ * new source or revision loads, the current document stays on screen.
+ */
+export function usePdfDocument(
+  path: string | null,
+  source: string | null = path,
+  revision = 0,
+): PdfDoc | null {
   // Key the cached doc to the path it was loaded for; whenever `path`
   // changes we render null synchronously and the effect (re)loads.
   const [entry, setEntry] = useState<{ path: string; doc: PdfDoc } | null>(null);
 
   useEffect(() => {
-    if (!path) return;
+    if (!path || !source) return;
     let cancelled = false;
     (async () => {
-      const bytes = await readFile(path);
+      const bytes = await readFile(source);
       // pdfjs takes ownership of the buffer it reads, so spread into a
       // fresh Uint8Array to keep the reference stable across re-renders.
       const data = new Uint8Array(bytes);
@@ -42,7 +52,7 @@ export function usePdfDocument(path: string | null): PdfDoc | null {
     return () => {
       cancelled = true;
     };
-  }, [path]);
+  }, [path, source, revision]);
 
   // Only return the cached doc if it matches the currently requested path.
   // Otherwise the consumer sees `null` until the effect resolves the new doc.

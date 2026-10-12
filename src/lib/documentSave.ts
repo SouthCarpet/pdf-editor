@@ -68,13 +68,20 @@ function stripClientId<T extends { __clientId: string }>(a: T): Omit<T, "__clien
   return rest;
 }
 
+/** Plan 119 p1: the file that holds every value saved so far. Each save
+ * and each print copy starts from it, so a second save keeps the values
+ * of the first one instead of starting from the original again. */
+export function latestSavedSource(docId: DocId): string {
+  return useDocuments.getState().documents.get(docId)?.savedPath ?? docId;
+}
+
 async function applyAnnotationsCopy(
   docId: DocId,
   output: string,
   pending: readonly ClientAnnotation[],
 ): Promise<boolean> {
   const result = await commands.applyAnnotationsCmd({
-    input: docId,
+    input: latestSavedSource(docId),
     output,
     annotations: pending.map(stripClientId) as Annotation[],
     job_id: crypto.randomUUID(),

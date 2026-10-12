@@ -259,7 +259,13 @@ export function WorkspaceRoute() {
     });
   }
 
-  const pdfDoc = usePdfDocument(path);
+  // Plan 119 p1: after a save, show the saved copy so the saved values
+  // stay on the page instead of the unfilled original.
+  const savedPath = useDocuments((s) => (path ? s.documents.get(path)?.savedPath : undefined));
+  const savedRevision = useDocuments((s) =>
+    path ? (s.documents.get(path)?.savedRevision ?? 0) : 0,
+  );
+  const pdfDoc = usePdfDocument(path, savedPath ?? path, savedRevision);
 
   if (error) {
     return (

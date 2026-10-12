@@ -154,8 +154,11 @@ describe("saveDocument", () => {
 
     expect(outcome).toBe("saved");
     expect(fakeBridge.pickSavePath).not.toHaveBeenCalled();
+    // Plan 119 p1: the second save starts from the first saved copy. It
+    // used to start from the original again and overwrote the copy without
+    // the values of the first save.
     expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
-      expect.objectContaining({ input: DOC_A, output: OUTPUT_PATH }),
+      expect.objectContaining({ input: OUTPUT_PATH, output: OUTPUT_PATH }),
     );
   });
 
@@ -173,7 +176,7 @@ describe("saveDocument", () => {
     expect(outcome).toBe("saved");
     expect(fakeBridge.pickSavePath).toHaveBeenCalledTimes(1);
     expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
-      expect.objectContaining({ output: NEW_PATH }),
+      expect.objectContaining({ input: OUTPUT_PATH, output: NEW_PATH }),
     );
     expect(useDocuments.getState().documents.get(DOC_A)?.savedPath).toBe(NEW_PATH);
   });
@@ -304,5 +307,31 @@ describe("saveDocument", () => {
     );
     expect(useAnnotations.getState().byDoc[DOC_A]).toHaveLength(1);
     expect(useDocuments.getState().documents.get(DOC_A)?.savedPath).toBeUndefined();
+  });
+
+  it("a print copy after a save starts from the saved copy, not the original", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    await saveDocument(DOC_A);
+    commandFakes.applyAnnotationsCmd.mockClear();
+
+    await writePendingAnnotationsCopy(DOC_A, OTHER_PATH);
+
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
+      expect.objectContaining({ input: OUTPUT_PATH, output: OTHER_PATH }),
+    );
+  });
+
+  it("every successful save, also to the same path, gives the document a new saved revision", async () => {
+    expect(useDocuments.getState().documents.get(DOC_A)?.savedRevision ?? 0).toBe(0);
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    await saveDocument(DOC_A);
+    expect(useDocuments.getState().documents.get(DOC_A)?.savedRevision).toBe(1);
+
+    useAnnotations.getState().add(DOC_A, NOTE);
+    await saveDocument(DOC_A);
+
+    expect(useDocuments.getState().documents.get(DOC_A)?.savedRevision).toBe(2);
   });
 });
