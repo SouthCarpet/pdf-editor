@@ -21,6 +21,7 @@ import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay, PendingPreviewOverlay } from "./EditPageOverlay";
 import { pageOverlayMode } from "./pageOverlayMode";
+import { fieldsWithSavedValues, savedFreeTextRects, type PdfRect } from "./savedFieldValues";
 import { deletePendingAnnotation } from "./deletePending";
 import { selectAdjacentField, selectDetectedField } from "./fieldNavigation";
 import type { FieldDirection } from "./fieldOrder";
@@ -188,8 +189,25 @@ export function Workspace({ pdf, path }: Props) {
   // them, so switching away from Forms and back reset the dedup and
   // re-ran auto-detection for a "Nájsť polia" request already handled.
   const autoDetectHandledRef = useRef(0);
+  // Plan 119 p1: FreeText values already saved in the page on screen (the
+  // saved copy after a save, or a reopened filled file). Detected cells
+  // under them show as filled although no pending annotation backs them.
+  const [savedValues, setSavedValues] = useState<{
+    pdf: pdfjs.PDFDocumentProxy | null;
+    page: number;
+    rects: PdfRect[];
+  }>({ pdf: null, page: -1, rects: [] });
   const detectedFields = detectState.key === ocrPageKey ? detectState.fields : null;
   const filledIds = filledState.key === ocrPageKey ? filledState.ids : EMPTY_FIELD_IDS;
+  const savedValueRects =
+    savedValues.pdf === pdf && savedValues.page === activePage ? savedValues.rects : NO_RECTS;
+  const shownFilledIds = useMemo(
+    () =>
+      detectedFields === null || savedValueRects.length === 0
+        ? filledIds
+        : new Set([...filledIds, ...fieldsWithSavedValues(detectedFields, savedValueRects)]),
+    [detectedFields, filledIds, savedValueRects],
+  );
   const ocrWords = ocrPageState.key === ocrPageKey ? ocrPageState.words : [];
   const ocrLayerNotice = ocrPageState.key === ocrPageKey ? ocrPageState.notice : null;
   const ocrWordsLoading = activeTool === "ocr" && ocrPageState.key !== ocrPageKey;
@@ -466,6 +484,23 @@ export function Workspace({ pdf, path }: Props) {
     input?.select();
   }, [selectedPending]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void pdf
+      .getPage(activePage + 1)
+      .then((page) => page.getAnnotations())
+      .then((annotations) => {
+        if (cancelled) return;
+        setSavedValues({ pdf, page: activePage, rects: savedFreeTextRects(annotations) });
+      })
+      .catch(() => {
+        if (!cancelled) setSavedValues({ pdf, page: activePage, rects: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePage, pdf]);
+
   // Clamp active page when the document changes (defensive).
   useEffect(() => {
     if (activePage >= pdf.numPages) setActivePage(0);
@@ -711,7 +746,7 @@ export function Workspace({ pdf, path }: Props) {
             detectedFields={
               editSubTool === "forms" || editSubTool === "signature" ? detectedFields : null
             }
-            filledIds={filledIds}
+            filledIds={shownFilledIds}
             onPickField={handlePickField}
             pendingAnnotations={pendingAnnotations}
             selectedPendingId={selectedPendingId}
@@ -923,6 +958,7 @@ export function Workspace({ pdf, path }: Props) {
 }
 
 const EMPTY_FIELD_IDS = new Set<string>();
+const NO_RECTS: PdfRect[] = [];
 const ZERO_SIZE = { width: 0, height: 0 };
 const EMPTY_PAGE_SIZES: Record<number, { width: number; height: number }> = {};
 // Fallback only: a selected pending annotation always has a rect, so
