@@ -28,4 +28,7 @@ The SQLite database lives at `%AppData%\PDF Editor\state.db`. If it gets corrupt
 Find fields keeps a cell that holds printed text only when the text leaves an empty part of at least about 10 mm and half of the cell. A label with a wide empty part after it ("Signature: ......") stays a field; a cell filled by its label ("Name:", a column header) does not. Very small cells (under about 5 mm wide or 2 mm high) are never fields. Typed values in a saved copy do not count as printed text.
 
 ## A cell shows as filled, but I can still click it
-A cell with a saved value shows as filled. Clicking it adds a second value on top of the saved one; the saved value cannot be edited in place.
+A cell with a saved value shows as filled. A click on it opens the saved value for editing; the page hides the old value while you edit. The next save replaces the old value. To keep the old value, delete the edit before you save.
+
+## The end of a long value is missing
+A value longer than its cell is clipped at the cell edge, on the page and in the saved file, so it does not cover the next cell. Make the font smaller in the value controls, or drag the right edge of the value box wider.
