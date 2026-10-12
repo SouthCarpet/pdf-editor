@@ -20,6 +20,13 @@
 *.html      text eol=lf
 *.svg       text eol=lf
 
+# sqlx stores a SHA-384 of each migration's raw bytes in the database and
+# refuses a database whose stored value differs. The release was built from
+# LF files, so a CRLF checkout built an app that refused every existing
+# database. tests/migration_checksums_test.rs locks the released checksums.
+# See .vault/process/debug/debug_054_2026-10-12.md.
+*.sql       text eol=lf
+
 # PowerShell scripts are Windows-native — keep CRLF (or whatever)
 *.ps1       text
 *.psm1      text

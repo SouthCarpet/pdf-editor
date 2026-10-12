@@ -35,6 +35,8 @@ Output: `src-tauri/target/release/bundle/msi/PDF Editor_<version>_x64_en-US.msi`
 
 Tested on Windows 10/11 x64. MSVC toolchain required (Rust 1.85+).
 
+The SQL migrations in `src-tauri/migrations/` must keep LF line endings: sqlx stores a hash of each file's bytes in the database, and a build from different bytes refuses an existing database ("was previously applied but has been modified"). `.gitattributes` pins `*.sql` to LF, and `tests/migration_checksums_test.rs` fails when a shipped migration changes. Change the schema with a new migration file.
+
 ## Documentation
 
 - [Getting started](docs/user-guide/getting-started.md)
