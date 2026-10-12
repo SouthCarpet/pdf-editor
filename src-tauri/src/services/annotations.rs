@@ -159,7 +159,35 @@ pub fn apply_annotations(input: &Path, output: &Path, annotations: &[Annotation]
         }
     }
     doc.compress();
-    doc.save(output)?;
+    replace_file_atomically(output, |file| {
+        let mut writer = std::io::BufWriter::new(file);
+        doc.save_to(&mut writer)?;
+        std::io::Write::flush(&mut writer)?;
+        Ok(())
+    })
+}
+
+/// Plan 119 p1: a save may write over the copy it started from (the second
+/// save of a session). Write to a temporary file in the same folder, sync
+/// it, and only then replace the target, so a failed write leaves the
+/// earlier saved copy intact. `persist` replaces an existing target on
+/// Windows too (`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING`).
+pub(crate) fn replace_file_atomically(
+    output: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> Result<()>,
+) -> Result<()> {
+    let folder = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut staged = tempfile::NamedTempFile::new_in(folder)
+        .with_context(|| format!("create a temporary file next to {}", output.display()))?;
+    write(staged.as_file_mut())?;
+    staged.as_file().sync_all()?;
+    staged
+        .persist(output)
+        .map_err(|error| error.error)
+        .with_context(|| format!("replace {}", output.display()))?;
     Ok(())
 }
 
@@ -1288,6 +1316,42 @@ mod tests {
             Object::Real(value) => *value,
             other => panic!("expected PDF number, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn failed_write_leaves_the_earlier_saved_copy_intact() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let saved = folder.path().join("saved.pdf");
+        std::fs::write(&saved, b"earlier saved copy").expect("seed the saved copy");
+
+        let outcome = replace_file_atomically(&saved, |file| {
+            std::io::Write::write_all(file, b"half a PDF")?;
+            anyhow::bail!("disk full")
+        });
+
+        assert!(outcome.is_err());
+        assert_eq!(std::fs::read(&saved).unwrap(), b"earlier saved copy");
+        assert_eq!(
+            std::fs::read_dir(folder.path()).unwrap().count(),
+            1,
+            "the temporary file is removed"
+        );
+    }
+
+    #[test]
+    fn successful_write_replaces_the_saved_copy() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let saved = folder.path().join("saved.pdf");
+        std::fs::write(&saved, b"earlier saved copy").expect("seed the saved copy");
+
+        replace_file_atomically(&saved, |file| {
+            std::io::Write::write_all(file, b"new saved copy")?;
+            Ok(())
+        })
+        .expect("replace the saved copy");
+
+        assert_eq!(std::fs::read(&saved).unwrap(), b"new saved copy");
+        assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
     }
 
     #[test]
