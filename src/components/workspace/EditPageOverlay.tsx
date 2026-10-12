@@ -32,6 +32,57 @@ interface Props {
   onPlaceStamp: (rect: [number, number, number, number]) => void;
 }
 
+interface PreviewProps {
+  width: number;
+  height: number;
+  page: number;
+  viewport: PageViewport;
+  pendingAnnotations: ClientAnnotation[];
+  pageWidth: number;
+  pageHeight: number;
+}
+
+const ignore = () => {};
+
+/** Plan 119 p1: the pending values of this page, drawn but not editable,
+ * for every tool and sub-tool that does not mount `EditPageOverlay`. The
+ * stage takes no pointer events, so the tool's own overlay (crop, OCR
+ * selection) still gets every click. */
+export function PendingPreviewOverlay({
+  width,
+  height,
+  page,
+  viewport,
+  pendingAnnotations,
+  pageWidth,
+  pageHeight,
+}: PreviewProps) {
+  return (
+    <OverlayCanvas width={width} height={height} interactive={false}>
+      <PendingStampLayer
+        page={page}
+        pageWidth={pageWidth}
+        pageHeight={pageHeight}
+        viewport={viewport}
+        annotations={pendingAnnotations}
+        selectedId={null}
+        placement={null}
+        onSelect={ignore}
+        onRectChange={ignore}
+        onPlace={ignore}
+      />
+      <PendingFreeTextLayer
+        page={page}
+        viewport={viewport}
+        annotations={pendingAnnotations}
+        selectedId={null}
+        onSelect={ignore}
+        onRectChange={ignore}
+      />
+    </OverlayCanvas>
+  );
+}
+
 export function EditPageOverlay({
   width,
   height,

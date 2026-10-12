@@ -19,7 +19,8 @@ import { linkAnnotationToFilledField } from "@/stores/annotationHistory";
 import { useFilledFields, type FilledFieldsUpdater } from "@/stores/filledFieldsStore";
 import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
-import { EditPageOverlay } from "./EditPageOverlay";
+import { EditPageOverlay, PendingPreviewOverlay } from "./EditPageOverlay";
+import { pageOverlayMode } from "./pageOverlayMode";
 import { deletePendingAnnotation } from "./deletePending";
 import { selectAdjacentField, selectDetectedField } from "./fieldNavigation";
 import type { FieldDirection } from "./fieldOrder";
@@ -205,6 +206,13 @@ export function Workspace({ pdf, path }: Props) {
   const hasPendingOnPage = pendingAnnotations.some(
     (a) => (a.type === "free_text" || a.type === "stamp") && a.page === activePage,
   );
+  const overlayMode = pageOverlayMode({
+    activeTool,
+    editSubTool,
+    hasDetectedFields: detectedFields !== null && detectedFields.length > 0,
+    hasPendingOnPage,
+    placingStamp: stampPlacement !== null,
+  });
   const cachedTextIndex =
     textIndexState?.path === path && textIndexState.pdf === pdf ? textIndexState : null;
   const indexedPages =
@@ -683,17 +691,18 @@ export function Workspace({ pdf, path }: Props) {
           docPath={path}
         />
       )}
-      {activeTool === "edit" &&
-        (editSubTool === "forms" ||
-          editSubTool === "annotations" ||
-          editSubTool === "signature") &&
-        pageSize.width > 0 &&
-        pageViewport !== null &&
-        (((editSubTool === "forms" || editSubTool === "signature") &&
-          detectedFields !== null &&
-          detectedFields.length > 0) ||
-          hasPendingOnPage ||
-          stampPlacement !== null) && (
+      {overlayMode === "preview" && pageSize.width > 0 && pageViewport !== null && (
+        <PendingPreviewOverlay
+          width={pageSize.width}
+          height={pageSize.height}
+          page={activePage}
+          viewport={pageViewport}
+          pendingAnnotations={pendingAnnotations}
+          pageWidth={basePageSize.width}
+          pageHeight={basePageSize.height}
+        />
+      )}
+      {overlayMode === "edit" && pageSize.width > 0 && pageViewport !== null && (
           <EditPageOverlay
             width={pageSize.width}
             height={pageSize.height}
