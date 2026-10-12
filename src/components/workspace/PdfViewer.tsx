@@ -14,12 +14,37 @@ interface Props {
    * using `zoom`. The canvas CSS size never exceeds the box. */
   fitBox?: { width: number; height: number };
   className?: string;
+  /** Plan 119 p1b: pdf.js ids (`"12R"`) of saved annotations not to draw,
+   * because a pending edit replaces them. */
+  hiddenAnnotationIds?: readonly string[];
 }
 
-export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
+// pdf.js `AnnotationMode.ENABLE_STORAGE`. A value import of pdfjs-dist here
+// would load pdf.js in every test that mounts this component.
+const ANNOTATION_MODE_ENABLE_STORAGE = 3;
+
+export function PdfViewer({
+  pdf,
+  pageIndex,
+  zoom,
+  fitBox,
+  className,
+  hiddenAnnotationIds = NO_IDS,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fitWidth = fitBox?.width;
   const fitHeight = fitBox?.height;
+  const hiddenKey = hiddenAnnotationIds.join(",");
+
+  // pdf.js skips an annotation whose storage entry says `noView` when the
+  // page renders with ENABLE_STORAGE. The ids are cleared again on change.
+  useEffect(() => {
+    const ids = hiddenKey === "" ? [] : hiddenKey.split(",");
+    for (const id of ids) pdf.annotationStorage.setValue(id, { noView: true });
+    return () => {
+      for (const id of ids) pdf.annotationStorage.remove(id);
+    };
+  }, [pdf, hiddenKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,7 +75,12 @@ export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
         canvas.style.maxWidth = "";
         canvas.style.maxHeight = "";
       }
-      renderTask = page.render({ canvas, canvasContext: ctx, viewport });
+      renderTask = page.render({
+        canvas,
+        canvasContext: ctx,
+        viewport,
+        annotationMode: ANNOTATION_MODE_ENABLE_STORAGE,
+      });
       await renderTask.promise;
     })().catch((err) => {
       // RenderingCancelledException is fine; the next effect already kicked
@@ -63,7 +93,7 @@ export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdf, pageIndex, zoom, fitWidth, fitHeight]);
+  }, [pdf, pageIndex, zoom, fitWidth, fitHeight, hiddenKey]);
 
   return (
     <canvas
@@ -72,3 +102,5 @@ export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
     />
   );
 }
+
+const NO_IDS: readonly string[] = [];

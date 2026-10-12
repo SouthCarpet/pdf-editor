@@ -101,7 +101,7 @@ describe("forms panel on a scanned page", () => {
     }));
     commandFakes.applyAnnotationsCmd.mockImplementation(async (args: unknown) => {
       applied.push(args);
-      return { status: "ok", data: null };
+      return { status: "ok", data: [] };
     });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });

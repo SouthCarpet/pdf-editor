@@ -46,7 +46,11 @@ fn released_bytes(file: &str) -> Vec<u8> {
 fn the_build_embeds_the_released_migration_checksums() {
     let migrator = sqlx::migrate!("./migrations");
     for (file, expected) in RELEASED_CHECKSUMS {
-        assert_eq!(hex(&Sha384::digest(released_bytes(file))), *expected, "{file}");
+        assert_eq!(
+            hex(&Sha384::digest(released_bytes(file))),
+            *expected,
+            "{file}"
+        );
         let version: i64 = file[..14].parse().expect("version prefix");
         let embedded = migrator
             .iter()

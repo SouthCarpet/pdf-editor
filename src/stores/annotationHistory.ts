@@ -1,5 +1,5 @@
 import type { Annotation } from "@/bindings";
-import type { ClientAnnotation } from "./annotationsStore";
+import type { ClientAnnotation, NewAnnotation } from "./annotationsStore";
 import { historyStore, type HistoryEntry } from "./historyStore";
 
 type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
@@ -9,7 +9,7 @@ export type EditableAnnotationPatch = Partial<FreeTextAnnotation> | Partial<Stam
 export const TEXT_EDIT_COALESCE_MS = 800;
 
 export interface AnnotationHistoryActions {
-  add: (docPath: string, annotation: Annotation) => string;
+  add: (docPath: string, annotation: NewAnnotation) => string;
   update: (
     docPath: string,
     clientId: string,

@@ -123,7 +123,11 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("list_fonts_cmd")),
-	applyAnnotationsCmd: (args: ApplyAnnotsArgs) => typedError<null, {
+	/**
+	 *  Returns the object of each written annotation, in the order of
+	 *  `annotations`, so the frontend can replace one of them later.
+	 */
+	applyAnnotationsCmd: (args: ApplyAnnotsArgs) => typedError<(AnnotationRef | null)[], {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("apply_annotations_cmd", { args })),
@@ -323,10 +327,26 @@ fill_color: [(number | null), (number | null), (number | null), (number | null)]
  */
 style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean } | { type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null } | { type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean };
 
+/**
+ *  Plan 119 p1b: an annotation object already in a saved file, by its PDF
+ *  object number and generation. pdf.js shows the same object as `"12R"`
+ *  (`"12R3"` for generation 3).
+ */
+export type AnnotationRef = {
+	object: number,
+	generation: number,
+};
+
 export type ApplyAnnotsArgs = {
 	input: string,
 	output: string,
 	annotations: Annotation[],
+	/**
+	 *  Plan 119 p1b: saved annotations in `input` that the new ones replace
+	 *  (an edited saved value). They are removed before the new ones are
+	 *  written.
+	 */
+	replaced: AnnotationRef[],
 	job_id: string,
 };
 

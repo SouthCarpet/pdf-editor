@@ -67,7 +67,7 @@ describe("CloseGuardDialog - window scope", () => {
     resetFakeBridge();
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
@@ -261,7 +261,7 @@ describe("CloseGuardDialog - tab scope", () => {
     resetFakeBridge();
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });

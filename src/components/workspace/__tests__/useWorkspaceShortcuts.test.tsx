@@ -114,7 +114,7 @@ describe("useWorkspaceShortcuts", () => {
   beforeEach(() => {
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockReset();
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });

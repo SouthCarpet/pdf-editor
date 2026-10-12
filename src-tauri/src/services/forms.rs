@@ -76,7 +76,7 @@ pub fn read_form_fields(path: &Path) -> Result<Vec<FormField>> {
 
 pub fn set_form_values(input: &Path, output: &Path, updates: &[FormValueUpdate]) -> Result<()> {
     validate_pdf_input(input)?;
-    validate_pdf_output(input, output)?;
+    validate_pdf_output(output)?;
 
     let mut doc = crate::services::pdf_guard::load_guarded(input).context("load PDF form")?;
     let records = collect_form_fields(&doc)?;
@@ -124,9 +124,14 @@ pub fn set_form_values(input: &Path, output: &Path, updates: &[FormValueUpdate])
         set_need_appearances(&mut doc)?;
     }
     doc.compress();
-    doc.save(output)
-        .with_context(|| format!("save filled PDF to {}", output.display()))?;
-    Ok(())
+    // Plan 119 p1b: a later save writes over the saved copy it started from.
+    crate::services::annotations::replace_file_atomically(output, |file| {
+        let mut writer = std::io::BufWriter::new(file);
+        doc.save_to(&mut writer)?;
+        std::io::Write::flush(&mut writer)?;
+        Ok(())
+    })
+    .with_context(|| format!("save filled PDF to {}", output.display()))
 }
 
 fn collect_form_fields(doc: &Document) -> Result<Vec<FieldRecord>> {
@@ -639,20 +644,16 @@ fn validate_pdf_input(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_pdf_output(input: &Path, output: &Path) -> Result<()> {
+/// The output may be the input (plan 119 p1b: a second save writes over
+/// the saved copy). `set_form_values` loads the input first and replaces
+/// the output atomically, so the input is never half written.
+fn validate_pdf_output(output: &Path) -> Result<()> {
     if !has_pdf_extension(output) {
         bail!("output path is not a PDF: {}", output.display());
     }
     let parent = output.parent().unwrap_or_else(|| Path::new("."));
     if !parent.exists() || !parent.is_dir() {
         bail!("output directory does not exist: {}", parent.display());
-    }
-    let same_path = match (input.canonicalize(), output.canonicalize()) {
-        (Ok(input), Ok(output)) => input == output,
-        _ => input == output,
-    };
-    if same_path {
-        bail!("input and output PDF must be different files");
     }
     Ok(())
 }
@@ -903,5 +904,46 @@ mod tests {
             .expect("cleared text field");
         assert_eq!(text.value, None);
         assert_eq!(fields.len(), 2);
+    }
+
+    /// Plan 119 p1b: the second AcroForm save of a session starts from the
+    /// saved copy and writes over it, like the FreeText save.
+    #[test]
+    fn a_second_save_over_the_saved_copy_keeps_the_first_value() {
+        let dir = tempdir().expect("tempdir");
+        let input = dir.path().join("form.pdf");
+        let saved = dir.path().join("form.filled.pdf");
+        let fixture = write_form_fixture(&input);
+        let text_id = format_id(fixture.text_field_id);
+        let checkbox_id = format_id(fixture.checkbox_field_id);
+
+        set_form_values(
+            &input,
+            &saved,
+            &[FormValueUpdate {
+                field_id: text_id.clone(),
+                value: Some("Ľubica".to_string()),
+            }],
+        )
+        .expect("first save");
+        set_form_values(
+            &saved,
+            &saved,
+            &[FormValueUpdate {
+                field_id: checkbox_id.clone(),
+                value: Some("Yes".to_string()),
+            }],
+        )
+        .expect("second save over the saved copy");
+
+        let fields = read_form_fields(&saved).expect("read saved copy");
+        let value_of = |id: &str| {
+            fields
+                .iter()
+                .find(|field| field.id == id)
+                .and_then(|field| field.value.clone())
+        };
+        assert_eq!(value_of(&text_id).as_deref(), Some("Ľubica"));
+        assert_eq!(value_of(&checkbox_id).as_deref(), Some("Yes"));
     }
 }

@@ -21,7 +21,12 @@ import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 import { EditPageOverlay, PendingPreviewOverlay } from "./EditPageOverlay";
 import { pageOverlayMode } from "./pageOverlayMode";
-import { fieldsWithSavedValues, savedFreeTextRects, type PdfRect } from "./savedFieldValues";
+import {
+  fieldsWithSavedValues,
+  pdfjsAnnotationId,
+  savedFreeTexts,
+  type SavedFreeText,
+} from "./savedFieldValues";
 import { deletePendingAnnotation } from "./deletePending";
 import { selectAdjacentField, selectDetectedField } from "./fieldNavigation";
 import type { FieldDirection } from "./fieldOrder";
@@ -195,18 +200,24 @@ export function Workspace({ pdf, path }: Props) {
   const [savedValues, setSavedValues] = useState<{
     pdf: pdfjs.PDFDocumentProxy | null;
     page: number;
-    rects: PdfRect[];
-  }>({ pdf: null, page: -1, rects: [] });
+    values: SavedFreeText[];
+  }>({ pdf: null, page: -1, values: [] });
   const detectedFields = detectState.key === ocrPageKey ? detectState.fields : null;
   const filledIds = filledState.key === ocrPageKey ? filledState.ids : EMPTY_FIELD_IDS;
-  const savedValueRects =
-    savedValues.pdf === pdf && savedValues.page === activePage ? savedValues.rects : NO_RECTS;
+  const pageSavedValues =
+    savedValues.pdf === pdf && savedValues.page === activePage ? savedValues.values : NO_VALUES;
   const shownFilledIds = useMemo(
     () =>
-      detectedFields === null || savedValueRects.length === 0
+      detectedFields === null || pageSavedValues.length === 0
         ? filledIds
-        : new Set([...filledIds, ...fieldsWithSavedValues(detectedFields, savedValueRects)]),
-    [detectedFields, filledIds, savedValueRects],
+        : new Set([
+            ...filledIds,
+            ...fieldsWithSavedValues(
+              detectedFields,
+              pageSavedValues.map((value) => value.rect),
+            ),
+          ]),
+    [detectedFields, filledIds, pageSavedValues],
   );
   const ocrWords = ocrPageState.key === ocrPageKey ? ocrPageState.words : [];
   const ocrLayerNotice = ocrPageState.key === ocrPageKey ? ocrPageState.notice : null;
@@ -220,6 +231,15 @@ export function Workspace({ pdf, path }: Props) {
   const selectedFreeText = pendingAnnotations.find(
     (a): a is ClientAnnotation & FreeTextAnnotation =>
       a.type === "free_text" && a.__clientId === selectedPendingId,
+  );
+  // Plan 119 p1b: a saved value under a pending edit is not drawn, so the
+  // page never shows the old and the new value on top of each other.
+  const replacedAnnotationIds = useMemo(
+    () =>
+      pendingAnnotations.flatMap((annotation) =>
+        annotation.__replaces === undefined ? [] : [pdfjsAnnotationId(annotation.__replaces)],
+      ),
+    [pendingAnnotations],
   );
   const hasPendingOnPage = pendingAnnotations.some(
     (a) => (a.type === "free_text" || a.type === "stamp") && a.page === activePage,
@@ -325,10 +345,11 @@ export function Workspace({ pdf, path }: Props) {
           pageKey: ocrPageKey,
           docPath: path,
           addAnnotation,
+          saved: pageSavedValues,
         }),
       );
     },
-    [addAnnotation, applyFieldSelection, filledState, ocrPageKey, path],
+    [addAnnotation, applyFieldSelection, filledState, ocrPageKey, pageSavedValues, path],
   );
 
   const handlePickField = useCallback(
@@ -362,6 +383,7 @@ export function Workspace({ pdf, path }: Props) {
         pageKey: ocrPageKey,
         docPath: path,
         addAnnotation,
+        saved: pageSavedValues,
       });
       if (selection !== null) applyFieldSelection(selection);
     },
@@ -371,6 +393,7 @@ export function Workspace({ pdf, path }: Props) {
       detectedFields,
       filledState,
       ocrPageKey,
+      pageSavedValues,
       path,
       selectedPendingId,
     ],
@@ -491,10 +514,10 @@ export function Workspace({ pdf, path }: Props) {
       .then((page) => page.getAnnotations())
       .then((annotations) => {
         if (cancelled) return;
-        setSavedValues({ pdf, page: activePage, rects: savedFreeTextRects(annotations) });
+        setSavedValues({ pdf, page: activePage, values: savedFreeTexts(annotations) });
       })
       .catch(() => {
-        if (!cancelled) setSavedValues({ pdf, page: activePage, rects: [] });
+        if (!cancelled) setSavedValues({ pdf, page: activePage, values: [] });
       });
     return () => {
       cancelled = true;
@@ -702,6 +725,7 @@ export function Workspace({ pdf, path }: Props) {
         pageIndex={activePage}
         zoom={zoom}
         className={bookMode ? "block border border-[var(--color-border)]" : "shadow-lg"}
+        hiddenAnnotationIds={replacedAnnotationIds}
       />
       {searchOpen &&
         pageSize.width > 0 &&
@@ -958,7 +982,7 @@ export function Workspace({ pdf, path }: Props) {
 }
 
 const EMPTY_FIELD_IDS = new Set<string>();
-const NO_RECTS: PdfRect[] = [];
+const NO_VALUES: SavedFreeText[] = [];
 const ZERO_SIZE = { width: 0, height: 0 };
 const EMPTY_PAGE_SIZES: Record<number, { width: number; height: number }> = {};
 // Fallback only: a selected pending annotation always has a rect, so

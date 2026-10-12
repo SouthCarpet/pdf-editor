@@ -21,6 +21,32 @@ const NOTE: Annotation = {
   color: [0, 0, 0],
 };
 
+const FILL: Annotation = {
+  type: "free_text",
+  page: 0,
+  rect: [97, 626, 153, 640],
+  contents: "",
+  style: {
+    font_family: "Helvetica",
+    font_postscript_name: "Helvetica",
+    size_pt: 8.4,
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    color: [0, 0, 0],
+    background: null,
+    align: "left",
+    vertical_align: "top",
+    letter_spacing: 0,
+    line_height_multiplier: 1.2,
+  },
+  background_fill: null,
+  border_color: [0, 0, 0],
+  border_width: 0,
+  auto_resize: false,
+};
+
 const SIGNATURE_STAMP: Annotation = {
   type: "stamp",
   page: 0,
@@ -46,13 +72,18 @@ import type { DetectedFormField } from "@/bindings";
 import { fieldPositionKey, templateKey } from "@/components/workspace/prefill/templateHash";
 import { usePrefillStore } from "@/stores/prefillStore";
 import { saveDocument, writePendingAnnotationsCopy } from "../documentSave";
+import { useFilledFields } from "@/stores/filledFieldsStore";
+import {
+  EMPTY_FILLED_FIELDS,
+  markFieldFilled,
+} from "@/components/workspace/filledFieldsState";
 import { hasUnsavedWork } from "../unsavedWork";
 
 describe("saveDocument", () => {
   beforeEach(() => {
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockReset();
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
@@ -340,7 +371,7 @@ describe("saveDocument", () => {
     fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
     commandFakes.applyAnnotationsCmd.mockImplementation(async () => {
       useAnnotations.getState().add(DOC_A, SIGNATURE_STAMP);
-      return { status: "ok", data: null };
+      return { status: "ok", data: [{ object: 30, generation: 0 }] };
     });
 
     await saveDocument(DOC_A);
@@ -350,4 +381,66 @@ describe("saveDocument", () => {
       SIGNATURE_STAMP,
     ]);
   });
+
+  // Plan 119 p1b defect 1: an edited saved value names the annotation it
+  // replaces. The save removes that one and does not send the marker.
+  it("sends the saved values an edit replaces, and strips the marker", async () => {
+    const edit = { ...FILL, contents: "08:30", __replaces: { object: 12, generation: 0 } };
+    useAnnotations.getState().add(DOC_A, edit);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+
+    await saveDocument(DOC_A);
+
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotations: [{ ...FILL, contents: "08:30" }],
+        replaced: [{ object: 12, generation: 0 }],
+      }),
+    );
+  });
+
+  // Plan 119 p1b defect 2: an edit made while its value is being written is
+  // not in the file. It stays pending and replaces the value just written.
+  it("keeps an edit made during the save pending, as an edit of the written value", async () => {
+    const clientId = useAnnotations.getState().add(DOC_A, { ...FILL, contents: "07:00" });
+    useFilledFields
+      .getState()
+      .setFilled(DOC_A, markFieldFilled(EMPTY_FILLED_FIELDS, "k", "0:0", clientId));
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    let finishWrite: () => void = () => {};
+    commandFakes.applyAnnotationsCmd.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishWrite = () => resolve({ status: "ok", data: [{ object: 40, generation: 0 }] });
+        }),
+    );
+
+    const saving = saveDocument(DOC_A);
+    await vi.waitFor(() => expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledTimes(1));
+    useAnnotations.getState().update(DOC_A, clientId, { contents: "07:30" });
+    finishWrite();
+    await saving;
+
+    const left = useAnnotations.getState().byDoc[DOC_A] ?? [];
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({
+      __clientId: clientId,
+      contents: "07:30",
+      __replaces: { object: 40, generation: 0 },
+    });
+    expect(useFilledFields.getState().byDoc[DOC_A]?.fieldIdByClientId).toEqual({
+      [clientId]: "0:0",
+    });
+
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [null] });
+    await saveDocument(DOC_A);
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: OUTPUT_PATH,
+        annotations: [{ ...FILL, contents: "07:30" }],
+        replaced: [{ object: 40, generation: 0 }],
+      }),
+    );
+  });
 });
+

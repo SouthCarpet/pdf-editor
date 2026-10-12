@@ -18,6 +18,7 @@ use lopdf::content::{Content, Operation};
 use lopdf::{dictionary, Document, Object, ObjectId, Stream, StringFormat};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::path::Path;
 use tracing::warn;
 
@@ -132,16 +133,48 @@ pub enum LineEnd {
     Circle,
 }
 
+/// Plan 119 p1b: an annotation object already in a saved file, by its PDF
+/// object number and generation. pdf.js shows the same object as `"12R"`
+/// (`"12R3"` for generation 3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
+pub struct AnnotationRef {
+    pub object: u32,
+    pub generation: u16,
+}
+
+impl From<ObjectId> for AnnotationRef {
+    fn from((object, generation): ObjectId) -> Self {
+        Self { object, generation }
+    }
+}
+
 pub fn apply_annotations(input: &Path, output: &Path, annotations: &[Annotation]) -> Result<()> {
+    save_annotations(input, output, annotations, &[]).map(|_| ())
+}
+
+/// Writes `annotations` into a copy of `input` and first removes the saved
+/// annotations in `replaced`, so an edited saved value replaces the old one
+/// instead of lying on top of it. Returns the object of each written
+/// annotation in input order (`None` for a page the file does not have).
+pub fn save_annotations(
+    input: &Path,
+    output: &Path,
+    annotations: &[Annotation],
+    replaced: &[AnnotationRef],
+) -> Result<Vec<Option<AnnotationRef>>> {
     let mut doc = crate::services::pdf_guard::load_guarded(input)?;
+    remove_annotations(&mut doc, replaced);
     let pages = doc.get_pages();
+    let mut written = Vec::with_capacity(annotations.len());
     for ann in annotations {
         let page_num = annotation_page(ann);
         let Some(&page_id) = pages.get(&(page_num + 1)) else {
+            written.push(None);
             continue;
         };
         let (dict, font_binding) = build_annot_dict(ann, &mut doc)?;
         let annot_id = doc.add_object(Object::Dictionary(dict));
+        written.push(Some(AnnotationRef::from(annot_id)));
         if let Some(obj) = doc.objects.get_mut(&page_id) {
             if let Ok(p) = obj.as_dict_mut() {
                 let mut annots: Vec<Object> = match p.get(b"Annots").cloned() {
@@ -164,7 +197,45 @@ pub fn apply_annotations(input: &Path, output: &Path, annotations: &[Annotation]
         doc.save_to(&mut writer)?;
         std::io::Write::flush(&mut writer)?;
         Ok(())
-    })
+    })?;
+    Ok(written)
+}
+
+/// Drops each referenced annotation from every page's `/Annots` and deletes
+/// its object and its normal appearance stream.
+fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
+    if replaced.is_empty() {
+        return;
+    }
+    let ids: HashSet<ObjectId> = replaced
+        .iter()
+        .map(|reference| (reference.object, reference.generation))
+        .collect();
+    for page_id in doc.get_pages().into_values() {
+        let annots = doc
+            .get_object_mut(page_id)
+            .and_then(Object::as_dict_mut)
+            .and_then(|page| page.get_mut(b"Annots"));
+        if let Ok(Object::Array(annots)) = annots {
+            annots.retain(|annot| !matches!(annot, Object::Reference(id) if ids.contains(id)));
+        }
+    }
+    for id in ids {
+        if let Some(Object::Dictionary(annot)) = doc.objects.remove(&id) {
+            if let Some(appearance) = normal_appearance_id(&annot) {
+                doc.objects.remove(&appearance);
+            }
+        }
+    }
+}
+
+fn normal_appearance_id(annot: &lopdf::Dictionary) -> Option<ObjectId> {
+    annot
+        .get(b"AP")
+        .and_then(Object::as_dict)
+        .and_then(|appearance| appearance.get(b"N"))
+        .and_then(Object::as_reference)
+        .ok()
 }
 
 /// Plan 119 p1: a save may write over the copy it started from (the second
@@ -1352,6 +1423,93 @@ mod tests {
 
         assert_eq!(std::fs::read(&saved).unwrap(), b"new saved copy");
         assert_eq!(std::fs::read_dir(folder.path()).unwrap().count(), 1);
+    }
+
+    fn cell_value(contents: &str) -> Annotation {
+        Annotation::FreeText {
+            page: 0,
+            rect: [97.0, 626.0, 153.0, 640.0],
+            contents: contents.to_string(),
+            style: TextStyle::default(),
+            background_fill: None,
+            border_color: [0.0, 0.0, 0.0],
+            border_width: 0.0,
+            auto_resize: false,
+        }
+    }
+
+    fn free_text_values(path: &Path) -> Vec<String> {
+        let doc = crate::services::pdf_guard::load_guarded(path).expect("load saved copy");
+        let page_id = *doc.get_pages().get(&1).expect("page 1");
+        let annots = doc
+            .get_dictionary(page_id)
+            .and_then(|page| page.get(b"Annots"))
+            .and_then(Object::as_array)
+            .cloned()
+            .unwrap_or_default();
+        annots
+            .iter()
+            .filter_map(|annot| doc.dereference(annot).ok()?.1.as_dict().ok().cloned())
+            .filter(|annot| {
+                annot.get(b"Subtype").and_then(Object::as_name).ok() == Some(b"FreeText")
+            })
+            .map(|annot| lopdf::decode_text_string(annot.get(b"Contents").unwrap()).unwrap())
+            .collect()
+    }
+
+    /// Plan 119 p1b: fill, save, edit the saved value, save, reopen: one
+    /// value, the new one.
+    #[test]
+    fn an_edited_saved_value_replaces_the_old_annotation() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let original = folder.path().join("form.pdf");
+        let saved = folder.path().join("form.annotated.pdf");
+        write_single_page_pdf(&original);
+
+        let first =
+            save_annotations(&original, &saved, &[cell_value("07:00")], &[]).expect("first save");
+        let old = first[0].expect("written on page 1");
+        let second =
+            save_annotations(&saved, &saved, &[cell_value("08:30")], &[old]).expect("second save");
+
+        assert_eq!(free_text_values(&saved), vec!["08:30".to_string()]);
+        let doc = crate::services::pdf_guard::load_guarded(&saved).unwrap();
+        assert!(
+            doc.get_object((old.object, old.generation)).is_err(),
+            "old object deleted"
+        );
+        assert!(second[0].is_some());
+    }
+
+    /// Plan 119 p1b: a value longer than its cell is clipped to the cell in
+    /// the saved file. The appearance is one unwrapped line and its /BBox
+    /// is the cell, which every conforming reader clips to.
+    #[test]
+    fn a_long_value_is_clipped_to_its_cell() {
+        let mut doc = Document::with_version("1.7");
+        let long = "Hlavna ulica 5, 943 01 Sturovo, Slovenska republika";
+        let (dict, _) = build_annot_dict(&cell_value(long), &mut doc).expect("build FreeText");
+        let ap = dict.get(b"AP").and_then(Object::as_dict).expect("/AP");
+        let stream = doc
+            .get_object(ap.get(b"N").and_then(Object::as_reference).expect("/N"))
+            .and_then(Object::as_stream)
+            .expect("appearance stream");
+        let bbox: Vec<f32> = stream
+            .dict
+            .get(b"BBox")
+            .and_then(Object::as_array)
+            .expect("/BBox")
+            .iter()
+            .map(number)
+            .collect();
+        assert_eq!(bbox, vec![0.0, 0.0, 56.0, 14.0]);
+        let content = Content::decode(&stream.content).expect("decode appearance");
+        let shows = content
+            .operations
+            .iter()
+            .filter(|op| op.operator == "Tj")
+            .count();
+        assert_eq!(shows, 1, "one line: the value is clipped, not wrapped");
     }
 
     #[test]

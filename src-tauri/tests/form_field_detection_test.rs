@@ -10,7 +10,7 @@
 // Gated behind `sidecar-tests` like the other tests that need a real
 // binary: detection renders the page through the mutool sidecar.
 use lopdf::Object;
-use pdf_editor_lib::services::annotations::{apply_annotations, Annotation};
+use pdf_editor_lib::services::annotations::{apply_annotations, save_annotations, Annotation};
 use pdf_editor_lib::services::form_field_detection::{
     detect_scanned_form_fields, DetectedFieldKind, DetectedFormField, DetectionAnalysis,
 };
@@ -299,6 +299,28 @@ async fn a_second_save_over_the_saved_copy_keeps_the_first_values() {
         annotation_contents(&saved),
         vec!["07:00".to_string(), "Štúrovo č. 5".to_string()]
     );
+}
+
+// Plan 119 p1b (debug note 055): fill, save, click the same cell, change,
+// save, reopen: one annotation, with the new value.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn editing_a_saved_value_replaces_it() {
+    let analysis = detect().await;
+    let cell = first_mo_row(&analysis.fields)[0];
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
+
+    let written = save_annotations(Path::new(HODINY), &saved, &[free_text(cell, "07:00")], &[])
+        .expect("first save");
+    let old = written[0].expect("the value was written");
+    save_annotations(&saved, &saved, &[free_text(cell, "08:30")], &[old])
+        .expect("save the edited value");
+
+    assert_eq!(annotation_contents(&saved), vec!["08:30".to_string()]);
 }
 
 // Plan 119 p1 (debug note 053): reopening a saved copy must find the same
