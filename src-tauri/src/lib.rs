@@ -32,6 +32,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::meta::open_logs_folder,
             commands::update::build_info,
             commands::update::check_for_update,
+            commands::update::download_update,
+            commands::update::install_update,
             commands::update::get_update_check_enabled,
             commands::update::set_update_check_enabled,
             // Phase 9 — Form-style tools (Tasks 49-56)

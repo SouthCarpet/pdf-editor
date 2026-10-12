@@ -13,6 +13,13 @@ use tauri::{Emitter, Manager};
 
 #[tokio::main]
 async fn main() {
+    // The uninstaller runs `pdf-editor.exe --remove-user-data ...` after the
+    // user said Yes (packaging/pdf-editor.iss). Handle it before logging or
+    // the database create any folder, then exit.
+    if let Some(code) = pdf_editor_lib::util::uninstall_data::run_from_args(std::env::args()) {
+        std::process::exit(code);
+    }
+
     // Resolve logs_dir once up-front. If it fails we still try to limp on
     // with a `logs/` fallback so the panic hook has somewhere to write.
     let logs = logs_dir().unwrap_or_else(|e| {

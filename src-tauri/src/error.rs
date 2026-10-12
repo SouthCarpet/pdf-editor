@@ -45,6 +45,11 @@ pub enum AppError {
     /// new string. Payload includes the missing character(s) for diagnostics.
     #[error("encoding_mismatch: {detail}")]
     EncodingMismatch { detail: String },
+
+    /// Office conversion needs LibreOffice, which is not bundled (plan 119)
+    /// and was not found. `detail` is the official download page.
+    #[error("libreoffice_missing: {detail}")]
+    LibreofficeMissing { detail: String },
 }
 
 impl AppError {
@@ -61,6 +66,7 @@ impl AppError {
             Self::Internal { .. } => "internal",
             Self::Unimplemented { .. } => "unimplemented",
             Self::EncodingMismatch { .. } => "encoding_mismatch",
+            Self::LibreofficeMissing { .. } => "libreoffice_missing",
         }
     }
 }
@@ -79,6 +85,7 @@ impl Serialize for AppError {
             Self::Internal { detail }                   => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
             Self::Unimplemented { feature }             => m.serialize_entry("data", &serde_json::json!({"feature": feature}))?,
             Self::EncodingMismatch { detail }           => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
+            Self::LibreofficeMissing { detail }         => m.serialize_entry("data", &serde_json::json!({"detail": detail}))?,
             _ => m.serialize_entry("data", &serde_json::json!({}))?,
         };
         m.end()

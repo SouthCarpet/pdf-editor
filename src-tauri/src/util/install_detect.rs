@@ -13,6 +13,10 @@
 //!    version and install location.
 //! 2. Inno: `HKCU\...\Uninstall\{INNO_APP_ID}_is1`.
 //!
+//! 3. LibreOffice (not bundled, owner decision 2026-10-12): the default
+//!    value of `LIBREOFFICE_KEYS` is the `program` folder; `soffice.exe` must
+//!    exist there. The setup (`LibreOfficeInstalled`) reads the same keys.
+//!
 //! Only reads. Nothing here writes the registry or starts an installer.
 
 /// `bundle.windows.wix.upgradeCode` in `tauri.conf.json`. Every MSI built
@@ -37,6 +41,25 @@ pub const UPGRADE_CODE_ROOTS: [(Hive, &str); 2] = [
         r"Software\Microsoft\Installer\UpgradeCodes",
     ),
 ];
+
+/// Keys whose default value is the LibreOffice `program` folder: the
+/// 64-bit install, the 32-bit install, and a per-user install.
+pub const LIBREOFFICE_KEYS: [(Hive, &str); 3] = [
+    (Hive::LocalMachine, r"SOFTWARE\LibreOffice\UNO\InstallPath"),
+    (
+        Hive::LocalMachine,
+        r"SOFTWARE\WOW6432Node\LibreOffice\UNO\InstallPath",
+    ),
+    (Hive::CurrentUser, r"SOFTWARE\LibreOffice\UNO\InstallPath"),
+];
+pub const SOFFICE_EXE: &str = "soffice.exe";
+/// The official download page. The app shows it when LibreOffice is
+/// missing; the setup opens it when `winget` is not there.
+pub const LIBREOFFICE_DOWNLOAD_URL: &str =
+    "https://www.libreoffice.org/download/download-libreoffice/";
+/// The setup installs LibreOffice with
+/// `winget install --id <this> -e --accept-package-agreements --accept-source-agreements`.
+pub const LIBREOFFICE_WINGET_ID: &str = "TheDocumentFoundation.LibreOffice";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hive {
@@ -142,6 +165,19 @@ fn find_setup(reg: &impl RegistryRead) -> Option<InstalledCopy> {
     let key_name = format!("{INNO_APP_ID}_is1");
     let copy = read_copy(reg, Hive::CurrentUser, &key_name);
     copy.version.is_some().then_some(copy)
+}
+
+/// `soffice.exe` of the first LibreOffice install the registry lists whose
+/// file `exists` confirms, or `None`.
+pub fn find_libreoffice(
+    reg: &impl RegistryRead,
+    exists: impl Fn(&std::path::Path) -> bool,
+) -> Option<std::path::PathBuf> {
+    LIBREOFFICE_KEYS.iter().find_map(|(hive, key)| {
+        let program = reg.string_value(*hive, key, "")?;
+        let soffice = std::path::Path::new(program.trim()).join(SOFFICE_EXE);
+        exists(&soffice).then_some(soffice)
+    })
 }
 
 /// Every installed copy that the registry shows.
@@ -396,6 +432,41 @@ mod tests {
             .insert(hive_key(Hive::LocalMachine, &key), vec!["garbage".into()]);
 
         assert!(detect(&reg).msi.is_empty());
+    }
+
+    fn with_libreoffice(hive: Hive, key: &str, program: &str) -> FakeRegistry {
+        let mut reg = FakeRegistry::default();
+        reg.values
+            .insert((hive_key(hive, key), String::new()), program.into());
+        reg
+    }
+
+    #[test]
+    fn no_libreoffice_key_finds_nothing() {
+        assert_eq!(find_libreoffice(&FakeRegistry::default(), |_| true), None);
+    }
+
+    #[test]
+    fn finds_soffice_in_each_registered_program_folder() {
+        for (hive, key) in LIBREOFFICE_KEYS {
+            let reg = with_libreoffice(hive, key, r"C:\Program Files\LibreOffice\program");
+
+            assert_eq!(
+                find_libreoffice(&reg, |_| true),
+                Some(std::path::PathBuf::from(
+                    r"C:\Program Files\LibreOffice\program\soffice.exe"
+                )),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_whose_soffice_is_gone_does_not_count() {
+        let (hive, key) = LIBREOFFICE_KEYS[0];
+        let reg = with_libreoffice(hive, key, r"C:\Removed\program");
+
+        assert_eq!(find_libreoffice(&reg, |_| false), None);
     }
 
     #[cfg(windows)]

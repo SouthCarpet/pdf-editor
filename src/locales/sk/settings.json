@@ -25,7 +25,6 @@
   "restore_session_prompt": "Obnoviť poslednú reláciu?",
   "restore": "Obnoviť",
   "discard": "Zahodiť",
-  "strict_privacy": "Prísny režim súkromia (blokovať všetky sieťové volania)",
   "open_logs": "Otvoriť priečinok so záznamami",
   "about": "O aplikácii PDF Editor",
   "about_description": "Verzia tejto zostavy a voliteľná kontrola novšieho vydania na GitHube.",
@@ -51,5 +50,23 @@
   "check_response_error": "GitHub neposlal použiteľné vydanie: {{reason}}",
   "update_check_consent": "Kontrolovať nové verzie na GitHube",
   "update_check_consent_help": "Keď je táto voľba zapnutá, PDF Editor zistí najnovšiu verziu zo stránky vydaní na GitHube pri štarte, pri otvorení tejto sekcie a po kliknutí na Skontrolovať. Neposiela žiadne dokumenty ani osobné údaje.",
-  "update_check_save_failed": "Nastavenie sa neuložilo: {{reason}}"
+  "update_check_save_failed": "Nastavenie sa neuložilo: {{reason}}",
+  "update_install": {
+    "button": "Aktualizovať na {{version}}",
+    "help": "Stiahne pdf-editor-setup-{{version}}.exe z GitHubu, skontroluje jeho súčet SHA-256 a spustí inštalátor. PDF Editor sa potom zatvorí. Inštalátor sa pred každou zmenou opýta a vaše údaje zostanú.",
+    "downloading": "Sťahujem a kontrolujem inštalátor…",
+    "ready": "Inštalátor je stiahnutý a skontrolovaný.",
+    "started": "Inštalátor sa spúšťa. PDF Editor sa teraz zatvorí.",
+    "disabled": "Kontrola aktualizácií je vypnutá. Najprv ju zapnite.",
+    "release_changed": "Najnovšie vydanie sa po kontrole zmenilo. Kliknite na Skontrolovať teraz a skúste to znova.",
+    "no_setup": "Toto vydanie nemá inštalátor na stiahnutie: {{reason}}",
+    "too_large": "Inštalátor je väčší, ako je povolené: {{reason}}",
+    "blocked_host": "Adresa na stiahnutie nie je povolená: {{reason}}",
+    "download_failed": "Stiahnutie zlyhalo: {{reason}}",
+    "checksum_missing": "SHA256SUMS.txt nemá riadok pre inštalátor. Nič sa nespustilo.",
+    "checksum_mismatch": "Inštalátor nezodpovedá svojmu súčtu SHA-256. Bol odstránený a nespustil sa.",
+    "disk_error": "Inštalátor sa nepodarilo uložiť: {{reason}}",
+    "file_changed": "Inštalátor sa po kontrole zmenil. Nespustil sa.",
+    "start_failed": "Inštalátor sa nepodarilo spustiť: {{reason}}"
+  }
 }

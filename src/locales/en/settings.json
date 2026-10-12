@@ -25,7 +25,6 @@
   "restore_session_prompt": "Restore last session?",
   "restore": "Restore",
   "discard": "Discard",
-  "strict_privacy": "Strict privacy mode (block all network calls)",
   "open_logs": "Open logs folder",
   "about": "About PDF Editor",
   "about_description": "Version of this build and the opt-in check for a newer release on GitHub.",
@@ -51,5 +50,23 @@
   "check_response_error": "GitHub did not send a usable release: {{reason}}",
   "update_check_consent": "Check GitHub for new versions",
   "update_check_consent_help": "When this is on, PDF Editor asks the GitHub releases page for the latest version at start, when you open this section and when you click Check now. It sends no documents and no personal data.",
-  "update_check_save_failed": "The setting was not saved: {{reason}}"
+  "update_check_save_failed": "The setting was not saved: {{reason}}",
+  "update_install": {
+    "button": "Update to {{version}}",
+    "help": "Downloads pdf-editor-setup-{{version}}.exe from GitHub, checks its SHA-256 sum and starts the setup. PDF Editor then closes. The setup asks before it changes anything, and your data stay.",
+    "downloading": "Downloading and checking the setup…",
+    "ready": "The setup is downloaded and checked.",
+    "started": "The setup is starting. PDF Editor closes now.",
+    "disabled": "Update checks are off. Turn them on first.",
+    "release_changed": "The latest release changed after the check. Click Check now and try again.",
+    "no_setup": "This release has no setup to download: {{reason}}",
+    "too_large": "The setup is larger than allowed: {{reason}}",
+    "blocked_host": "The download address is not allowed: {{reason}}",
+    "download_failed": "The download failed: {{reason}}",
+    "checksum_missing": "SHA256SUMS.txt has no line for the setup. Nothing was started.",
+    "checksum_mismatch": "The setup does not match its SHA-256 sum. It was deleted and not started.",
+    "disk_error": "The setup could not be saved: {{reason}}",
+    "file_changed": "The setup changed after the check. It was not started.",
+    "start_failed": "The setup could not start: {{reason}}"
+  }
 }

@@ -17,10 +17,11 @@
 #
 # Plan 119 exception: the owner approved one opt-in update check (ledger
 # 9403). `reqwest` is allowed as a direct dependency, but only
-# `src-tauri/src/services/release_check.rs` may use it. That module sends
-# one GET to the GitHub releases API, and only when the stored consent
-# `update_check_enabled` is on. Any other source file that names `reqwest`
-# fails this check.
+# `src-tauri/src/services/release_check.rs` may use it. That module holds
+# the HTTP client: one GET to the GitHub releases API, and the setup
+# download that `update_install.rs` runs through a trait after a click on
+# Update. Both run only when the stored consent `update_check_enabled` is
+# on. Any other source file that names `reqwest` fails this check.
 #
 # CI: runs as the `privacy` job. Locally: `pwsh scripts/test-privacy.ps1`.
 

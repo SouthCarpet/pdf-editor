@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { Button } from "@/components/ui/button";
-import { commands, type BuildInfo, type UpdateCheck } from "@/bindings";
+import {
+  commands,
+  type BuildInfo,
+  type UpdateCheck,
+  type UpdateInstall,
+  type UpdateInstallStatus,
+} from "@/bindings";
 import { useUpdateStore } from "@/stores/updateStore";
+import { useCloseGuard, type CloseGuardRequest } from "@/stores/closeGuardStore";
+import { unsavedDocIds } from "@/lib/unsavedWork";
 
 function shortCommit(commit: string | undefined) {
   if (!commit || commit === "unknown") return null;
@@ -24,6 +32,37 @@ function statusText(t: TFunction<"settings">, result: UpdateCheck) {
     case "response_error":
       return t("check_response_error", { reason: result.detail });
   }
+}
+
+type SettingsT = TFunction<"settings">;
+
+/** One literal key per status, so the i18n check sees every key. */
+const INSTALL_TEXT: Record<UpdateInstallStatus, (t: SettingsT, reason: string) => string> = {
+  ready: (t) => t("update_install.ready"),
+  started: (t) => t("update_install.started"),
+  disabled: (t) => t("update_install.disabled"),
+  release_changed: (t) => t("update_install.release_changed"),
+  no_setup: (t, reason) => t("update_install.no_setup", { reason }),
+  too_large: (t, reason) => t("update_install.too_large", { reason }),
+  blocked_host: (t, reason) => t("update_install.blocked_host", { reason }),
+  download_failed: (t, reason) => t("update_install.download_failed", { reason }),
+  checksum_missing: (t) => t("update_install.checksum_missing"),
+  checksum_mismatch: (t) => t("update_install.checksum_mismatch"),
+  disk_error: (t, reason) => t("update_install.disk_error", { reason }),
+  file_changed: (t) => t("update_install.file_changed"),
+  start_failed: (t, reason) => t("update_install.start_failed", { reason }),
+};
+
+function installText(t: SettingsT, result: UpdateInstall) {
+  return INSTALL_TEXT[result.status](t, result.detail ?? "");
+}
+
+/** Runs `action` at once when no document has unsaved work; otherwise the
+ * unsaved-changes dialog asks first (Save, Discard or Cancel). */
+function whenWorkIsSafe(open: (request: CloseGuardRequest) => void, action: () => void) {
+  const docIds = unsavedDocIds();
+  if (docIds.length === 0) action();
+  else open({ kind: "update", docIds, onClosed: action });
 }
 
 function useLastCheckText() {
@@ -108,6 +147,54 @@ function CheckNowButton() {
   );
 }
 
+function InstallStatus() {
+  const { t } = useTranslation("settings");
+  const phase = useUpdateStore((state) => state.installPhase);
+  const result = useUpdateStore((state) => state.installResult);
+  if (phase === "downloading") return <p className="text-sm">{t("update_install.downloading")}</p>;
+  if (!result) return null;
+  const failed = result.status !== "ready" && result.status !== "started";
+  return (
+    <p
+      role={failed ? "alert" : undefined}
+      className={`text-sm text-pretty ${failed ? "text-[var(--color-danger)]" : ""}`}
+    >
+      {installText(t, result)}
+    </p>
+  );
+}
+
+function UpdateButton() {
+  const { t } = useTranslation("settings");
+  const result = useUpdateStore((state) => state.result);
+  const phase = useUpdateStore((state) => state.installPhase);
+  const downloadUpdate = useUpdateStore((state) => state.downloadUpdate);
+  const startUpdate = useUpdateStore((state) => state.startUpdate);
+  const openGuard = useCloseGuard((state) => state.open);
+  if (result?.status !== "available") return null;
+
+  // Ask about unsaved work before the download and again before the start:
+  // the setup closes PDF Editor.
+  const update = () =>
+    whenWorkIsSafe(openGuard, () => {
+      void downloadUpdate().then((ready) => {
+        if (ready) whenWorkIsSafe(openGuard, () => void startUpdate());
+      });
+    });
+
+  return (
+    <div className="space-y-1">
+      <Button disabled={phase !== "idle"} onClick={update}>
+        <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+        {t("update_install.button", { version: result.latest_version })}
+      </Button>
+      <p className="text-sm text-pretty text-[var(--color-muted)]">
+        {t("update_install.help", { version: result.latest_version })}
+      </p>
+    </div>
+  );
+}
+
 export function BuildInfoSettings() {
   const { t } = useTranslation("settings");
   const [build, setBuild] = useState<BuildInfo | null>(null);
@@ -132,6 +219,8 @@ export function BuildInfoSettings() {
       <BuildDetails build={build} />
       <UpdateConsent />
       <CheckNowButton />
+      <UpdateButton />
+      <InstallStatus />
     </section>
   );
 }

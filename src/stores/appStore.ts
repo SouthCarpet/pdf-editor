@@ -15,7 +15,6 @@ export const DEFAULT_ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 interface AppState {
   theme: Theme;
   language: Language;
-  privacyStrict: boolean;
   defaultSaveFolder: string | null;
   defaultZoom: number;
   openLastDocumentAtStart: boolean;
@@ -23,11 +22,19 @@ interface AppState {
   autosaveIntervalSec: number;
   setTheme: (t: Theme) => void;
   setLanguage: (l: Language) => void;
-  setPrivacy: (s: boolean) => void;
   setDefaultSaveFolder: (folder: string | null) => void;
   setDefaultZoom: (z: number) => void;
   setOpenLastDocumentAtStart: (on: boolean) => void;
   setAutosaveIntervalSec: (sec: number) => void;
+}
+
+/** Plan 119 removed the "strict privacy" switch: it never gated a network
+ * path, and the update consent in About is the only network control. An
+ * old blob still carries `privacyStrict`; drop it so it is not stored again. */
+function withoutRetiredKeys(persisted: unknown): Partial<AppState> {
+  const rest: Record<string, unknown> = { ...(persisted as Record<string, unknown> | undefined) };
+  delete rest.privacyStrict;
+  return rest as Partial<AppState>;
 }
 
 export const useAppStore = create<AppState>()(
@@ -35,14 +42,12 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       theme: "system",
       language: "en",
-      privacyStrict: true,
       defaultSaveFolder: null,
       defaultZoom: DEFAULT_ZOOM,
       openLastDocumentAtStart: false,
       autosaveIntervalSec: 10,
       setTheme: (t) => set({ theme: t }),
       setLanguage: (l) => set({ language: l }),
-      setPrivacy: (s) => set({ privacyStrict: s }),
       setDefaultSaveFolder: (folder) => set({ defaultSaveFolder: folder }),
       setDefaultZoom: (z) => set({ defaultZoom: z }),
       setOpenLastDocumentAtStart: (on) => set({ openLastDocumentAtStart: on }),
@@ -54,7 +59,7 @@ export const useAppStore = create<AppState>()(
       // fields keeps those keys from current-state defaults.
       merge: (persisted, current) => ({
         ...current,
-        ...(persisted as Partial<AppState> | undefined),
+        ...withoutRetiredKeys(persisted),
       }),
     },
   ),

@@ -73,6 +73,66 @@ mod update_consent {
         assert_eq!(std::fs::read(&path).unwrap(), b"{ not json");
     }
 
+    fn stored_json(path: &std::path::Path) -> serde_json::Value {
+        serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn stored_privacy_strict_true_turns_consent_off_once_and_is_dropped() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(
+            &path,
+            br#"{ "theme": "dark", "update_check_enabled": true, "privacy_strict": true }"#,
+        )
+        .unwrap();
+
+        assert!(!update_check_enabled(&path).await);
+        let stored = stored_json(&path);
+        assert_eq!(stored.get("privacy_strict"), None);
+        assert_eq!(stored["theme"], "dark");
+
+        set_update_check_enabled(&path, true).await.unwrap();
+
+        assert!(update_check_enabled(&path).await, "the migration runs once");
+    }
+
+    #[tokio::test]
+    async fn stored_privacy_strict_false_is_dropped_and_keeps_the_consent() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(
+            &path,
+            br#"{ "update_check_enabled": true, "privacy_strict": false }"#,
+        )
+        .unwrap();
+
+        assert!(update_check_enabled(&path).await);
+        assert_eq!(stored_json(&path).get("privacy_strict"), None);
+    }
+
+    #[tokio::test]
+    async fn setting_the_consent_drops_privacy_strict_before_it_writes() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(&path, br#"{ "privacy_strict": true }"#).unwrap();
+
+        set_update_check_enabled(&path, true).await.unwrap();
+
+        assert!(update_check_enabled(&path).await);
+        assert_eq!(stored_json(&path).get("privacy_strict"), None);
+    }
+
+    #[tokio::test]
+    async fn new_settings_files_have_no_privacy_strict_key() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("settings.json");
+
+        save_settings(&path, &AppSettings::default()).await.unwrap();
+
+        assert_eq!(stored_json(&path).get("privacy_strict"), None);
+    }
+
     #[tokio::test]
     async fn a_write_error_is_returned_not_swallowed() {
         let tmp = TempDir::new().unwrap();

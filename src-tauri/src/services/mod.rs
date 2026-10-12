@@ -20,4 +20,5 @@ pub mod release_check;
 pub mod text_edit;
 pub mod text_extractor;
 pub mod text_style;
+pub mod update_install;
 pub mod workspace;

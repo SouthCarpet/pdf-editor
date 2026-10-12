@@ -1,12 +1,16 @@
 //! Opt-in check for a newer stable release on GitHub (plan 119).
 //!
-//! This is the only module that makes a network request, and it makes one
+//! This is the only module that holds an HTTP client. It makes one
 //! unauthenticated GET to `RELEASES_URL`, only when the stored consent
-//! `update_check_enabled` is on. `scripts/test-privacy.ps1` fails the build
-//! when `reqwest` appears in any other source file.
+//! `update_check_enabled` is on. `HttpDownload` is the transport that
+//! `update_install.rs` uses after the user clicks **Update**; that module
+//! checks every URL against its host list before it calls `get`.
+//! `scripts/test-privacy.ps1` fails the build when `reqwest` appears in any
+//! other source file.
 //!
-//! Nothing here downloads or starts an installer. Every failure comes back
-//! as a status the caller can show; nothing panics or opens a dialog.
+//! Every failure comes back as a status the caller can show; nothing panics
+//! or opens a dialog.
+use crate::services::update_install::{BodyStream, Download, Hop};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::Duration;
@@ -17,6 +21,8 @@ const USER_AGENT: &str = concat!("pdf-editor/", env!("CARGO_PKG_VERSION"));
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// A larger response is a transport failure, never buffered without limit.
 const MAX_BODY_BYTES: usize = 1024 * 1024;
+/// A setup download may take minutes; only a stalled connection fails it.
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +45,9 @@ pub struct UpdateCheck {
     pub current_version: String,
     /// The latest stable release version (`X.Y.Z`, no `v`), when known.
     pub latest_version: Option<String>,
+    /// The release tag as GitHub lists it (`vX.Y.Z`). **Update** passes it
+    /// back, and the download refuses a release whose tag changed.
+    pub tag: Option<String>,
     pub release_url: Option<String>,
     /// Error text for `ConnectionError` and `ResponseError`.
     pub detail: Option<String>,
@@ -50,6 +59,7 @@ impl UpdateCheck {
             status,
             current_version: current.to_owned(),
             latest_version: None,
+            tag: None,
             release_url: None,
             detail: None,
         }
@@ -72,6 +82,26 @@ struct GithubRelease {
     prerelease: bool,
     #[serde(default)]
     draft: bool,
+    #[serde(default)]
+    assets: Vec<ReleaseAsset>,
+}
+
+/// One file attached to a release.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct ReleaseAsset {
+    pub name: String,
+    pub browser_download_url: String,
+    #[serde(default)]
+    pub size: u64,
+}
+
+/// The latest release, when it is a stable `vX.Y.Z`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StableRelease {
+    pub tag: String,
+    pub version: (u64, u64, u64),
+    pub html_url: Option<String>,
+    pub assets: Vec<ReleaseAsset>,
 }
 
 /// `X.Y.Z` with an optional leading `v` or `V`; anything else is `None`,
@@ -91,25 +121,39 @@ fn response_error(current: &str, detail: impl Into<String>) -> UpdateCheck {
     UpdateCheck::failed(UpdateStatus::ResponseError, current, detail.into())
 }
 
-/// Turns one GitHub response into a status.
-pub fn evaluate(current: &str, status: u16, body: &[u8]) -> UpdateCheck {
+/// Reads one GitHub answer; `Err` is the text the user sees.
+pub fn parse_stable_release(status: u16, body: &[u8]) -> Result<StableRelease, String> {
     if !(200..300).contains(&status) {
-        return response_error(current, format!("GitHub answered HTTP {status}"));
+        return Err(format!("GitHub answered HTTP {status}"));
     }
-    let Ok(release) = serde_json::from_slice::<GithubRelease>(body) else {
-        return response_error(current, "GitHub sent a response that is not release JSON");
-    };
+    let release = serde_json::from_slice::<GithubRelease>(body)
+        .map_err(|_| "GitHub sent a response that is not release JSON".to_owned())?;
     let tag = release.tag_name.unwrap_or_default();
     let stable = stable_version(&tag).filter(|_| !release.prerelease && !release.draft);
-    let Some(latest) = stable else {
-        return response_error(
-            current,
-            format!("latest release tag \"{tag}\" is not a stable vX.Y.Z"),
-        );
+    let Some(version) = stable else {
+        return Err(format!(
+            "latest release tag \"{tag}\" is not a stable vX.Y.Z"
+        ));
     };
+    Ok(StableRelease {
+        tag,
+        version,
+        html_url: release.html_url,
+        assets: release.assets,
+    })
+}
+
+/// Turns one GitHub response into a status.
+pub fn evaluate(current: &str, status: u16, body: &[u8]) -> UpdateCheck {
+    let release = match parse_stable_release(status, body) {
+        Ok(release) => release,
+        Err(detail) => return response_error(current, detail),
+    };
+    let latest = release.version;
     let newer = stable_version(current).is_some_and(|running| latest > running);
     UpdateCheck {
         latest_version: Some(format!("{}.{}.{}", latest.0, latest.1, latest.2)),
+        tag: Some(release.tag),
         release_url: release.html_url,
         ..UpdateCheck::new(
             if newer {
@@ -161,6 +205,49 @@ pub async fn send_request(url: String) -> Result<(u16, Vec<u8>), String> {
         }
     }
     Ok((status, body))
+}
+
+/// The real asset transport for `update_install.rs`: one GET, no
+/// redirects (the caller follows them after its host check), and the body
+/// read in chunks so the caller can stop at its size limit.
+pub struct HttpDownload;
+
+pub struct HttpBody(reqwest::Response);
+
+impl BodyStream for HttpBody {
+    async fn next_chunk(&mut self) -> Result<Option<Vec<u8>>, String> {
+        let chunk = self.0.chunk().await.map_err(|e| e.to_string())?;
+        Ok(chunk.map(|bytes| bytes.to_vec()))
+    }
+}
+
+impl Download for HttpDownload {
+    type Body = HttpBody;
+
+    async fn get(&self, url: &str) -> Result<Hop<HttpBody>, String> {
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(REQUEST_TIMEOUT)
+            .read_timeout(DOWNLOAD_READ_TIMEOUT)
+            .build()
+            .map_err(|e| e.to_string())?;
+        let response = client
+            .get(url)
+            .header(reqwest::header::USER_AGENT, USER_AGENT)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        let location = response
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+        Ok(Hop {
+            status: response.status().as_u16(),
+            location,
+            body: HttpBody(response),
+        })
+    }
 }
 
 #[cfg(test)]
@@ -262,6 +349,39 @@ mod tests {
         assert_eq!(
             result.release_url.as_deref(),
             Some("https://github.com/SouthCarpet/pdf-editor/releases/tag/v1.1.0")
+        );
+    }
+
+    #[test]
+    fn available_release_carries_its_tag_for_the_update() {
+        let result = evaluate("0.1.0", 200, &release("v1.1.0"));
+
+        assert_eq!(result.tag.as_deref(), Some("v1.1.0"));
+    }
+
+    #[test]
+    fn release_assets_are_read_with_name_url_and_size() {
+        let body = serde_json::to_vec(&serde_json::json!({
+            "tag_name": "v1.1.0",
+            "assets": [{
+                "name": "pdf-editor-setup-1.1.0.exe",
+                "browser_download_url": "https://github.com/x/pdf-editor-setup-1.1.0.exe",
+                "size": 147479859,
+                "content_type": "application/x-msdownload",
+            }],
+        }))
+        .unwrap();
+
+        let release = parse_stable_release(200, &body).expect("stable release");
+
+        assert_eq!(release.version, (1, 1, 0));
+        assert_eq!(
+            release.assets,
+            vec![ReleaseAsset {
+                name: "pdf-editor-setup-1.1.0.exe".into(),
+                browser_download_url: "https://github.com/x/pdf-editor-setup-1.1.0.exe".into(),
+                size: 147479859,
+            }]
         );
     }
 

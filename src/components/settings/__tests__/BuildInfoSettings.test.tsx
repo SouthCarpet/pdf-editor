@@ -6,23 +6,44 @@ import userEvent from "@testing-library/user-event";
 import i18n from "@/i18n";
 import { useUpdateStore } from "@/stores/updateStore";
 
-const { buildInfo, checkForUpdate, getUpdateCheckEnabled, setUpdateCheckEnabled } = vi.hoisted(
-  () => ({
-    buildInfo: vi.fn(),
-    checkForUpdate: vi.fn(),
-    getUpdateCheckEnabled: vi.fn(),
-    setUpdateCheckEnabled: vi.fn(),
-  }),
-);
+const {
+  buildInfo,
+  checkForUpdate,
+  getUpdateCheckEnabled,
+  setUpdateCheckEnabled,
+  downloadUpdate,
+  installUpdate,
+} = vi.hoisted(() => ({
+  buildInfo: vi.fn(),
+  checkForUpdate: vi.fn(),
+  getUpdateCheckEnabled: vi.fn(),
+  setUpdateCheckEnabled: vi.fn(),
+  downloadUpdate: vi.fn(),
+  installUpdate: vi.fn(),
+}));
 
 vi.mock("@/bindings", () => ({
-  commands: { buildInfo, checkForUpdate, getUpdateCheckEnabled, setUpdateCheckEnabled },
+  commands: {
+    buildInfo,
+    checkForUpdate,
+    getUpdateCheckEnabled,
+    setUpdateCheckEnabled,
+    downloadUpdate,
+    installUpdate,
+  },
 }));
 
 import { BuildInfoSettings } from "../BuildInfoSettings";
+import { useCloseGuard } from "@/stores/closeGuardStore";
+import { useDocuments } from "@/stores/documentStore";
 
 function release(status: string, latest: string | null, detail: string | null = null) {
-  return { status, current_version: "0.1.0", latest_version: latest, release_url: null, detail };
+  const tag = latest ? `v${latest}` : null;
+  return { status, current_version: "0.1.0", latest_version: latest, tag, release_url: null, detail };
+}
+
+function install(status: string, detail: string | null = null) {
+  return { status, version: "1.1.0", detail };
 }
 
 describe("BuildInfoSettings (About)", () => {
@@ -32,7 +53,13 @@ describe("BuildInfoSettings (About)", () => {
     checkForUpdate.mockReset();
     getUpdateCheckEnabled.mockReset();
     setUpdateCheckEnabled.mockReset();
+    downloadUpdate.mockReset();
+    installUpdate.mockReset();
+    useCloseGuard.setState({ request: null });
+    useDocuments.setState({ documents: new Map(), activeDocId: null });
     useUpdateStore.setState({
+      installPhase: "idle",
+      installResult: null,
       enabled: null,
       consentError: null,
       savingConsent: false,
@@ -91,6 +118,65 @@ describe("BuildInfoSettings (About)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Check now" }));
 
     await waitFor(() => expect(checkForUpdate).toHaveBeenCalledTimes(2));
+  });
+
+  it("shows no Update button while no newer release is known", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockResolvedValue(release("up_to_date", "0.1.0"));
+
+    render(<BuildInfoSettings />);
+    await screen.findByText("You have the latest version (0.1.0)");
+
+    expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
+  });
+
+  it("Update downloads the checked tag, then starts the verified setup", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockResolvedValue(release("available", "1.1.0"));
+    downloadUpdate.mockResolvedValue(install("ready"));
+    installUpdate.mockResolvedValue(install("started"));
+    render(<BuildInfoSettings />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Update to 1.1.0" }));
+
+    await waitFor(() => expect(installUpdate).toHaveBeenCalledTimes(1));
+    expect(downloadUpdate).toHaveBeenCalledWith("v1.1.0");
+    expect(await screen.findByText("The setup is starting. PDF Editor closes now.")).toBeInTheDocument();
+  });
+
+  it("with unsaved work asks first and downloads only after the dialog", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockResolvedValue(release("available", "1.1.0"));
+    downloadUpdate.mockResolvedValue(install("ready"));
+    installUpdate.mockResolvedValue(install("started"));
+    useDocuments.getState().add({ id: "C:/a.pdf", path: "C:/a.pdf", pageCount: 1, dirty: true });
+    render(<BuildInfoSettings />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Update to 1.1.0" }));
+
+    const request = useCloseGuard.getState().request;
+    expect(request).toMatchObject({ kind: "update", docIds: ["C:/a.pdf"] });
+    expect(downloadUpdate).not.toHaveBeenCalled();
+
+    useDocuments.getState().markDirty("C:/a.pdf", false);
+    if (request?.kind === "update") request.onClosed();
+
+    await waitFor(() => expect(installUpdate).toHaveBeenCalledTimes(1));
+    expect(downloadUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("a refused download shows why and never starts a setup", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockResolvedValue(release("available", "1.1.0"));
+    downloadUpdate.mockResolvedValue({ status: "checksum_mismatch", version: null, detail: "x" });
+    render(<BuildInfoSettings />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Update to 1.1.0" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The setup does not match its SHA-256 sum. It was deleted and not started.",
+    );
+    expect(installUpdate).not.toHaveBeenCalled();
   });
 
   it("shows a consent write error as an alert", async () => {

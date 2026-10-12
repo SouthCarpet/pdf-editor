@@ -89,6 +89,18 @@ english.Shortcuts=Shortcuts:
 slovak.Shortcuts=Odkazy:
 english.PdfDescription=PDF document
 slovak.PdfDescription=Dokument PDF
+english.LibreOfficeAsk=PDF Editor converts Office files with LibreOffice. It is not installed. Install it now? About 350 MB, needs internet and administrator rights.
+slovak.LibreOfficeAsk=PDF Editor konvertuje súbory Office pomocou LibreOffice. LibreOffice nie je nainštalovaný. Nainštalovať ho teraz? Približne 350 MB, vyžaduje internet a práva správcu.
+english.LibreOfficeWingetFailed=The LibreOffice installation did not finish (winget exit code %1). PDF Editor is installed. Office conversion works after you install LibreOffice from %2
+slovak.LibreOfficeWingetFailed=Inštalácia LibreOffice sa nedokončila (kód winget %1). PDF Editor je nainštalovaný. Konverzia súborov Office bude fungovať po inštalácii LibreOffice z %2
+english.LibreOfficeBrowserFailed=Setup could not open the LibreOffice download page. PDF Editor is installed. Open this page yourself: %1
+slovak.LibreOfficeBrowserFailed=Inštalátor nemohol otvoriť stránku na stiahnutie LibreOffice. PDF Editor je nainštalovaný. Otvorte túto stránku sami: %1
+english.RemoveAppData=Remove your PDF Editor data too?%n%nThis removes the settings, the database (recent files, projects, pipeline presets, autosaved work, last session), your OCR languages, thumbnails, logs and the app's WebView data.%n%nPDF files and files that PDF Editor did not create stay. Choose No to keep the data for a later install.
+slovak.RemoveAppData=Odstrániť aj údaje PDF Editora?%n%nOdstránia sa nastavenia, databáza (nedávne súbory, projekty, predvoľby postupov, automaticky uložená práca, posledná relácia), vaše jazyky OCR, náhľady, záznamy a údaje WebView aplikácie.%n%nSúbory PDF a súbory, ktoré PDF Editor nevytvoril, zostanú. Ak chcete údaje zachovať pre ďalšiu inštaláciu, vyberte Nie.
+english.RemoveSignatures=Remove your saved signatures too?%n%nThis removes the signature images in%n%1%n%nChoose No to keep them.
+slovak.RemoveSignatures=Odstrániť aj uložené podpisy?%n%nOdstránia sa obrázky podpisov v priečinku%n%1%n%nAk ich chcete zachovať, vyberte Nie.
+english.RemoveDataFailed=Some PDF Editor data could not be removed (exit code %1). Remove what is left yourself: %2
+slovak.RemoveDataFailed=Niektoré údaje PDF Editora sa nepodarilo odstrániť (kód %1). Zvyšok odstráňte sami: %2
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked
@@ -122,6 +134,16 @@ const
   InnoUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{{#AppIdGuid}}_is1';
   WebView2SubKey = 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}';
   WebView2BootstrapperUrl = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703';
+  // LibreOffice detection and install (install_detect.rs LIBREOFFICE_KEYS,
+  // SOFFICE_EXE, LIBREOFFICE_DOWNLOAD_URL, LIBREOFFICE_WINGET_ID). The test
+  // install_contract_test.rs checks these lines.
+  SofficeExe = 'soffice.exe';
+  LibreOfficeDownloadUrl = 'https://www.libreoffice.org/download/download-libreoffice/';
+  LibreOfficeWingetArgs = 'install --id TheDocumentFoundation.LibreOffice -e --accept-package-agreements --accept-source-agreements';
+  // Uninstall: uninstall_data.rs FLAG, PART_APP_DATA, PART_SIGNATURES.
+  RemoveDataFlag = '--remove-user-data';
+  RemoveAppDataPart = ' app-data';
+  RemoveSignaturesPart = ' signatures';
 
 var
   DependenciesReady: Boolean;
@@ -314,6 +336,120 @@ begin
     Result := RunWebView2Bootstrapper();
 end;
 
+// ---- LibreOffice (not bundled; same rule as install_detect.rs) ----
+
+function LibreOfficeUnder(const RootKey: Integer; const SubKey: String): Boolean;
+var
+  ProgramDir: String;
+begin
+  Result := RegQueryStringValue(RootKey, SubKey, '', ProgramDir) and
+    FileExists(AddBackslash(Trim(ProgramDir)) + SofficeExe);
+  if Result then
+    Log('LibreOffice: found in ' + ProgramDir);
+end;
+
+function LibreOfficeInstalled(): Boolean;
+begin
+  Result := LibreOfficeUnder(HKLM64, 'SOFTWARE\LibreOffice\UNO\InstallPath') or
+    LibreOfficeUnder(HKLM64, 'SOFTWARE\WOW6432Node\LibreOffice\UNO\InstallPath') or
+    LibreOfficeUnder(HKCU, 'SOFTWARE\LibreOffice\UNO\InstallPath');
+end;
+
+procedure LibreOfficeWarning(const Text: String);
+begin
+  Log('LibreOffice: ' + Text);
+  SuppressibleMsgBox(Text, mbInformation, MB_OK, IDOK);
+end;
+
+procedure InstallLibreOfficeWithWinget(const Winget: String);
+var
+  ResultCode: Integer;
+begin
+  if not Exec(Winget, LibreOfficeWingetArgs, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) then
+    ResultCode := -1;
+  Log('LibreOffice: winget exit code ' + IntToStr(ResultCode));
+  if ResultCode <> 0 then
+    LibreOfficeWarning(FmtMessage(CustomMessage('LibreOfficeWingetFailed'), [IntToStr(ResultCode),
+      LibreOfficeDownloadUrl]));
+end;
+
+procedure OpenLibreOfficeDownloadPage();
+var
+  ErrorCode: Integer;
+begin
+  // ShellExec hands the URL to the default browser; no command shell.
+  if ShellExec('open', LibreOfficeDownloadUrl, '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode) then
+    Log('LibreOffice: download page opened')
+  else
+    LibreOfficeWarning(FmtMessage(CustomMessage('LibreOfficeBrowserFailed'), [LibreOfficeDownloadUrl]));
+end;
+
+// After the files are installed: a failure here never stops the install.
+procedure OfferLibreOffice();
+var
+  Winget: String;
+begin
+  if LibreOfficeInstalled() then Exit;
+  if WizardSilent then
+  begin
+    Log('LibreOffice: missing; a silent setup does not install it');
+    Exit;
+  end;
+  if SuppressibleMsgBox(CustomMessage('LibreOfficeAsk'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2, IDNO) <> IDYES then
+  begin
+    Log('LibreOffice: missing; the user chose No');
+    Exit;
+  end;
+  Winget := ExpandConstant('{localappdata}\Microsoft\WindowsApps\winget.exe');
+  if FileExists(Winget) then
+    InstallLibreOfficeWithWinget(Winget)
+  else
+    OpenLibreOfficeDownloadPage();
+end;
+
+// ---- Uninstall: user data (uninstall_data.rs does the removal) ----
+
+function UninstallDataParts(): String;
+begin
+  Result := '';
+  if MsgBox(CustomMessage('RemoveAppData'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    Result := Result + RemoveAppDataPart;
+  if MsgBox(FmtMessage(CustomMessage('RemoveSignatures'), [ExpandConstant('{userappdata}\com.pdfeditor.app\signatures')]),
+    mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    Result := Result + RemoveSignaturesPart;
+end;
+
+procedure RemoveUserData(const Parts: String);
+var
+  ResultCode: Integer;
+begin
+  if not Exec(ExpandConstant('{app}\pdf-editor.exe'), RemoveDataFlag + Parts, '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+    ResultCode := -1;
+  Log('Uninstall: removed user data' + Parts + ', exit code ' + IntToStr(ResultCode));
+  if ResultCode <> 0 then
+    MsgBox(FmtMessage(CustomMessage('RemoveDataFailed'), [IntToStr(ResultCode),
+      ExpandConstant('{userappdata}\PdfEditor')]), mbError, MB_OK);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Parts: String;
+begin
+  if CurUninstallStep <> usUninstall then Exit;
+  // A silent uninstall asks nothing and keeps all user data.
+  if UninstallSilent then
+  begin
+    Log('Uninstall: silent; user data kept');
+    Exit;
+  end;
+  Parts := UninstallDataParts();
+  if Parts = '' then
+    Log('Uninstall: user data kept')
+  else
+    RemoveUserData(Parts);
+end;
+
 // ---- Setup flow ----
 
 function InitializeSetup(): Boolean;
@@ -329,6 +465,12 @@ end;
 function CanLaunch(): Boolean;
 begin
   Result := DependenciesReady;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    OfferLibreOffice();
 end;
 
 // An update or reinstall keeps the earlier task choice; do not ask again.
