@@ -25,15 +25,20 @@ const DPI: u32 = 150;
 const PAGE_WIDTH_PT: f32 = 595.44;
 const PAGE_HEIGHT_PT: f32 = 841.915_19;
 
-// Locked after plan 119 p1 (debug note 051): 170 fields, all boxes, on a
+// Locked after plan 119 p1 (debug note 051): 151 fields, all boxes, on a
 // 1241x1754 raster (2026-10-12). The earlier lock (327 fields: 170 box and
 // 157 underline, 2026-08-29) counted every table border a second time as an
-// underline inside the cell its box already covered. hodiny.pdf has no
-// free-standing line to write on ("Datum von:" and "Bis:" have none), so
-// zero underlines is the correct count. The +/-10% band allows minor
+// underline inside the cell its box already covered, and kept 19 label
+// cells (Name:, KW:, the column headers, the day names, the logo). hodiny.pdf
+// has no free-standing line to write on ("Datum von:" and "Bis:" have none),
+// so zero underlines is the correct count. The +/-10% band allows minor
 // raster/toolchain drift; a field per cell border would leave it at once.
-const MIN_FIELDS: usize = 153;
-const MAX_FIELDS: usize = 187;
+const MIN_FIELDS: usize = 136;
+const MAX_FIELDS: usize = 166;
+// "Unterschrift Bauleiter:" has a label and a wide free stretch to sign in.
+const SIGNATURE_CELL_PT: [f32; 4] = [52.8, 159.4, 342.7, 179.0];
+// "KW:" is a label cell with no room to write.
+const KW_LABEL_CELL_PT: [f32; 4] = [52.8, 643.7, 94.0, 676.3];
 const FIRST_MO_ROW_BOTTOM_PT: f32 = 624.0;
 const FIRST_MO_ROW_TOP_PT: f32 = 642.0;
 const COLUMN_POSITION_TOLERANCE_PT: f32 = 0.5;
@@ -89,6 +94,21 @@ async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
         "field count {} left the locked band [{MIN_FIELDS}, {MAX_FIELDS}] \
          ({boxes} boxes, {underlines} underlines)",
         analysis.fields.len()
+    );
+
+    assert!(
+        analysis
+            .fields
+            .iter()
+            .any(|field| covers(field.rect, SIGNATURE_CELL_PT)),
+        "the signature cell (label plus free space) stays a field"
+    );
+    assert!(
+        !analysis
+            .fields
+            .iter()
+            .any(|field| covers(field.rect, KW_LABEL_CELL_PT)),
+        "the KW: label cell is not a field"
     );
 
     assert_eq!(
@@ -281,6 +301,32 @@ async fn a_second_save_over_the_saved_copy_keeps_the_first_values() {
     );
 }
 
+// Plan 119 p1 (debug note 053): reopening a saved copy must find the same
+// cells. Its values are FreeText annotations; detection renders the page
+// without them, so a cell full of text is still the empty printed cell.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn a_saved_copy_with_values_yields_the_same_fields() {
+    let original = detect().await;
+    let values: Vec<Annotation> = first_mo_row(&original.fields)
+        .into_iter()
+        .map(|cell| free_text(cell, "Štúrovo námestie č. 5, Ľubica"))
+        .collect();
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
+    apply_annotations(Path::new(HODINY), &saved, &values).expect("save the values");
+
+    let mupdf = MupdfWrapper::new(SidecarManager::new(2));
+    let reopened = detect_scanned_form_fields(&mupdf, &saved, 0, DPI)
+        .await
+        .expect("detection runs on the saved copy");
+
+    assert_eq!(reopened.fields, original.fields);
+}
+
 fn first_mo_row(fields: &[DetectedFormField]) -> Vec<&DetectedFormField> {
     let mut row: Vec<&DetectedFormField> = fields
         .iter()
@@ -318,6 +364,13 @@ async fn no_two_fields_share_one_visible_cell() {
         "{} field pairs share one cell: {shared:?}",
         shared.len()
     );
+}
+
+/// True when `rect` matches `cell` within two points on every side.
+fn covers(rect: [f32; 4], cell: [f32; 4]) -> bool {
+    rect.iter()
+        .zip(cell)
+        .all(|(value, expected)| (value - expected).abs() < 2.0)
 }
 
 fn rect_area(rect: [f32; 4]) -> f32 {

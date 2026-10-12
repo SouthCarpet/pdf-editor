@@ -27,6 +27,14 @@ const VERTICAL_STROKE_TOLERANCE: u32 = 2;
 const BOX_EDGE_TOLERANCE: u32 = 3;
 const MIN_STROKE_OVERLAP: f32 = 0.8;
 const MIN_NESTED_AREA: f32 = 0.5;
+// Label cells (plan 119 p1, debug note 051). Ink in a horizontal run of
+// 30 px or more is a rule or an underscore run, not printed label text.
+// Fewer than 40 label-ink pixels is scan noise. A cell with label text is
+// a field only when the label leaves a free stretch of at least 60 px
+// (about 10 mm) and at least half of the cell's inner width.
+const LABEL_INSET: u32 = 2;
+const MIN_LABEL_INK: u32 = 40;
+const MIN_FREE_WRITING_WIDTH: u32 = 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 pub struct DetectedFormField {
@@ -90,17 +98,7 @@ pub async fn detect_scanned_form_fields(
     dpi: u32,
 ) -> AppResult<DetectionAnalysis> {
     let scratch = tempfile::tempdir().map_err(AppError::from)?;
-    let raster_path = scratch.path().join("page.png");
-    mupdf
-        .render_page_to_png(path, page_index, &raster_path, dpi, None)
-        .await?;
-
-    let gray = image::open(&raster_path)
-        .map_err(|error| AppError::Internal {
-            detail: format!("load rendered form page: {error}"),
-        })?
-        .into_luma8();
-    let doc =
+    let mut doc =
         crate::services::pdf_guard::load_guarded(path).map_err(|error| AppError::PdfCorrupted {
             detail: error.to_string(),
         })?;
@@ -112,8 +110,45 @@ pub async fn detect_scanned_form_fields(
             detail: format!("page index {page_index} is outside the document"),
         })?;
     let geometry = page_geometry(&doc, page_id).map_err(AppError::from)?;
+    let printed_page = page_without_annotations(&mut doc, page_id, path, scratch.path())?;
+
+    let raster_path = scratch.path().join("page.png");
+    mupdf
+        .render_page_to_png(&printed_page, page_index, &raster_path, dpi, None)
+        .await?;
+
+    let gray = image::open(&raster_path)
+        .map_err(|error| AppError::Internal {
+            detail: format!("load rendered form page: {error}"),
+        })?
+        .into_luma8();
 
     Ok(analyze_form_raster(&gray, geometry, page_index))
+}
+
+/// Plan 119 p1: detection looks at the printed form, not at values typed
+/// into it. A saved copy carries its values as FreeText annotations; drawn
+/// into the raster they would turn a filled cell into a label cell and hide
+/// it on reopen. Returns `path` itself when the page has no annotations.
+fn page_without_annotations(
+    doc: &mut lopdf::Document,
+    page_id: lopdf::ObjectId,
+    path: &Path,
+    scratch: &Path,
+) -> AppResult<std::path::PathBuf> {
+    let page = doc
+        .get_dictionary_mut(page_id)
+        .map_err(|error| AppError::PdfCorrupted {
+            detail: error.to_string(),
+        })?;
+    if page.remove(b"Annots").is_none() {
+        return Ok(path.to_path_buf());
+    }
+    let printed = scratch.join("printed.pdf");
+    doc.save(&printed).map_err(|error| AppError::Internal {
+        detail: format!("write the page without annotations: {error}"),
+    })?;
+    Ok(printed)
 }
 
 pub(crate) fn analyze_form_raster(
@@ -128,7 +163,7 @@ pub(crate) fn analyze_form_raster(
     // column split has cut it into per-cell segments.
     let underlines = split_underlines_at_vertical_strokes(&mask, find_underline_candidates(&mask));
     let underlines = suppress_underlines_on_boxes(underlines, &all_boxes);
-    let boxes = drop_container_boxes(all_boxes);
+    let boxes = drop_label_cells(&mask, drop_container_boxes(all_boxes));
     let mut candidates: Vec<(PixelRect, DetectedFieldKind, f32)> = boxes
         .iter()
         .map(|candidate| {
@@ -503,6 +538,61 @@ fn drop_container_boxes(boxes: Vec<BoxCandidate>) -> Vec<BoxCandidate> {
         .collect()
 }
 
+/// Drops a box whose printed label leaves no room to write: "Name:" in a
+/// narrow cell, a column header, a day name. A cell with a label plus a
+/// wide empty stretch ("Unterschrift: ______") stays a field.
+fn drop_label_cells(mask: &GrayImage, boxes: Vec<BoxCandidate>) -> Vec<BoxCandidate> {
+    boxes
+        .into_iter()
+        .filter(|candidate| has_free_writing_space(mask, candidate.rect))
+        .collect()
+}
+
+fn has_free_writing_space(mask: &GrayImage, cell: PixelRect) -> bool {
+    let inner = PixelRect {
+        x0: cell.x0 + LABEL_INSET,
+        y0: cell.y0 + LABEL_INSET,
+        x1: cell.x1.saturating_sub(LABEL_INSET),
+        y1: cell.y1.saturating_sub(LABEL_INSET),
+    };
+    if inner.width() == 0 || inner.height() == 0 {
+        return true;
+    }
+    let columns = label_ink_per_column(mask, inner);
+    if columns.iter().sum::<u32>() < MIN_LABEL_INK {
+        return true;
+    }
+    longest_empty_run(&columns) >= MIN_FREE_WRITING_WIDTH.max(inner.width() / 2)
+}
+
+/// Label-ink pixels per column of `inner`: ink in horizontal runs shorter
+/// than `MIN_SPLIT_UNDERLINE_WIDTH`, so rules and underscore runs that
+/// cross the cell do not count as text.
+fn label_ink_per_column(mask: &GrayImage, inner: PixelRect) -> Vec<u32> {
+    let mut columns = vec![0; inner.width() as usize];
+    for y in inner.y0..inner.y1 {
+        for (x0, x1) in ink_runs(mask, y) {
+            if x1 - x0 >= MIN_SPLIT_UNDERLINE_WIDTH {
+                continue;
+            }
+            for x in x0.max(inner.x0)..x1.min(inner.x1) {
+                columns[(x - inner.x0) as usize] += 1;
+            }
+        }
+    }
+    columns
+}
+
+fn longest_empty_run(columns: &[u32]) -> u32 {
+    let mut longest = 0;
+    let mut current = 0;
+    for &ink in columns {
+        current = if ink == 0 { current + 1 } else { 0 };
+        longest = longest.max(current);
+    }
+    longest
+}
+
 fn contains(outer: PixelRect, inner: PixelRect) -> bool {
     inner.x0 >= outer.x0 && inner.y0 >= outer.y0 && inner.x1 <= outer.x1 && inner.y1 <= outer.y1
 }
@@ -850,6 +940,85 @@ mod tests {
         }
         draw_horizontal(&mut image, 280, 680, 362);
         draw_horizontal(&mut image, 280, 680, 363);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    fn draw_glyphs(image: &mut GrayImage, left: u32, count: u32, y0: u32, y1: u32) {
+        for glyph in 0..count {
+            let x0 = left + glyph * 12;
+            for x in x0..x0 + 8 {
+                draw_vertical(image, x, y0, y1);
+            }
+        }
+    }
+
+    #[test]
+    fn cell_filled_by_its_label_is_not_a_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 300, 360);
+        draw_glyphs(&mut image, 210, 7, 320, 340);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn centered_column_header_is_not_a_field() {
+        // 370 px cell, 170 px of text in the middle: 100 px free on each
+        // side is under half of the cell.
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 570, 368);
+        draw_glyphs(&mut image, 300, 15, 324, 344);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn cell_with_a_label_and_wide_free_space_stays_a_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 340);
+        draw_glyphs(&mut image, 210, 15, 312, 330);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn short_label_in_a_narrow_cell_is_not_a_field() {
+        // 80 px cell, 46 px free: half the cell, but under the 60 px floor.
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 280, 368);
+        draw_glyphs(&mut image, 204, 2, 324, 344);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn scan_speck_in_an_empty_cell_keeps_the_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 330, 340);
+        for x in 264..267 {
+            draw_vertical(&mut image, x, 318, 321);
+        }
 
         let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
 
