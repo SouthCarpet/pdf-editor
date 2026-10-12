@@ -334,4 +334,20 @@ describe("saveDocument", () => {
 
     expect(useDocuments.getState().documents.get(DOC_A)?.savedRevision).toBe(2);
   });
+
+  it("keeps a value typed while the save was still writing", async () => {
+    useAnnotations.getState().add(DOC_A, NOTE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    commandFakes.applyAnnotationsCmd.mockImplementation(async () => {
+      useAnnotations.getState().add(DOC_A, SIGNATURE_STAMP);
+      return { status: "ok", data: null };
+    });
+
+    await saveDocument(DOC_A);
+
+    const left = useAnnotations.getState().byDoc[DOC_A] ?? [];
+    expect(left.map(({ __clientId: _id, ...annotation }) => annotation)).toEqual([
+      SIGNATURE_STAMP,
+    ]);
+  });
 });

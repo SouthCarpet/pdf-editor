@@ -130,10 +130,21 @@ export async function saveDocument(
   usePrefillStore.getState().recordFill(docId, pending);
 
   useDocuments.getState().setSavedPath(docId, output);
+  // Plan 119 p1: a value added while the file was being written is not in
+  // it yet. Keep it pending instead of clearing it with the saved ones.
+  const savedIds = new Set(pending.map((annotation) => annotation.__clientId));
+  const addedDuringSave = (useAnnotations.getState().byDoc[docId] ?? NO_ANNOTATIONS).filter(
+    (annotation) => !savedIds.has(annotation.__clientId),
+  );
   useAnnotations.getState().clear(docId);
   historyStore.getState().clear(docId);
   clearAnnotationFieldLinks(docId);
   useFilledFields.getState().clear(docId);
+  if (addedDuringSave.length > 0) {
+    useAnnotations.setState((state) => ({
+      byDoc: { ...state.byDoc, [docId]: addedDuringSave },
+    }));
+  }
   // Plan 062 T4.3: a successful Uložiť / Uložiť ako makes the autosave
   // record stale. Drop it even if the IPC call fails; the PDF is written.
   void Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
