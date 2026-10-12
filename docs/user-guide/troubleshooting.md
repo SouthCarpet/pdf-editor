@@ -23,3 +23,9 @@ A node may be waiting on a sidecar. Open Settings -> Diagnostics to see active s
 
 ## Recent files don't appear
 The SQLite database lives at `%AppData%\PDF Editor\state.db`. If it gets corrupted, delete the file and restart, the app will recreate it (you'll lose recent files but no PDF content).
+
+## Find fields marks a label cell, or misses a cell
+Find fields keeps a cell that holds printed text only when the text leaves an empty part of at least about 10 mm and half of the cell. A label with a wide empty part after it ("Signature: ......") stays a field; a cell filled by its label ("Name:", a column header) does not. Very small cells (under about 5 mm wide or 2 mm high) are never fields. Typed values in a saved copy do not count as printed text.
+
+## A cell shows as filled, but I can still click it
+A cell with a saved value shows as filled. Clicking it adds a second value on top of the saved one; the saved value cannot be edited in place.

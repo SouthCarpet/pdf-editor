@@ -9,6 +9,7 @@ Personal use project, not publicly distributed.
 - Merge, Split, Extract pages, Organize (rotate / delete / reorder / insert blank)
 - Compress (3 presets + Custom) and Optimize (modular pipeline)
 - Edit Tier 1+2+3 (forms / annotations / real inline text edit with proper Type0 CIDFont embedding)
+- Fill scanned forms: detects one field per empty table cell or line, keeps typed values visible in every tool, and saves them as FreeText annotations with an appearance stream (not flattened, not AcroForm values). Each save builds on the last saved copy, so earlier values stay ([Tools reference](docs/user-guide/tools.md#edit))
 - Crop (manual + auto-detect content + aspect lock + preset paper sizes)
 - Compare (visual + text diff)
 - Unlock (Type A & B + secondary brute-force Recovery: Dictionary + Brute)

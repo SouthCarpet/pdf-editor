@@ -22,7 +22,10 @@ Modular pipeline: deduplicate, subset fonts, strip unused objects, recompress im
 
 ## Edit
 Three sub-tools, all in the Workspace:
-- **Forms**: fill out / flatten AcroForm fields.
+- **Forms**: fill out / flatten AcroForm fields. Typed AcroForm values stay when you switch to another sub-tool and back. Every save writes all changed values, not only the newest.
+  - A scanned form has no AcroForm fields. **Find fields** detects the empty cells and lines of the page: one field per visible table cell. A cell whose printed label leaves no room to write (for example "Name:" or a column header) is not a field. A cell with a label and a wide empty part stays a field.
+  - Values you type stay on the page in every tool and sub-tool until you save them.
+  - **Save filled copy** writes each value as a FreeText annotation with an appearance stream (`/AP`). The values are not flattened and are not AcroForm values; any PDF reader shows them. After a save the workspace shows the saved copy, and cells that hold a saved value show as filled. A later save starts from that saved copy, so all values stay. The saved copy is replaced only after the new file is written completely.
 - **Annotations**: text notes, highlights, shapes, free-draw.
 - **Text**: real inline text editing of existing content. Replaces text with proper Type0 CIDFont embedding (preserves Slovak/Czech/German/etc. diacritics with no Standard-14 fallback).
 
