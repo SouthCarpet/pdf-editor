@@ -12,8 +12,8 @@ The PDF has a user-open password (Type B). Type it in the Unlock tool. For permi
 ## Compare reports false positives
 Whitespace-only diffs can appear when fonts re-render slightly differently between source and target. Increase the diff threshold in the Compare panel.
 
-## Convert to DOCX fails
-The app looks for LibreOffice at `<install folder>\resources\libreoffice\App\libreoffice\program\soffice.exe` (`%LOCALAPPDATA%\Programs\PDF Editor\...` for the setup, `%ProgramFiles%\PDF Editor\...` for the old MSI). Neither the setup nor the MSI ships this tree yet, so Office conversion fails in installed builds.
+## "Office conversion needs LibreOffice"
+PDF Editor does not bundle LibreOffice. Install it from <https://www.libreoffice.org/download/download-libreoffice/> (or `winget install --id TheDocumentFoundation.LibreOffice -e`), then try again. The app finds LibreOffice through the registry: the default value of `SOFTWARE\LibreOffice\UNO\InstallPath` (HKLM, its 32-bit `WOW6432Node` copy, or HKCU) must name a folder with `soffice.exe`. A developer build also accepts a portable tree at `<app folder>\resources\libreoffice\App\libreoffice\program\soffice.exe`. PDF/A export falls back to Ghostscript without LibreOffice.
 
 ## App crashes silently on launch
 Check `%APPDATA%\PdfEditor\PdfEditor\data\logs\` (Settings -> Open logs folder) for the daily `pdf-editor.<date>.log` files and the `<timestamp>.<kind>.txt` crash files. Most launch crashes are missing Microsoft Visual C++ Redistributable; reinstall it from the Microsoft download site.
@@ -26,6 +26,14 @@ The SQLite database lives at `%APPDATA%\PdfEditor\PdfEditor\data\app.db`. If it 
 
 ## Update check says "Cannot reach GitHub"
 The update check (Settings -> About, off by default) could not connect: no internet, a proxy, or a firewall. This is not "latest version". Try again later with **Check now**. "GitHub did not send a usable release" means GitHub answered, but not with a stable `vX.Y.Z` release (for example HTTP 403 when the hourly GitHub API limit is used up).
+
+Behind a corporate proxy the check and the download always fail: the app does not use the Windows proxy settings (see [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)). Download the setup and `SHA256SUMS.txt` in a browser instead.
+
+## Update stops before the setup starts
+**Update** refuses and says why when the latest release changed after the check (click **Check now** again), the release has no `pdf-editor-setup-X.Y.Z.exe` or no `SHA256SUMS.txt` line for it, the SHA-256 sum differs, the download is incomplete or larger than the release lists, a redirect leaves the GitHub hosts, the disk is full, or the file changed before the start. A refused file is deleted; nothing is started. The download folder is `%TEMP%\pdf-editor-update\`.
+
+## Uninstall left files behind
+The uninstaller removes your data only after a Yes, and never removes PDF files or files PDF Editor did not create, so their folders stay. A silent uninstall keeps all data. The data folders are listed in [docs/install-contract.md](../install-contract.md).
 
 ## Setup says the old MSI version is installed
 Uninstall PDF Editor in Settings -> Apps -> Installed apps (Windows asks for administrator rights), then run the setup again. The MSI uninstall keeps your data in `%APPDATA%\PdfEditor\PdfEditor\data` and `%APPDATA%\com.pdfeditor.app`.

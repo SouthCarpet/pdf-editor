@@ -148,7 +148,7 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 | **qpdf** (`qpdf.exe`) | 12.3.2+ | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
 | **Ghostscript** (`gswin64c.exe` + libs) | 10.x | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
 | **MuPDF tools** (`mutool.exe` + `libmupdf.dll`) | 1.24+ | AGPL-3.0 | ~15 MB | Companion k `mupdf-rs`. `mutool clean -gggg` = full GC + xref kompakcia + object/stream dedup (object-level cleanup). `-S` = font subsetting (EXPERIMENTAL — používať s opatrnosťou) |
-| **LibreOffice portable** (`soffice.exe` + libs) | 24.x | MPL 2.0 | ~150 MB | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export |
+| **LibreOffice** (`soffice.exe`), nie je zabalený (plán 119) | 24.x | MPL 2.0 | ~350 MB, inštaluje používateľ | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export. Aplikácia ho nájde v registri; inštalátor ponúkne inštaláciu cez winget (`docs/install-contract.md`) |
 | **Tesseract OCR** (`tesseract.exe` + `tesseract.dll`) | 5.x | Apache 2.0 | ~30 MB | OCR (alternatíva k Rust `tesseract` crate; zabalené pre robustnosť) |
 | **tessdata_best** (eng, slk, ces, deu) | latest | Apache 2.0 | ~200 MB | OCR jazykové modely (4 jazyky pre offline; user môže drag-drop ďalšie do `%AppData%\PdfEditor\tessdata-extra\`) |
 | **pdfcrack** (`pdfcrack.exe`) | 0.20+ | GPL-2.0+ | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
@@ -210,7 +210,7 @@ Pre referenciu, čo sme zámerne **odmietli** a prečo:
 - ❌ **Redux** — Zustand je menej boilerplate pre tento usecase
 - ❌ **Webpack** — Vite je rýchlejší, modernejší
 - ❌ **CRA (Create React App)** — deprecated v 2023
-- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania
+- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania. Výnimka (plán 119): `reqwest` iba v `src-tauri/src/services/release_check.rs`, kontrola a stiahnutie aktualizácie po súhlase
 - ❌ **GitHub Pages / cloud hosting** — localhost-only, žiadny server
 - ❌ **LLM SDKs** (OpenAI, Anthropic, atď.) — žiadny LLM
 - ❌ **Telemetria** (PostHog, Sentry, Mixpanel) — žiadne tracking

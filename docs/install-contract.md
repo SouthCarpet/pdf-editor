@@ -30,7 +30,7 @@ The MSI and the setup write the same per-user keys:
 
 | Extension | Key | Behaviour |
 |---|---|---|
-| `.pdf` | `HKCU\Software\Classes\.pdf\OpenWithProgids` value `PdfEditor.pdf.1` | "Open with" entry only; the default PDF app does not change |
+| `.pdf` | `HKCU\Software\Classes\.pdf\OpenWithProgids` value `PdfEditor.pdf.1` | "Open with" entry only. The setup never claims `.pdf` as the default and has no task for it; the user's default PDF app does not change |
 | `.pdf-pipeline` | `HKCU\Software\Classes\.pdf-pipeline` = `PdfEditor.pipeline.1` | Owned |
 | `.pdf-project` | `HKCU\Software\Classes\.pdf-project` = `PdfEditor.project.1` | Owned |
 
@@ -52,12 +52,20 @@ update, a reinstall and an MSI uninstall keep all of them.
 | Logs | `%APPDATA%\PdfEditor\PdfEditor\data\logs\`: daily `pdf-editor.<date>.log` (7 kept), crash files `<timestamp>.<kind>.txt` | `util/logging.rs`, `util/crash_logger.rs` |
 | Signatures | `%APPDATA%\com.pdfeditor.app\signatures\` (Tauri `app_data_dir`, from the identifier `com.pdfeditor.app`) | `commands/signatures.rs` |
 | WebView data | `%LOCALAPPDATA%\com.pdfeditor.app\EBWebView\` (WebView2 profile) | Tauri / WebView2 |
-| Frontend stores (in the WebView localStorage) | `pdf-editor-app` (theme, language, privacy flag, save folder, zoom, open-last, autosave interval), `pdf-editor-prefill`, `pdf-editor.recentFonts`, `pdf-editor.recentColors.<tool>`, `theme`, `onboarded` | `src/stores/appStore.ts`, `src/stores/prefillStore.ts`, `src/lib/recentFonts.ts`, `src/lib/recentColors.ts`, `src/components/ThemeProvider.tsx`, `src/components/Onboarding.tsx` |
+| Frontend stores (in the WebView localStorage) | `pdf-editor-app` (theme, language, save folder, zoom, open-last, autosave interval), `pdf-editor-prefill`, `pdf-editor.recentFonts`, `pdf-editor.recentColors.<tool>`, `theme`, `onboarded`, `i18nextLng` (the language detector cache) | `src/stores/appStore.ts`, `src/stores/prefillStore.ts`, `src/lib/recentFonts.ts`, `src/lib/recentColors.ts`, `src/components/ThemeProvider.tsx`, `src/components/Onboarding.tsx`, `src/i18n/index.ts` (i18next language detector, default `lookupLocalStorage`) |
 | Temporary files | `%TEMP%\pdf-editor-diff-<job>\` and pipeline work folders | `commands/compare.rs`, `pipeline/executor.rs` |
 
 `settings.json` key `update_check_enabled` (default `false`) is the stored
-consent for the update check. The app never overwrites a `settings.json` it
-cannot parse; it reads it as "checks off" and shows the write error.
+consent for the update check and the only network control. The app never
+overwrites a `settings.json` it cannot parse; it reads it as "checks off"
+and shows the write error.
+
+The "Strict privacy mode" switch and its keys are gone (plan 119): the
+switch never blocked a request. Migration: when `settings.json` still holds
+`privacy_strict: true`, the app sets `update_check_enabled` to `false` once
+and drops the key; `privacy_strict: false` is only dropped. The frontend
+drops `privacyStrict` from `pdf-editor-app` the next time it stores that
+blob.
 
 ## Runtime payload
 
@@ -76,12 +84,8 @@ cannot parse; it reads it as "checks off" and shows the write error.
 
 - **PDFium:** not needed. No code loads it (`git grep -i pdfium` finds no
   use in `src-tauri` or `scripts`). Rendering uses MuPDF (`mutool`).
-- **LibreOffice:** `sidecars/soffice.rs` expects
-  `{app}\resources\libreoffice\App\libreoffice\program\soffice.exe`. Neither
-  the MSI nor the setup ships it (`tauri.conf.json` has no resource for it,
-  and `src-tauri/resources/libreoffice/` holds only a placeholder). Office
-  conversion fails in every installed build until a later plan ships the
-  tree. Open question for the owner.
+- **LibreOffice:** not bundled (owner decision, ledger 9482). See
+  "LibreOffice" below.
 - **WebView2:** the setup checks the registry (`pv` under
   `EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`) and, after a
   Yes, downloads the Microsoft bootstrapper. A silent setup without WebView2
@@ -111,10 +115,68 @@ Behaviour when the setup starts:
    same version, reinstall (default Yes); newer version, downgrade (default
    No). A silent setup updates and reinstalls, and refuses a downgrade.
 3. **WebView2 check** as above.
+4. **LibreOffice check** after the files are installed (see
+   "LibreOffice" below).
 
 The uninstaller removes the program files, the shortcuts and the file
-association keys. It keeps all user data. Uninstall choices for user data
-come in the next lane of plan 119.
+association keys. It never claims or changes the default `.pdf` app. User
+data: see "Uninstall choices" below.
+
+## Uninstall choices
+
+An interactive uninstall asks two questions; both default to No:
+
+| Question | Part passed to `pdf-editor.exe --remove-user-data` | What goes |
+|---|---|---|
+| Remove your PDF Editor data too? | `app-data` | In `%APPDATA%\PdfEditor\PdfEditor\data`: the files `settings.json`, `app.db`, `app.db-wal`, `app.db-shm` and the folders `projects`, `pipeline-presets`, `tessdata-extra`, `thumbnails`, `logs`. The WebView2 profile `%LOCALAPPDATA%\com.pdfeditor.app\EBWebView` (it holds the frontend stores above). |
+| Remove your saved signatures too? | `signatures` | `%APPDATA%\com.pdfeditor.app\signatures` |
+
+Rules (`src-tauri/src/util/uninstall_data.rs`, tests in
+`uninstall_data_tests.rs` over an isolated tree):
+
+- A `*.pdf` file is never deleted, also inside the listed folders.
+  Exported PDFs saved anywhere else are never touched.
+- Nothing outside the list is touched. A folder that still holds a kept or
+  foreign file stays; empty folders up to (not including) `%APPDATA%` and
+  `%LOCALAPPDATA%` go.
+- A silent uninstall asks nothing, never runs the removal and keeps all
+  data. Two No answers keep all data too.
+- The uninstaller logs the exit code; a non-zero code shows a message with
+  the folder to clean by hand.
+- `%TEMP%` work folders and `%TEMP%\pdf-editor-update\` are not touched.
+
+## LibreOffice
+
+PDF Editor does not bundle LibreOffice. The app
+(`util/install_detect.rs` `find_libreoffice`, used by `sidecars/soffice.rs`)
+and the setup (`LibreOfficeInstalled` in `pdf-editor.iss`) use the same
+rule:
+
+1. Read the default value of each key, in this order:
+   `HKLM\SOFTWARE\LibreOffice\UNO\InstallPath` (64-bit view),
+   `HKLM\SOFTWARE\WOW6432Node\LibreOffice\UNO\InstallPath` (32-bit install),
+   `HKCU\SOFTWARE\LibreOffice\UNO\InstallPath` (per-user install).
+2. The value is the LibreOffice `program` folder. LibreOffice counts as
+   installed when `<that folder>\soffice.exe` exists.
+
+Before the registry, the app also accepts a portable tree at
+`<app folder>\resources\libreoffice\App\libreoffice\program\soffice.exe`
+(developer builds; the setup never ships it). When nothing is found, Office
+conversion fails with the error key `libreoffice_missing` and the download
+page `https://www.libreoffice.org/download/download-libreoffice/`. PDF/A
+export then uses Ghostscript.
+
+When LibreOffice is missing, an interactive setup asks after the file copy:
+"PDF Editor converts Office files with LibreOffice. It is not installed.
+Install it now? About 350 MB, needs internet and administrator rights."
+(default No). Yes runs
+`winget install --id TheDocumentFoundation.LibreOffice -e --accept-package-agreements --accept-source-agreements`
+when `%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe` exists (winget
+checks the manifest hash; the log keeps the exit code), otherwise it opens
+the download page through the shell's URL handler (`ShellExec`, never
+`cmd`). A failure shows a warning and never stops the install. A silent
+setup never installs LibreOffice. `src-tauri/tests/install_contract_test.rs`
+fails when the keys, `soffice.exe`, the URL or the winget id drift apart.
 
 ## Finding installed copies
 
@@ -147,4 +209,38 @@ With the consent off, no path sends a request. Only a stable tag `vX.Y.Z`
 or `X.Y.Z` that is numerically newer than the running version counts;
 pre-releases and drafts never count. A connection error and an unusable
 GitHub answer show as their own status, never as "latest version". The
-check downloads nothing; download and apply come in the next lane.
+check downloads nothing.
+
+## Update download and start
+
+Only after a click on **Update to X.Y.Z** in About, and only with
+`update_check_enabled` on (`src-tauri/src/services/update_install.rs`,
+commands `download_update` and `install_update`):
+
+1. The frontend asks about unsaved work first (the unsaved-changes dialog:
+   Save, Discard or Cancel), before the download and again before the
+   start.
+2. The app asks the releases API again. The tag must equal the tag of the
+   check (`UpdateCheck.tag`); otherwise `release_changed`.
+3. The release must hold the assets `pdf-editor-setup-X.Y.Z.exe` (exact
+   name from the tag) and `SHA256SUMS.txt`; otherwise `no_setup`. The
+   setup's listed `size` must be at most 512 MiB; otherwise `too_large`.
+4. Every URL, also every redirect target (at most 5), must be `https://`
+   on `api.github.com`, `github.com`, `objects.githubusercontent.com` or
+   `release-assets.githubusercontent.com`; otherwise `blocked_host`.
+5. `SHA256SUMS.txt` (at most 64 KiB) must hold a line for exactly that file
+   name; otherwise `checksum_missing`.
+6. The setup streams to `%TEMP%\pdf-editor-update\pdf-editor-setup-X.Y.Z.exe.part`.
+   More bytes than the listed size: `too_large`. Fewer bytes or a broken
+   transfer: `download_failed`. A write error (for example a full disk):
+   `disk_error`. A different SHA-256: `checksum_mismatch`. Each failure
+   deletes the partial file. A good file is renamed to
+   `pdf-editor-setup-X.Y.Z.exe`.
+7. `install_update` hashes that file again (`file_changed` when it
+   differs), starts it without silent switches, so the wizard asks the
+   user, and exits the app. It starts only the file that the download
+   verified, never a path from the frontend.
+
+The HTTP client stays in `release_check.rs` (`HttpDownload`), the only file
+`scripts/test-privacy.ps1` allows to use `reqwest`. The client uses no
+system proxy (`KNOWN_ISSUES.md`).

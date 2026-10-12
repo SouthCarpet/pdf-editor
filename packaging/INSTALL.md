@@ -69,8 +69,19 @@ The hash must equal the line in `SHA256SUMS.txt` of the same release.
 - **WebView2 missing:** the setup asks to download the Microsoft
   bootstrapper. A silent setup without WebView2 stops before it copies
   files.
-- **File associations:** `.pdf` in "Open with", `.pdf-pipeline` and
-  `.pdf-project` opened by PDF Editor; all under `HKCU`.
+- **File associations:** `.pdf` in "Open with" only (never the default
+  PDF app), `.pdf-pipeline` and `.pdf-project` opened by PDF Editor; all
+  under `HKCU`.
+- **LibreOffice missing** (registry rule in
+  [`docs/install-contract.md`](../docs/install-contract.md)): after the
+  files are installed, an interactive setup asks whether to install it
+  (default No; about 350 MB, needs internet and administrator rights). Yes
+  runs `winget install --id TheDocumentFoundation.LibreOffice -e
+  --accept-package-agreements --accept-source-agreements` and logs the exit
+  code, or opens the official download page in the default browser when
+  `%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe` does not exist. A
+  failure shows a warning and never stops the PDF Editor install. A silent
+  setup never installs LibreOffice.
 
 Silent install: `pdf-editor-setup-<version>.exe /SILENT` (or
 `/VERYSILENT`). Add `/LOG="<path>"` to keep the setup log.
@@ -84,9 +95,27 @@ Pass these to ISCC by hand, never for a release build:
 - `/DAppIdGuid=<guid>`: a throwaway AppId, so an acceptance test does not
   touch a real install.
 
+## Release
+
+`.github/workflows/release.yml` builds this setup on a pushed `vX.Y.Z` tag
+(and by hand), runs `packaging/check-release.mjs` and attaches the setup and
+`SHA256SUMS.txt` to a draft GitHub release. See
+[`docs/release-checklist.md`](../docs/release-checklist.md).
+
 ## Uninstall
 
 Settings > Apps > Installed apps > PDF Editor > Uninstall. The uninstaller
-removes the program files, the shortcuts and the file associations. Your
-data stay in `%APPDATA%\PdfEditor\PdfEditor\data`,
-`%APPDATA%\com.pdfeditor.app` and `%LOCALAPPDATA%\com.pdfeditor.app`.
+first asks two questions (both default No), then removes the program files,
+the shortcuts and the file associations:
+
+1. **Remove your PDF Editor data too?** Settings, database, projects,
+   pipeline presets, OCR languages, thumbnails, logs and the WebView data.
+2. **Remove your saved signatures too?** The signature images in
+   `%APPDATA%\com.pdfeditor.app\signatures`.
+
+The uninstaller runs `pdf-editor.exe --remove-user-data [app-data]
+[signatures]` for the parts you chose (`src-tauri/src/util/uninstall_data.rs`).
+PDF files and files PDF Editor did not create are never removed; a folder
+that still holds one stays. A silent uninstall (`unins000.exe /SILENT` or
+`/VERYSILENT`) asks nothing and keeps all data. The exact boundaries are in
+[`docs/install-contract.md`](../docs/install-contract.md).
