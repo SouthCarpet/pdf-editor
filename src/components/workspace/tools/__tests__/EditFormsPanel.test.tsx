@@ -21,11 +21,13 @@ vi.mock("@/bindings", () => ({
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
 import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
+import { useFormDrafts } from "@/stores/formDraftStore";
 
 describe("EditFormsPanel", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     resetFakeBridge();
+    useFormDrafts.setState({ byDoc: {} });
     await i18n.changeLanguage("en");
     mocks.readFormFieldsCmd.mockResolvedValue({
       status: "ok",
@@ -78,5 +80,52 @@ describe("EditFormsPanel", () => {
     expect(await screen.findByText("No native form fields found")).toBeInTheDocument();
     expect(screen.getByText(/empty boxes and lines in the page image/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Find fields" })).toBeInTheDocument();
+  });
+
+  // Plan 119 p1: switching the Edit sub-tool unmounts this panel. Typed
+  // values lived in its local state and were lost on the way to Text and
+  // back.
+  it("keeps typed values when the panel unmounts and mounts again", async () => {
+    const user = userEvent.setup();
+    const first = render(<EditFormsPanel docPath={"D:\\input\\form.pdf"} />);
+    const input = await screen.findByDisplayValue("Alice");
+    await user.clear(input);
+    await user.type(input, "Ľubica Šťastná");
+    first.unmount();
+
+    render(<EditFormsPanel docPath={"D:\\input\\form.pdf"} />);
+
+    expect(await screen.findByDisplayValue("Ľubica Šťastná")).toBeInTheDocument();
+    expect(screen.getByText("1 change")).toBeInTheDocument();
+  });
+
+  it("a second save sends every changed value, not only the newest", async () => {
+    mocks.readFormFieldsCmd.mockResolvedValue({
+      status: "ok",
+      data: [
+        { id: "1:0", name: "First", kind: "text", value: "", page_index: 0,
+          rect: [36, 700, 240, 724], options: [], read_only: false, required: false },
+        { id: "2:0", name: "Second", kind: "text", value: "", page_index: 0,
+          rect: [36, 650, 240, 674], options: [], read_only: false, required: false },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<EditFormsPanel docPath={"D:\\input\\form.pdf"} />);
+    await user.type(await screen.findByLabelText(/First/), "one");
+    await user.click(screen.getByRole("button", { name: "Save filled copy" }));
+    await waitFor(() => expect(mocks.setFormValuesCmd).toHaveBeenCalledTimes(1));
+
+    await user.type(screen.getByLabelText(/Second/), "two");
+    await user.click(screen.getByRole("button", { name: "Save filled copy" }));
+
+    await waitFor(() => expect(mocks.setFormValuesCmd).toHaveBeenCalledTimes(2));
+    expect(mocks.setFormValuesCmd).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        updates: [
+          { field_id: "1:0", value: "one" },
+          { field_id: "2:0", value: "two" },
+        ],
+      }),
+    );
   });
 });

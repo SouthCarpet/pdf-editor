@@ -10,6 +10,7 @@ import {
 import { useAutosave } from "@/hooks/useAutosave";
 import { pickSavePath } from "@/tauri/bridge";
 import { useWorkspace } from "@/stores/workspaceStore";
+import { NO_FORM_DRAFT, useFormDrafts } from "@/stores/formDraftStore";
 // Plan 050 task D2 (added block): scanned pages have no AcroForm, so the
 // empty state offers geometry detection instead of only an OCR hint.
 import { DetectFieldsSection } from "./DetectFieldsSection";
@@ -52,8 +53,15 @@ export function EditFormsPanel({
     path: docPath,
     fields: null,
   });
-  const [initialValues, setInitialValues] = useState<DraftValues>({});
-  const [values, setValues] = useState<DraftValues>({});
+  // Plan 119 p1: the values in the file stay local; what the user typed
+  // and what the last save wrote live in `formDraftStore`, so they survive
+  // this panel unmounting on a sub-tool switch.
+  const [fileValues, setFileValues] = useState<DraftValues>({});
+  const draft = useFormDrafts((state) => state.byDoc[docPath] ?? NO_FORM_DRAFT);
+  const setDraftValue = useFormDrafts((state) => state.setValue);
+  const markDraftSaved = useFormDrafts((state) => state.markSaved);
+  const values = useMemo(() => ({ ...fileValues, ...draft.values }), [fileValues, draft]);
+  const savedValues = useMemo(() => ({ ...fileValues, ...draft.saved }), [fileValues, draft]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -70,8 +78,7 @@ export function EditFormsPanel({
         return;
       }
       const seed = Object.fromEntries(result.data.map((field) => [field.id, field.value]));
-      setInitialValues(seed);
-      setValues(seed);
+      setFileValues(seed);
       setErr(null);
       setSaved(false);
       setFieldState({ path: docPath, fields: result.data });
@@ -84,18 +91,19 @@ export function EditFormsPanel({
   useAutosave(docPath, { tool: "forms", values }, 5000);
 
   const fields = fieldState.path === docPath ? fieldState.fields : null;
-  const dirtyUpdates = useMemo<FormValueUpdate[]>(() => {
-    if (!fields) return [];
-    return fields
-      .filter((field) => values[field.id] !== initialValues[field.id])
-      .map((field) => ({
-        field_id: field.id,
-        value: values[field.id] ?? null,
-      }));
-  }, [fields, initialValues, values]);
+  // Unsaved: changed since the last save. Sent on save: changed from the
+  // file, because every save writes a new copy of the same input file.
+  const dirtyUpdates = useMemo(
+    () => changedFields(fields, values, savedValues),
+    [fields, savedValues, values],
+  );
+  const updatesFromFile = useMemo(
+    () => changedFields(fields, values, fileValues),
+    [fields, fileValues, values],
+  );
 
   function updateValue(fieldId: string, value: string | null) {
-    setValues((current) => ({ ...current, [fieldId]: value }));
+    setDraftValue(docPath, fieldId, value);
     setSaved(false);
   }
 
@@ -113,14 +121,14 @@ export function EditFormsPanel({
       const result = await commands.setFormValuesCmd({
         input: docPath,
         output,
-        updates: dirtyUpdates,
+        updates: updatesFromFile,
         job_id: crypto.randomUUID(),
       });
       if (result.status === "error") {
         setErr(formatCommandError(result.error));
         return;
       }
-      setInitialValues(values);
+      markDraftSaved(docPath);
       setSaved(true);
     } finally {
       setBusy(false);
@@ -198,6 +206,17 @@ export function EditFormsPanel({
       )}
     </section>
   );
+}
+
+function changedFields(
+  fields: FormField[] | null,
+  values: DraftValues,
+  baseline: DraftValues,
+): FormValueUpdate[] {
+  if (!fields) return [];
+  return fields
+    .filter((field) => values[field.id] !== baseline[field.id])
+    .map((field) => ({ field_id: field.id, value: values[field.id] ?? null }));
 }
 
 function PanelTitle() {
