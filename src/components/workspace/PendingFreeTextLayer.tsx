@@ -18,6 +18,7 @@ import { Group, Rect, Text } from "react-konva";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
 import {
   freeTextRenderProps,
+  keepRectOnPage,
   resizeRectEdge,
   toPdfRect,
   type FreeTextAnnotation,
@@ -141,7 +142,7 @@ function PendingFreeTextItem({
       width: screen.width,
       height: screen.height,
     };
-    onRectChange(toPdfRect(next, viewport));
+    onRectChange(keepRectOnPage(toPdfRect(next, viewport), viewport.viewBox));
   }
 
   // R2 (plan 050 D2-UX-3b): resize from any of the four edges, not only
@@ -183,6 +184,7 @@ function PendingFreeTextItem({
   return (
     <Group>
       <Rect
+        name="pending-value"
         x={screen.x}
         y={screen.y}
         width={screen.width}
@@ -196,21 +198,32 @@ function PendingFreeTextItem({
         onTap={onSelect}
         onDragEnd={onDragEnd}
       />
-      <Text
-        x={screen.x + horizontalInsetPx}
-        y={screen.y + verticalOffsetPx}
-        width={Math.max(screen.width - 2 * horizontalInsetPx, 1)}
-        text={item.contents}
-        fontSize={fontSizePx}
-        fontFamily={standardFontPreviewFamily(item.style.font_family)}
-        fontStyle={fontStyle || "normal"}
-        textDecoration={textDecoration || undefined}
-        lineHeight={lineHeight}
-        fill={colorCss}
-        align={item.style.align}
-        wrap="none"
+      {/* Plan 119 p1b: a value longer than its cell is clipped to the cell,
+          like the saved appearance stream (its /BBox is the cell). */}
+      <Group
+        name="pending-value-clip"
+        clipX={screen.x}
+        clipY={screen.y}
+        clipWidth={screen.width}
+        clipHeight={screen.height}
         listening={false}
-      />
+      >
+        <Text
+          x={screen.x + horizontalInsetPx}
+          y={screen.y + verticalOffsetPx}
+          width={Math.max(screen.width - 2 * horizontalInsetPx, 1)}
+          text={item.contents}
+          fontSize={fontSizePx}
+          fontFamily={standardFontPreviewFamily(item.style.font_family)}
+          fontStyle={fontStyle || "normal"}
+          textDecoration={textDecoration || undefined}
+          lineHeight={lineHeight}
+          fill={colorCss}
+          align={item.style.align}
+          wrap="none"
+          listening={false}
+        />
+      </Group>
       {selected &&
         edgeHandles(screen).map(({ edge, x, y, axis }) => (
           <Rect

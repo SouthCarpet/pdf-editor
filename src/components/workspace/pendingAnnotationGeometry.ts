@@ -121,3 +121,26 @@ export function resizeRectEdge(
       return [x0, y0, x1, Math.max(valuePt, y0 + MIN_RESIZE_SIZE_PT)];
   }
 }
+
+/**
+ * Plan 119 p1b: moves a dragged value back onto the page, keeping its size
+ * (a value larger than the page is cut to the page). A value dropped partly
+ * off the page would be cut off in the saved file, or lost from view.
+ * `pageBox` is the viewport's `viewBox`, `[x0, y0, x1, y1]` in PDF points.
+ */
+export function keepRectOnPage(
+  rect: readonly [number, number, number, number],
+  pageBox: readonly number[],
+): [number, number, number, number] {
+  const [left, bottom, right, top] = [
+    Math.min(pageBox[0], pageBox[2]),
+    Math.min(pageBox[1], pageBox[3]),
+    Math.max(pageBox[0], pageBox[2]),
+    Math.max(pageBox[1], pageBox[3]),
+  ];
+  const width = Math.min(rect[2] - rect[0], right - left);
+  const height = Math.min(rect[3] - rect[1], top - bottom);
+  const x0 = Math.min(Math.max(rect[0], left), right - width);
+  const y0 = Math.min(Math.max(rect[1], bottom), top - height);
+  return [x0, y0, x0 + width, y0 + height];
+}
