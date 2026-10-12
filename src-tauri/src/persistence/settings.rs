@@ -68,3 +68,21 @@ pub async fn save_settings(path: &Path, settings: &AppSettings) -> Result<()> {
         .with_context(|| format!("write {}", path.display()))?;
     Ok(())
 }
+
+/// The stored update-check consent. A missing file is the default (off); a
+/// file that cannot be read or parsed also counts as off, so a broken
+/// settings file never lets a request through.
+pub async fn update_check_enabled(path: &Path) -> bool {
+    load_settings(path)
+        .await
+        .is_ok_and(|settings| settings.update_check_enabled)
+}
+
+/// Stores the update-check consent and keeps every other setting. Fails,
+/// and writes nothing, when the existing file cannot be parsed: a damaged
+/// file is never overwritten silently.
+pub async fn set_update_check_enabled(path: &Path, enabled: bool) -> Result<()> {
+    let mut settings = load_settings(path).await?;
+    settings.update_check_enabled = enabled;
+    save_settings(path, &settings).await
+}

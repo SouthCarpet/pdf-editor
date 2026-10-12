@@ -141,7 +141,7 @@ Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bum
 
 ## 4. Sidecar binárky (zabaľované do inštalátora)
 
-Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do `.msi` cez `tauri.conf.json` `bundle.externalBin`.
+Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do per-user inštalátora (Inno Setup 6, `packaging/payload.json`) v rovnakom rozložení ako staré MSI cez `tauri.conf.json` `bundle.externalBin`.
 
 | Binárka | Verzia | Licencia | Veľkosť | Použitie |
 |---|---|---|---|---|
@@ -165,7 +165,8 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 | `rustup` | latest | Rust toolchain manager |
 | `node` | 20.19+ LTS | TypeScript / Vite runtime (Vite 6 minimum) |
 | `tauri-cli` | 2.x | `tauri dev`, `tauri build` |
-| `wix` | 4.x | MSI generation |
+| Inno Setup | 6.x | Per-user inštalátor (`packaging/build-installer.ps1`, plán 119) |
+| `wix` | 3.14 | Staré MSI (`pnpm tauri build`) |
 | `pwsh` | 7+ | Build skripty (Windows-friendly) |
 
 ## 6. CI / linting / formátovanie
@@ -185,11 +186,11 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 - **OS:** Windows 10 21H2+ alebo Windows 11
 - **Architecture:** x64
-- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10 fallback inštalácia v MSI ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
+- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10: inštalátor ju po súhlase stiahne, ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
 - **Disk:** ~480 MB pre app + dáta v `%AppData%\PdfEditor\`
 - **RAM:** 4 GB minimum, 8 GB odporúčané (OCR a veľké PDF benefity)
 - **CPU:** ľubovoľný x64 z posledných 8 rokov; Tesseract a Ghostscript sú CPU-bound
-- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline
+- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline. Jediná požiadavka je voliteľná kontrola novej verzie na GitHube (predvolene vypnutá, plán 119)
 
 ## 8. Licencie zhrnutie
 

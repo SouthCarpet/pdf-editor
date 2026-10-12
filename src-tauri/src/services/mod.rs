@@ -16,6 +16,7 @@ pub mod pdf_reader;
 pub mod pdf_renderer;
 #[cfg(windows)]
 pub mod rapidocr;
+pub mod release_check;
 pub mod text_edit;
 pub mod text_extractor;
 pub mod text_style;

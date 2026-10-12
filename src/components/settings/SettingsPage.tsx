@@ -12,8 +12,8 @@ export function SettingsPage() {
       <h1 className="text-2xl font-bold text-balance">{t("title")}</h1>
       <GeneralSettings />
       <SavingOpeningSettings />
-      <BuildInfoSettings />
       <OcrLanguagesSettings />
+      <BuildInfoSettings />
     </div>
   );
 }

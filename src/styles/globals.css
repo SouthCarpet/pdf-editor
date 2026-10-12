@@ -154,20 +154,3 @@ select:-webkit-autofill {
   box-shadow: 0 0 0 1000px var(--color-control) inset;
   caret-color: var(--color-control-foreground);
 }
-
-@keyframes update-notice-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-0.25rem);
-  }
-}
-
-.update-notice-enter {
-  animation: update-notice-enter 180ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .update-notice-enter {
-    animation: none;
-  }
-}

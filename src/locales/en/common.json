@@ -17,15 +17,8 @@
   "running": "Running",
   "loading": "Loading",
   "settings": "Settings",
+  "settings_update_available": "Settings (a new version is available)",
   "language": "Language",
-  "update": {
-    "available": "A newer local build is available.",
-    "check_unavailable": "Update check unavailable: {{reason}}",
-    "launch_failed": "The updater could not start: {{reason}}",
-    "action": "Update",
-    "starting": "Starting…",
-    "dismiss": "Dismiss update notice"
-  },
   "theme": {
     "label": "Theme",
     "light": "Light",

@@ -13,13 +13,19 @@ The PDF has a user-open password (Type B). Type it in the Unlock tool. For permi
 Whitespace-only diffs can appear when fonts re-render slightly differently between source and target. Increase the diff threshold in the Compare panel.
 
 ## Convert to DOCX fails
-The LibreOffice tree may be missing or stale. Reinstall via the MSI. The tree is shipped at `%ProgramFiles%\PDF Editor\resources\libreoffice\` (or per-user equivalent).
+The app looks for LibreOffice at `<install folder>\resources\libreoffice\App\libreoffice\program\soffice.exe` (`%LOCALAPPDATA%\Programs\PDF Editor\...` for the setup, `%ProgramFiles%\PDF Editor\...` for the old MSI). Neither the setup nor the MSI ships this tree yet, so Office conversion fails in installed builds.
 
 ## App crashes silently on launch
-Check `%AppData%\PDF Editor\logs\` for the rotated tracing logs and the SEH crash log. Most launch crashes are missing Microsoft Visual C++ Redistributable; reinstall it from the Microsoft download site.
+Check `%APPDATA%\PdfEditor\PdfEditor\data\logs\` (Settings -> Open logs folder) for the daily `pdf-editor.<date>.log` files and the `<timestamp>.<kind>.txt` crash files. Most launch crashes are missing Microsoft Visual C++ Redistributable; reinstall it from the Microsoft download site.
 
 ## Pipeline runs hang
 A node may be waiting on a sidecar. Open Settings -> Diagnostics to see active sidecar PIDs. Cancel from the Pipeline run dialog; cancellation propagates to the running sidecars (kill_on_drop).
 
 ## Recent files don't appear
-The SQLite database lives at `%AppData%\PDF Editor\state.db`. If it gets corrupted, delete the file and restart, the app will recreate it (you'll lose recent files but no PDF content).
+The SQLite database lives at `%APPDATA%\PdfEditor\PdfEditor\data\app.db`. If it gets corrupted, delete the file and restart, the app will recreate it (you'll lose recent files but no PDF content).
+
+## Update check says "Cannot reach GitHub"
+The update check (Settings -> About, off by default) could not connect: no internet, a proxy, or a firewall. This is not "latest version". Try again later with **Check now**. "GitHub did not send a usable release" means GitHub answered, but not with a stable `vX.Y.Z` release (for example HTTP 403 when the hourly GitHub API limit is used up).
+
+## Setup says the old MSI version is installed
+Uninstall PDF Editor in Settings -> Apps -> Installed apps (Windows asks for administrator rights), then run the setup again. The MSI uninstall keeps your data in `%APPDATA%\PdfEditor\PdfEditor\data` and `%APPDATA%\com.pdfeditor.app`.

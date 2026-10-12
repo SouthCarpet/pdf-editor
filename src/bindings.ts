@@ -25,8 +25,16 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("open_logs_folder")),
-	checkForUpdate: () => __TAURI_INVOKE<VersionCheck>("check_for_update"),
-	launchUpdate: () => typedError<null, string>(__TAURI_INVOKE("launch_update")),
+	buildInfo: () => __TAURI_INVOKE<BuildInfo>("build_info"),
+	checkForUpdate: () => __TAURI_INVOKE<UpdateCheck>("check_for_update"),
+	getUpdateCheckEnabled: () => typedError<boolean, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("get_update_check_enabled")),
+	setUpdateCheckEnabled: (enabled: boolean) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("set_update_check_enabled", { enabled })),
 	mergePdfsCmd: (args: MergeArgs) => typedError<MergeResult, {
 	key: string,
 	data: unknown,
@@ -331,6 +339,15 @@ export type ApplyAnnotsArgs = {
 };
 
 export type BorderStyle = "solid" | "dashed" | "dotted";
+
+export type BuildInfo = {
+	/**  Release version of this build (`X.Y.Z`). */
+	version: string,
+	/**  Git commit the build was made from, or `unknown`. */
+	commit: string,
+	/**  The build had uncommitted changes. */
+	dirty: boolean,
+};
 
 export type CompareArgs = {
 	left: string,
@@ -1145,14 +1162,27 @@ export type UnlockArgs = {
 
 export type UnlockResult = { type: "ok"; output_paths: string[] } | { type: "password_required" };
 
-export type VersionCheck = {
-	embedded_commit: string,
-	embedded_dirty: boolean,
-	repo_head: string | null,
-	dirty: boolean,
-	behind: boolean,
-	error: string | null,
+export type UpdateCheck = {
+	status: UpdateStatus,
+	current_version: string,
+	/**  The latest stable release version (`X.Y.Z`, no `v`), when known. */
+	latest_version: string | null,
+	release_url: string | null,
+	/**  Error text for `ConnectionError` and `ResponseError`. */
+	detail: string | null,
 };
+
+export type UpdateStatus = 
+/**  The consent is off or cannot be read. No request was made. */
+"disabled" | 
+/**  The latest stable release is not newer than this build. */
+"up_to_date" | 
+/**  A newer stable release exists. */
+"available" | 
+/**  The request did not complete: offline, DNS, TLS or timeout. */
+"connection_error" | 
+/**  GitHub answered, but not with a usable stable release. */
+"response_error";
 
 export type VerticalAlign = "top" | "middle" | "bottom";
 
