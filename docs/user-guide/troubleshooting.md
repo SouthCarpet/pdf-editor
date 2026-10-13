@@ -32,3 +32,12 @@ A cell with a saved value shows as filled. A click on it opens the saved value f
 
 ## The end of a long value is missing
 A value longer than its cell is clipped at the cell edge, on the page and in the saved file, so it does not cover the next cell. Make the font smaller in the value controls, or drag the right edge of the value box wider.
+
+## A typed value does not show in the page thumbnails
+The thumbnails show the saved file only. A value that is not saved yet shows on the page in view and on the facing page of a book spread, not in the thumbnails. Save to see it in the thumbnails.
+
+## A radio choice does not show on the page before I save
+A typed AcroForm text, choice or checkbox value shows at its form field on the page. A radio group has one choice for several buttons, so the page does not show it before the save. The Forms panel shows the choice.
+
+## I cleared a saved value but the cell still looks used
+Save after you clear the text. The save deletes the saved value. If the cell still shows as filled, the clear is still unsaved: the toolbar Save button is active.
