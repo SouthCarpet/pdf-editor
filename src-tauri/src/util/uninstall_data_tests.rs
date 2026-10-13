@@ -569,7 +569,8 @@ fn folders_above_a_pinned_folder_cannot_be_renamed() {
 }
 
 /// Passes on 71cd597 too: the cleanup of `logs` never enters a subfolder.
-/// It guards that the handle-based walk keeps this rule.
+/// Since round p3f the pin of `logs` has no write sharing, so Windows also
+/// refuses the swap of the subfolder.
 #[test]
 fn a_child_folder_swapped_inside_logs_is_never_followed() {
     let tree = Tree::new();
@@ -582,17 +583,19 @@ fn a_child_folder_swapped_inside_logs_is_never_followed() {
 
     let report = remove_user_data(&tree.roots, choice(true, false));
 
-    assert_eq!(swap.swapped(), Some(true), "a child of logs is not pinned");
+    assert_eq!(
+        swap.swapped(),
+        Some(false),
+        "the pinned logs folder refuses the rename of its child"
+    );
     assert_eq!(snapshot(&outside), before, "link targets stay untouched");
     assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
-    assert!(
-        std::fs::symlink_metadata(&archive).is_ok(),
-        "the link stays"
-    );
+    assert!(std::fs::symlink_metadata(&archive).unwrap().is_dir());
 }
 
 /// Fails on 71cd597: the walk enters the junction and deletes the files
-/// outside.
+/// outside. Since round p3f Windows refuses the swap of a child of a
+/// pinned folder.
 #[test]
 fn a_webview_child_swapped_after_the_listing_is_never_followed() {
     let tree = Tree::new();
@@ -606,45 +609,38 @@ fn a_webview_child_swapped_after_the_listing_is_never_followed() {
 
     assert_eq!(
         swap.swapped(),
-        Some(true),
-        "a child is pinned only when entered"
+        Some(false),
+        "the pinned folder refuses the rename of its child"
     );
     assert_eq!(snapshot(&outside), before, "link targets stay untouched");
     assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
-    assert!(
-        std::fs::symlink_metadata(&default).is_ok(),
-        "the link stays"
-    );
 }
 
 /// Fails on 71cd597: `remove_file` deletes the link. The rule is that a
-/// link is never deleted and never followed: it stays, like a link that
-/// was already there at the listing.
+/// link is never deleted and never followed. Since round p3f the pin of
+/// `logs` has no write sharing, so Windows refuses to move a log aside to
+/// put a link at its name.
 #[cfg(windows)]
 #[test]
-fn a_log_swapped_for_a_symlink_after_the_listing_stays_and_is_not_followed() {
+fn a_log_cannot_be_swapped_for_a_symlink_while_logs_is_pinned() {
     let tree = Tree::new();
     let target = tree.outside().join("important.txt");
     write(&target, "foreign");
     let logs = tree.roots.app_data.join("logs");
     let log = logs.join("pdf-editor.2026-10-12.log");
-    let linked = Rc::new(Cell::new(None));
-    let (seen, link, to) = (linked.clone(), log.clone(), target.clone());
+    let renamed = Rc::new(Cell::new(None));
+    let (seen, link) = (renamed.clone(), log.clone());
     let _hook = test_hook::set(move |at, path| {
         if at == test_hook::LISTED && path == logs && seen.get().is_none() {
-            std::fs::rename(&link, link.with_extension("aside")).unwrap();
-            seen.set(Some(std::os::windows::fs::symlink_file(&to, &link).is_ok()));
+            let moved = std::fs::rename(&link, link.with_extension("aside"));
+            seen.set(Some(moved.is_ok()));
         }
     });
 
     let report = remove_user_data(&tree.roots, choice(true, false));
 
-    if linked.get() != Some(true) {
-        eprintln!("SKIPPED: this process cannot create symbolic links");
-        return;
-    }
+    assert_eq!(renamed.get(), Some(false), "the pinned folder refuses it");
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "foreign");
-    assert!(std::fs::symlink_metadata(&log).is_ok(), "the link stays");
     assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
 }
 

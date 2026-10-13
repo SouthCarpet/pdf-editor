@@ -153,15 +153,17 @@ Rules (`src-tauri/src/util/uninstall_data.rs`, tests in
   - Pin: before it deletes anything, the app opens every folder of the
     part and every folder between it and `%APPDATA%` / `%LOCALAPPDATA%`
     (`CreateFileW` with `FILE_FLAG_BACKUP_SEMANTICS |
-    FILE_FLAG_OPEN_REPARSE_POINT`, share mode read and write, no
-    `FILE_SHARE_DELETE`). On each handle it checks that the folder is a
+    FILE_FLAG_OPEN_REPARSE_POINT`, share mode read only: no
+    `FILE_SHARE_WRITE`, no `FILE_SHARE_DELETE`). On each handle it checks that the folder is a
     folder and not a reparse point (`GetFileInformationByHandleEx`,
     `FileAttributeTagInfo`) and that its real path
     (`GetFinalPathNameByHandleW`) is the expected path. The handles stay
     open until the part ends. While they are open, Windows refuses to
-    rename these folders and (NTFS) any folder above them, so none of them
-    can be swapped for a link; tests prove this with a rename between the
-    pin and the deletion.
+    rename these folders and (NTFS) any folder above them, and refuses a
+    second open of them with write access (sharing violation, os error 32),
+    so none of them can be swapped for a link, in place or by rename; tests
+    prove this with a rename and a write open between the pin and the
+    deletion.
   - Refusal: when one of these folders is a reparse point (junction,
     symbolic link, mount point), its real path is not the expected path, or
     Windows does not open it, the whole part is refused: nothing in it is
@@ -179,9 +181,14 @@ Rules (`src-tauri/src/util/uninstall_data.rs`, tests in
 - Paths longer than 260 characters work. A OneDrive placeholder is a
   reparse point, so it stays (see `KNOWN_ISSUES.md`).
 - Limits: `%APPDATA%` and `%LOCALAPPDATA%` themselves are used as Windows
-  gives them (a link there is followed). The refusal to rename a pinned
-  folder is tested on NTFS only (see `KNOWN_ISSUES.md`, "Limits of the link
-  protection").
+  gives them (a link there is followed). The refusal to rename or write-open
+  a pinned folder is tested on NTFS only (see `KNOWN_ISSUES.md`, "Limits of
+  the link protection").
+- Threat model: the pins protect against links and wrong paths that exist
+  before the uninstaller opens the folders, and against changes while it
+  holds them, as far as the Windows sharing rules allow. Another program
+  that runs under the same user account is outside this protection,
+  because Windows does not separate programs of one user.
 - Exit codes: 0 done, 1 a file could not be deleted, 2 no user folders,
   3 a part was refused (a link, a moved folder or a folder Windows does not
   open).
@@ -279,8 +286,9 @@ commands `download_update` and `install_update`):
    `release-assets.githubusercontent.com`; otherwise `blocked_host`.
 5. `SHA256SUMS.txt` (at most 64 KiB) must hold a line for exactly that file
    name; otherwise `checksum_missing`.
-6. The app pins `%TEMP%` (an open folder handle without
-   `FILE_SHARE_DELETE`, `src-tauri/src/util/pinned_dir.rs`) and makes a new
+6. The app pins `%TEMP%` (an open folder handle with share mode read only,
+   so no `FILE_SHARE_WRITE` and no `FILE_SHARE_DELETE`,
+   `src-tauri/src/util/pinned_dir.rs`) and makes a new
    folder `%TEMP%\pdf-editor-update-<random>\` in it (32 random hex digits,
    `DOWNLOAD_DIR_PREFIX`). A name that already exists, also as a link, is
    never used. It pins the new folder too and checks on that handle that it
@@ -288,7 +296,13 @@ commands `download_update` and `install_update`):
    `disk_error`. Both pins stay open through the download, the rename and
    the start, until the verified setup is dropped (a new download, or the
    app exits). While they are open, Windows refuses to rename or replace
-   either folder (tested on NTFS). The setup streams to
+   either folder (tested on NTFS). It also refuses a write open of `%TEMP%`.
+   The new download folder is the one exception: it has share mode read
+   and write, because Windows refuses the final rename into a folder that
+   is not shared for writing. That folder is empty only until the `.part`
+   file exists, and NTFS sets no reparse point on a folder that holds a
+   file (see `KNOWN_ISSUES.md`, "Limits of the link protection"). The setup
+   streams to
    `pdf-editor-setup-X.Y.Z.exe.part` in that folder, created as a new file
    with `FILE_FLAG_OPEN_REPARSE_POINT` (it fails when anything has that
    name) and checked on its handle. More bytes than the listed size:
@@ -308,6 +322,11 @@ commands `download_update` and `install_update`):
    verified, never a path from the frontend. Limit: the setup file itself
    is not locked between this hash and the start (`KNOWN_ISSUES.md`,
    "Limits of the link protection").
+   Threat model: the pins protect against links and wrong paths that exist
+   before the app opens the folders, and against changes while it holds
+   them, as far as the Windows sharing rules allow. Another program that
+   runs under the same user account is outside this protection, because
+   Windows does not separate programs of one user.
 
 The HTTP client stays in `release_check.rs` (`HttpDownload`), the only file
 `scripts/test-privacy.ps1` allows to use `reqwest`. The client uses no

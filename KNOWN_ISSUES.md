@@ -40,8 +40,19 @@ folders in `%TEMP%`, or run Windows Disk Cleanup or Storage Sense.
 **What happens.** The uninstall cleanup and the update download open each
 folder they use and keep it open, and check every folder and file on its
 open handle (`src-tauri/src/util/pinned_dir.rs`). Tests prove on NTFS that
-Windows then refuses to rename such a folder or a folder above it. Some
-limits stay:
+Windows then refuses to rename such a folder or a folder above it, and
+refuses to open it for writing (so nobody can set a link in place). This
+protects against links and wrong paths that exist before the app opens the
+folders, and against changes while it holds them, as far as the Windows
+sharing rules allow. Some limits stay:
+
+- Another program that runs under your own account is outside this
+  protection, because Windows does not separate programs of one user.
+- The new update download folder allows write sharing, because Windows
+  refuses the final rename into a folder that is not shared for writing.
+  It is empty only until the `.part` file exists, and NTFS sets no link on
+  a folder that holds a file. In that short moment a program of the same
+  user could still set a link. This is a known limit.
 
 - `%APPDATA%`, `%LOCALAPPDATA%` and `%TEMP%` themselves are used as Windows
   gives them. When one of them is a link, the app works in its target.

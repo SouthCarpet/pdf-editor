@@ -37,7 +37,9 @@
   reason. Each download goes to a new folder
   `%TEMP%\pdf-editor-update-<random>\`. The app keeps `%TEMP%` and that
   folder open (pinned) from the download to the start, so they cannot be
-  renamed or swapped for a link meanwhile. The `.part` file is created new
+  renamed or swapped for a link meanwhile (the pins refuse a write open
+  too; only the new download folder allows write sharing, for the final
+  rename). The `.part` file is created new
   and never through a link, and the rename through its handle never
   replaces anything at the final name.
 - The uninstaller asks two questions, both default No: remove the app data
@@ -48,7 +50,9 @@
   as a whole except PDF files. Every data folder and the folders above it
   stay open (pinned) while the uninstaller works, and each file is deleted
   through its own handle, so a folder swapped for a link meanwhile is
-  never followed. A data folder that is a link (or has a link above it) is
+  never followed (the pins share read only, so Windows refuses a second
+  open with write access, which closes the in-place junction swap). A data
+  folder that is a link (or has a link above it) is
   never followed: the uninstaller deletes nothing in that part and shows a
   message (exit code 3). A read-only app file is deleted. A silent
   uninstall keeps all data (`pdf-editor.exe --remove-user-data`,

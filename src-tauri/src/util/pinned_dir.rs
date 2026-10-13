@@ -6,8 +6,9 @@
 //!
 //! A `PinnedDir` is an open folder handle (`CreateFileW` through
 //! `std::fs::OpenOptions`, `FILE_FLAG_BACKUP_SEMANTICS |
-//! FILE_FLAG_OPEN_REPARSE_POINT`, share mode read and write, never
-//! `FILE_SHARE_DELETE`). While it is open, Windows refuses to rename that
+//! FILE_FLAG_OPEN_REPARSE_POINT`, share mode read only, never
+//! `FILE_SHARE_WRITE` or `FILE_SHARE_DELETE`, except the folder that
+//! `create_dir` makes). While it is open, Windows refuses to rename that
 //! folder, and NTFS also refuses to rename a folder above it (both
 //! tested). Each check reads the handle, never the path again:
 //! `GetFileInformationByHandleEx(FileAttributeTagInfo)` says folder or file
@@ -97,12 +98,16 @@ fn handle(file: &File) -> HANDLE {
 /// the empty folder through the pin). The share mode of every pin leaves
 /// out `FILE_SHARE_DELETE`, so no other opener can rename the folder.
 const DIR_ACCESS: u32 = FILE_LIST_DIRECTORY.0 | FILE_READ_ATTRIBUTES.0 | SYNCHRONIZE.0;
-const PIN_SHARE: u32 = FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0;
+const PIN_SHARE: u32 = FILE_SHARE_READ.0;
+/// Share mode of the pin of a folder the app renames a file into (`create_dir`):
+/// Windows opens that folder for writing itself during the rename, so the
+/// pin must allow write sharing. See `create_dir`.
+const RENAME_TARGET_SHARE: u32 = FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0;
 
-fn open_dir(path: &Path, access: u32, flags: u32) -> io::Result<File> {
+fn open_dir(path: &Path, access: u32, share: u32, flags: u32) -> io::Result<File> {
     std::fs::OpenOptions::new()
         .access_mode(access)
-        .share_mode(PIN_SHARE)
+        .share_mode(share)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | flags)
         .open(path)
 }
@@ -249,7 +254,7 @@ impl PinnedDir {
     /// Pins a base folder as Windows gives it (`%APPDATA%`, `%TEMP%`). A
     /// link at the base itself is followed: the pin holds its target.
     pub fn base(path: &Path) -> io::Result<Self> {
-        let file = open_dir(path, DIR_ACCESS, 0)?;
+        let file = open_dir(path, DIR_ACCESS, PIN_SHARE, 0)?;
         if attributes(&file)? & FILE_ATTRIBUTE_DIRECTORY.0 == 0 {
             return Err(io::Error::other(format!(
                 "{} is not a folder",
@@ -269,12 +274,12 @@ impl PinnedDir {
     /// works. Refuses a reparse point, a file and a real path that is not
     /// `<this folder>\name`.
     pub fn child(&self, name: &OsStr) -> Result<PinnedDir, Refused> {
-        self.open_child(name, DIR_ACCESS | DELETE.0)
+        self.open_child(name, DIR_ACCESS | DELETE.0, PIN_SHARE)
     }
 
-    fn open_child(&self, name: &OsStr, access: u32) -> Result<PinnedDir, Refused> {
+    fn open_child(&self, name: &OsStr, access: u32, share: u32) -> Result<PinnedDir, Refused> {
         let expected = self.path.join(name);
-        let file = open_dir(&expected, access, FILE_FLAG_OPEN_REPARSE_POINT.0)?;
+        let file = open_dir(&expected, access, share, FILE_FLAG_OPEN_REPARSE_POINT.0)?;
         let path = check(&file, &expected, true)?;
         Ok(PinnedDir { file, path })
     }
@@ -283,9 +288,14 @@ impl PinnedDir {
     /// access: Windows refuses a rename into a folder that another handle
     /// holds with `DELETE` access, so `rename_into` needs this form. Fails
     /// with `AlreadyExists` when anything has the name.
+    ///
+    /// Known limit: this pin allows write sharing, because Windows refuses a
+    /// rename into a folder that is not shared for writing. The folder is
+    /// empty only until the first file is created in it, and NTFS sets no
+    /// reparse point on a folder that holds a file.
     pub fn create_dir(&self, name: &OsStr) -> io::Result<PinnedDir> {
         std::fs::create_dir(self.path.join(name))?;
-        Ok(self.open_child(name, DIR_ACCESS)?)
+        Ok(self.open_child(name, DIR_ACCESS, RENAME_TARGET_SHARE)?)
     }
 
     /// Renames `file`, an open file, through its handle to `new_name` in
@@ -349,7 +359,7 @@ impl PinnedDir {
         let expected = self.path.join(name);
         let file = std::fs::OpenOptions::new()
             .access_mode(DELETE.0 | FILE_READ_ATTRIBUTES.0 | SYNCHRONIZE.0)
-            .share_mode(PIN_SHARE | FILE_SHARE_DELETE.0)
+            .share_mode(FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0 | FILE_SHARE_DELETE.0)
             .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | FILE_FLAG_OPEN_REPARSE_POINT.0)
             .open(&expected)?;
         check(&file, &expected, false)?;
@@ -378,5 +388,75 @@ impl PinnedDir {
     /// pin stays) when it still holds anything.
     pub fn remove_if_empty(&self) -> io::Result<()> {
         delete_on_close(&self.file)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const SHARING_VIOLATION: i32 = 32;
+
+    /// What the round-3 verifier probe did: a second opener asks for write
+    /// access to the folder (so it could set a reparse point in place).
+    fn open_for_write(path: &Path) -> io::Result<File> {
+        std::fs::OpenOptions::new()
+            .access_mode(GENERIC_WRITE)
+            .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE).0)
+            .custom_flags(FILE_FLAG_BACKUP_SEMANTICS.0 | FILE_FLAG_OPEN_REPARSE_POINT.0)
+            .open(path)
+    }
+
+    fn assert_sharing_violation(path: &Path) {
+        let error = open_for_write(path).unwrap_err();
+        assert_eq!(error.raw_os_error(), Some(SHARING_VIOLATION), "{error}");
+    }
+
+    #[test]
+    fn pinned_dir_refuses_a_write_open_of_a_base_and_a_child_pin() {
+        let tmp = TempDir::new().unwrap();
+        let base = PinnedDir::base(tmp.path()).unwrap();
+        assert_sharing_violation(tmp.path());
+
+        let created = base.create_dir("made".as_ref()).unwrap();
+        assert!(
+            open_for_write(created.path()).is_ok(),
+            "known limit: the rename target allows write sharing"
+        );
+
+        std::fs::create_dir(tmp.path().join("old")).unwrap();
+        let child = base.child("old".as_ref()).unwrap();
+        assert_sharing_violation(child.path());
+
+        drop((created, child, base));
+        assert!(
+            open_for_write(tmp.path()).is_ok(),
+            "the pin ends with its handle"
+        );
+    }
+
+    #[test]
+    fn pinned_dir_still_creates_renames_and_deletes_children() {
+        let tmp = TempDir::new().unwrap();
+        let base = PinnedDir::base(tmp.path()).unwrap();
+        let folder = base.create_dir("work".as_ref()).unwrap();
+
+        let mut part = folder.create_file("a.part".as_ref()).unwrap();
+        part.write_all(b"data").unwrap();
+        folder.rename_into(&part, "a.bin".as_ref()).unwrap();
+        drop(part);
+        assert_eq!(std::fs::read(folder.path().join("a.bin")).unwrap(), b"data");
+
+        folder.delete_file("a.bin".as_ref()).unwrap();
+        assert!(folder.entries().unwrap().is_empty());
+        drop(folder);
+        base.child("work".as_ref())
+            .unwrap()
+            .remove_if_empty()
+            .unwrap();
+        assert!(!tmp.path().join("work").exists());
     }
 }

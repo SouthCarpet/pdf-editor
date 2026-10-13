@@ -55,11 +55,16 @@ folders. One exception: the WebView2 profile folder `EBWebView` goes as a
 whole except its PDF files, also files that another program put there.
 Before it deletes anything, the uninstaller opens every data folder and
 every folder above it up to `%APPDATA%` / `%LOCALAPPDATA%` and keeps them
-open, so Windows refuses to rename or replace them while it works (tested
-on NTFS). It deletes each file through its own handle and never follows a
+open, so Windows refuses to rename or replace them, or to open them for
+writing, while it works (tested on NTFS). It deletes each file through its
+own handle and never follows a
 link. When a data folder is a link (junction or symbolic link) to another
 place, or Windows does not open it, the uninstaller deletes nothing in that
-part and says so. A silent uninstall keeps all data.
+part and says so. A silent uninstall keeps all data. This protects against
+links and wrong paths that exist before the uninstaller opens the folders,
+and against changes while it holds them, as far as the Windows sharing
+rules allow. Another program that runs under your own account is outside
+this protection, because Windows does not separate programs of one user.
 
 Build the setup yourself: [packaging/INSTALL.md](packaging/INSTALL.md).
 Known limits (proxy, LibreOffice, link protection):
@@ -84,7 +89,8 @@ about unsaved work first, then downloads `pdf-editor-setup-X.Y.Z.exe` and
 `SHA256SUMS.txt` from that release into a new folder
 `%TEMP%\pdf-editor-update-<random>\`. The app keeps `%TEMP%` and that folder
 open from the download to the start (or until it closes), so Windows
-refuses to rename or replace them meanwhile. The file is made new, never
+refuses to rename or replace them meanwhile (`%TEMP%` also refuses a write
+open). The file is made new, never
 through a link, and gets its final name only when nothing else has that
 name. The app checks the SHA-256 sum, hashes the file again and starts the
 setup with its wizard. PDF Editor then closes; the setup updates in place
@@ -93,7 +99,11 @@ host outside `api.github.com`, `github.com`, `objects.githubusercontent.com`
 and `release-assets.githubusercontent.com` (also after a redirect), a file
 larger than the release lists or than 512 MiB, an incomplete download and a
 wrong hash. The app uses no system proxy (see
-[KNOWN_ISSUES.md](KNOWN_ISSUES.md)).
+[KNOWN_ISSUES.md](KNOWN_ISSUES.md)). The protection of the download covers
+links and wrong paths that exist before the app opens the folders, and
+changes while it holds them, as far as the Windows sharing rules allow.
+Another program that runs under your own account is outside it, because
+Windows does not separate programs of one user.
 
 ## Build
 
