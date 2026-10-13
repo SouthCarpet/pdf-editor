@@ -187,6 +187,17 @@ export function EditFormsPanel({
           <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
             {t("forms.live_form_note")}
           </p>
+          {/* Plan 119 p1c: a page of this document may hold printed boxes
+              that are no form field (a scan appended to a form). */}
+          <DetectFieldsSection
+            docPath={docPath}
+            pageIndex={activePage}
+            fields={detectedFields}
+            onDetected={onDetectedFields ?? (() => {})}
+            autoDetectHandledRef={resolvedAutoDetectHandledRef}
+            pageSize={pageSize}
+            hasNativeFields
+          />
         </>
       )}
       {saved && (

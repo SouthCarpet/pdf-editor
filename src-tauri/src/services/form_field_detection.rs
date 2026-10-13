@@ -27,6 +27,10 @@ const VERTICAL_STROKE_TOLERANCE: u32 = 2;
 const BOX_EDGE_TOLERANCE: u32 = 3;
 const MIN_STROKE_OVERLAP: f32 = 0.8;
 const MIN_NESTED_AREA: f32 = 0.5;
+// Plan 119 p1c: a detected rectangle is dropped when native widgets cover at
+// least half of its area, the same half the nested-box rule asks. A small
+// widget inside a large cell (a checkbox in a corner) leaves the cell a field.
+const MIN_NATIVE_OVERLAP: f32 = MIN_NESTED_AREA;
 // Label cells (plan 119 p1, debug note 051). Ink in a horizontal run of
 // 30 px or more is a rule or an underscore run, not printed label text.
 // Fewer than 40 label-ink pixels is scan noise. A cell with label text is
@@ -110,6 +114,8 @@ pub async fn detect_scanned_form_fields(
             detail: format!("page index {page_index} is outside the document"),
         })?;
     let geometry = page_geometry(&doc, page_id).map_err(AppError::from)?;
+    // Read before the annotations are dropped from the printed copy below.
+    let widgets = native_widget_rects(&doc, page_id);
     let printed_page = page_without_annotations(&mut doc, page_id, path, scratch.path())?;
 
     let raster_path = scratch.path().join("page.png");
@@ -123,7 +129,89 @@ pub async fn detect_scanned_form_fields(
         })?
         .into_luma8();
 
-    Ok(analyze_form_raster(&gray, geometry, page_index))
+    Ok(analyze_form_page(&gray, geometry, page_index, &widgets))
+}
+
+/// Plan 119 p1c: detection on a page of a document that may also hold
+/// native AcroForm fields. A printed box under a widget is that widget's
+/// cell, so it is not offered a second time.
+pub(crate) fn analyze_form_page(
+    gray: &GrayImage,
+    geometry: OcrPageGeometry,
+    page_index: u32,
+    widgets: &[[f32; 4]],
+) -> DetectionAnalysis {
+    let mut analysis = analyze_form_raster(gray, geometry, page_index);
+    analysis.fields = suppress_native_overlaps(analysis.fields, widgets);
+    analysis
+}
+
+/// The `/Rect` of every widget annotation on the page, corners put in order
+/// (`[x0, y0, x1, y1]`, PDF points, the space detected fields use).
+pub(crate) fn native_widget_rects(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+) -> Vec<[f32; 4]> {
+    let Ok(annotations) = doc.get_page_annotations(page_id) else {
+        return Vec::new();
+    };
+    annotations
+        .into_iter()
+        .filter(|annotation| {
+            annotation
+                .get(b"Subtype")
+                .and_then(lopdf::Object::as_name)
+                .ok()
+                == Some(b"Widget")
+        })
+        .filter_map(|annotation| annotation_rect(doc, annotation))
+        .collect()
+}
+
+fn annotation_rect(doc: &lopdf::Document, annotation: &lopdf::Dictionary) -> Option<[f32; 4]> {
+    let rect = doc
+        .dereference(annotation.get(b"Rect").ok()?)
+        .ok()?
+        .1
+        .as_array()
+        .ok()?;
+    let mut corners = [0.0_f32; 4];
+    if rect.len() != 4 {
+        return None;
+    }
+    for (corner, object) in corners.iter_mut().zip(rect) {
+        *corner = doc.dereference(object).ok()?.1.as_float().ok()?;
+    }
+    Some([
+        corners[0].min(corners[2]),
+        corners[1].min(corners[3]),
+        corners[0].max(corners[2]),
+        corners[1].max(corners[3]),
+    ])
+}
+
+fn suppress_native_overlaps(
+    fields: Vec<DetectedFormField>,
+    widgets: &[[f32; 4]],
+) -> Vec<DetectedFormField> {
+    fields
+        .into_iter()
+        .filter(|field| {
+            !widgets
+                .iter()
+                .any(|widget| mostly_covered(field.rect, *widget))
+        })
+        .collect()
+}
+
+fn mostly_covered(field: [f32; 4], widget: [f32; 4]) -> bool {
+    let width = field[2].min(widget[2]) - field[0].max(widget[0]);
+    let height = field[3].min(widget[3]) - field[1].max(widget[1]);
+    let field_area = (field[2] - field[0]) * (field[3] - field[1]);
+    width > 0.0
+        && height > 0.0
+        && field_area > 0.0
+        && width * height >= field_area * MIN_NATIVE_OVERLAP
 }
 
 /// Plan 119 p1: detection looks at the printed form, not at values typed
@@ -1155,5 +1243,141 @@ mod tests {
         );
 
         assert_eq!(rect, [140.0, 30.0, 180.0, 50.0]);
+    }
+
+    // Plan 119 p1c: a document can mix native AcroForm widgets and printed
+    // boxes that carry no widget (a scanned page appended to a form, or a
+    // form page with an unfilled-in table). The fixture has two pages of
+    // 1240 x 1754 pt: page 0 has a text widget, page 1 has none.
+    const WIDGET_RECT: [f32; 4] = [200.0, 1374.0, 600.0, 1454.0];
+
+    fn hybrid_fixture() -> (lopdf::Document, Vec<lopdf::ObjectId>) {
+        use lopdf::{dictionary, Object};
+        let mut doc = lopdf::Document::with_version("1.7");
+        let pages_id = doc.new_object_id();
+        let widget_page = doc.new_object_id();
+        let scanned_page = doc.new_object_id();
+        let widget = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "FT" => "Tx",
+            "T" => Object::string_literal("applicant"),
+            // Corners in reverse order: a /Rect is not always normalised.
+            "Rect" => vec![
+                WIDGET_RECT[2].into(), WIDGET_RECT[3].into(),
+                WIDGET_RECT[0].into(), WIDGET_RECT[1].into(),
+            ],
+        });
+        let note = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "FreeText",
+            "Rect" => vec![0.into(), 0.into(), 1240.into(), 1754.into()],
+        });
+        for (page_id, annots) in [(widget_page, vec![widget, note]), (scanned_page, vec![])] {
+            doc.set_object(
+                page_id,
+                dictionary! {
+                    "Type" => "Page",
+                    "Parent" => Object::Reference(pages_id),
+                    "MediaBox" => vec![0.into(), 0.into(), 1240.into(), 1754.into()],
+                    "Annots" => annots.into_iter().map(Object::Reference).collect::<Vec<_>>(),
+                },
+            );
+        }
+        doc.set_object(
+            pages_id,
+            dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(widget_page), Object::Reference(scanned_page)],
+                "Count" => 2,
+            },
+        );
+        let catalog = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => Object::Reference(pages_id),
+        });
+        doc.trailer.set("Root", Object::Reference(catalog));
+        (doc, vec![widget_page, scanned_page])
+    }
+
+    /// Detects on a raster that prints a box where the widget sits (200..600
+    /// by 300..380 px is PDF y 1374..1454) and a second box lower on the page.
+    fn detect_on_hybrid_page(page: usize) -> Vec<DetectedFormField> {
+        let (doc, pages) = hybrid_fixture();
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_box(&mut image, 200, 700, 600, 780);
+        let widgets = native_widget_rects(&doc, pages[page]);
+        let geometry = page_geometry(&doc, pages[page]).expect("fixture page geometry");
+        analyze_form_page(&image, geometry, page as u32, &widgets).fields
+    }
+
+    #[test]
+    fn native_widget_rects_lists_the_widgets_of_that_page_only() {
+        let (doc, pages) = hybrid_fixture();
+
+        assert_eq!(native_widget_rects(&doc, pages[0]), vec![WIDGET_RECT]);
+        assert!(native_widget_rects(&doc, pages[1]).is_empty());
+    }
+
+    #[test]
+    fn a_printed_box_under_a_native_widget_is_not_offered_again() {
+        let fields = detect_on_hybrid_page(0);
+
+        assert_eq!(fields.len(), 1, "only the box without a widget: {fields:?}");
+        assert!(
+            fields[0].rect[3] < 1100.0,
+            "the box left is the lower one (PDF y 974..1054), got {:?}",
+            fields[0].rect
+        );
+    }
+
+    #[test]
+    fn the_page_without_widgets_keeps_every_detected_box() {
+        let fields = detect_on_hybrid_page(1);
+
+        assert_eq!(fields.len(), 2, "no widget on this page: {fields:?}");
+    }
+
+    fn field_at(rect: [f32; 4]) -> DetectedFormField {
+        DetectedFormField {
+            id: "0:0".into(),
+            page_index: 0,
+            rect,
+            kind: DetectedFieldKind::Box,
+            confidence: 0.9,
+        }
+    }
+
+    #[test]
+    fn a_box_mostly_under_a_widget_is_dropped() {
+        // The widget covers 60 % of the box (240 of 400 pt of its width).
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[360.0, 1374.0, 900.0, 1454.0]],
+        );
+
+        assert!(kept.is_empty());
+    }
+
+    #[test]
+    fn a_box_that_only_touches_a_widget_stays() {
+        // The widget covers 25 % of the box, under the half the rule asks.
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[500.0, 1374.0, 900.0, 1454.0]],
+        );
+
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn a_large_cell_holding_a_small_checkbox_widget_stays() {
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[210.0, 1380.0, 226.0, 1396.0]],
+        );
+
+        assert_eq!(kept.len(), 1);
     }
 }

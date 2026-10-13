@@ -41,6 +41,9 @@ interface Props {
   // reset the dedup and re-ran detection for a request already consumed.
   autoDetectHandledRef: RefObject<number>;
   pageSize?: { width: number; height: number };
+  /** Plan 119 p1c: the document also has native form fields. Detection then
+   * looks for the printed boxes that are not one of them. */
+  hasNativeFields?: boolean;
 }
 
 const FALLBACK_PAGE_SIZE = { width: 0, height: 0 };
@@ -52,6 +55,7 @@ export function DetectFieldsSection({
   onDetected,
   autoDetectHandledRef,
   pageSize,
+  hasNativeFields = false,
 }: Props) {
   const { t, i18n } = useTranslation("workspace");
   const annotations = useAnnotations((s) => s.byDoc[docPath]);
@@ -150,9 +154,11 @@ export function DetectFieldsSection({
 
   return (
     <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-      <p className="text-xs font-medium">{t("forms.no_fields")}</p>
+      <p className="text-xs font-medium">
+        {t(hasNativeFields ? "forms.detect_hybrid_title" : "forms.no_fields")}
+      </p>
       <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
-        {t("forms.detect_explanation")}
+        {t(hasNativeFields ? "forms.detect_hybrid_explanation" : "forms.detect_explanation")}
       </p>
       <Button size="sm" className="w-full" disabled={busy !== null} onClick={onDetect}>
         {busy === "detect" ? t("forms.detecting") : t("forms.detect_fields")}
@@ -199,7 +205,9 @@ export function DetectFieldsSection({
             disabled={busy !== null || filledCount === 0}
             onClick={onSaveFilled}
           >
-            {busy === "save" ? t("forms.saving") : t("forms.detect_save")}
+            {busy === "save"
+              ? t("forms.saving")
+              : t(hasNativeFields ? "forms.detect_save_all" : "forms.detect_save")}
           </Button>
         </>
       )}
