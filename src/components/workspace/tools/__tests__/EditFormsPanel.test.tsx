@@ -22,6 +22,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 import { useFormDrafts } from "@/stores/formDraftStore";
+import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { useDocuments } from "@/stores/documentStore";
 
 const ORIGINAL = "D:\\input\\form.pdf";
@@ -117,6 +118,23 @@ describe("EditFormsPanel", () => {
 
     expect(await screen.findByDisplayValue("Ľubica Šťastná")).toBeInTheDocument();
     expect(screen.getByText("1 change")).toBeInTheDocument();
+  });
+
+  // Plan 119 p1c: a typed value is unsaved work for the close guard and
+  // carries its place, so the page can draw it.
+  it("records a typed value as unsaved work, with its place on the page", async () => {
+    const user = userEvent.setup();
+    render(<EditFormsPanel docPath={ORIGINAL} />);
+    const input = await screen.findByDisplayValue("Alice");
+
+    await user.type(input, "!");
+
+    expect(hasUnsavedWork(ORIGINAL)).toBe(true);
+    expect(useFormDrafts.getState().byDoc[ORIGINAL]?.places["10:0"]).toEqual({
+      kind: "text",
+      page_index: 0,
+      rect: [36, 700, 240, 724],
+    });
   });
 
   it("a second save sends every value that differs from the saved copy", async () => {

@@ -11,6 +11,13 @@ import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/
 import { clearAnnotationFieldLinks, linkAnnotationToFilledField } from "@/stores/annotationHistory";
 import { useAppStore } from "@/stores/appStore";
 import { useDocuments } from "@/stores/documentStore";
+import {
+  NO_FORM_DRAFT,
+  dirtyFormDraft,
+  hasDirtyFormDraft,
+  useFormDrafts,
+  type DirtyFormDraft,
+} from "@/stores/formDraftStore";
 import { filledMarksFor, useFilledFields } from "@/stores/filledFieldsStore";
 import { historyStore } from "@/stores/historyStore";
 import {
@@ -34,6 +41,9 @@ export interface AutosaveRecord {
   savedAt: number;
   annotations: ClientAnnotation[];
   filledMarks: SerializedFilledMarks;
+  /** Plan 119 p1c: AcroForm values typed and not yet saved. Absent in a
+   * record written before this field existed, and when nothing is typed. */
+  formDraft?: DirtyFormDraft;
 }
 
 /** Write when dirty and either forced (blur) or the interval has elapsed
@@ -88,13 +98,13 @@ export function serializePendingState(
   annotations: ClientAnnotation[],
   filledMarks: SerializedFilledMarks,
   savedAt: number,
+  formDraft?: DirtyFormDraft,
 ): AutosaveRecord {
-  return {
-    v: AUTOSAVE_VERSION,
-    savedAt,
-    annotations,
-    filledMarks,
-  };
+  const record: AutosaveRecord = { v: AUTOSAVE_VERSION, savedAt, annotations, filledMarks };
+  if (formDraft !== undefined && Object.keys(formDraft.values).length > 0) {
+    record.formDraft = formDraft;
+  }
+  return record;
 }
 
 export function parseAutosaveRecord(json: string): AutosaveRecord | null {
@@ -112,12 +122,36 @@ export function parseAutosaveRecord(json: string): AutosaveRecord | null {
   if (!obj.annotations.every(isClientAnnotation)) return null;
   const marks = parseFilledMarks(obj.filledMarks);
   if (marks === null) return null;
-  return {
-    v: AUTOSAVE_VERSION,
-    savedAt: obj.savedAt,
-    annotations: obj.annotations,
-    filledMarks: marks,
-  };
+  const formDraft = obj.formDraft === undefined ? undefined : parseFormDraft(obj.formDraft);
+  if (formDraft === null) return null;
+  return serializePendingState(obj.annotations, marks, obj.savedAt, formDraft);
+}
+
+/** Null when the stored draft is malformed: the whole record is then
+ * refused, like a malformed annotation. */
+function parseFormDraft(value: unknown): DirtyFormDraft | null {
+  if (!isPlainObject(value) || !isPlainObject(value.values) || !isPlainObject(value.places)) {
+    return null;
+  }
+  const { values, places } = value;
+  if (!Object.values(values).every((entry) => entry === null || typeof entry === "string")) {
+    return null;
+  }
+  if (!Object.values(places).every(isFormPlace)) return null;
+  return { values: values as DirtyFormDraft["values"], places: places as DirtyFormDraft["places"] };
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFormPlace(value: unknown): boolean {
+  return (
+    isPlainObject(value) &&
+    typeof value.kind === "string" &&
+    (value.page_index === null || typeof value.page_index === "number") &&
+    Array.isArray(value.rect)
+  );
 }
 
 function isClientAnnotation(value: unknown): value is ClientAnnotation {
@@ -176,12 +210,16 @@ export function restoreAutosaveRecord(docPath: string, record: AutosaveRecord): 
   historyStore.getState().clear(docPath);
   clearAnnotationFieldLinks(docPath);
   relinkFilledFields(docPath, record.filledMarks.fieldIdByClientId);
-  useDocuments.getState().markDirty(docPath, true);
+  if (record.formDraft !== undefined) useFormDrafts.getState().restore(docPath, record.formDraft);
+  // The typed form values count as unsaved work by themselves; the flag is
+  // for the annotation side of the record.
+  if (record.annotations.length > 0) useDocuments.getState().markDirty(docPath, true);
 }
 
 export function hasPendingFills(docPath: string): boolean {
   const annotations = useAnnotations.getState().byDoc[docPath] ?? NO_ANNOTATIONS;
   if (annotations.length > 0) return true;
+  if (hasDirtyFormDraft(docPath)) return true;
   return filledMarksFor(docPath).ids.size > 0;
 }
 
@@ -199,6 +237,7 @@ async function putPending(docPath: string, now: number): Promise<boolean> {
     useAnnotations.getState().byDoc[docPath] ?? NO_ANNOTATIONS,
     serializeFilledMarks(useFilledFields.getState().byDoc[docPath] ?? EMPTY_FILLED_FIELDS),
     now,
+    dirtyFormDraft(useFormDrafts.getState().byDoc[docPath] ?? NO_FORM_DRAFT),
   );
   const result = await commands.autosavePut(docPath, JSON.stringify(payload));
   return result.status === "ok";
@@ -243,6 +282,9 @@ export function useDocumentAutosave(docPath: string): void {
     const unsubFilled = useFilledFields.subscribe(() => {
       void write(false);
     });
+    const unsubDrafts = useFormDrafts.subscribe(() => {
+      void write(false);
+    });
     const intervalId = window.setInterval(() => {
       void write(false);
     }, 1000);
@@ -253,6 +295,7 @@ export function useDocumentAutosave(docPath: string): void {
     return () => {
       unsubAnn();
       unsubFilled();
+      unsubDrafts();
       window.clearInterval(intervalId);
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibility);

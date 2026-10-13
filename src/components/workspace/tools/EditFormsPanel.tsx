@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import {
-  commands,
-  type DetectedFormField,
-  type FormField,
-  type FormValueUpdate,
-} from "@/bindings";
+import { commands, type DetectedFormField, type FormField } from "@/bindings";
 import { useAutosave } from "@/hooks/useAutosave";
 import { latestSavedSource } from "@/lib/documentSave";
+import { changedFields, saveFormDraft } from "@/lib/formDraftSave";
 import { pickSavePath } from "@/tauri/bridge";
 import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
@@ -66,7 +62,6 @@ export function EditFormsPanel({
   );
   const draft = useFormDrafts((state) => state.byDoc[docPath] ?? NO_FORM_DRAFT);
   const setDraftValue = useFormDrafts((state) => state.setValue);
-  const markDraftSaved = useFormDrafts((state) => state.markSaved);
   const values = useMemo(() => ({ ...fileValues, ...draft.values }), [fileValues, draft]);
   const savedValues = useMemo(() => ({ ...fileValues, ...draft.saved }), [fileValues, draft]);
   const [busy, setBusy] = useState(false);
@@ -98,45 +93,37 @@ export function EditFormsPanel({
   useAutosave(docPath, { tool: "forms", values }, 5000);
 
   const fields = fieldState.path === docPath ? fieldState.fields : null;
-  // Unsaved: changed since the last save. Sent on save: changed from the
-  // file the save starts from (the latest saved copy).
+  // Unsaved: changed since the last save. `saveFormDraft` sends the values
+  // that differ from the file the save starts from (the latest saved copy).
   const dirtyUpdates = useMemo(
     () => changedFields(fields, values, savedValues),
     [fields, savedValues, values],
   );
-  const updatesFromFile = useMemo(
-    () => changedFields(fields, values, fileValues),
-    [fields, fileValues, values],
-  );
 
-  function updateValue(fieldId: string, value: string | null) {
-    setDraftValue(docPath, fieldId, value);
+  function updateValue(field: FormField, value: string | null) {
+    setDraftValue(docPath, field.id, value, {
+      kind: field.kind,
+      page_index: field.page_index,
+      rect: field.rect,
+    });
     setSaved(false);
   }
 
   async function onSave() {
     if (dirtyUpdates.length === 0) return;
-    // Plan 119 p1b: what this save writes. A value typed while it writes is
-    // not in the file and stays unsaved.
-    const written = values;
     setBusy(true);
     setErr(null);
     setSaved(false);
     try {
       const output = await saveOutputPath(docPath);
       if (!output) return;
-      const result = await commands.setFormValuesCmd({
-        input: latestSavedSource(docPath),
-        output,
-        updates: updatesFromFile,
-        job_id: crypto.randomUUID(),
-      });
-      if (result.status === "error") {
+      // Plan 119 p1b: the save writes the values typed when it starts. A
+      // value typed while it writes is not in the file and stays unsaved.
+      const result = await saveFormDraft(docPath, latestSavedSource(docPath), output);
+      if (!result.ok) {
         setErr(formatCommandError(result.error));
         return;
       }
-      markDraftSaved(docPath, written);
-      useDocuments.getState().setSavedPath(docPath, output);
       setSaved(true);
     } finally {
       setBusy(false);
@@ -183,7 +170,7 @@ export function EditFormsPanel({
                 key={field.id}
                 field={field}
                 value={values[field.id] ?? null}
-                onChange={(value) => updateValue(field.id, value)}
+                onChange={(value) => updateValue(field, value)}
                 onSelectPage={onSelectPage}
               />
             ))}
@@ -225,17 +212,6 @@ async function saveOutputPath(docPath: string): Promise<string | null> {
     defaultPath: docPath.replace(/\.pdf$/i, ".filled.pdf"),
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
-}
-
-function changedFields(
-  fields: FormField[] | null,
-  values: DraftValues,
-  baseline: DraftValues,
-): FormValueUpdate[] {
-  if (!fields) return [];
-  return fields
-    .filter((field) => values[field.id] !== baseline[field.id])
-    .map((field) => ({ field_id: field.id, value: values[field.id] ?? null }));
 }
 
 function PanelTitle() {

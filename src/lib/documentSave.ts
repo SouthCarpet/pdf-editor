@@ -22,7 +22,9 @@ import { useFilledFields } from "@/stores/filledFieldsStore";
 import { keepFilledMarks } from "@/components/workspace/filledFieldsState";
 import { historyStore } from "@/stores/historyStore";
 import { usePrefillStore } from "@/stores/prefillStore";
+import { saveFormDraft } from "@/lib/formDraftSave";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
+import { hasDirtyFormDraft } from "@/stores/formDraftStore";
 
 /** Directory the save dialog should open in: the user's default folder when
  * set, otherwise the document's parent folder (today's behaviour). */
@@ -115,39 +117,64 @@ export async function saveDocument(
   options: SaveDocumentOptions = {},
 ): Promise<SaveOutcome> {
   const pending = useAnnotations.getState().byDoc[docId] ?? NO_ANNOTATIONS;
-  if (pending.length === 0) {
+  const formValuesTyped = hasDirtyFormDraft(docId);
+  if (pending.length === 0 && !formValuesTyped) {
     return hasUnsavedWork(docId) ? "nothing-to-save" : "saved";
   }
 
-  const existingPath = useDocuments.getState().documents.get(docId)?.savedPath ?? null;
-  let output = existingPath;
-  if (options.forcePrompt || !output) {
-    const sourcePath = existingPath ?? docId;
-    const dir = saveDialogDefaultDir(sourcePath, useAppStore.getState().defaultSaveFolder);
-    const picked = await pickSavePath({
-      defaultPath: joinDir(dir, suggestedSaveFileName(docId, existingPath)),
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-    });
-    if (!picked) return "cancelled";
-    output = picked;
+  const output = await chooseOutputPath(docId, options);
+  if (output === null) return "cancelled";
+
+  // Plan 119 p1c: typed AcroForm values go first. The annotations then start
+  // from the copy that holds them (`latestSavedSource`).
+  if (formValuesTyped) {
+    const saved = await saveFormDraft(docId, latestSavedSource(docId), output);
+    if (!saved.ok) return "failed";
+  }
+  if (pending.length > 0 && !(await savePendingAnnotations(docId, output, pending))) {
+    return "failed";
   }
 
+  // Plan 062 T4.3: a successful Uložiť / Uložiť ako makes the autosave
+  // record stale. Drop it even if the IPC call fails; the PDF is written.
+  void Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
+  // Plan 061 T1 fix wave (F2): this save flushes only the pending
+  // annotations and typed form values it just wrote. The `dirty` flag
+  // belongs to an in-progress Edit Text draft (`EditTextPanel` sets and
+  // clears it) - a save here must not hide that unrelated unsaved work.
+  return "saved";
+}
+
+/** The file to write: the path of an earlier save, or one the user picks.
+ * Null when the user closes the dialog without picking. */
+async function chooseOutputPath(
+  docId: DocId,
+  options: SaveDocumentOptions,
+): Promise<string | null> {
+  const existingPath = useDocuments.getState().documents.get(docId)?.savedPath ?? null;
+  if (!options.forcePrompt && existingPath) return existingPath;
+  const sourcePath = existingPath ?? docId;
+  const dir = saveDialogDefaultDir(sourcePath, useAppStore.getState().defaultSaveFolder);
+  return pickSavePath({
+    defaultPath: joinDir(dir, suggestedSaveFileName(docId, existingPath)),
+    filters: [{ name: "PDF", extensions: ["pdf"] }],
+  });
+}
+
+async function savePendingAnnotations(
+  docId: DocId,
+  output: string,
+  pending: readonly ClientAnnotation[],
+): Promise<boolean> {
   const written = await applyAnnotationsCopy(docId, output, pending);
-  if (written === null) return "failed";
+  if (written === null) return false;
 
   // Plan 062 T6.2: a successful save is the moment this fill becomes "the last fill".
   usePrefillStore.getState().recordFill(docId, pending);
 
   useDocuments.getState().setSavedPath(docId, output);
   keepUnwrittenWork(docId, pending, written);
-  // Plan 062 T4.3: a successful Uložiť / Uložiť ako makes the autosave
-  // record stale. Drop it even if the IPC call fails; the PDF is written.
-  void Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
-  // Plan 061 T1 fix wave (F2): this save flushes only the pending
-  // annotations it just wrote. The `dirty` flag belongs to an in-progress
-  // Edit Text draft (`EditTextPanel` sets and clears it) - a save here must
-  // not hide that unrelated unsaved work.
-  return "saved";
+  return true;
 }
 
 /**

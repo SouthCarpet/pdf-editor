@@ -11,9 +11,12 @@ import { useDocuments } from "@/stores/documentStore";
 import { historyStore } from "@/stores/historyStore";
 import { useAppStore } from "@/stores/appStore";
 import { useFilledFields } from "@/stores/filledFieldsStore";
+import { useFormDrafts, type FormPlace } from "@/stores/formDraftStore";
+import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { resetFakeBridge } from "@/test/fakeTauriBridge";
 
 const DOC = "A:\\scans\\hodiny.pdf";
+const FORM_PLACE: FormPlace = { kind: "text", page_index: 0, rect: [36, 700, 240, 724] };
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 
@@ -60,6 +63,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 
 import {
   autosaveScheduler,
+  hasPendingFills,
   parseAutosaveRecord,
   restoreAutosaveRecord,
   serializePendingState,
@@ -118,6 +122,63 @@ describe("serialiser round trip", () => {
     expect(parseAutosaveRecord("[]")).toBeNull();
     expect(parseAutosaveRecord(JSON.stringify({ tool: "forms", values: {} }))).toBeNull();
     expect(parseAutosaveRecord("{")).toBeNull();
+  });
+
+  // Plan 119 p1c: typed AcroForm values follow the annotations into the
+  // autosave record. A record written before this field existed still reads.
+  it("keeps the typed AcroForm values and their places", () => {
+    const formDraft = {
+      values: { "10:0": "Bob", "11:0": null },
+      places: { "10:0": FORM_PLACE, "11:0": FORM_PLACE },
+    };
+    const json = JSON.stringify(
+      serializePendingState([], { key: "", ids: [], fieldIdByClientId: {} }, 1, formDraft),
+    );
+    expect(parseAutosaveRecord(json)?.formDraft).toEqual(formDraft);
+  });
+
+  it("reads a record that has no formDraft", () => {
+    const json = JSON.stringify(
+      serializePendingState([], { key: "", ids: [], fieldIdByClientId: {} }, 1),
+    );
+    expect(parseAutosaveRecord(json)?.formDraft).toBeUndefined();
+  });
+
+  it("rejects a formDraft whose values are not strings or null", () => {
+    const record = serializePendingState([], { key: "", ids: [], fieldIdByClientId: {} }, 1);
+    const json = JSON.stringify({ ...record, formDraft: { values: { "10:0": 7 }, places: {} } });
+    expect(parseAutosaveRecord(json)).toBeNull();
+  });
+});
+
+describe("typed AcroForm values and autosave", () => {
+  beforeEach(() => {
+    useFormDrafts.setState({ byDoc: {} });
+    useAnnotations.setState({ byDoc: {}, mode: "highlight" });
+    useFilledFields.setState({ byDoc: {} });
+    useDocuments.setState({ documents: new Map(), activeDocId: null });
+    useDocuments.getState().add({ id: DOC, path: DOC, pageCount: 1, dirty: false });
+  });
+
+  it("a typed value is pending work, a saved one is not", () => {
+    expect(hasPendingFills(DOC)).toBe(false);
+    useFormDrafts.getState().setValue(DOC, "10:0", "Bob", FORM_PLACE);
+    expect(hasPendingFills(DOC)).toBe(true);
+    useFormDrafts.getState().markSaved(DOC, { "10:0": "Bob" });
+    expect(hasPendingFills(DOC)).toBe(false);
+  });
+
+  it("restore puts the typed values back as unsaved work", () => {
+    const record = serializePendingState([], { key: "", ids: [], fieldIdByClientId: {} }, 1, {
+      values: { "10:0": "Bob" },
+      places: { "10:0": FORM_PLACE },
+    });
+
+    restoreAutosaveRecord(DOC, record);
+
+    expect(useFormDrafts.getState().byDoc[DOC]?.values).toEqual({ "10:0": "Bob" });
+    expect(hasUnsavedWork(DOC)).toBe(true);
+    expect(useDocuments.getState().documents.get(DOC)?.dirty).toBe(false);
   });
 });
 
@@ -248,6 +309,7 @@ describe("useDocumentAutosave (Tauri commands mocked)", () => {
     commandFakes.autosavePut.mockResolvedValue({ status: "ok", data: null });
     commandFakes.autosaveGet.mockResolvedValue({ status: "ok", data: null });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
+    useFormDrafts.setState({ byDoc: {} });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     historyStore.setState({ byDoc: {} });
     useFilledFields.setState({ byDoc: {} });
@@ -287,6 +349,30 @@ describe("useDocumentAutosave (Tauri commands mocked)", () => {
     expect(parsed?.annotations[0].__clientId).toBe(
       useAnnotations.getState().byDoc[DOC][0].__clientId,
     );
+  });
+
+  // Plan 119 p1c: only the values no save wrote reach the record.
+  it("writes a typed AcroForm value while the document has no annotation", async () => {
+    useFormDrafts.getState().setValue(DOC, "10:0", "Bob", FORM_PLACE);
+    useFormDrafts.getState().setValue(DOC, "11:0", "Done", FORM_PLACE);
+    useFormDrafts.getState().markSaved(DOC, { "11:0": "Done" });
+    renderHook(() => useDocumentAutosave(DOC));
+
+    await vi.waitFor(() => expect(commandFakes.autosavePut).toHaveBeenCalled());
+
+    const [, json] = commandFakes.autosavePut.mock.calls[0] as [string, string];
+    expect(parseAutosaveRecord(json)?.formDraft).toEqual({
+      values: { "10:0": "Bob" },
+      places: { "10:0": FORM_PLACE },
+    });
+  });
+
+  it("writes when a value is typed after the hook mounted", async () => {
+    renderHook(() => useDocumentAutosave(DOC));
+    await act(async () => {
+      useFormDrafts.getState().setValue(DOC, "10:0", "Bob", FORM_PLACE);
+    });
+    await vi.waitFor(() => expect(commandFakes.autosavePut).toHaveBeenCalledTimes(1));
   });
 
   it("writes on visibilitychange when the document becomes hidden", async () => {

@@ -15,11 +15,13 @@ import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { useFilledFields } from "@/stores/filledFieldsStore";
+import { hasDirtyFormDraft, useFormDrafts, type FormPlace } from "@/stores/formDraftStore";
 import { CloseGuardDialog } from "../CloseGuardDialog";
 
 const DOC_A = "A:\\docs\\a.pdf";
 const DOC_B = "A:\\docs\\b.pdf";
 const OUTPUT_PATH = "A:\\docs\\a.annotated.pdf";
+const PLACE: FormPlace = { kind: "text", page_index: 0, rect: [36, 700, 240, 724] };
 
 const NOTE: Annotation = {
   type: "note",
@@ -36,6 +38,8 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
   autosaveDelete: vi.fn(),
+  readFormFieldsCmd: vi.fn(),
+  setFormValuesCmd: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -69,6 +73,24 @@ describe("CloseGuardDialog - window scope", () => {
     tauriWindow.close.mockClear();
     commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.readFormFieldsCmd.mockResolvedValue({
+      status: "ok",
+      data: [
+        {
+          id: "10:0",
+          name: "Applicant",
+          kind: "text",
+          value: "Alice",
+          page_index: 0,
+          rect: [36, 700, 240, 724],
+          options: [],
+          read_only: false,
+          required: true,
+        },
+      ],
+    });
+    commandFakes.setFormValuesCmd.mockResolvedValue({ status: "ok", data: null });
+    useFormDrafts.setState({ byDoc: {} });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });
@@ -238,6 +260,54 @@ describe("CloseGuardDialog - window scope", () => {
     await user.click(await screen.findByRole("button", { name: "Neukladať" }));
 
     expect(useDocuments.getState().documents.get(DOC_A)?.dirty).toBe(false);
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+  });
+
+  // Plan 119 p1c: a typed AcroForm value is unsaved work. The close guard
+  // asks, saves it on Uložiť and drops it on Neukladať.
+  it("asks before closing when only an AcroForm value is typed", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    render(<CloseGuardDialog />);
+
+    const preventDefault = await triggerClose();
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(tauriWindow.close).not.toHaveBeenCalled();
+    expect(await screen.findByText("Neuložené zmeny")).toBeInTheDocument();
+  });
+
+  it("Uložiť writes the typed AcroForm value, then closes", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Uložiť" }));
+
+    await waitFor(() => expect(commandFakes.setFormValuesCmd).toHaveBeenCalledTimes(1));
+    expect(commandFakes.setFormValuesCmd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: DOC_A,
+        output: OUTPUT_PATH,
+        updates: [{ field_id: "10:0", value: "Bob" }],
+      }),
+    );
+    expect(hasDirtyFormDraft(DOC_A)).toBe(false);
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+  });
+
+  it("Neukladať drops the typed AcroForm value and closes", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Neukladať" }));
+
+    expect(commandFakes.setFormValuesCmd).not.toHaveBeenCalled();
+    expect(hasDirtyFormDraft(DOC_A)).toBe(false);
+    expect(useFormDrafts.getState().byDoc[DOC_A]).toBeUndefined();
     await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
   });
 

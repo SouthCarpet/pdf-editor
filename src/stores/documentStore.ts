@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useFormDrafts } from "./formDraftStore";
 
 export type DocId = string;
 
@@ -51,7 +52,9 @@ export const useDocuments = create<DocState>((set) => ({
       if (d) m.set(id, { ...d, savedPath: path, savedRevision: (d.savedRevision ?? 0) + 1 });
       return { documents: m };
     }),
-  close: (id) =>
+  close: (id) => {
+    // Plan 119 p1c: typed AcroForm values belong to the open document.
+    useFormDrafts.getState().clear(id);
     set((s) => {
       const m = new Map(s.documents);
       m.delete(id);
@@ -59,5 +62,6 @@ export const useDocuments = create<DocState>((set) => ({
         documents: m,
         activeDocId: s.activeDocId === id ? null : s.activeDocId,
       };
-    }),
+    });
+  },
 }));
