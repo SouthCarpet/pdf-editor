@@ -41,7 +41,10 @@
   too; only the new download folder allows write sharing, for the final
   rename). The `.part` file is created new
   and never through a link, and the rename through its handle never
-  replaces anything at the final name.
+  replaces anything at the final name. This protects against links and
+  wrong paths, not against another program that runs under your own
+  account, and it is tested on NTFS only (KNOWN_ISSUES, "Limits of the
+  link protection").
 - The uninstaller asks two questions, both default No: remove the app data
   (settings, database, projects, presets, OCR languages, thumbnails, logs,
   WebView data) and remove the saved signatures. Only files the app names
@@ -57,6 +60,9 @@
   message (exit code 3). A read-only app file is deleted. A silent
   uninstall keeps all data (`pdf-editor.exe --remove-user-data`,
   `src-tauri/src/util/uninstall_data.rs`, `src-tauri/src/util/pinned_dir.rs`).
+  As for the update download, this protects against links and wrong paths,
+  not against another program that runs under your own account, and it is
+  tested on NTFS only (KNOWN_ISSUES, "Limits of the link protection").
 - LibreOffice detection through the registry (app and setup share the
   rule). Without LibreOffice, Office conversion shows a message with the
   official download page; an interactive setup offers to install it with
