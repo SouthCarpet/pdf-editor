@@ -360,7 +360,8 @@ fn random_name() -> String {
 }
 
 /// The pinned download base and the new download folder in it. While this
-/// lives, Windows refuses to rename, delete or replace either folder.
+/// lives, Windows refuses to rename either folder, so neither can be
+/// swapped for a link.
 #[derive(Debug)]
 pub struct DownloadFolder {
     base: PinnedDir,

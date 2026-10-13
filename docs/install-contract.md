@@ -144,25 +144,53 @@ Rules (`src-tauri/src/util/uninstall_data.rs`, tests in
   of `projects`, `pipeline-presets`, `tessdata-extra`, `thumbnails`, `logs`
   and `signatures`. A folder that still holds anything stays; empty folders
   up to (not including) `%APPDATA%` and `%LOCALAPPDATA%` go.
-- Links: before it deletes anything, the app checks every folder of the
-  part. When the folder or a folder between it and `%APPDATA%` /
-  `%LOCALAPPDATA%` is a reparse point (junction, symbolic link, mount
-  point), or when its real path is not inside that base, the whole part is
-  refused: nothing in it is deleted and the exit code is 3. The other part
-  still runs.
+- Exception: `EBWebView` goes as a whole except `*.pdf` files, also files
+  that another program put there. Its subfolders go when they are empty.
+- A read-only app file is deleted.
+- Handles (`src-tauri/src/util/pinned_dir.rs`): every check reads an open
+  handle, and every deletion goes through a handle; no path is checked and
+  then used again.
+  - Pin: before it deletes anything, the app opens every folder of the
+    part and every folder between it and `%APPDATA%` / `%LOCALAPPDATA%`
+    (`CreateFileW` with `FILE_FLAG_BACKUP_SEMANTICS |
+    FILE_FLAG_OPEN_REPARSE_POINT`, share mode read and write, no
+    `FILE_SHARE_DELETE`). On each handle it checks that the folder is a
+    folder and not a reparse point (`GetFileInformationByHandleEx`,
+    `FileAttributeTagInfo`) and that its real path
+    (`GetFinalPathNameByHandleW`) is the expected path. The handles stay
+    open until the part ends. While they are open, Windows refuses to
+    rename these folders and (NTFS) any folder above them, so none of them
+    can be swapped for a link; tests prove this with a rename between the
+    pin and the deletion.
+  - Refusal: when one of these folders is a reparse point (junction,
+    symbolic link, mount point), its real path is not the expected path, or
+    Windows does not open it, the whole part is refused: nothing in it is
+    deleted and the exit code is 3. The other part still runs.
+  - Walk: a subfolder of `EBWebView` is pinned the same way when the walk
+    enters it. A file is opened with `DELETE` access and
+    `FILE_FLAG_OPEN_REPARSE_POINT`, checked on that handle (a file, not a
+    reparse point, the expected path) and deleted through it
+    (`SetFileInformationByHandle`, `FileDispositionInfoEx` with POSIX
+    semantics, or `FileDispositionInfo` where that is not supported). An
+    empty folder goes the same way through its own handle.
 - A reparse point inside a folder (a junction, a symbolic link, a OneDrive
-  placeholder) is never followed and never deleted. It stays, so its
-  folder stays too.
+  placeholder) is never followed and never deleted, also when it appears
+  after the folder was listed. It stays, so its folder stays too.
 - Paths longer than 260 characters work. A OneDrive placeholder is a
   reparse point, so it stays (see `KNOWN_ISSUES.md`).
+- Limits: `%APPDATA%` and `%LOCALAPPDATA%` themselves are used as Windows
+  gives them (a link there is followed). The refusal to rename a pinned
+  folder is tested on NTFS only (see `KNOWN_ISSUES.md`, "Limits of the link
+  protection").
 - Exit codes: 0 done, 1 a file could not be deleted, 2 no user folders,
-  3 a part was refused because of a link.
+  3 a part was refused (a link, a moved folder or a folder Windows does not
+  open).
 - A silent uninstall asks nothing, never runs the removal and keeps all
   data. Two No answers keep all data too.
 - The uninstaller logs the exit code; a non-zero code shows a message with
   the folder to clean by hand. Exit code 3 has its own message
-  (`RemoveDataRefused`): a data folder is a link, so nothing in that part
-  was deleted.
+  (`RemoveDataRefused`): a data folder is a link or Windows did not open
+  it, so nothing in that part was deleted.
 - `%TEMP%` work folders and the `%TEMP%\pdf-editor-update-<random>\` download
   folders are not touched.
 
@@ -251,23 +279,35 @@ commands `download_update` and `install_update`):
    `release-assets.githubusercontent.com`; otherwise `blocked_host`.
 5. `SHA256SUMS.txt` (at most 64 KiB) must hold a line for exactly that file
    name; otherwise `checksum_missing`.
-6. Each download makes a new folder `%TEMP%\pdf-editor-update-<random>\`
-   (32 random hex digits, `DOWNLOAD_DIR_PREFIX`). A name that already
-   exists, also as a link, is never used. After it is made, the folder must
-   be a real folder, not a reparse point; otherwise `disk_error`. The setup
-   streams to `pdf-editor-setup-X.Y.Z.exe.part` in that folder, opened as a
-   new file (it fails when anything has that name) that never follows a
-   link. More bytes than the listed size: `too_large`. Fewer bytes or a
-   broken transfer: `download_failed`. A write error (for example a full
-   disk): `disk_error`. A different SHA-256: `checksum_mismatch`. Each
-   failure deletes the partial file and the folder. A good file is renamed
-   to `pdf-editor-setup-X.Y.Z.exe`; the rename refuses (`disk_error`) when
-   anything, also a link, already has that name. The folder stays after
-   the start (see `KNOWN_ISSUES.md`).
+6. The app pins `%TEMP%` (an open folder handle without
+   `FILE_SHARE_DELETE`, `src-tauri/src/util/pinned_dir.rs`) and makes a new
+   folder `%TEMP%\pdf-editor-update-<random>\` in it (32 random hex digits,
+   `DOWNLOAD_DIR_PREFIX`). A name that already exists, also as a link, is
+   never used. It pins the new folder too and checks on that handle that it
+   is a folder, not a reparse point, with the expected real path; otherwise
+   `disk_error`. Both pins stay open through the download, the rename and
+   the start, until the verified setup is dropped (a new download, or the
+   app exits). While they are open, Windows refuses to rename or replace
+   either folder (tested on NTFS). The setup streams to
+   `pdf-editor-setup-X.Y.Z.exe.part` in that folder, created as a new file
+   with `FILE_FLAG_OPEN_REPARSE_POINT` (it fails when anything has that
+   name) and checked on its handle. More bytes than the listed size:
+   `too_large`. Fewer bytes or a broken transfer: `download_failed`. A
+   write error (for example a full disk): `disk_error`. A different
+   SHA-256: `checksum_mismatch`. Each failure deletes the partial file
+   through its handle and then the empty folder. A good file is renamed to
+   `pdf-editor-setup-X.Y.Z.exe` through the `.part` handle
+   (`SetFileInformationByHandle`, `FileRenameInfo`, `ReplaceIfExists`
+   false, target: the pinned folder's real path plus the name). When
+   anything, also a link or a folder, has that name, Windows refuses: the
+   result is `disk_error` and only the `.part` file is deleted. The folder
+   stays after the start (see `KNOWN_ISSUES.md`).
 7. `install_update` hashes that file again (`file_changed` when it
    differs), starts it without silent switches, so the wizard asks the
    user, and exits the app. It starts only the file that the download
-   verified, never a path from the frontend.
+   verified, never a path from the frontend. Limit: the setup file itself
+   is not locked between this hash and the start (`KNOWN_ISSUES.md`,
+   "Limits of the link protection").
 
 The HTTP client stays in `release_check.rs` (`HttpDownload`), the only file
 `scripts/test-privacy.ps1` allows to use `reqwest`. The client uses no

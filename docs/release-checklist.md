@@ -63,7 +63,9 @@ Use a test Windows user or a virtual machine. Keep the setup log:
      thumbnails, logs and WebView data go; signatures stay.
    - No, Yes: only the signatures go.
    - Yes, Yes: both go.
-   In every case PDF files and files PDF Editor did not create stay. A
+   In every case PDF files and files PDF Editor did not create stay,
+   except in the WebView2 profile `EBWebView`, which goes as a whole
+   (its PDF files stay). A
    silent uninstall (`unins000.exe /VERYSILENT`) asks nothing and keeps all
    data. The file associations are gone after each uninstall.
 8. **Publish.** Publish the draft release only after steps 1 to 7 pass,

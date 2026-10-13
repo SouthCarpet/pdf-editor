@@ -95,14 +95,14 @@ english.LibreOfficeWingetFailed=The LibreOffice installation did not finish (win
 slovak.LibreOfficeWingetFailed=Inštalácia LibreOffice sa nedokončila (kód winget %1). PDF Editor je nainštalovaný. Konverzia súborov Office bude fungovať po inštalácii LibreOffice z %2
 english.LibreOfficeBrowserFailed=Setup could not open the LibreOffice download page. PDF Editor is installed. Open this page yourself: %1
 slovak.LibreOfficeBrowserFailed=Inštalátor nemohol otvoriť stránku na stiahnutie LibreOffice. PDF Editor je nainštalovaný. Otvorte túto stránku sami: %1
-english.RemoveAppData=Remove your PDF Editor data too?%n%nThis removes the settings, the database (recent files, projects, pipeline presets, autosaved work, last session), your OCR languages, thumbnails, logs and the app's WebView data.%n%nPDF files and files that PDF Editor did not create stay. Choose No to keep the data for a later install.
-slovak.RemoveAppData=Odstrániť aj údaje PDF Editora?%n%nOdstránia sa nastavenia, databáza (nedávne súbory, projekty, predvoľby postupov, automaticky uložená práca, posledná relácia), vaše jazyky OCR, náhľady, záznamy a údaje WebView aplikácie.%n%nSúbory PDF a súbory, ktoré PDF Editor nevytvoril, zostanú. Ak chcete údaje zachovať pre ďalšiu inštaláciu, vyberte Nie.
+english.RemoveAppData=Remove your PDF Editor data too?%n%nThis removes the settings, the database (recent files, projects, pipeline presets, autosaved work, last session), your OCR languages, thumbnails, logs and the app's WebView data.%n%nPDF files and files that PDF Editor did not create stay. Only the WebView data folder goes as a whole (its PDF files stay). Choose No to keep the data for a later install.
+slovak.RemoveAppData=Odstrániť aj údaje PDF Editora?%n%nOdstránia sa nastavenia, databáza (nedávne súbory, projekty, predvoľby postupov, automaticky uložená práca, posledná relácia), vaše jazyky OCR, náhľady, záznamy a údaje WebView aplikácie.%n%nSúbory PDF a súbory, ktoré PDF Editor nevytvoril, zostanú. Iba priečinok s údajmi WebView sa odstráni celý (súbory PDF v ňom zostanú). Ak chcete údaje zachovať pre ďalšiu inštaláciu, vyberte Nie.
 english.RemoveSignatures=Remove your saved signatures too?%n%nThis removes the signature images in%n%1%n%nChoose No to keep them.
 slovak.RemoveSignatures=Odstrániť aj uložené podpisy?%n%nOdstránia sa obrázky podpisov v priečinku%n%1%n%nAk ich chcete zachovať, vyberte Nie.
 english.RemoveDataFailed=Some PDF Editor data could not be removed (exit code %1). Remove what is left yourself: %2
 slovak.RemoveDataFailed=Niektoré údaje PDF Editora sa nepodarilo odstrániť (kód %1). Zvyšok odstráňte sami: %2
-english.RemoveDataRefused=Some PDF Editor data was not removed (exit code %1). A data folder is a link (junction or symbolic link) to another place, so nothing in that part was deleted. Check the folders yourself: %2
-slovak.RemoveDataRefused=Niektoré údaje PDF Editora sa neodstránili (kód %1). Priečinok s údajmi je odkaz (junction alebo symbolický odkaz) na iné miesto, preto sa z tejto časti nič neodstránilo. Skontrolujte priečinky sami: %2
+english.RemoveDataRefused=Some PDF Editor data was not removed (exit code %1). A data folder is a link (junction or symbolic link) to another place, or Windows did not open it, so nothing in that part was deleted. Check the folders yourself: %2
+slovak.RemoveDataRefused=Niektoré údaje PDF Editora sa neodstránili (kód %1). Priečinok s údajmi je odkaz (junction alebo symbolický odkaz) na iné miesto alebo ho Windows neotvoril, preto sa z tejto časti nič neodstránilo. Skontrolujte priečinky sami: %2
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked

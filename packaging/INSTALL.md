@@ -116,8 +116,12 @@ the shortcuts and the file associations:
 The uninstaller runs `pdf-editor.exe --remove-user-data [app-data]
 [signatures]` for the parts you chose (`src-tauri/src/util/uninstall_data.rs`).
 PDF files and files PDF Editor did not create are never removed; a folder
-that still holds one stays. When a data folder is a link (junction or
-symbolic link) to another place, nothing in that part is removed and the
-uninstaller says so (exit code 3). A silent uninstall (`unins000.exe /SILENT` or
+that still holds one stays. One exception: the WebView2 profile
+`EBWebView` goes as a whole (its PDF files stay). The uninstaller keeps
+every data folder open while it works and deletes each file through its
+own handle, so it never follows a link. When a data folder is a link
+(junction or symbolic link) to another place, or Windows does not open
+it, nothing in that part is removed and the uninstaller says so (exit
+code 3). A silent uninstall (`unins000.exe /SILENT` or
 `/VERYSILENT`) asks nothing and keeps all data. The exact boundaries are in
 [`docs/install-contract.md`](../docs/install-contract.md).

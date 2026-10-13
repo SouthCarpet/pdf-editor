@@ -35,16 +35,24 @@
   with its wizard and closes the app. A changed tag, a wrong hash, an
   incomplete download, a full disk and a changed file stop it with a
   reason. Each download goes to a new folder
-  `%TEMP%\pdf-editor-update-<random>\`; the `.part` file is opened as a new
-  file and never through a link, and the rename never replaces a link.
+  `%TEMP%\pdf-editor-update-<random>\`. The app keeps `%TEMP%` and that
+  folder open (pinned) from the download to the start, so they cannot be
+  renamed or swapped for a link meanwhile. The `.part` file is created new
+  and never through a link, and the rename through its handle never
+  replaces anything at the final name.
 - The uninstaller asks two questions, both default No: remove the app data
   (settings, database, projects, presets, OCR languages, thumbnails, logs,
   WebView data) and remove the saved signatures. Only files the app names
   go (fixed names and name patterns); PDF files and every other file stay,
-  and so do their folders. A data folder that is a link (or has a link
-  above it) is never followed: the uninstaller deletes nothing in that
-  part and shows a message (exit code 3). A silent uninstall keeps all data
-  (`pdf-editor.exe --remove-user-data`, `src-tauri/src/util/uninstall_data.rs`).
+  and so do their folders. Exception: the WebView2 profile `EBWebView` goes
+  as a whole except PDF files. Every data folder and the folders above it
+  stay open (pinned) while the uninstaller works, and each file is deleted
+  through its own handle, so a folder swapped for a link meanwhile is
+  never followed. A data folder that is a link (or has a link above it) is
+  never followed: the uninstaller deletes nothing in that part and shows a
+  message (exit code 3). A read-only app file is deleted. A silent
+  uninstall keeps all data (`pdf-editor.exe --remove-user-data`,
+  `src-tauri/src/util/uninstall_data.rs`, `src-tauri/src/util/pinned_dir.rs`).
 - LibreOffice detection through the registry (app and setup share the
   rule). Without LibreOffice, Office conversion shows a message with the
   official download page; an interactive setup offers to install it with

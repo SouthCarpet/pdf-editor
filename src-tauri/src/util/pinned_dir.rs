@@ -7,9 +7,9 @@
 //! A `PinnedDir` is an open folder handle (`CreateFileW` through
 //! `std::fs::OpenOptions`, `FILE_FLAG_BACKUP_SEMANTICS |
 //! FILE_FLAG_OPEN_REPARSE_POINT`, share mode read and write, never
-//! `FILE_SHARE_DELETE`). While it is open, Windows refuses to rename or
-//! delete that folder, and NTFS also refuses to rename a folder above it
-//! (both tested). Each check reads the handle, never the path again:
+//! `FILE_SHARE_DELETE`). While it is open, Windows refuses to rename that
+//! folder, and NTFS also refuses to rename a folder above it (both
+//! tested). Each check reads the handle, never the path again:
 //! `GetFileInformationByHandleEx(FileAttributeTagInfo)` says folder or file
 //! and reparse point or not, `GetFinalPathNameByHandleW` gives the real
 //! path, which must equal the expected one. A reparse point (junction,
@@ -93,9 +93,9 @@ fn handle(file: &File) -> HANDLE {
     HANDLE(file.as_raw_handle())
 }
 
-/// Folder access of a pin. `DELETE` lets the owner remove the folder
-/// through the pin when it is empty; the missing `FILE_SHARE_DELETE` keeps
-/// every other opener from renaming or deleting it.
+/// Folder access of a pin (`child` adds `DELETE`, so the owner can remove
+/// the empty folder through the pin). The share mode of every pin leaves
+/// out `FILE_SHARE_DELETE`, so no other opener can rename the folder.
 const DIR_ACCESS: u32 = FILE_LIST_DIRECTORY.0 | FILE_READ_ATTRIBUTES.0 | SYNCHRONIZE.0;
 const PIN_SHARE: u32 = FILE_SHARE_READ.0 | FILE_SHARE_WRITE.0;
 

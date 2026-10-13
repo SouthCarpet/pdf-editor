@@ -26,12 +26,38 @@ the setup. Your data stay.
 `%TEMP%\pdf-editor-update-<random>\` with the setup (more than
 100 MiB). The app does not delete the folders of earlier updates.
 
-**Why.** The download folder has a random name and is always new, so no
-other program can put a link at its path (plan 119). The app deletes
-nothing in `%TEMP%` that it did not make in the same run.
+**Why.** The download folder has a random name and is always new. The app
+keeps it open from the download to the start, so while PDF Editor runs no
+other program can rename it or swap it for a link (plan 119). The app
+deletes nothing in `%TEMP%` that it did not make in the same run. While PDF
+Editor runs, you cannot delete the folder of the last download either.
 
-**Instead.** Delete the `pdf-editor-update-*` folders in `%TEMP%`, or run
-Windows Disk Cleanup or Storage Sense.
+**Instead.** Close PDF Editor, then delete the `pdf-editor-update-*`
+folders in `%TEMP%`, or run Windows Disk Cleanup or Storage Sense.
+
+## Limits of the link protection
+
+**What happens.** The uninstall cleanup and the update download open each
+folder they use and keep it open, and check every folder and file on its
+open handle (`src-tauri/src/util/pinned_dir.rs`). Tests prove on NTFS that
+Windows then refuses to rename such a folder or a folder above it. Some
+limits stay:
+
+- `%APPDATA%`, `%LOCALAPPDATA%` and `%TEMP%` themselves are used as Windows
+  gives them. When one of them is a link, the app works in its target.
+- The rename refusal is tested on NTFS only. On other file systems every
+  handle still has its real path checked when it opens.
+- Between the second SHA-256 check and the start of the setup, the setup
+  file itself is not locked. A program that runs as the same user could
+  change it in that moment.
+- The WebView2 profile `EBWebView` is deleted as a whole except PDF files,
+  also files that another program put there.
+
+**Why.** A program that runs as the same user has the same rights as PDF
+Editor. The app can stop a link from redirecting its own deletes and
+writes, but it cannot stop such a program from changing files directly.
+
+**Instead.** Nothing to do for normal use.
 
 ## Uninstall keeps data in linked or cloud folders
 
@@ -43,7 +69,12 @@ point, the uninstaller deletes nothing in that part and shows a message
 characters are no problem.
 
 **Why.** A link can point outside the app's folders. The uninstaller
-never follows one, so it cannot delete files of other programs.
+never follows one: it keeps every folder of the part open while it works,
+so no folder can be swapped for a link meanwhile, and it deletes each file
+through its own handle. A link that appears after the folder was listed
+stays too. So a link cannot make it delete files outside the app's
+folders. Inside `EBWebView` it deletes every file except PDF files (see
+"Limits of the link protection").
 
 **Instead.** Delete the data by hand. The paths are in
 `docs/install-contract.md`, "User data".
