@@ -80,6 +80,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only for the release gate in packaging/check-release.mjs.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: packaging
       - uses: actions/download-artifact@v8
         with:
           name: setup
@@ -87,6 +91,9 @@ jobs:
       # A new release starts as a draft: Michal publishes it after the
       # manual acceptance steps in docs/release-checklist.md. The app's
       # update check sees only published, non-pre-release releases.
+      # The gate prints create (no release) or upload (a draft) and stops
+      # the job when the release is published, so --clobber never replaces
+      # a published asset.
       - name: Attach the setup and SHA256SUMS.txt
         env:
           GH_TOKEN: ${{ github.token }}
@@ -95,9 +102,14 @@ jobs:
         run: |
           set -euo pipefail
           files=(assets/pdf-editor-setup-*.exe assets/SHA256SUMS.txt)
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "${files[@]}" --clobber
-          else
-            gh release create "$TAG" "${files[@]}" --draft --verify-tag \
-              --title "PDF Editor ${TAG#v}" --generate-notes
-          fi
+          state=$(gh release view "$TAG" --json isDraft 2>/dev/null || true)
+          action=$(node packaging/check-release.mjs --release-action "$state")
+          case "$action" in
+            upload)
+              gh release upload "$TAG" "${files[@]}" --clobber
+              ;;
+            create)
+              gh release create "$TAG" "${files[@]}" --draft --verify-tag \
+                --title "PDF Editor ${TAG#v}" --generate-notes
+              ;;
+          esac

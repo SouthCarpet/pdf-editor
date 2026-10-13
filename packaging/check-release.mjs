@@ -14,6 +14,13 @@
 // (src-tauri/src/services/update_install.rs).
 //
 // CLI: node packaging/check-release.mjs <repoRoot> <outDir> [tag]
+//
+// Release gate (the github-release job): the output of
+// gh release view <tag> --json isDraft (empty when there is no release) goes
+// to node packaging/check-release.mjs --release-action '<json>'. It prints
+// create (no release yet: make a draft) or upload (a draft: replace its
+// assets). A published release, or an answer it cannot read, stops the job
+// with exit code 1, so --clobber never touches a published release.
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -56,12 +63,34 @@ export function checkRelease(repoRoot, outDir, tag) {
   return { version, setup, sha256: actual };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const repoRoot = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
-  const outDir = resolve(process.argv[3] ?? join(repoRoot, "packaging", "output"));
+/** `create`, `upload`, or an error for a published or unreadable release. */
+export function releaseAction(viewJson) {
+  if (viewJson.trim() === "") return "create";
+  let release;
   try {
-    const report = checkRelease(repoRoot, outDir, process.argv[4] ?? "");
-    process.stdout.write(`${JSON.stringify(report)}\n`);
+    release = JSON.parse(viewJson);
+  } catch {
+    throw new Error(`The release check cannot read the gh answer: ${viewJson}`);
+  }
+  if (release?.isDraft !== true) {
+    throw new Error(
+      "The release for this tag is published. The workflow never replaces published assets; make a new version.",
+    );
+  }
+  return "upload";
+}
+
+/** The text the CLI prints for `argv`; throws on a failed check. */
+function runCli(argv) {
+  if (argv[2] === "--release-action") return `${releaseAction(argv[3] ?? "")}\n`;
+  const repoRoot = resolve(argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
+  const outDir = resolve(argv[3] ?? join(repoRoot, "packaging", "output"));
+  return `${JSON.stringify(checkRelease(repoRoot, outDir, argv[4] ?? ""))}\n`;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    process.stdout.write(runCli(process.argv));
   } catch (error) {
     process.stderr.write(`${error.message}\n`);
     process.exit(1);

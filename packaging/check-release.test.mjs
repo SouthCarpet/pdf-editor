@@ -1,10 +1,14 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkRelease, checkTag, parseSums } from "./check-release.mjs";
+import { checkRelease, checkTag, parseSums, releaseAction } from "./check-release.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 const SETUP = "pdf-editor-setup-1.2.0.exe";
 const SETUP_BYTES = "pretend setup";
@@ -100,5 +104,55 @@ describe("check-release", () => {
       "exactly one line",
     );
     expect(() => parseSums(`${hash.toUpperCase()}  ${SETUP}\n`, SETUP)).toThrow("exactly one line");
+  });
+});
+
+describe("release action for an existing GitHub release", () => {
+  it("creates a draft when no release has the tag", () => {
+    expect(releaseAction("")).toBe("create");
+    expect(releaseAction("  \n")).toBe("create");
+  });
+
+  it("replaces the assets of a draft release", () => {
+    expect(releaseAction('{"isDraft":true}')).toBe("upload");
+  });
+
+  it("stops at a published release", () => {
+    expect(() => releaseAction('{"isDraft":false}')).toThrow("is published");
+  });
+
+  it("stops at an answer it cannot read", () => {
+    expect(() => releaseAction("not json")).toThrow("cannot read");
+    expect(() => releaseAction("{}")).toThrow("is published");
+  });
+
+  it("fails the workflow step with exit code 1 for a published release", () => {
+    const run = spawnSync(process.execPath, [join(HERE, "check-release.mjs"), "--release-action", '{"isDraft":false}'], {
+      encoding: "utf8",
+    });
+
+    expect(run.status).toBe(1);
+    expect(run.stdout).toBe("");
+    expect(run.stderr).toContain("is published");
+  });
+
+  it("prints the action for the workflow", () => {
+    const run = spawnSync(process.execPath, [join(HERE, "check-release.mjs"), "--release-action", '{"isDraft":true}'], {
+      encoding: "utf8",
+    });
+
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe("upload\n");
+  });
+
+  it("is the gate in front of every clobber upload in release.yml", () => {
+    const workflow = readFileSync(join(HERE, "..", ".github", "workflows", "release.yml"), "utf8");
+    const gate = workflow.indexOf("check-release.mjs --release-action");
+    const clobbers = [...workflow.matchAll(/gh release upload[^\n]*--clobber/g)].map((match) => match.index);
+
+    expect(gate).toBeGreaterThan(-1);
+    expect(clobbers).toHaveLength(1);
+    expect(clobbers[0]).toBeGreaterThan(gate);
+    expect(workflow.slice(gate, clobbers[0])).toContain("upload)");
   });
 });
