@@ -4,4 +4,5 @@ pub mod install_detect;
 pub mod logging;
 pub mod paths;
 pub mod progress;
+pub mod reparse;
 pub mod uninstall_data;
