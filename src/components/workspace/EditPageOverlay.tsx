@@ -11,7 +11,9 @@ import type { ClientAnnotation } from "@/stores/annotationsStore";
 import { DetectedFieldsGroup } from "./DetectedFieldsOverlay";
 import type { ScreenRect } from "./detectedFieldGeometry";
 import { OverlayCanvas } from "./OverlayCanvas";
+import { PendingFormValueLayer } from "./PendingFormValueLayer";
 import { PendingFreeTextLayer } from "./PendingFreeTextLayer";
+import type { PendingFormValue } from "./pendingFormValues";
 import { PendingStampLayer } from "./PendingStampLayer";
 
 interface Props {
@@ -23,6 +25,8 @@ interface Props {
   filledIds: Set<string>;
   onPickField: (field: DetectedFormField, screenRect: ScreenRect) => void;
   pendingAnnotations: ClientAnnotation[];
+  /** Plan 119 p1c: typed AcroForm values, drawn read-only at their widgets. */
+  formValues: PendingFormValue[];
   selectedPendingId: string | null;
   onSelectPending: (clientId: string) => void;
   onPendingRectChange: (clientId: string, rect: [number, number, number, number]) => void;
@@ -38,13 +42,15 @@ interface PreviewProps {
   page: number;
   viewport: PageViewport;
   pendingAnnotations: ClientAnnotation[];
+  formValues: PendingFormValue[];
   pageWidth: number;
   pageHeight: number;
 }
 
 const ignore = () => {};
 
-/** Plan 119 p1: the pending values of this page, drawn but not editable,
+/** Plan 119 p1: the pending values of this page (plan 119 p1c: and the
+ * typed AcroForm values), drawn but not editable,
  * for every tool and sub-tool that does not mount `EditPageOverlay`. The
  * stage takes no pointer events, so the tool's own overlay (crop, OCR
  * selection) still gets every click. */
@@ -54,6 +60,7 @@ export function PendingPreviewOverlay({
   page,
   viewport,
   pendingAnnotations,
+  formValues,
   pageWidth,
   pageHeight,
 }: PreviewProps) {
@@ -79,6 +86,7 @@ export function PendingPreviewOverlay({
         onSelect={ignore}
         onRectChange={ignore}
       />
+      <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
     </OverlayCanvas>
   );
 }
@@ -92,6 +100,7 @@ export function EditPageOverlay({
   filledIds,
   onPickField,
   pendingAnnotations,
+  formValues,
   selectedPendingId,
   onSelectPending,
   onPendingRectChange,
@@ -130,6 +139,7 @@ export function EditPageOverlay({
         onSelect={onSelectPending}
         onRectChange={onPendingRectChange}
       />
+      <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
     </OverlayCanvas>
   );
 }

@@ -39,4 +39,24 @@ describe("PdfViewer hidden annotations", () => {
 
     await waitFor(() => expect(storage.has("12R")).toBe(false));
   });
+
+  // Plan 119 p1c: book mode shows two pages of one document. Both hide the
+  // value being edited, and the storage entry is shared. One page leaving
+  // the spread must not show the old value again on the other.
+  it("keeps a shared id hidden until the last page that hides it is gone", async () => {
+    const { pdf, storage, render: renderPage } = fakePdf();
+    const focused = render(
+      <PdfViewer pdf={pdf} pageIndex={0} zoom={1} hiddenAnnotationIds={["12R"]} />,
+    );
+    const facing = render(
+      <PdfViewer pdf={pdf} pageIndex={1} zoom={1} hiddenAnnotationIds={["12R"]} />,
+    );
+    await waitFor(() => expect(renderPage).toHaveBeenCalledTimes(2));
+
+    facing.unmount();
+    expect(storage.get("12R")).toEqual({ noView: true });
+
+    focused.unmount();
+    expect(storage.has("12R")).toBe(false);
+  });
 });

@@ -4,7 +4,7 @@
 // `PendingFreeTextLayer.test.tsx`), so its nodes are mocked to capture
 // their props.
 import type { CSSProperties, ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import type { PageViewport } from "pdfjs-dist";
 import type { Annotation } from "@/bindings";
@@ -34,7 +34,8 @@ vi.mock("react-konva", () => ({
   Image: () => null,
 }));
 
-import { PendingPreviewOverlay } from "../EditPageOverlay";
+import { EditPageOverlay, PendingPreviewOverlay } from "../EditPageOverlay";
+import type { PendingFormValue } from "../pendingFormValues";
 
 const viewport = {
   scale: 1,
@@ -73,6 +74,12 @@ function freeText(clientId: string, page: number, contents: string): ClientAnnot
   return { ...base, __clientId: clientId };
 }
 
+beforeEach(() => {
+  captured.stageStyles.length = 0;
+  captured.texts.length = 0;
+  captured.draggable.length = 0;
+});
+
 describe("PendingPreviewOverlay", () => {
   it("draws this page's pending values without pointer events or drag handles", () => {
     render(
@@ -85,6 +92,7 @@ describe("PendingPreviewOverlay", () => {
           freeText("a", 0, "Ľubomír Šťastný"),
           freeText("b", 1, "other page"),
         ]}
+        formValues={[]}
         pageWidth={612}
         pageHeight={792}
       />,
@@ -93,5 +101,59 @@ describe("PendingPreviewOverlay", () => {
     expect(captured.texts).toEqual(["Ľubomír Šťastný"]);
     expect(captured.stageStyles.map((style) => style.pointerEvents)).toEqual(["none"]);
     expect(captured.draggable.every((value) => value !== true)).toBe(true);
+  });
+
+  // Plan 119 p1c: a typed AcroForm value shows on the page, not only in the
+  // panel.
+  it("draws this page's typed AcroForm values", () => {
+    render(
+      <PendingPreviewOverlay
+        width={612}
+        height={792}
+        page={0}
+        viewport={viewport}
+        pendingAnnotations={[]}
+        formValues={[FORM_VALUE, { ...FORM_VALUE, fieldId: "11:0", page: 1, text: "other page" }]}
+        pageWidth={612}
+        pageHeight={792}
+      />,
+    );
+
+    expect(captured.texts).toEqual(["Ľubica Šťastná"]);
+    expect(captured.stageStyles.map((style) => style.pointerEvents)).toEqual(["none"]);
+  });
+});
+
+const FORM_VALUE: PendingFormValue = {
+  fieldId: "10:0",
+  page: 0,
+  rect: [36, 700, 240, 724],
+  text: "Ľubica Šťastná",
+};
+
+describe("EditPageOverlay", () => {
+  it("draws the typed AcroForm values beside the pending values", () => {
+    render(
+      <EditPageOverlay
+        width={612}
+        height={792}
+        page={0}
+        viewport={viewport}
+        detectedFields={null}
+        filledIds={new Set()}
+        onPickField={() => {}}
+        pendingAnnotations={[freeText("a", 0, "Fill")]}
+        formValues={[FORM_VALUE]}
+        selectedPendingId={null}
+        onSelectPending={() => {}}
+        onPendingRectChange={() => {}}
+        stampPlacement={null}
+        pageWidth={612}
+        pageHeight={792}
+        onPlaceStamp={() => {}}
+      />,
+    );
+
+    expect(captured.texts).toEqual(expect.arrayContaining(["Fill", "Ľubica Šťastná"]));
   });
 });

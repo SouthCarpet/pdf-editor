@@ -16,10 +16,13 @@ import {
 } from "@/bindings";
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import { linkAnnotationToFilledField } from "@/stores/annotationHistory";
+import { NO_FORM_DRAFT, useFormDrafts } from "@/stores/formDraftStore";
 import { useFilledFields, type FilledFieldsUpdater } from "@/stores/filledFieldsStore";
 import { ZOOM_DEFAULT, useWorkspace, zoomForMode } from "@/stores/workspaceStore";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
+import { BookFacingPage } from "./BookFacingPage";
 import { EditPageOverlay, PendingPreviewOverlay } from "./EditPageOverlay";
+import { pageHasPendingValue, pendingFormValues } from "./pendingFormValues";
 import { pageOverlayMode } from "./pageOverlayMode";
 import {
   fieldsWithSavedValues,
@@ -101,6 +104,9 @@ interface SpreadMeasurement {
   baseSize: { width: number; height: number };
   renderedSize: { width: number; height: number };
   pageSizes: Record<number, { width: number; height: number }>;
+  /** Plan 119 p1c: what the facing page of a spread needs to draw its overlay. */
+  baseSizes: Record<number, { width: number; height: number }>;
+  viewports: Record<number, pdfjs.PageViewport>;
 }
 
 export function Workspace({ pdf, path }: Props) {
@@ -241,9 +247,11 @@ export function Workspace({ pdf, path }: Props) {
       ),
     [pendingAnnotations],
   );
-  const hasPendingOnPage = pendingAnnotations.some(
-    (a) => (a.type === "free_text" || a.type === "stamp") && a.page === activePage,
-  );
+  // Plan 119 p1c: AcroForm values typed in the Forms panel and not yet
+  // saved are drawn on the page too.
+  const formDraft = useFormDrafts((s) => s.byDoc[path] ?? NO_FORM_DRAFT);
+  const formValues = useMemo(() => pendingFormValues(formDraft), [formDraft]);
+  const hasPendingOnPage = pageHasPendingValue(pendingAnnotations, formValues, activePage);
   const overlayMode = pageOverlayMode({
     activeTool,
     editSubTool,
@@ -278,6 +286,8 @@ export function Workspace({ pdf, path }: Props) {
   const pairBaseSize = currentSpreadMeasurement?.baseSize ?? ZERO_SIZE;
   const pairRenderedSize = currentSpreadMeasurement?.renderedSize ?? ZERO_SIZE;
   const visiblePageSizes = currentSpreadMeasurement?.pageSizes ?? EMPTY_PAGE_SIZES;
+  const visibleBaseSizes = currentSpreadMeasurement?.baseSizes ?? EMPTY_PAGE_SIZES;
+  const visibleViewports = currentSpreadMeasurement?.viewports ?? EMPTY_VIEWPORTS;
 
   const handleDeletePending = useCallback(() => {
     if (!selectedPendingAnnotation) return;
@@ -630,9 +640,17 @@ export function Workspace({ pdf, path }: Props) {
       const pageSizes = Object.fromEntries(
         measurements.map((measurement) => [measurement.pageIndex, measurement.rendered]),
       );
+      const baseSizes = Object.fromEntries(
+        measurements.map((measurement) => [measurement.pageIndex, measurement.base]),
+      );
+      const viewports = Object.fromEntries(
+        measurements.map((measurement) => [measurement.pageIndex, measurement.viewport]),
+      );
       setSpreadMeasurement({
         pdf,
         key: spreadKey,
+        baseSizes,
+        viewports,
         baseSize: bookMode
           ? {
               width: left.base.width + right.base.width,
@@ -757,6 +775,7 @@ export function Workspace({ pdf, path }: Props) {
           page={activePage}
           viewport={pageViewport}
           pendingAnnotations={pendingAnnotations}
+          formValues={formValues}
           pageWidth={basePageSize.width}
           pageHeight={basePageSize.height}
         />
@@ -773,6 +792,7 @@ export function Workspace({ pdf, path }: Props) {
             filledIds={shownFilledIds}
             onPickField={handlePickField}
             pendingAnnotations={pendingAnnotations}
+            formValues={formValues}
             selectedPendingId={selectedPendingId}
             onSelectPending={(clientId) => setSelectedPending({ key: ocrPageKey, clientId })}
             onPendingRectChange={(clientId, rect) => updateAnnotation(path, clientId, { rect })}
@@ -844,18 +864,18 @@ export function Workspace({ pdf, path }: Props) {
     }
     if (pageIndex === activePage) return focusedPageSurface;
     return (
-      <div
-        className="shrink-0 cursor-pointer"
-        style={{ width: size.width, height: size.height }}
-        onClick={() => setActivePage(pageIndex)}
-      >
-        <PdfViewer
-          pdf={pdf}
-          pageIndex={pageIndex}
-          zoom={zoom}
-          className="block border border-[var(--color-border)]"
-        />
-      </div>
+      <BookFacingPage
+        pdf={pdf}
+        pageIndex={pageIndex}
+        zoom={zoom}
+        size={size}
+        baseSize={visibleBaseSizes[pageIndex] ?? ZERO_SIZE}
+        viewport={visibleViewports[pageIndex] ?? null}
+        pendingAnnotations={pendingAnnotations}
+        formValues={formValues}
+        hiddenAnnotationIds={replacedAnnotationIds}
+        onSelect={() => setActivePage(pageIndex)}
+      />
     );
   }
 
@@ -985,6 +1005,7 @@ const EMPTY_FIELD_IDS = new Set<string>();
 const NO_VALUES: SavedFreeText[] = [];
 const ZERO_SIZE = { width: 0, height: 0 };
 const EMPTY_PAGE_SIZES: Record<number, { width: number; height: number }> = {};
+const EMPTY_VIEWPORTS: Record<number, pdfjs.PageViewport> = {};
 // Fallback only: a selected pending annotation always has a rect, so
 // `toScreenRect` only returns null for a malformed one from outside this app.
 const EMPTY_SCREEN_RECT: ScreenRect = { x: 0, y: 0, width: 0, height: 0 };

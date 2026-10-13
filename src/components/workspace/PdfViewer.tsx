@@ -40,9 +40,9 @@ export function PdfViewer({
   // page renders with ENABLE_STORAGE. The ids are cleared again on change.
   useEffect(() => {
     const ids = hiddenKey === "" ? [] : hiddenKey.split(",");
-    for (const id of ids) pdf.annotationStorage.setValue(id, { noView: true });
+    for (const id of ids) holdHidden(pdf, id);
     return () => {
-      for (const id of ids) pdf.annotationStorage.remove(id);
+      for (const id of ids) releaseHidden(pdf, id);
     };
   }, [pdf, hiddenKey]);
 
@@ -104,3 +104,26 @@ export function PdfViewer({
 }
 
 const NO_IDS: readonly string[] = [];
+
+// Plan 119 p1c: book mode mounts two viewers on one document, and both hide
+// the value being edited. The storage entry is per document, so it is held
+// once per viewer and removed when the last viewer lets go.
+const hiddenHolds = new WeakMap<pdfjs.PDFDocumentProxy, Map<string, number>>();
+
+function holdHidden(pdf: pdfjs.PDFDocumentProxy, id: string): void {
+  const holds = hiddenHolds.get(pdf) ?? new Map<string, number>();
+  hiddenHolds.set(pdf, holds);
+  holds.set(id, (holds.get(id) ?? 0) + 1);
+  pdf.annotationStorage.setValue(id, { noView: true });
+}
+
+function releaseHidden(pdf: pdfjs.PDFDocumentProxy, id: string): void {
+  const holds = hiddenHolds.get(pdf);
+  const remaining = (holds?.get(id) ?? 1) - 1;
+  if (remaining > 0) {
+    holds?.set(id, remaining);
+    return;
+  }
+  holds?.delete(id);
+  pdf.annotationStorage.remove(id);
+}
