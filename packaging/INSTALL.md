@@ -116,6 +116,8 @@ the shortcuts and the file associations:
 The uninstaller runs `pdf-editor.exe --remove-user-data [app-data]
 [signatures]` for the parts you chose (`src-tauri/src/util/uninstall_data.rs`).
 PDF files and files PDF Editor did not create are never removed; a folder
-that still holds one stays. A silent uninstall (`unins000.exe /SILENT` or
+that still holds one stays. When a data folder is a link (junction or
+symbolic link) to another place, nothing in that part is removed and the
+uninstaller says so (exit code 3). A silent uninstall (`unins000.exe /SILENT` or
 `/VERYSILENT`) asks nothing and keeps all data. The exact boundaries are in
 [`docs/install-contract.md`](../docs/install-contract.md).

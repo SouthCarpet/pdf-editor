@@ -49,8 +49,11 @@ PDF Editor installs per user, without administrator rights, into
 Uninstall: Settings > Apps > Installed apps > PDF Editor > Uninstall. The
 uninstaller asks two questions, both default No: remove the app data
 (settings, database, projects, presets, OCR languages, thumbnails, logs,
-WebView data) and remove the saved signatures. PDF files and files PDF
-Editor did not create always stay. A silent uninstall keeps all data.
+WebView data) and remove the saved signatures. Only files that PDF Editor
+names itself go; PDF files and every other file stay, and so do their
+folders. When a data folder is a link (junction or symbolic link) to
+another place, the uninstaller deletes nothing in that part and says so. A
+silent uninstall keeps all data.
 
 Build the setup yourself: [packaging/INSTALL.md](packaging/INSTALL.md).
 Known limits (proxy, LibreOffice): [KNOWN_ISSUES.md](KNOWN_ISSUES.md).
@@ -71,8 +74,10 @@ status, not as "latest version". The check downloads nothing.
 
 When a newer release exists, About shows **Update to X.Y.Z**. A click asks
 about unsaved work first, then downloads `pdf-editor-setup-X.Y.Z.exe` and
-`SHA256SUMS.txt` from that release into `%TEMP%\pdf-editor-update\`, checks
-the SHA-256 sum, hashes the file again and starts the setup with its
+`SHA256SUMS.txt` from that release into a new folder
+`%TEMP%\pdf-editor-update-<random>\` (never an existing folder or file, never
+through a link), checks the SHA-256 sum, hashes the file again and starts
+the setup with its
 wizard. PDF Editor then closes; the setup updates in place and keeps your
 data. The download refuses a release whose tag changed after the check, a
 host outside `api.github.com`, `github.com`, `objects.githubusercontent.com`

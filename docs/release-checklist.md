@@ -19,7 +19,11 @@ development machine: use a test Windows user or a virtual machine.
      `vX.Y.Z`,
    - on a tag run, attaches `pdf-editor-setup-X.Y.Z.exe` and
      `SHA256SUMS.txt` to a **draft** GitHub release (or replaces them on an
-     existing release).
+     existing draft release). `node packaging/check-release.mjs
+     --release-action` reads `gh release view <tag> --json isDraft` first:
+     a published release for the tag stops the job with exit code 1, so
+     `--clobber` never replaces a published asset. Make a new version
+     instead.
 3. A manual run keeps the setup as the workflow artifact `setup` and
    creates no release.
 
@@ -62,5 +66,7 @@ Use a test Windows user or a virtual machine. Keep the setup log:
    In every case PDF files and files PDF Editor did not create stay. A
    silent uninstall (`unins000.exe /VERYSILENT`) asks nothing and keeps all
    data. The file associations are gone after each uninstall.
-8. **Publish.** Publish the draft release only after steps 1 to 7 pass.
+8. **Publish.** Publish the draft release only after steps 1 to 7 pass,
+   and not while the release workflow runs: the job reads the draft state
+   once, just before it uploads.
    Only then does the update check of installed apps see it.

@@ -34,11 +34,16 @@
   SHA-256 sum, hashes the file again before the start, starts the setup
   with its wizard and closes the app. A changed tag, a wrong hash, an
   incomplete download, a full disk and a changed file stop it with a
-  reason.
+  reason. Each download goes to a new folder
+  `%TEMP%\pdf-editor-update-<random>\`; the `.part` file is opened as a new
+  file and never through a link, and the rename never replaces a link.
 - The uninstaller asks two questions, both default No: remove the app data
   (settings, database, projects, presets, OCR languages, thumbnails, logs,
-  WebView data) and remove the saved signatures. PDF files and foreign
-  files always stay; a silent uninstall keeps all data
+  WebView data) and remove the saved signatures. Only files the app names
+  go (fixed names and name patterns); PDF files and every other file stay,
+  and so do their folders. A data folder that is a link (or has a link
+  above it) is never followed: the uninstaller deletes nothing in that
+  part and shows a message (exit code 3). A silent uninstall keeps all data
   (`pdf-editor.exe --remove-user-data`, `src-tauri/src/util/uninstall_data.rs`).
 - LibreOffice detection through the registry (app and setup share the
   rule). Without LibreOffice, Office conversion shows a message with the
@@ -48,7 +53,9 @@
 - Release workflow: builds the per-user setup instead of the MSI, checks
   the setup, `SHA256SUMS.txt`, the asset name and the version against the
   tag (`packaging/check-release.mjs`), and attaches both files to a draft
-  GitHub release on tag `vX.Y.Z`.
+  GitHub release on tag `vX.Y.Z`. A published release for the tag stops
+  the job (`check-release.mjs --release-action`); assets are replaced only
+  on a draft.
 - `docs/release-checklist.md` (manual acceptance steps) and
   `KNOWN_ISSUES.md`.
 

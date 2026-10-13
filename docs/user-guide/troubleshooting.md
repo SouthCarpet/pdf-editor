@@ -30,10 +30,10 @@ The update check (Settings -> About, off by default) could not connect: no inter
 Behind a corporate proxy the check and the download always fail: the app does not use the Windows proxy settings (see [KNOWN_ISSUES.md](../../KNOWN_ISSUES.md)). Download the setup and `SHA256SUMS.txt` in a browser instead.
 
 ## Update stops before the setup starts
-**Update** refuses and says why when the latest release changed after the check (click **Check now** again), the release has no `pdf-editor-setup-X.Y.Z.exe` or no `SHA256SUMS.txt` line for it, the SHA-256 sum differs, the download is incomplete or larger than the release lists, a redirect leaves the GitHub hosts, the disk is full, or the file changed before the start. A refused file is deleted; nothing is started. The download folder is `%TEMP%\pdf-editor-update\`.
+**Update** refuses and says why when the latest release changed after the check (click **Check now** again), the release has no `pdf-editor-setup-X.Y.Z.exe` or no `SHA256SUMS.txt` line for it, the SHA-256 sum differs, the download is incomplete or larger than the release lists, a redirect leaves the GitHub hosts, the disk is full, or the file changed before the start. A refused file is deleted; nothing is started. Each download uses a new folder `%TEMP%\pdf-editor-update-<random>\`; you can delete old ones.
 
 ## Uninstall left files behind
-The uninstaller removes your data only after a Yes, and never removes PDF files or files PDF Editor did not create, so their folders stay. A silent uninstall keeps all data. The data folders are listed in [docs/install-contract.md](../install-contract.md).
+The uninstaller removes your data only after a Yes, and never removes PDF files or files PDF Editor did not create, so their folders stay. When a data folder is a link (junction or symbolic link) to another place, it deletes nothing in that part and says so. A silent uninstall keeps all data. The data folders are listed in [docs/install-contract.md](../install-contract.md).
 
 ## Setup says the old MSI version is installed
 Uninstall PDF Editor in Settings -> Apps -> Installed apps (Windows asks for administrator rights), then run the setup again. The MSI uninstall keeps your data in `%APPDATA%\PdfEditor\PdfEditor\data` and `%APPDATA%\com.pdfeditor.app`.

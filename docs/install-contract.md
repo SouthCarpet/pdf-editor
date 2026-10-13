@@ -128,22 +128,43 @@ An interactive uninstall asks two questions; both default to No:
 
 | Question | Part passed to `pdf-editor.exe --remove-user-data` | What goes |
 |---|---|---|
-| Remove your PDF Editor data too? | `app-data` | In `%APPDATA%\PdfEditor\PdfEditor\data`: the files `settings.json`, `app.db`, `app.db-wal`, `app.db-shm` and the folders `projects`, `pipeline-presets`, `tessdata-extra`, `thumbnails`, `logs`. The WebView2 profile `%LOCALAPPDATA%\com.pdfeditor.app\EBWebView` (it holds the frontend stores above). |
-| Remove your saved signatures too? | `signatures` | `%APPDATA%\com.pdfeditor.app\signatures` |
+| Remove your PDF Editor data too? | `app-data` | In `%APPDATA%\PdfEditor\PdfEditor\data`: the files `settings.json`, `app.db`, `app.db-wal`, `app.db-shm`. In its folders only the files the app names: `projects\*.pdf-project`, `pipeline-presets\*.pdf-pipeline`, `tessdata-extra\*.traineddata`, `thumbnails\<24 hex digits>.png`, `logs\pdf-editor.YYYY-MM-DD.log` and `logs\YYYY-MM-DD_HH-MM-SS.panic.txt` / `.crash.txt`. The WebView2 profile `%LOCALAPPDATA%\com.pdfeditor.app\EBWebView` as a whole (it holds the frontend stores above). |
+| Remove your saved signatures too? | `signatures` | In `%APPDATA%\com.pdfeditor.app\signatures`: `index.json` and the `*.png` signature images |
 
 Rules (`src-tauri/src/util/uninstall_data.rs`, tests in
 `uninstall_data_tests.rs` over an isolated tree):
 
+- The delete set comes only from fixed names in `uninstall_data.rs`
+  (`APP_DATA_FILES`, `APP_DATA_STORES`, `WEBVIEW_DIR`, `SIGNATURES_DIR`,
+  `SIGNATURE_INDEX`). No setting and no argument can make it larger.
 - A `*.pdf` file is never deleted, also inside the listed folders.
   Exported PDFs saved anywhere else are never touched.
-- Nothing outside the list is touched. A folder that still holds a kept or
-  foreign file stays; empty folders up to (not including) `%APPDATA%` and
-  `%LOCALAPPDATA%` go.
+- Every file outside the list stays, also an unknown file (for example
+  `notes.txt` or `photo.jpg`) inside a listed folder, and every subfolder
+  of `projects`, `pipeline-presets`, `tessdata-extra`, `thumbnails`, `logs`
+  and `signatures`. A folder that still holds anything stays; empty folders
+  up to (not including) `%APPDATA%` and `%LOCALAPPDATA%` go.
+- Links: before it deletes anything, the app checks every folder of the
+  part. When the folder or a folder between it and `%APPDATA%` /
+  `%LOCALAPPDATA%` is a reparse point (junction, symbolic link, mount
+  point), or when its real path is not inside that base, the whole part is
+  refused: nothing in it is deleted and the exit code is 3. The other part
+  still runs.
+- A reparse point inside a folder (a junction, a symbolic link, a OneDrive
+  placeholder) is never followed and never deleted. It stays, so its
+  folder stays too.
+- Paths longer than 260 characters work. A OneDrive placeholder is a
+  reparse point, so it stays (see `KNOWN_ISSUES.md`).
+- Exit codes: 0 done, 1 a file could not be deleted, 2 no user folders,
+  3 a part was refused because of a link.
 - A silent uninstall asks nothing, never runs the removal and keeps all
   data. Two No answers keep all data too.
 - The uninstaller logs the exit code; a non-zero code shows a message with
-  the folder to clean by hand.
-- `%TEMP%` work folders and `%TEMP%\pdf-editor-update\` are not touched.
+  the folder to clean by hand. Exit code 3 has its own message
+  (`RemoveDataRefused`): a data folder is a link, so nothing in that part
+  was deleted.
+- `%TEMP%` work folders and the `%TEMP%\pdf-editor-update-<random>\` download
+  folders are not touched.
 
 ## LibreOffice
 
@@ -230,12 +251,19 @@ commands `download_update` and `install_update`):
    `release-assets.githubusercontent.com`; otherwise `blocked_host`.
 5. `SHA256SUMS.txt` (at most 64 KiB) must hold a line for exactly that file
    name; otherwise `checksum_missing`.
-6. The setup streams to `%TEMP%\pdf-editor-update\pdf-editor-setup-X.Y.Z.exe.part`.
-   More bytes than the listed size: `too_large`. Fewer bytes or a broken
-   transfer: `download_failed`. A write error (for example a full disk):
-   `disk_error`. A different SHA-256: `checksum_mismatch`. Each failure
-   deletes the partial file. A good file is renamed to
-   `pdf-editor-setup-X.Y.Z.exe`.
+6. Each download makes a new folder `%TEMP%\pdf-editor-update-<random>\`
+   (32 random hex digits, `DOWNLOAD_DIR_PREFIX`). A name that already
+   exists, also as a link, is never used. After it is made, the folder must
+   be a real folder, not a reparse point; otherwise `disk_error`. The setup
+   streams to `pdf-editor-setup-X.Y.Z.exe.part` in that folder, opened as a
+   new file (it fails when anything has that name) that never follows a
+   link. More bytes than the listed size: `too_large`. Fewer bytes or a
+   broken transfer: `download_failed`. A write error (for example a full
+   disk): `disk_error`. A different SHA-256: `checksum_mismatch`. Each
+   failure deletes the partial file and the folder. A good file is renamed
+   to `pdf-editor-setup-X.Y.Z.exe`; the rename refuses (`disk_error`) when
+   anything, also a link, already has that name. The folder stays after
+   the start (see `KNOWN_ISSUES.md`).
 7. `install_update` hashes that file again (`file_changed` when it
    differs), starts it without silent switches, so the wizard asks the
    user, and exits the app. It starts only the file that the download

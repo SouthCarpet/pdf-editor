@@ -115,7 +115,7 @@ mod libreoffice {
 mod uninstall {
     use super::repo_file;
     use pdf_editor_lib::util::uninstall_data::{
-        FLAG, PART_APP_DATA, PART_SIGNATURES, SIGNATURES_DIR, TAURI_IDENTIFIER,
+        EXIT_REFUSED, FLAG, PART_APP_DATA, PART_SIGNATURES, SIGNATURES_DIR, TAURI_IDENTIFIER,
     };
 
     #[test]
@@ -123,6 +123,7 @@ mod uninstall {
         let iss = repo_file("packaging/pdf-editor.iss");
 
         assert!(iss.contains(&format!("RemoveDataFlag = '{FLAG}';")));
+        assert!(iss.contains(&format!("RemoveDataRefusedCode = {EXIT_REFUSED};")));
         assert!(iss.contains(&format!("RemoveAppDataPart = ' {PART_APP_DATA}';")));
         assert!(iss.contains(&format!("RemoveSignaturesPart = ' {PART_SIGNATURES}';")));
         assert!(iss.contains(&format!(

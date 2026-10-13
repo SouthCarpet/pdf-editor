@@ -101,6 +101,8 @@ english.RemoveSignatures=Remove your saved signatures too?%n%nThis removes the s
 slovak.RemoveSignatures=Odstrániť aj uložené podpisy?%n%nOdstránia sa obrázky podpisov v priečinku%n%1%n%nAk ich chcete zachovať, vyberte Nie.
 english.RemoveDataFailed=Some PDF Editor data could not be removed (exit code %1). Remove what is left yourself: %2
 slovak.RemoveDataFailed=Niektoré údaje PDF Editora sa nepodarilo odstrániť (kód %1). Zvyšok odstráňte sami: %2
+english.RemoveDataRefused=Some PDF Editor data was not removed (exit code %1). A data folder is a link (junction or symbolic link) to another place, so nothing in that part was deleted. Check the folders yourself: %2
+slovak.RemoveDataRefused=Niektoré údaje PDF Editora sa neodstránili (kód %1). Priečinok s údajmi je odkaz (junction alebo symbolický odkaz) na iné miesto, preto sa z tejto časti nič neodstránilo. Skontrolujte priečinky sami: %2
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopIcon}"; GroupDescription: "{cm:Shortcuts}"; Flags: unchecked
@@ -140,8 +142,10 @@ const
   SofficeExe = 'soffice.exe';
   LibreOfficeDownloadUrl = 'https://www.libreoffice.org/download/download-libreoffice/';
   LibreOfficeWingetArgs = 'install --id TheDocumentFoundation.LibreOffice -e --accept-package-agreements --accept-source-agreements';
-  // Uninstall: uninstall_data.rs FLAG, PART_APP_DATA, PART_SIGNATURES.
+  // Uninstall: uninstall_data.rs FLAG, PART_APP_DATA, PART_SIGNATURES,
+  // EXIT_REFUSED.
   RemoveDataFlag = '--remove-user-data';
+  RemoveDataRefusedCode = 3;
   RemoveAppDataPart = ' app-data';
   RemoveSignaturesPart = ' signatures';
 
@@ -427,7 +431,10 @@ begin
     ewWaitUntilTerminated, ResultCode) then
     ResultCode := -1;
   Log('Uninstall: removed user data' + Parts + ', exit code ' + IntToStr(ResultCode));
-  if ResultCode <> 0 then
+  if ResultCode = RemoveDataRefusedCode then
+    MsgBox(FmtMessage(CustomMessage('RemoveDataRefused'), [IntToStr(ResultCode),
+      ExpandConstant('{userappdata}\PdfEditor')]), mbError, MB_OK)
+  else if ResultCode <> 0 then
     MsgBox(FmtMessage(CustomMessage('RemoveDataFailed'), [IntToStr(ResultCode),
       ExpandConstant('{userappdata}\PdfEditor')]), mbError, MB_OK);
 end;
