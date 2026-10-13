@@ -648,8 +648,38 @@ fn a_log_swapped_for_a_symlink_after_the_listing_stays_and_is_not_followed() {
     assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
 }
 
-/// Fails on 71cd597: `remove_file` cannot delete a read-only file, so the
-/// report has a failure. The cleanup deletes a read-only app file.
+/// A folder that another program holds open with `DELETE` access cannot be
+/// pinned: its part is refused and the other part still runs.
+#[cfg(windows)]
+#[test]
+fn a_folder_windows_does_not_pin_refuses_its_part_only() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let tree = Tree::new();
+    let logs = tree.roots.app_data.join("logs");
+    let _held = std::fs::OpenOptions::new()
+        .access_mode(0x0001_0000 | 0x80) // DELETE | FILE_READ_ATTRIBUTES
+        .share_mode(7) // read, write, delete
+        .custom_flags(0x0200_0000) // FILE_FLAG_BACKUP_SEMANTICS
+        .open(&logs)
+        .unwrap();
+
+    let report = remove_user_data(&tree.roots, choice(true, true));
+
+    assert_eq!(report.exit_code(), EXIT_REFUSED);
+    assert!(
+        report.refused.iter().any(|(dir, _)| *dir == logs),
+        "{report:?}"
+    );
+    assert!(
+        tree.roots.app_data.join("settings.json").exists(),
+        "the part stays"
+    );
+    assert_eq!(exists(&tree.signature_files()), vec![false; 2]);
+}
+
+/// Passes on 71cd597 too: `std::fs::remove_file` of this toolchain already
+/// deletes a read-only file. It guards that the handle-based delete keeps
+/// doing so (`FILE_DISPOSITION_FLAG_IGNORE_READONLY_ATTRIBUTE`).
 #[test]
 fn a_read_only_app_file_is_deleted() {
     let tree = Tree::new();
