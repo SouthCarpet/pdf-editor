@@ -8,25 +8,33 @@
 //! 2. Find the assets `pdf-editor-setup-X.Y.Z.exe` (exact name) and
 //!    `SHA256SUMS.txt`. The setup's `size` must be at most `MAX_SETUP_BYTES`.
 //! 3. Download `SHA256SUMS.txt` and take the line for that exact file name.
-//! 4. Create a new folder `%TEMP%\pdf-editor-update-<random>\` for this
-//!    download (never an existing one; it must be a real folder, not a link)
-//!    and stream the setup to a new `.part` file in it, hashing as it goes.
-//!    The `.part` file must not exist yet and a link is never followed. More
-//!    bytes than `size`, fewer bytes, a transport error, a write error or a
-//!    hash mismatch delete the file and the folder. The rename to the final
-//!    name refuses when anything (also a link) already has that name.
+//! 4. Pin `%TEMP%` and create a new folder `%TEMP%\pdf-editor-update-<random>\`
+//!    for this download (never an existing one), pin it too and check on its
+//!    handle that it is a real folder, not a link (`util/pinned_dir.rs`).
+//!    While the pins are open, Windows refuses to rename or replace either
+//!    folder; they stay open until the verified setup is dropped (after the
+//!    start, or when the app exits). Stream the setup to a new `.part` file
+//!    in the folder (create-new, a link is never followed), hashing as it
+//!    goes. More bytes than `size`, fewer bytes, a transport error, a write
+//!    error or a hash mismatch delete the file and the folder through their
+//!    handles. The rename to the final name goes through the `.part` handle
+//!    without replacement: when anything (also a link) has that name,
+//!    Windows refuses and the `.part` file is deleted.
 //! 5. Before the start, hash the file again: a changed file never runs.
 //!
 //! Every URL, also every redirect target, must be `https://` on a host in
 //! `ALLOWED_HOSTS`. The HTTP client lives in `release_check.rs` (the only
 //! module allowed to use it); this module sees only the `Download` trait.
 use crate::services::release_check::{self, ReleaseAsset, StableRelease};
-use crate::util::reparse;
+use crate::util::pinned_dir::{self, PinnedDir};
+use crate::util::test_hook;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use std::fs::File;
 use std::future::Future;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 pub const SUMS_ASSET: &str = "SHA256SUMS.txt";
 pub const ALLOWED_HOSTS: [&str; 4] = [
@@ -43,9 +51,6 @@ const MAX_SUMS_BYTES: u64 = 64 * 1024;
 const MAX_REDIRECTS: usize = 5;
 /// Each download gets `<base>\pdf-editor-update-<32 random hex digits>`.
 pub const DOWNLOAD_DIR_PREFIX: &str = "pdf-editor-update-";
-/// `FILE_FLAG_OPEN_REPARSE_POINT` from the Windows SDK.
-#[cfg(windows)]
-const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -89,11 +94,14 @@ pub struct UpdateInstall {
 }
 
 /// A setup file that passed the SHA-256 check.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct VerifiedSetup {
     pub path: PathBuf,
     pub sha256: String,
     pub version: String,
+    /// The pinned download folder. Its pins close when the last copy of
+    /// this setup is dropped.
+    pub folder: Option<Arc<DownloadFolder>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -351,14 +359,48 @@ fn random_name() -> String {
     format!("{first:016x}{second:016x}")
 }
 
-/// Creates a new folder `<base>\pdf-editor-update-<random>` and checks that
-/// it is a real folder. A name that already exists (also a link) is never
-/// used; the next random name is tried.
-pub fn fresh_download_dir(base: &Path) -> io::Result<PathBuf> {
+/// The pinned download base and the new download folder in it. While this
+/// lives, Windows refuses to rename, delete or replace either folder.
+#[derive(Debug)]
+pub struct DownloadFolder {
+    base: PinnedDir,
+    dir: PinnedDir,
+    path: PathBuf,
+}
+
+impl DownloadFolder {
+    /// `<base>\pdf-editor-update-<random>` as the caller spelled `base`.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Removes the folder when it is empty: the folder pin has no `DELETE`
+    /// access (see `PinnedDir::create_dir`), so this closes it and opens
+    /// the folder again through the base pin, refusing a link.
+    fn remove(self) {
+        let Self { base, dir, path } = self;
+        drop(dir);
+        if let Some(Ok(dir)) = path.file_name().map(|name| base.child(name)) {
+            let _ = dir.remove_if_empty();
+        }
+    }
+}
+
+/// Pins `base`, creates a new folder `<base>\pdf-editor-update-<random>` in
+/// it and pins that folder, checked on its handle. A name that already
+/// exists (also a link) is never used; the next random name is tried.
+pub fn fresh_download_dir(base: &Path) -> io::Result<DownloadFolder> {
+    let pinned_base = PinnedDir::base(base)?;
     for _ in 0..8 {
-        let dir = base.join(format!("{DOWNLOAD_DIR_PREFIX}{}", random_name()));
-        match std::fs::create_dir(&dir) {
-            Ok(()) => return reparse::require_real_dir(&dir).map(|()| dir),
+        let name = format!("{DOWNLOAD_DIR_PREFIX}{}", random_name());
+        match pinned_base.create_dir(name.as_ref()) {
+            Ok(dir) => {
+                return Ok(DownloadFolder {
+                    base: pinned_base,
+                    dir,
+                    path: base.join(name),
+                })
+            }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
             Err(e) => return Err(e),
         }
@@ -367,31 +409,6 @@ pub fn fresh_download_dir(base: &Path) -> io::Result<PathBuf> {
         io::ErrorKind::AlreadyExists,
         "no free name for the download folder",
     ))
-}
-
-/// Opens a new `.part` file. Fails when anything already has the name; a
-/// link at the name is never followed.
-pub fn create_part(path: &Path) -> io::Result<std::fs::File> {
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(windows)]
-    {
-        use std::os::windows::fs::OpenOptionsExt;
-        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
-    }
-    options.open(path)
-}
-
-/// Renames `part` to `final_path`. Refuses when anything, also a link,
-/// already has the final name.
-fn move_into_place(part: &Path, final_path: &Path) -> io::Result<()> {
-    if std::fs::symlink_metadata(final_path).is_ok() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", final_path.display()),
-        ));
-    }
-    std::fs::rename(part, final_path)
 }
 
 fn disk_error(e: io::Error) -> Failure {
@@ -408,82 +425,107 @@ fn check_hash(actual: String, expected: &str) -> Result<(), Failure> {
     ))
 }
 
-/// Streams the setup into a new `part`, checks its hash and renames it to
-/// `final_path`. After `create` succeeded, any failure removes `part`.
+/// Renames the `.part` file to `name` through its handle, without
+/// replacement: anything at that name (also a link) makes it fail.
+fn place(part: &File, folder: &DownloadFolder, name: &str) -> Result<(), Failure> {
+    test_hook::at(test_hook::PLACE, &folder.path().join(name));
+    folder
+        .dir
+        .rename_into(part, name.as_ref())
+        .map_err(disk_error)
+}
+
+/// Streams `body` through `wrap(a handle to part)`, hashing it.
+async fn write_part<B, W, C>(
+    body: &mut B,
+    part: &File,
+    size: u64,
+    wrap: &C,
+) -> Result<String, Failure>
+where
+    B: BodyStream,
+    W: Write,
+    C: Fn(File) -> W,
+{
+    let mut sink = wrap(part.try_clone().map_err(disk_error)?);
+    stream_to(body, &mut sink, size).await
+}
+
+/// Streams the setup into a new `.part` file in `folder`, checks its hash
+/// and renames it to the setup name. After the `.part` file is created,
+/// any failure deletes it through its handle.
 async fn save_verified<D, W, C>(
     transport: &D,
     setup: &ReleaseAsset,
     expected_hash: &str,
-    (part, final_path): (&Path, &Path),
-    create: C,
+    folder: &DownloadFolder,
+    wrap: C,
 ) -> Result<(), Failure>
 where
     D: Download,
     W: Write,
-    C: Fn(&Path) -> io::Result<W>,
+    C: Fn(File) -> W,
 {
     let mut body = open(transport, &setup.browser_download_url).await?;
-    let mut sink = create(part).map_err(disk_error)?;
-    let streamed = stream_to(&mut body, &mut sink, setup.size).await;
-    drop(sink);
-    let moved = streamed
+    let part_name = format!("{}.part", setup.name);
+    let part = folder
+        .dir
+        .create_file(part_name.as_ref())
+        .map_err(disk_error)?;
+    let moved = write_part(&mut body, &part, setup.size, &wrap)
+        .await
         .and_then(|actual| check_hash(actual, expected_hash))
-        .and_then(|()| move_into_place(part, final_path).map_err(disk_error));
+        .and_then(|()| place(&part, folder, &setup.name));
     if moved.is_err() {
-        let _ = std::fs::remove_file(part);
+        let _ = pinned_dir::delete_on_close(&part);
     }
     moved
 }
 
-/// Step 4: a new folder under `dest_base`, the setup in it under its
-/// release name. A failure removes the folder again.
+/// Step 4: a new pinned folder under `dest_base`, the setup in it under
+/// its release name. A failure removes the folder again.
 async fn download_setup<D, W, C>(
     transport: &D,
     setup: &ReleaseAsset,
     expected_hash: &str,
     dest_base: &Path,
-    create: C,
-) -> Result<PathBuf, Failure>
+    wrap: C,
+) -> Result<DownloadFolder, Failure>
 where
     D: Download,
     W: Write,
-    C: Fn(&Path) -> io::Result<W>,
+    C: Fn(File) -> W,
 {
-    let dir = fresh_download_dir(dest_base).map_err(disk_error)?;
-    let final_path = dir.join(&setup.name);
-    let part = dir.join(format!("{}.part", setup.name));
-    let saved = save_verified(
-        transport,
-        setup,
-        expected_hash,
-        (&part, &final_path),
-        create,
-    )
-    .await;
-    if saved.is_err() {
-        let _ = std::fs::remove_dir(&dir);
+    let folder = fresh_download_dir(dest_base).map_err(disk_error)?;
+    test_hook::at(test_hook::DOWNLOAD_DIR, folder.path());
+    match save_verified(transport, setup, expected_hash, &folder, wrap).await {
+        Ok(()) => Ok(folder),
+        Err(failure) => {
+            folder.remove();
+            Err(failure)
+        }
     }
-    saved.map(|()| final_path)
 }
 
 /// The whole download: steps 1 to 4. `fetch_json` is the release-API
 /// transport (`release_check::send_request`), `transport` downloads the
-/// assets, `dest_base` holds the new download folder, `create` opens the
-/// `.part` file (`create_part` in the app).
+/// assets, `dest_base` holds the new download folder. `wrap` gets a handle
+/// to the new `.part` file and returns the writer the download goes to
+/// (the file itself in the app; tests wrap it).
 pub async fn download_update_with<F, Fut, D, W, C>(
     consent: bool,
     expected_tag: &str,
     dest_base: &Path,
     fetch_json: F,
     transport: &D,
-    create: C,
+    wrap: C,
 ) -> Result<VerifiedSetup, Failure>
 where
     F: FnOnce(String) -> Fut,
     Fut: Future<Output = Result<(u16, Vec<u8>), String>>,
     D: Download,
     W: Write,
-    C: Fn(&Path) -> io::Result<W>,
+    C: Fn(File) -> W,
 {
     if !consent {
         return Err(fail(
@@ -493,12 +535,13 @@ where
     }
     let release = fetch_release(expected_tag, fetch_json).await?;
     let (setup, hash) = expected_setup(&release, transport).await?;
-    let path = download_setup(transport, setup, &hash, dest_base, create).await?;
+    let folder = download_setup(transport, setup, &hash, dest_base, wrap).await?;
     let (major, minor, patch) = release.version;
     Ok(VerifiedSetup {
-        path,
+        path: folder.path().join(&setup.name),
         sha256: hash,
         version: format!("{major}.{minor}.{patch}"),
+        folder: Some(Arc::new(folder)),
     })
 }
 

@@ -16,15 +16,25 @@
 //! - `signatures`: `index.json` and the `*.png` images in `signatures`.
 //!
 //! Every other file stays, and so does a folder that still holds anything.
-//! A PDF file is never deleted. Links:
-//! - A part is refused (nothing in it is deleted, `Report::refused` names
-//!   it) when one of its folders, or a folder between it and `%APPDATA%` /
-//!   `%LOCALAPPDATA%`, is a reparse point, or when its real path is not
-//!   inside that base.
+//! A PDF file is never deleted. A read-only app file is deleted.
+//!
+//! Links and swaps (`util/pinned_dir.rs`): every check reads an open
+//! handle, and every deletion goes through a handle.
+//! - Before anything is deleted, each folder of the part and each folder
+//!   between it and `%APPDATA%` / `%LOCALAPPDATA%` is pinned. A part is
+//!   refused (nothing in it is deleted, `Report::refused` names it) when
+//!   one of them is a reparse point, its real path is not where it must
+//!   be, or Windows does not open it. The pins stay until the part ends,
+//!   so no folder of the part can be renamed or replaced meanwhile.
+//! - A subfolder of `EBWebView` is pinned when the walk enters it.
+//! - A file is opened with `DELETE` access without following a link,
+//!   checked on that handle and deleted through it.
 //! - A reparse point inside a folder (junction, symbolic link, cloud
-//!   placeholder) is never followed and never deleted: it stays, so its
-//!   folder stays too.
-use crate::util::reparse;
+//!   placeholder), also one that appears after the listing, is never
+//!   followed and never deleted: it stays, so its folder stays too.
+use crate::util::pinned_dir::{Entry, PinnedDir, Refused};
+use crate::util::test_hook;
+use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 pub const FLAG: &str = "--remove-user-data";
@@ -129,13 +139,6 @@ pub struct Report {
 }
 
 impl Report {
-    fn record(&mut self, path: &Path, result: std::io::Result<()>) {
-        match result {
-            Ok(()) => self.removed.push(path.to_path_buf()),
-            Err(e) => self.failed.push((path.to_path_buf(), e.to_string())),
-        }
-    }
-
     pub fn exit_code(&self) -> i32 {
         if !self.refused.is_empty() {
             EXIT_REFUSED
@@ -276,115 +279,158 @@ fn signature_targets(roots: &DataRoots) -> Vec<Target> {
     )]
 }
 
-/// `Ok(true)`: `path` exists and is not a reparse point. `Ok(false)`: it
-/// does not exist. `Err`: it is a reparse point or cannot be read.
-fn exists_unlinked(path: &Path) -> Result<bool, String> {
-    match std::fs::symlink_metadata(path) {
-        Ok(meta) if reparse::is_reparse_point(&meta) => {
-            Err(format!("{} is a link (reparse point)", path.display()))
-        }
-        Ok(_) => Ok(true),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(e) => Err(format!("{}: {e}", path.display())),
-    }
+/// The pinned folders of one part, by their path as `DataRoots` builds it.
+/// One handle per folder: a second pin of the same folder would conflict
+/// with the first (no delete sharing).
+#[derive(Default)]
+struct Pins {
+    dirs: Vec<(PathBuf, PinnedDir)>,
 }
 
-/// `Err` when `dir` must not be touched: it is not below `base`, it or a
-/// folder between it and `base` is a reparse point, or its real path is not
-/// inside the real `base`. A `dir` that does not exist is `Ok` (nothing to
-/// delete).
-fn check_root(base: &Path, dir: &Path) -> Result<(), String> {
-    let below = dir
-        .strip_prefix(base)
-        .map_err(|_| format!("{} is not inside {}", dir.display(), base.display()))?;
-    let mut path = base.to_path_buf();
-    for component in below.components() {
-        let Component::Normal(name) = component else {
-            return Err(format!("{} is not a plain path", dir.display()));
-        };
-        path.push(name);
-        if !exists_unlinked(&path)? {
-            return Ok(());
-        }
+impl Pins {
+    fn get(&self, path: &Path) -> Option<&PinnedDir> {
+        self.dirs
+            .iter()
+            .find(|(pinned, _)| pinned == path)
+            .map(|(_, dir)| dir)
     }
-    check_real_path(base, dir)
-}
 
-fn check_real_path(base: &Path, dir: &Path) -> Result<(), String> {
-    let real =
-        |path: &Path| std::fs::canonicalize(path).map_err(|e| format!("{}: {e}", path.display()));
-    let (real_base, real_dir) = (real(base)?, real(dir)?);
-    if real_dir.starts_with(&real_base) {
+    fn pin_base(&mut self, base: &Path) -> Result<(), String> {
+        if self.get(base).is_none() {
+            let dir = PinnedDir::base(base).map_err(|e| format!("{}: {e}", base.display()))?;
+            self.dirs.push((base.to_path_buf(), dir));
+        }
         Ok(())
-    } else {
-        Err(format!(
-            "{} leads to {}, outside {}",
-            dir.display(),
-            real_dir.display(),
-            real_base.display()
-        ))
+    }
+
+    /// Pins `path`, a subfolder of the pinned `parent`. `Ok(false)`: it
+    /// does not exist.
+    fn pin_child(&mut self, parent: &Path, path: &Path) -> Result<bool, String> {
+        if self.get(path).is_some() {
+            return Ok(true);
+        }
+        let (Some(dir), Some(name)) = (self.get(parent), path.file_name()) else {
+            return Err(format!("{} is not a plain path", path.display()));
+        };
+        match dir.child(name) {
+            Ok(pinned) => {
+                self.dirs.push((path.to_path_buf(), pinned));
+                Ok(true)
+            }
+            Err(refused) if refused.is_missing() => Ok(false),
+            Err(refused) => Err(format!("{} {refused}", path.display())),
+        }
+    }
+
+    /// `Err` when `dir` must not be touched: it is not below `base`, or it
+    /// or a folder between it and `base` cannot be pinned (a reparse point,
+    /// a real path outside `base`, a folder Windows does not open). A
+    /// folder that does not exist ends the chain: nothing below it exists.
+    fn pin_chain(&mut self, base: &Path, dir: &Path) -> Result<(), String> {
+        let below = dir
+            .strip_prefix(base)
+            .map_err(|_| format!("{} is not inside {}", dir.display(), base.display()))?;
+        self.pin_base(base)?;
+        let mut path = base.to_path_buf();
+        for component in below.components() {
+            let Component::Normal(name) = component else {
+                return Err(format!("{} is not a plain path", dir.display()));
+            };
+            let parent = path.clone();
+            path.push(name);
+            if !self.pin_child(&parent, &path)? {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes the pinned folder `path` through its pin when it is empty.
+    /// `true` also when `path` is not pinned (it does not exist).
+    fn remove_if_empty(&mut self, path: &Path) -> bool {
+        let Some(index) = self.dirs.iter().position(|(pinned, _)| pinned == path) else {
+            return true;
+        };
+        let removed = self.dirs[index].1.remove_if_empty().is_ok();
+        if removed {
+            self.dirs.remove(index);
+        }
+        removed
+    }
+
+    /// Removes `dir` and its empty parents up to (not including) `base`.
+    /// Stops at a folder that still holds anything.
+    fn remove_empty_dirs(&mut self, dir: &Path, base: &Path) {
+        let mut current = Some(dir);
+        while let Some(path) = current.filter(|path| path.starts_with(base) && *path != base) {
+            if !self.remove_if_empty(path) {
+                return;
+            }
+            current = path.parent();
+        }
     }
 }
 
-/// The entries of `dir` that are not reparse points, with "is a folder".
-/// Links and entries that cannot be read are left out, so they stay.
-fn real_entries(dir: &Path) -> Vec<(PathBuf, bool)> {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
-    };
+/// The entries of the pinned `dir`; `path` is its path for the report.
+fn listed(path: &Path, dir: &PinnedDir) -> Vec<Entry> {
+    let entries = dir.entries().unwrap_or_default();
+    test_hook::at(test_hook::LISTED, path);
     entries
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry.path();
-            let meta = std::fs::symlink_metadata(&path).ok()?;
-            (!reparse::is_reparse_point(&meta)).then(|| (path, meta.is_dir()))
-        })
-        .collect()
 }
 
-fn remove_owned_files(dir: &Path, owns: Owns, report: &mut Report) {
-    for (path, is_dir) in real_entries(dir) {
-        let name = path.file_name().and_then(|name| name.to_str());
-        if !is_dir && name.is_some_and(owns) {
-            report.record(&path, std::fs::remove_file(&path));
+/// Deletes the file `name` of `dir` through its own handle. A link or a
+/// folder found on the handle stays and is not reported.
+fn delete_entry(path: &Path, dir: &PinnedDir, name: &OsStr, report: &mut Report) {
+    let file = path.join(name);
+    match dir.delete_file(name) {
+        Ok(()) => report.removed.push(file),
+        Err(Refused::Link | Refused::WrongKind) => {}
+        Err(refused) if refused.is_missing() => {}
+        Err(refused) => report.failed.push((file, refused.to_string())),
+    }
+}
+
+fn remove_owned_files(path: &Path, dir: &PinnedDir, owns: Owns, report: &mut Report) {
+    for entry in listed(path, dir) {
+        let owned = entry.name.to_str().is_some_and(owns);
+        if owned && !entry.is_dir && !entry.is_link {
+            delete_entry(path, dir, &entry.name, report);
         }
     }
 }
 
 /// Removes every file under `dir` except PDF files, then every subfolder
-/// that is empty after that.
-fn remove_tree(dir: &Path, report: &mut Report) {
-    for (path, is_dir) in real_entries(dir) {
-        if is_dir {
-            remove_tree(&path, report);
-            let _ = std::fs::remove_dir(&path);
-        } else if !is_pdf(&path) {
-            report.record(&path, std::fs::remove_file(&path));
+/// that is empty after that. Each subfolder is pinned before it is entered.
+fn remove_tree(path: &Path, dir: &PinnedDir, report: &mut Report) {
+    for entry in listed(path, dir) {
+        if entry.is_link {
+            continue;
+        }
+        if entry.is_dir {
+            remove_subtree(path, dir, &entry.name, report);
+        } else if !is_pdf(Path::new(&entry.name)) {
+            delete_entry(path, dir, &entry.name, report);
         }
     }
 }
 
-/// Removes `dir` and its empty parents up to (not including) `base`. Stops
-/// at a folder that still holds anything or that is a link.
-fn remove_empty_dirs(dir: &Path, base: &Path) {
-    let mut current = Some(dir);
-    while let Some(path) = current.filter(|path| path.starts_with(base) && *path != base) {
-        match exists_unlinked(path) {
-            Ok(false) => {}
-            Ok(true) if std::fs::remove_dir(path).is_ok() => {}
-            _ => return,
-        }
-        current = path.parent();
-    }
+/// A subfolder that is a link now, or that Windows does not open, stays.
+fn remove_subtree(path: &Path, dir: &PinnedDir, name: &OsStr, report: &mut Report) {
+    let Ok(child) = dir.child(name) else {
+        return;
+    };
+    remove_tree(&path.join(name), &child, report);
+    let _ = child.remove_if_empty();
 }
 
-/// Checks every folder of the part first; one refused folder keeps the
-/// whole part.
+/// Pins every folder of the part first; one refused folder keeps the
+/// whole part. The pins stay until the part ends.
 fn remove_part(targets: &[Target], report: &mut Report) {
+    let mut pins = Pins::default();
     let refused: Vec<(PathBuf, String)> = targets
         .iter()
         .filter_map(|target| {
-            check_root(&target.base, &target.dir)
+            pins.pin_chain(&target.base, &target.dir)
                 .err()
                 .map(|why| (target.dir.clone(), why))
         })
@@ -394,11 +440,13 @@ fn remove_part(targets: &[Target], report: &mut Report) {
         return;
     }
     for target in targets {
-        match target.owned {
-            Owned::Files(owns) => remove_owned_files(&target.dir, owns, report),
-            Owned::Tree => remove_tree(&target.dir, report),
+        test_hook::at(test_hook::PINNED, &target.dir);
+        match (pins.get(&target.dir), target.owned) {
+            (Some(dir), Owned::Files(owns)) => remove_owned_files(&target.dir, dir, owns, report),
+            (Some(dir), Owned::Tree) => remove_tree(&target.dir, dir, report),
+            (None, _) => {}
         }
-        remove_empty_dirs(&target.dir, &target.base);
+        pins.remove_empty_dirs(&target.dir, &target.base);
     }
 }
 

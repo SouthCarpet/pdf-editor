@@ -98,7 +98,9 @@ reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] 
 # as a plain `i32` constant, not in `Foundation`.
 # `Win32_System_Registry` (plan 119): read-only registry lookup in
 # `util/install_detect.rs` that finds the old MSI and the Inno setup install.
-windows = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_Foundation", "Win32_System_Registry"] }
+# `Win32_Storage_FileSystem` (plan 119): folder and file handles in
+# `util/pinned_dir.rs` for the uninstall cleanup and the update download.
+windows = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_Foundation", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
 
 [features]
 default = ["custom-protocol"]

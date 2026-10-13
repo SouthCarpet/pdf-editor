@@ -93,6 +93,8 @@ async fn stored_consent(settings: Option<PathBuf>) -> bool {
 /// Downloads and verifies the setup of release `tag` (the tag the check
 /// showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
 /// after a click on **Update**; the frontend asks about unsaved work first.
+/// The stored setup keeps `%TEMP%` and that folder pinned until it is
+/// replaced or the app exits.
 #[tauri::command]
 #[specta::specta]
 pub async fn download_update(tag: String) -> UpdateInstall {
@@ -103,7 +105,7 @@ pub async fn download_update(tag: String) -> UpdateInstall {
         &std::env::temp_dir(),
         release_check::send_request,
         &release_check::HttpDownload,
-        update_install::create_part,
+        std::convert::identity::<std::fs::File>,
     )
     .await;
     match result {

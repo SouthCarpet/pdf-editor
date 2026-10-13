@@ -1,4 +1,5 @@
 use super::*;
+use crate::util::pinned_dir::PinnedDir;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use tempfile::TempDir;
@@ -102,8 +103,8 @@ fn latest(
     move |_url| std::future::ready(Ok((200, body)))
 }
 
-fn real_file(path: &Path) -> std::io::Result<std::fs::File> {
-    create_part(path)
+fn real_file(file: std::fs::File) -> std::fs::File {
+    file
 }
 
 async fn download(
@@ -274,12 +275,7 @@ impl Write for FullDisk {
 async fn full_disk_is_a_disk_error_and_removes_the_partial_file() {
     let dir = TempDir::new().unwrap();
     let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
-    let create = |path: &Path| {
-        Ok(FullDisk {
-            file: std::fs::File::create(path)?,
-            room: 10,
-        })
-    };
+    let create = |file| FullDisk { file, room: 10 };
 
     let result = download_update_with(
         true,
@@ -398,6 +394,7 @@ fn verified(dir: &TempDir, bytes: &[u8]) -> VerifiedSetup {
         path,
         sha256: sha(bytes),
         version: "1.2.0".into(),
+        folder: None,
     }
 }
 
@@ -543,14 +540,15 @@ fn each_download_gets_a_new_real_folder_with_a_random_name() {
     let first = fresh_download_dir(dir.path()).unwrap();
     let second = fresh_download_dir(dir.path()).unwrap();
 
-    assert_ne!(first, second);
-    for folder in [&first, &second] {
+    assert_ne!(first.path(), second.path());
+    for folder in [first.path(), second.path()] {
         assert_eq!(folder.parent().unwrap(), dir.path());
         let name = folder.file_name().unwrap().to_str().unwrap();
         let random = name.strip_prefix(DOWNLOAD_DIR_PREFIX).unwrap();
         assert_eq!(random.len(), 32, "{name}");
         assert!(random.chars().all(|c| c.is_ascii_hexdigit()), "{name}");
-        assert!(reparse::require_real_dir(folder).is_ok());
+        let meta = std::fs::symlink_metadata(folder).unwrap();
+        assert!(meta.is_dir() && !meta.file_type().is_symlink());
     }
 }
 
@@ -563,11 +561,12 @@ fn a_junction_is_not_a_real_download_folder() {
     if !junction(&link, &outside) {
         return;
     }
+    let base = PinnedDir::base(dir.path()).unwrap();
 
-    let error = reparse::require_real_dir(&link).unwrap_err();
+    let error = base.child("link".as_ref()).unwrap_err();
 
     assert!(error.to_string().contains("is a link"), "{error}");
-    assert!(reparse::require_real_dir(&outside).is_ok());
+    assert!(base.child("outside".as_ref()).is_ok());
 }
 
 #[test]
@@ -575,12 +574,14 @@ fn an_existing_junction_at_the_part_name_is_refused() {
     let dir = TempDir::new().unwrap();
     let outside = dir.path().join("outside");
     std::fs::create_dir(&outside).unwrap();
-    let part = dir.path().join(format!("{SETUP}.part"));
-    if !junction(&part, &outside) {
+    let part = format!("{SETUP}.part");
+    if !junction(&dir.path().join(&part), &outside) {
         return;
     }
 
-    let refused = create_part(&part);
+    let refused = PinnedDir::base(dir.path())
+        .unwrap()
+        .create_file(part.as_ref());
 
     assert!(refused.is_err(), "a folder link at the name is not opened");
     assert_eq!(entries(&outside), 0);
@@ -592,13 +593,16 @@ fn an_existing_part_symlink_is_never_followed() {
     let dir = TempDir::new().unwrap();
     let target = dir.path().join("important.txt");
     std::fs::write(&target, "foreign").unwrap();
-    let part = dir.path().join(format!("{SETUP}.part"));
-    if let Err(e) = std::os::windows::fs::symlink_file(&target, &part) {
+    let part = format!("{SETUP}.part");
+    if let Err(e) = std::os::windows::fs::symlink_file(&target, dir.path().join(&part)) {
         eprintln!("SKIPPED: this process cannot create symbolic links ({e})");
         return;
     }
 
-    let error = create_part(&part).unwrap_err();
+    let error = PinnedDir::base(dir.path())
+        .unwrap()
+        .create_file(part.as_ref())
+        .unwrap_err();
 
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(std::fs::read_to_string(&target).unwrap(), "foreign");
@@ -610,19 +614,172 @@ fn the_rename_never_replaces_a_link_at_the_final_name() {
     let outside = dir.path().join("outside");
     std::fs::create_dir(&outside).unwrap();
     std::fs::write(outside.join("keep.txt"), "foreign").unwrap();
-    let part = dir.path().join(format!("{SETUP}.part"));
-    std::fs::write(&part, SETUP_BYTES).unwrap();
-    let final_path = dir.path().join(SETUP);
-    if !junction(&final_path, &outside) {
+    let folder = fresh_download_dir(dir.path()).unwrap();
+    let part_name = format!("{SETUP}.part");
+    let mut part = folder.dir.create_file(part_name.as_ref()).unwrap();
+    part.write_all(SETUP_BYTES).unwrap();
+    if !junction(&folder.path().join(SETUP), &outside) {
         return;
     }
 
-    let error = move_into_place(&part, &final_path).unwrap_err();
+    let error = folder.dir.rename_into(&part, SETUP.as_ref()).unwrap_err();
 
     assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(
         std::fs::read_to_string(outside.join("keep.txt")).unwrap(),
         "foreign"
     );
-    assert!(part.exists(), "the part file is not moved");
+    assert!(
+        folder.path().join(&part_name).exists(),
+        "the part file is not moved"
+    );
+}
+
+#[test]
+fn the_rename_through_the_handle_places_the_file() {
+    let dir = TempDir::new().unwrap();
+    let folder = fresh_download_dir(dir.path()).unwrap();
+    let part_name = format!("{SETUP}.part");
+    let mut part = folder.dir.create_file(part_name.as_ref()).unwrap();
+    part.write_all(SETUP_BYTES).unwrap();
+
+    folder.dir.rename_into(&part, SETUP.as_ref()).unwrap();
+    drop(part);
+
+    assert_eq!(
+        std::fs::read(folder.path().join(SETUP)).unwrap(),
+        SETUP_BYTES
+    );
+    assert!(!folder.path().join(&part_name).exists());
+}
+
+// ---- swaps after the pin (fix round p3d) ----
+//
+// `test_hook` runs between the pin and the use, the way the verifier's probe
+// did, so each race is deterministic.
+
+use crate::util::test_hook;
+use std::cell::Cell;
+use std::rc::Rc;
+
+/// Renames `dir` to `<dir>-moved`; `true` when Windows allowed it.
+fn try_move(dir: &Path) -> bool {
+    let mut moved = dir.as_os_str().to_owned();
+    moved.push("-moved");
+    std::fs::rename(dir, moved).is_ok()
+}
+
+/// Sets a hook that runs `act` with the hook path the first time `point`
+/// fires and keeps its result.
+fn hook_once(
+    point: &'static str,
+    act: impl Fn(&Path) -> bool + 'static,
+) -> (test_hook::Guard, Rc<Cell<Option<bool>>>) {
+    let result = Rc::new(Cell::new(None));
+    let seen = result.clone();
+    let guard = test_hook::set(move |at, path| {
+        if at == point && seen.get().is_none() {
+            seen.set(Some(act(path)));
+        }
+    });
+    (guard, result)
+}
+
+async fn download_into(transport: &FakeTransport, base: &Path) -> Result<VerifiedSetup, Failure> {
+    let release = release_json(TAG, SETUP, SETUP_BYTES.len() as u64);
+    download_update_with(true, TAG, base, latest(release), transport, real_file).await
+}
+
+/// Fails on 71cd597: the swap succeeds and the `.part` file (then the
+/// setup) is written into `outside` through the junction.
+#[tokio::test]
+async fn download_folder_swapped_for_a_junction_after_the_pin_gets_nothing() {
+    let dir = TempDir::new().unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let target = outside.clone();
+    let (_hook, swapped) = hook_once(test_hook::DOWNLOAD_DIR, move |folder| {
+        try_move(folder) && junction(folder, &target)
+    });
+    let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
+
+    let result = download_into(&transport, dir.path()).await;
+
+    assert_eq!(swapped.get(), Some(false), "the pinned folder cannot move");
+    assert_eq!(entries(&outside), 0, "nothing is written outside");
+    let setup = result.expect("verified setup");
+    assert_eq!(std::fs::read(&setup.path).unwrap(), SETUP_BYTES);
+}
+
+/// Fails on 71cd597: nothing holds the base, so the rename succeeds.
+#[tokio::test]
+async fn the_download_base_cannot_be_renamed_while_pinned() {
+    let dir = TempDir::new().unwrap();
+    let base = dir.path().join("base");
+    std::fs::create_dir(&base).unwrap();
+    let moved = base.clone();
+    let (_hook, renamed) = hook_once(test_hook::DOWNLOAD_DIR, move |_| try_move(&moved));
+    let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
+
+    let result = download_into(&transport, &base).await;
+
+    assert_eq!(renamed.get(), Some(false));
+    assert!(result.expect("verified setup").path.starts_with(&base));
+}
+
+/// Fails on 71cd597: `std::fs::rename` replaces the link at the final name
+/// and the download succeeds.
+#[cfg(windows)]
+#[tokio::test]
+async fn a_symlink_made_at_the_final_name_after_the_check_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("important.txt");
+    std::fs::write(&target, "foreign").unwrap();
+    let to = target.clone();
+    let (_hook, linked) = hook_once(test_hook::PLACE, move |final_path| {
+        std::os::windows::fs::symlink_file(&to, final_path).is_ok()
+    });
+    let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
+
+    let result = download_into(&transport, dir.path()).await;
+
+    if linked.get() != Some(true) {
+        eprintln!("SKIPPED: this process cannot create symbolic links");
+        return;
+    }
+    assert_eq!(status(result), UpdateInstallStatus::DiskError);
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "foreign");
+    let folder = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.is_dir())
+        .expect("the folder stays: it holds the link");
+    let names: Vec<String> = std::fs::read_dir(&folder)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(names, vec![SETUP.to_owned()], "the .part file is removed");
+    assert!(std::fs::symlink_metadata(folder.join(SETUP))
+        .unwrap()
+        .file_type()
+        .is_symlink());
+}
+
+/// Fails on 71cd597: the folder is free to move while the app holds the
+/// verified setup.
+#[tokio::test]
+async fn the_download_folder_stays_pinned_until_the_setup_is_dropped() {
+    let dir = TempDir::new().unwrap();
+    let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
+
+    let setup = download_into(&transport, dir.path())
+        .await
+        .expect("verified setup");
+    let folder = setup.path.parent().unwrap().to_path_buf();
+    let kept = setup.clone();
+    drop(setup);
+
+    assert!(!try_move(&folder), "pinned while a copy of the setup lives");
+    drop(kept);
+    assert!(try_move(&folder), "free after the last copy is gone");
 }

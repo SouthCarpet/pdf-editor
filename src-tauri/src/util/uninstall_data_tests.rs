@@ -438,3 +438,229 @@ fn current_roots_match_the_app_paths() {
     assert_eq!(roots.tauri_roaming, roots.roaming.join(TAURI_IDENTIFIER));
     assert_eq!(roots.tauri_local, roots.local.join(TAURI_IDENTIFIER));
 }
+
+// ---- swaps after the pin (fix round p3d) ----
+//
+// `test_hook` runs between the pin (or the listing) and the deletion, the
+// way the verifier's probe did, so each race is deterministic.
+
+use crate::util::test_hook;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+/// Moves `dir` aside and puts a junction to `target` in its place. `false`
+/// when Windows refuses the rename (the folder is pinned).
+fn swap_for_junction(dir: &Path, target: &Path) -> bool {
+    let mut aside = dir.as_os_str().to_owned();
+    aside.push("-original");
+    if std::fs::rename(dir, &aside).is_err() {
+        return false;
+    }
+    assert!(junction(dir, target), "junction after the swap");
+    true
+}
+
+/// A swap of `dir` for a junction to `target`, the first time the hook
+/// `point` fires for `when`. The cell holds the swap result.
+struct Swap {
+    _guard: test_hook::Guard,
+    result: Rc<Cell<Option<bool>>>,
+}
+
+impl Swap {
+    fn at(point: &'static str, when: &Path, dir: &Path, target: &Path) -> Self {
+        let result = Rc::new(Cell::new(None));
+        let seen = result.clone();
+        let (when, dir, target) = (when.to_path_buf(), dir.to_path_buf(), target.to_path_buf());
+        let _guard = test_hook::set(move |at, path| {
+            if at == point && path == when && seen.get().is_none() {
+                seen.set(Some(swap_for_junction(&dir, &target)));
+            }
+        });
+        Self { _guard, result }
+    }
+
+    fn swapped(&self) -> Option<bool> {
+        self.result.get()
+    }
+}
+
+/// Fails on 71cd597: the swap succeeds and the cleanup deletes
+/// `Outside\x.pdf-project` through the junction.
+#[test]
+fn projects_swapped_for_a_junction_after_the_pin_is_refused_by_windows() {
+    let tree = Tree::new();
+    let outside = tree.outside();
+    let before = outside_with_bait(&outside);
+    let projects = tree.roots.app_data.join("projects");
+    let swap = Swap::at(test_hook::PINNED, &projects, &projects, &outside);
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    assert_eq!(snapshot(&outside), before, "nothing outside is deleted");
+    assert_eq!(swap.swapped(), Some(false), "the pinned folder cannot move");
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    assert!(!projects.join("Contract.pdf-project").exists());
+}
+
+/// One cleanup folder of a part, from the roots.
+type DirOf = fn(&DataRoots) -> PathBuf;
+
+/// Fails on 71cd597: every swap succeeds.
+#[test]
+fn every_cleanup_folder_stays_pinned_until_its_part_ends() {
+    let mut cases: Vec<(DirOf, Choice)> = vec![
+        (
+            |roots| roots.app_data.join("pipeline-presets"),
+            choice(true, false),
+        ),
+        (
+            |roots| roots.app_data.join("tessdata-extra"),
+            choice(true, false),
+        ),
+        (
+            |roots| roots.app_data.join("thumbnails"),
+            choice(true, false),
+        ),
+        (|roots| roots.app_data.join("logs"), choice(true, false)),
+        (|roots| roots.app_data.clone(), choice(true, false)),
+        (webview, choice(true, false)),
+    ];
+    cases.push((signatures, choice(false, true)));
+    for (dir_of, chosen) in cases {
+        let tree = Tree::new();
+        let outside = tree.outside();
+        let before = outside_with_bait(&outside);
+        let dir = dir_of(&tree.roots);
+        let swap = Swap::at(test_hook::PINNED, &dir, &dir, &outside);
+
+        let report = remove_user_data(&tree.roots, chosen);
+
+        assert_eq!(snapshot(&outside), before, "{}", dir.display());
+        assert_eq!(swap.swapped(), Some(false), "{}", dir.display());
+        assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    }
+}
+
+/// Fails on 71cd597: nothing holds the folders, so both renames succeed.
+#[test]
+fn folders_above_a_pinned_folder_cannot_be_renamed() {
+    let tree = Tree::new();
+    let between = tree.roots.roaming.join("PdfEditor");
+    let above_base = tree.roots.roaming.parent().unwrap().to_path_buf();
+    let projects = tree.roots.app_data.join("projects");
+    let renamed = Rc::new(RefCell::new(Vec::new()));
+    let seen = renamed.clone();
+    let _hook = test_hook::set(move |at, path| {
+        if at == test_hook::PINNED && path == projects && seen.borrow().is_empty() {
+            for dir in [&between, &above_base] {
+                let mut moved = dir.as_os_str().to_owned();
+                moved.push("-moved");
+                seen.borrow_mut().push(std::fs::rename(dir, moved).is_ok());
+            }
+        }
+    });
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    assert_eq!(*renamed.borrow(), vec![false, false]);
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    assert!(!tree.roots.roaming.join("PdfEditor").exists());
+}
+
+/// Passes on 71cd597 too: the cleanup of `logs` never enters a subfolder.
+/// It guards that the handle-based walk keeps this rule.
+#[test]
+fn a_child_folder_swapped_inside_logs_is_never_followed() {
+    let tree = Tree::new();
+    let outside = tree.outside();
+    let before = outside_with_bait(&outside);
+    let logs = tree.roots.app_data.join("logs");
+    let archive = logs.join("archive");
+    write(&archive.join("pdf-editor.2026-01-02.log"), "old log");
+    let swap = Swap::at(test_hook::LISTED, &logs, &archive, &outside);
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    assert_eq!(swap.swapped(), Some(true), "a child of logs is not pinned");
+    assert_eq!(snapshot(&outside), before, "link targets stay untouched");
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    assert!(
+        std::fs::symlink_metadata(&archive).is_ok(),
+        "the link stays"
+    );
+}
+
+/// Fails on 71cd597: the walk enters the junction and deletes the files
+/// outside.
+#[test]
+fn a_webview_child_swapped_after_the_listing_is_never_followed() {
+    let tree = Tree::new();
+    let outside = tree.outside();
+    let before = outside_with_bait(&outside);
+    let webview_dir = webview(&tree.roots);
+    let default = webview_dir.join("Default");
+    let swap = Swap::at(test_hook::LISTED, &webview_dir, &default, &outside);
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    assert_eq!(
+        swap.swapped(),
+        Some(true),
+        "a child is pinned only when entered"
+    );
+    assert_eq!(snapshot(&outside), before, "link targets stay untouched");
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    assert!(
+        std::fs::symlink_metadata(&default).is_ok(),
+        "the link stays"
+    );
+}
+
+/// Fails on 71cd597: `remove_file` deletes the link. The rule is that a
+/// link is never deleted and never followed: it stays, like a link that
+/// was already there at the listing.
+#[cfg(windows)]
+#[test]
+fn a_log_swapped_for_a_symlink_after_the_listing_stays_and_is_not_followed() {
+    let tree = Tree::new();
+    let target = tree.outside().join("important.txt");
+    write(&target, "foreign");
+    let logs = tree.roots.app_data.join("logs");
+    let log = logs.join("pdf-editor.2026-10-12.log");
+    let linked = Rc::new(Cell::new(None));
+    let (seen, link, to) = (linked.clone(), log.clone(), target.clone());
+    let _hook = test_hook::set(move |at, path| {
+        if at == test_hook::LISTED && path == logs && seen.get().is_none() {
+            std::fs::rename(&link, link.with_extension("aside")).unwrap();
+            seen.set(Some(std::os::windows::fs::symlink_file(&to, &link).is_ok()));
+        }
+    });
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    if linked.get() != Some(true) {
+        eprintln!("SKIPPED: this process cannot create symbolic links");
+        return;
+    }
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "foreign");
+    assert!(std::fs::symlink_metadata(&log).is_ok(), "the link stays");
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+}
+
+/// Fails on 71cd597: `remove_file` cannot delete a read-only file, so the
+/// report has a failure. The cleanup deletes a read-only app file.
+#[test]
+fn a_read_only_app_file_is_deleted() {
+    let tree = Tree::new();
+    let settings = tree.roots.app_data.join("settings.json");
+    let mut permissions = std::fs::metadata(&settings).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(&settings, permissions).unwrap();
+
+    let report = remove_user_data(&tree.roots, choice(true, false));
+
+    assert_eq!(report.exit_code(), EXIT_OK, "{report:?}");
+    assert!(!settings.exists());
+    assert!(!tree.roots.roaming.join("PdfEditor").exists());
+}
