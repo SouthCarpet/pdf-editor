@@ -144,3 +144,60 @@ export function keepRectOnPage(
   const y0 = Math.min(Math.max(rect[1], bottom), top - height);
   return [x0, y0, x0 + width, y0 + height];
 }
+
+/**
+ * Plan 119 p1c: moves one SCREEN side of a rectangle to `value` (pixels),
+ * keeping the opposite side, and never below `minPx` wide or high. The
+ * resize handles sit on screen sides. On a page turned 90 degrees a screen
+ * side is not the PDF edge of the same name, so the move is made on screen
+ * and the result converted back with `toPdfRect`.
+ */
+export function resizeScreenEdge(
+  screen: ScreenRect,
+  side: ResizeEdge,
+  value: number,
+  minPx: number,
+): ScreenRect {
+  const right = screen.x + screen.width;
+  const bottom = screen.y + screen.height;
+  switch (side) {
+    case "left": {
+      const x = Math.min(value, right - minPx);
+      return { ...screen, x, width: right - x };
+    }
+    case "right":
+      return { ...screen, width: Math.max(value, screen.x + minPx) - screen.x };
+    case "top": {
+      const y = Math.min(value, bottom - minPx);
+      return { ...screen, y, height: bottom - y };
+    }
+    case "bottom":
+      return { ...screen, height: Math.max(value, screen.y + minPx) - screen.y };
+  }
+}
+
+/**
+ * Plan 119 p1c: cuts a resized value at the page edge, so no edge of it can
+ * leave the page (a value cut off in the saved file, or lost from view).
+ * Each coordinate is clamped on its own, so the rect never inverts. Unlike
+ * `keepRectOnPage` it does not slide the rect to keep its size: a resize
+ * moves one edge only. `pageBox` is the viewport's `viewBox`.
+ */
+export function clampRectToPage(
+  rect: readonly [number, number, number, number],
+  pageBox: readonly number[],
+): [number, number, number, number] {
+  const [left, bottom, right, top] = [
+    Math.min(pageBox[0], pageBox[2]),
+    Math.min(pageBox[1], pageBox[3]),
+    Math.max(pageBox[0], pageBox[2]),
+    Math.max(pageBox[1], pageBox[3]),
+  ];
+  const within = (value: number, low: number, high: number) => Math.min(Math.max(value, low), high);
+  return [
+    within(rect[0], left, right),
+    within(rect[1], bottom, top),
+    within(rect[2], left, right),
+    within(rect[3], bottom, top),
+  ];
+}

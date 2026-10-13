@@ -17,9 +17,11 @@ import type { Vector2d } from "konva/lib/types";
 import { Group, Rect, Text } from "react-konva";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
 import {
+  MIN_RESIZE_SIZE_PT,
+  clampRectToPage,
   freeTextRenderProps,
   keepRectOnPage,
-  resizeRectEdge,
+  resizeScreenEdge,
   toPdfRect,
   type FreeTextAnnotation,
   type ResizeEdge,
@@ -147,23 +149,23 @@ function PendingFreeTextItem({
 
   // R2 (plan 050 D2-UX-3b): resize from any of the four edges, not only
   // the bottom-right corner - a wide detected field can now be narrowed.
-  // `screen` (already validated non-null above) recovers the current PDF
-  // rect through `toPdfRect`, so the resize maths never has to special-
-  // case the wire annotation's nullable `rect` tuple. The font size is
+  // Plan 119 p1c: the handle moves one SCREEN side, the result is converted
+  // back to a PDF rect (so a page turned by 90 degrees moves the right PDF
+  // edge) and cut at the page box, like a whole-box drag. The font size is
   // never touched here (R2): only `rect` is patched.
   function edgeResizeRect(
     edge: ResizeEdge,
     axis: "x" | "y",
     e: KonvaEventObject<DragEvent>,
   ): [number, number, number, number] {
-    const currentRect = toPdfRect(screen, viewport);
     const screenValue = (axis === "x" ? e.target.x() : e.target.y()) + HANDLE_SIZE / 2;
-    const point =
-      axis === "x"
-        ? viewport.convertToPdfPoint(screenValue, screen.y)
-        : viewport.convertToPdfPoint(screen.x, screenValue);
-    const valuePt = axis === "x" ? point[0] : point[1];
-    return resizeRectEdge(currentRect, edge, valuePt);
+    const resized = resizeScreenEdge(
+      screen,
+      edge,
+      screenValue,
+      MIN_RESIZE_SIZE_PT * viewport.scale,
+    );
+    return clampRectToPage(toPdfRect(resized, viewport), viewport.viewBox);
   }
 
   function onEdgeDragMove(edge: ResizeEdge, axis: "x" | "y") {
