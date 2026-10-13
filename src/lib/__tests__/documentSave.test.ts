@@ -442,5 +442,59 @@ describe("saveDocument", () => {
       }),
     );
   });
-});
 
+  // Plan 119 p1c: clearing a saved value sends an empty replacement. The save
+  // deletes the old object and writes nothing (the command returns null), so
+  // nothing stays pending and the document is clean.
+  it("saves an emptied saved value as a deletion and leaves nothing pending", async () => {
+    const clientId = useAnnotations
+      .getState()
+      .add(DOC_A, { ...FILL, contents: "", __replaces: { object: 12, generation: 0 } });
+    useFilledFields
+      .getState()
+      .setFilled(DOC_A, markFieldFilled(EMPTY_FILLED_FIELDS, "k", "0:0", clientId));
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [null] });
+
+    const outcome = await saveDocument(DOC_A);
+
+    expect(outcome).toBe("saved");
+    expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annotations: [{ ...FILL, contents: "" }],
+        replaced: [{ object: 12, generation: 0 }],
+      }),
+    );
+    expect(useAnnotations.getState().byDoc[DOC_A] ?? []).toEqual([]);
+    expect(useFilledFields.getState().byDoc[DOC_A]?.ids.size ?? 0).toBe(0);
+    expect(hasUnsavedWork(DOC_A)).toBe(false);
+  });
+
+  // Plan 119 p1c: the save deleted that object. A value typed while the
+  // deletion wrote is a new value, not a second replacement of an object
+  // that is gone (its number can be given to the next annotation).
+  it("does not replace a deleted object again when a value is typed during the save", async () => {
+    const clientId = useAnnotations
+      .getState()
+      .add(DOC_A, { ...FILL, contents: "", __replaces: { object: 12, generation: 0 } });
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    let finishWrite: () => void = () => {};
+    commandFakes.applyAnnotationsCmd.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishWrite = () => resolve({ status: "ok", data: [null] });
+        }),
+    );
+
+    const saving = saveDocument(DOC_A);
+    await vi.waitFor(() => expect(commandFakes.applyAnnotationsCmd).toHaveBeenCalledTimes(1));
+    useAnnotations.getState().update(DOC_A, clientId, { contents: "09:00" });
+    finishWrite();
+    await saving;
+
+    const left = useAnnotations.getState().byDoc[DOC_A] ?? [];
+    expect(left).toHaveLength(1);
+    expect(left[0]).toMatchObject({ __clientId: clientId, contents: "09:00" });
+    expect(left[0]).not.toHaveProperty("__replaces");
+  });
+});

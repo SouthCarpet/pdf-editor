@@ -186,6 +186,16 @@ function unwrittenWork(
     if (index === undefined) return [annotation];
     if (annotation === pending[index]) return [];
     const ref = written[index];
-    return [ref === null || ref === undefined ? annotation : { ...annotation, __replaces: ref }];
+    if (ref === null || ref === undefined) return [withoutReplaces(annotation)];
+    return [{ ...annotation, __replaces: ref }];
   });
+}
+
+/** Plan 119 p1c: the save removed the object `__replaces` names, and wrote
+ * nothing in its place (an emptied value). The object number can be given
+ * to a later annotation, so the edit must not name it again. */
+function withoutReplaces(annotation: ClientAnnotation): ClientAnnotation {
+  const { __replaces: _replaces, ...rest } = annotation;
+  void _replaces;
+  return rest as ClientAnnotation;
 }

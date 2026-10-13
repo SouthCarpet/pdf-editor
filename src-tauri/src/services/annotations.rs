@@ -155,7 +155,8 @@ pub fn apply_annotations(input: &Path, output: &Path, annotations: &[Annotation]
 /// Writes `annotations` into a copy of `input` and first removes the saved
 /// annotations in `replaced`, so an edited saved value replaces the old one
 /// instead of lying on top of it. Returns the object of each written
-/// annotation in input order (`None` for a page the file does not have).
+/// annotation in input order (`None` for a page the file does not have and
+/// for an empty fill, which is not written).
 pub fn save_annotations(
     input: &Path,
     output: &Path,
@@ -167,6 +168,10 @@ pub fn save_annotations(
     let pages = doc.get_pages();
     let mut written = Vec::with_capacity(annotations.len());
     for ann in annotations {
+        if is_empty_fill(ann) {
+            written.push(None);
+            continue;
+        }
         let page_num = annotation_page(ann);
         let Some(&page_id) = pages.get(&(page_num + 1)) else {
             written.push(None);
@@ -199,6 +204,18 @@ pub fn save_annotations(
         Ok(())
     })?;
     Ok(written)
+}
+
+/// Plan 119 p1c: a FreeText with no text, no border and no background draws
+/// nothing. It is how the editor says "this cell has no value": as a
+/// replacement it deletes the saved value (the old object is removed above
+/// and nothing takes its place), as a new fill it is ignored.
+fn is_empty_fill(ann: &Annotation) -> bool {
+    matches!(
+        ann,
+        Annotation::FreeText { contents, background_fill: None, border_width, .. }
+            if contents.trim().is_empty() && *border_width <= 0.0
+    )
 }
 
 /// Drops each referenced annotation from every page's `/Annots` and deletes
@@ -1479,6 +1496,82 @@ mod tests {
             "old object deleted"
         );
         assert!(second[0].is_some());
+    }
+
+    /// Plan 119 p1c: clearing a saved value deletes it. The save removes the
+    /// old object and writes nothing, so the reopened file has no value in
+    /// the cell and the cell reads as unfilled.
+    #[test]
+    fn an_empty_replacement_deletes_the_saved_value() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let original = folder.path().join("form.pdf");
+        let saved = folder.path().join("form.annotated.pdf");
+        write_single_page_pdf(&original);
+        let first =
+            save_annotations(&original, &saved, &[cell_value("07:00")], &[]).expect("first save");
+        let old = first[0].expect("written on page 1");
+
+        let second = save_annotations(&saved, &saved, &[cell_value("")], &[old]).expect("clear");
+
+        assert_eq!(second, vec![None], "nothing written for the empty value");
+        assert!(
+            free_text_values(&saved).is_empty(),
+            "zero annotations in the cell"
+        );
+        let doc = crate::services::pdf_guard::load_guarded(&saved).unwrap();
+        assert!(
+            doc.get_object((old.object, old.generation)).is_err(),
+            "old object deleted"
+        );
+    }
+
+    /// Plan 119 p1c: a value of spaces is empty too, and a new empty fill
+    /// (a clicked cell nobody typed into) is ignored, not written.
+    #[test]
+    fn a_new_empty_fill_is_ignored() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let original = folder.path().join("form.pdf");
+        let saved = folder.path().join("form.annotated.pdf");
+        write_single_page_pdf(&original);
+
+        let written = save_annotations(
+            &original,
+            &saved,
+            &[cell_value(""), cell_value("  \n "), cell_value("08:30")],
+            &[],
+        )
+        .expect("save");
+
+        assert_eq!(written.len(), 3, "one result per input, in input order");
+        assert!(written[0].is_none() && written[1].is_none() && written[2].is_some());
+        assert_eq!(free_text_values(&saved), vec!["08:30".to_string()]);
+    }
+
+    /// Plan 119 p1c: only a text-less, undecorated FreeText counts as an
+    /// empty fill. An empty box the user drew with a border or a background
+    /// stays a visible shape and is written.
+    #[test]
+    fn an_empty_box_with_a_border_or_background_is_still_written() {
+        let folder = tempfile::tempdir().expect("scratch folder");
+        let original = folder.path().join("form.pdf");
+        let saved = folder.path().join("form.annotated.pdf");
+        write_single_page_pdf(&original);
+        let mut bordered = cell_value("");
+        let mut filled = cell_value("");
+        if let Annotation::FreeText { border_width, .. } = &mut bordered {
+            *border_width = 1.0;
+        }
+        if let Annotation::FreeText {
+            background_fill, ..
+        } = &mut filled
+        {
+            *background_fill = Some([1.0, 1.0, 0.0, 1.0]);
+        }
+
+        let written = save_annotations(&original, &saved, &[bordered, filled], &[]).expect("save");
+
+        assert!(written.iter().all(Option::is_some));
+        assert_eq!(free_text_values(&saved).len(), 2);
     }
 
     /// Plan 119 p1b: a value longer than its cell is clipped to the cell in
