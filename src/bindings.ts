@@ -29,8 +29,8 @@ export const commands = {
 	checkForUpdate: () => __TAURI_INVOKE<UpdateCheck>("check_for_update"),
 	/**
 	 *  Downloads and verifies the setup of release `tag` (the tag the check
-	 *  showed) to `%TEMP%\pdf-editor-update\`. Only after a click on
-	 *  **Update**; the frontend asks about unsaved work first.
+	 *  showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
+	 *  after a click on **Update**; the frontend asks about unsaved work first.
 	 */
 	downloadUpdate: (tag: string) => __TAURI_INVOKE<UpdateInstall>("download_update", { tag }),
 	/**

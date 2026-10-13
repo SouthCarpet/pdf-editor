@@ -8,19 +8,24 @@
 //! 2. Find the assets `pdf-editor-setup-X.Y.Z.exe` (exact name) and
 //!    `SHA256SUMS.txt`. The setup's `size` must be at most `MAX_SETUP_BYTES`.
 //! 3. Download `SHA256SUMS.txt` and take the line for that exact file name.
-//! 4. Stream the setup to a `.part` file in `%TEMP%\pdf-editor-update\`,
-//!    hashing as it goes. More bytes than `size`, fewer bytes, a transport
-//!    error, a write error or a hash mismatch delete the file.
+//! 4. Create a new folder `%TEMP%\pdf-editor-update-<random>\` for this
+//!    download (never an existing one; it must be a real folder, not a link)
+//!    and stream the setup to a new `.part` file in it, hashing as it goes.
+//!    The `.part` file must not exist yet and a link is never followed. More
+//!    bytes than `size`, fewer bytes, a transport error, a write error or a
+//!    hash mismatch delete the file and the folder. The rename to the final
+//!    name refuses when anything (also a link) already has that name.
 //! 5. Before the start, hash the file again: a changed file never runs.
 //!
 //! Every URL, also every redirect target, must be `https://` on a host in
 //! `ALLOWED_HOSTS`. The HTTP client lives in `release_check.rs` (the only
 //! module allowed to use it); this module sees only the `Download` trait.
 use crate::services::release_check::{self, ReleaseAsset, StableRelease};
+use crate::util::reparse;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::future::Future;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 pub const SUMS_ASSET: &str = "SHA256SUMS.txt";
@@ -36,6 +41,11 @@ pub const MAX_SETUP_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_SUMS_BYTES: u64 = 64 * 1024;
 /// A GitHub asset redirects once (github.com -> release-assets host).
 const MAX_REDIRECTS: usize = 5;
+/// Each download gets `<base>\pdf-editor-update-<32 random hex digits>`.
+pub const DOWNLOAD_DIR_PREFIX: &str = "pdf-editor-update-";
+/// `FILE_FLAG_OPEN_REPARSE_POINT` from the Windows SDK.
+#[cfg(windows)]
+const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
@@ -332,55 +342,138 @@ async fn expected_setup<'a, D: Download>(
     Ok((setup, hash))
 }
 
-/// Step 4: streams the setup to `<dest_dir>/<name>.part`, checks it and
-/// renames it. Any failure removes the partial file.
+/// 128 bits from the standard library's per-process random keys (taken
+/// from the operating system), so other programs cannot guess the name.
+fn random_name() -> String {
+    use std::hash::BuildHasher;
+    let first = std::collections::hash_map::RandomState::new().hash_one(1u8);
+    let second = std::collections::hash_map::RandomState::new().hash_one(2u8);
+    format!("{first:016x}{second:016x}")
+}
+
+/// Creates a new folder `<base>\pdf-editor-update-<random>` and checks that
+/// it is a real folder. A name that already exists (also a link) is never
+/// used; the next random name is tried.
+pub fn fresh_download_dir(base: &Path) -> io::Result<PathBuf> {
+    for _ in 0..8 {
+        let dir = base.join(format!("{DOWNLOAD_DIR_PREFIX}{}", random_name()));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => return reparse::require_real_dir(&dir).map(|()| dir),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(e),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "no free name for the download folder",
+    ))
+}
+
+/// Opens a new `.part` file. Fails when anything already has the name; a
+/// link at the name is never followed.
+pub fn create_part(path: &Path) -> io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    options.open(path)
+}
+
+/// Renames `part` to `final_path`. Refuses when anything, also a link,
+/// already has the final name.
+fn move_into_place(part: &Path, final_path: &Path) -> io::Result<()> {
+    if std::fs::symlink_metadata(final_path).is_ok() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("{} already exists", final_path.display()),
+        ));
+    }
+    std::fs::rename(part, final_path)
+}
+
+fn disk_error(e: io::Error) -> Failure {
+    fail(UpdateInstallStatus::DiskError, e.to_string())
+}
+
+fn check_hash(actual: String, expected: &str) -> Result<(), Failure> {
+    if actual == expected {
+        return Ok(());
+    }
+    Err(fail(
+        UpdateInstallStatus::ChecksumMismatch,
+        format!("SHA-256 {actual}, {SUMS_ASSET} lists {expected}"),
+    ))
+}
+
+/// Streams the setup into a new `part`, checks its hash and renames it to
+/// `final_path`. After `create` succeeded, any failure removes `part`.
+async fn save_verified<D, W, C>(
+    transport: &D,
+    setup: &ReleaseAsset,
+    expected_hash: &str,
+    (part, final_path): (&Path, &Path),
+    create: C,
+) -> Result<(), Failure>
+where
+    D: Download,
+    W: Write,
+    C: Fn(&Path) -> io::Result<W>,
+{
+    let mut body = open(transport, &setup.browser_download_url).await?;
+    let mut sink = create(part).map_err(disk_error)?;
+    let streamed = stream_to(&mut body, &mut sink, setup.size).await;
+    drop(sink);
+    let moved = streamed
+        .and_then(|actual| check_hash(actual, expected_hash))
+        .and_then(|()| move_into_place(part, final_path).map_err(disk_error));
+    if moved.is_err() {
+        let _ = std::fs::remove_file(part);
+    }
+    moved
+}
+
+/// Step 4: a new folder under `dest_base`, the setup in it under its
+/// release name. A failure removes the folder again.
 async fn download_setup<D, W, C>(
     transport: &D,
     setup: &ReleaseAsset,
     expected_hash: &str,
-    dest_dir: &Path,
+    dest_base: &Path,
     create: C,
 ) -> Result<PathBuf, Failure>
 where
     D: Download,
     W: Write,
-    C: Fn(&Path) -> std::io::Result<W>,
+    C: Fn(&Path) -> io::Result<W>,
 {
-    let disk = |e: std::io::Error| fail(UpdateInstallStatus::DiskError, e.to_string());
-    std::fs::create_dir_all(dest_dir).map_err(disk)?;
-    let final_path = dest_dir.join(&setup.name);
-    let part = dest_dir.join(format!("{}.part", setup.name));
-    let mut body = open(transport, &setup.browser_download_url).await?;
-    let streamed = match create(&part) {
-        Ok(mut sink) => stream_to(&mut body, &mut sink, setup.size).await,
-        Err(e) => Err(disk(e)),
-    };
-    let checked = streamed.and_then(|actual| {
-        (actual == expected_hash).then_some(()).ok_or_else(|| {
-            fail(
-                UpdateInstallStatus::ChecksumMismatch,
-                format!("SHA-256 {actual}, {SUMS_ASSET} lists {expected_hash}"),
-            )
-        })
-    });
-    let renamed = checked.and_then(|()| {
-        let _ = std::fs::remove_file(&final_path);
-        std::fs::rename(&part, &final_path).map_err(disk)
-    });
-    if let Err(failure) = renamed {
-        let _ = std::fs::remove_file(&part);
-        return Err(failure);
+    let dir = fresh_download_dir(dest_base).map_err(disk_error)?;
+    let final_path = dir.join(&setup.name);
+    let part = dir.join(format!("{}.part", setup.name));
+    let saved = save_verified(
+        transport,
+        setup,
+        expected_hash,
+        (&part, &final_path),
+        create,
+    )
+    .await;
+    if saved.is_err() {
+        let _ = std::fs::remove_dir(&dir);
     }
-    Ok(final_path)
+    saved.map(|()| final_path)
 }
 
 /// The whole download: steps 1 to 4. `fetch_json` is the release-API
 /// transport (`release_check::send_request`), `transport` downloads the
-/// assets, `create` opens the `.part` file.
+/// assets, `dest_base` holds the new download folder, `create` opens the
+/// `.part` file (`create_part` in the app).
 pub async fn download_update_with<F, Fut, D, W, C>(
     consent: bool,
     expected_tag: &str,
-    dest_dir: &Path,
+    dest_base: &Path,
     fetch_json: F,
     transport: &D,
     create: C,
@@ -390,7 +483,7 @@ where
     Fut: Future<Output = Result<(u16, Vec<u8>), String>>,
     D: Download,
     W: Write,
-    C: Fn(&Path) -> std::io::Result<W>,
+    C: Fn(&Path) -> io::Result<W>,
 {
     if !consent {
         return Err(fail(
@@ -400,7 +493,7 @@ where
     }
     let release = fetch_release(expected_tag, fetch_json).await?;
     let (setup, hash) = expected_setup(&release, transport).await?;
-    let path = download_setup(transport, setup, &hash, dest_dir, create).await?;
+    let path = download_setup(transport, setup, &hash, dest_base, create).await?;
     let (major, minor, patch) = release.version;
     Ok(VerifiedSetup {
         path,

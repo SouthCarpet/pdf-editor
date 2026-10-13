@@ -103,7 +103,7 @@ fn latest(
 }
 
 fn real_file(path: &Path) -> std::io::Result<std::fs::File> {
-    std::fs::File::create(path)
+    create_part(path)
 }
 
 async fn download(
@@ -140,11 +140,19 @@ async fn verified_setup_is_saved_under_its_release_name() {
     .await
     .expect("verified setup");
 
-    assert_eq!(setup.path, dir.path().join(SETUP));
+    let folder = setup.path.parent().unwrap();
+    assert_eq!(folder.parent().unwrap(), dir.path());
+    assert_eq!(setup.path.file_name().unwrap(), SETUP);
     assert_eq!(setup.sha256, sha(SETUP_BYTES));
     assert_eq!(setup.version, "1.2.0");
     assert_eq!(std::fs::read(&setup.path).unwrap(), SETUP_BYTES);
-    assert_eq!(files_in(&dir), vec![SETUP.to_owned()]);
+    let folder_name = folder.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(
+        folder_name.starts_with(DOWNLOAD_DIR_PREFIX),
+        "{folder_name}"
+    );
+    assert_eq!(files_in(&dir), vec![folder_name]);
+    assert_eq!(std::fs::read_dir(folder).unwrap().count(), 1);
     assert_eq!(transport.requests(), vec![SUMS_URL, SETUP_URL, SETUP_CDN]);
 }
 
@@ -481,4 +489,140 @@ fn checksum_line_matches_the_exact_file_name_only() {
         checksum_for("short  pdf-editor-setup-1.2.0.exe", SETUP),
         None
     );
+}
+
+// ---- download folder and links (F3) ----
+
+/// A directory junction made with `mklink /J` (needs no special right).
+/// `false` with a message when Windows refuses, so the caller can skip.
+fn junction(link: &Path, target: &Path) -> bool {
+    let made = std::process::Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(link)
+        .arg(target)
+        .output()
+        .is_ok_and(|out| out.status.success());
+    if !made {
+        eprintln!("SKIPPED: mklink /J {} failed", link.display());
+    }
+    made
+}
+
+fn entries(dir: &Path) -> usize {
+    std::fs::read_dir(dir).unwrap().count()
+}
+
+#[tokio::test]
+async fn junction_at_the_old_update_folder_never_gets_the_download() {
+    let dir = TempDir::new().unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let old_folder = dir.path().join("pdf-editor-update");
+    if !junction(&old_folder, &outside) {
+        return;
+    }
+    let transport = FakeTransport::github(SETUP_BYTES, &sums_line(SETUP_BYTES));
+
+    let setup = download(
+        &transport,
+        release_json(TAG, SETUP, SETUP_BYTES.len() as u64),
+        &dir,
+    )
+    .await
+    .expect("verified setup");
+
+    assert_eq!(entries(&outside), 0, "nothing is written through the link");
+    assert!(!setup.path.starts_with(&old_folder));
+    assert_eq!(setup.path.parent().unwrap().parent().unwrap(), dir.path());
+}
+
+#[test]
+fn each_download_gets_a_new_real_folder_with_a_random_name() {
+    let dir = TempDir::new().unwrap();
+
+    let first = fresh_download_dir(dir.path()).unwrap();
+    let second = fresh_download_dir(dir.path()).unwrap();
+
+    assert_ne!(first, second);
+    for folder in [&first, &second] {
+        assert_eq!(folder.parent().unwrap(), dir.path());
+        let name = folder.file_name().unwrap().to_str().unwrap();
+        let random = name.strip_prefix(DOWNLOAD_DIR_PREFIX).unwrap();
+        assert_eq!(random.len(), 32, "{name}");
+        assert!(random.chars().all(|c| c.is_ascii_hexdigit()), "{name}");
+        assert!(reparse::require_real_dir(folder).is_ok());
+    }
+}
+
+#[test]
+fn a_junction_is_not_a_real_download_folder() {
+    let dir = TempDir::new().unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let link = dir.path().join("link");
+    if !junction(&link, &outside) {
+        return;
+    }
+
+    let error = reparse::require_real_dir(&link).unwrap_err();
+
+    assert!(error.to_string().contains("is a link"), "{error}");
+    assert!(reparse::require_real_dir(&outside).is_ok());
+}
+
+#[test]
+fn an_existing_junction_at_the_part_name_is_refused() {
+    let dir = TempDir::new().unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    let part = dir.path().join(format!("{SETUP}.part"));
+    if !junction(&part, &outside) {
+        return;
+    }
+
+    let refused = create_part(&part);
+
+    assert!(refused.is_err(), "a folder link at the name is not opened");
+    assert_eq!(entries(&outside), 0);
+}
+
+#[cfg(windows)]
+#[test]
+fn an_existing_part_symlink_is_never_followed() {
+    let dir = TempDir::new().unwrap();
+    let target = dir.path().join("important.txt");
+    std::fs::write(&target, "foreign").unwrap();
+    let part = dir.path().join(format!("{SETUP}.part"));
+    if let Err(e) = std::os::windows::fs::symlink_file(&target, &part) {
+        eprintln!("SKIPPED: this process cannot create symbolic links ({e})");
+        return;
+    }
+
+    let error = create_part(&part).unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "foreign");
+}
+
+#[test]
+fn the_rename_never_replaces_a_link_at_the_final_name() {
+    let dir = TempDir::new().unwrap();
+    let outside = dir.path().join("outside");
+    std::fs::create_dir(&outside).unwrap();
+    std::fs::write(outside.join("keep.txt"), "foreign").unwrap();
+    let part = dir.path().join(format!("{SETUP}.part"));
+    std::fs::write(&part, SETUP_BYTES).unwrap();
+    let final_path = dir.path().join(SETUP);
+    if !junction(&final_path, &outside) {
+        return;
+    }
+
+    let error = move_into_place(&part, &final_path).unwrap_err();
+
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert_eq!(
+        std::fs::read_to_string(outside.join("keep.txt")).unwrap(),
+        "foreign"
+    );
+    assert!(part.exists(), "the part file is not moved");
 }

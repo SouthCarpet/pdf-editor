@@ -12,7 +12,7 @@ use crate::services::update_install::{self, UpdateInstall, UpdateInstallStatus, 
 use crate::util::paths::settings_path;
 use serde::Serialize;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// The setup the last `download_update` verified. `install_update` starts
@@ -91,20 +91,19 @@ async fn stored_consent(settings: Option<PathBuf>) -> bool {
 }
 
 /// Downloads and verifies the setup of release `tag` (the tag the check
-/// showed) to `%TEMP%\pdf-editor-update\`. Only after a click on
-/// **Update**; the frontend asks about unsaved work first.
+/// showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
+/// after a click on **Update**; the frontend asks about unsaved work first.
 #[tauri::command]
 #[specta::specta]
 pub async fn download_update(tag: String) -> UpdateInstall {
     let consent = stored_consent(settings_path().ok()).await;
-    let dest = std::env::temp_dir().join("pdf-editor-update");
     let result = update_install::download_update_with(
         consent,
         &tag,
-        &dest,
+        &std::env::temp_dir(),
         release_check::send_request,
         &release_check::HttpDownload,
-        |path: &Path| std::fs::File::create(path),
+        update_install::create_part,
     )
     .await;
     match result {
