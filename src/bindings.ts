@@ -31,6 +31,8 @@ export const commands = {
 	 *  Downloads and verifies the setup of release `tag` (the tag the check
 	 *  showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
 	 *  after a click on **Update**; the frontend asks about unsaved work first.
+	 *  The stored setup keeps `%TEMP%` and that folder pinned until it is
+	 *  replaced or the app exits.
 	 */
 	downloadUpdate: (tag: string) => __TAURI_INVOKE<UpdateInstall>("download_update", { tag }),
 	/**
