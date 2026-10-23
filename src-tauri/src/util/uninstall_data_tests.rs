@@ -368,6 +368,11 @@ fn paths_longer_than_260_characters_work() {
 
 #[test]
 fn name_rules_accept_only_the_app_naming() {
+    assert_log_names();
+    assert_app_data_names();
+}
+
+fn assert_log_names() {
     assert!(is_log_file("pdf-editor.2026-10-12.log"));
     assert!(is_log_file("2026-10-12_10-00-00.panic.txt"));
     assert!(is_log_file("2026-10-12_10-00-00.crash.txt"));
@@ -375,6 +380,9 @@ fn name_rules_accept_only_the_app_naming() {
     assert!(!is_log_file("pdf-editor.2026-1-12.log"));
     assert!(!is_log_file("2026-10-12_10-00-00.notes.txt"));
     assert!(!is_log_file("my.2026-10-12.log"));
+}
+
+fn assert_app_data_names() {
     assert!(is_thumbnail("0123456789abcdef01234567.png"));
     assert!(!is_thumbnail("0123456789ABCDEF01234567.png"));
     assert!(!is_thumbnail("holiday.png"));

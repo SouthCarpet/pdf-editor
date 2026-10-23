@@ -266,6 +266,23 @@ fn remove_selected_spans(
     Ok(true)
 }
 
+fn collect_content_references(items: &[Object], references: &mut Vec<ObjectId>) -> Result<()> {
+    for item in items {
+        match item {
+            Object::Reference(id) => references.push(*id),
+            Object::Stream(stream)
+                if matches!(stream.dict.get(OCR_LAYER_MARKER), Ok(Object::Boolean(true))) =>
+            {
+                return Err(anyhow!(
+                    "pipeline-owned OCR layer is inline and cannot be edited safely"
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
 fn latest_ocr_stream(doc: &Document, page_id: ObjectId) -> Result<Option<(ObjectId, &Stream)>> {
     let page = doc.get_object(page_id)?.as_dict()?;
     let mut references = Vec::new();
@@ -276,42 +293,12 @@ fn latest_ocr_stream(doc: &Document, page_id: ObjectId) -> Result<Option<(Object
         // multiple-layer guard below never gets to run.
         Ok(Object::Reference(id)) => match doc.get_object(*id) {
             Ok(Object::Array(items)) => {
-                for item in items {
-                    match item {
-                        Object::Reference(inner) => references.push(*inner),
-                        Object::Stream(stream)
-                            if matches!(
-                                stream.dict.get(OCR_LAYER_MARKER),
-                                Ok(Object::Boolean(true))
-                            ) =>
-                        {
-                            return Err(anyhow!(
-                                "pipeline-owned OCR layer is inline and cannot be edited safely"
-                            ));
-                        }
-                        _ => {}
-                    }
-                }
+                collect_content_references(items, &mut references)?;
             }
             _ => references.push(*id),
         },
         Ok(Object::Array(items)) => {
-            for item in items {
-                match item {
-                    Object::Reference(id) => references.push(*id),
-                    Object::Stream(stream)
-                        if matches!(
-                            stream.dict.get(OCR_LAYER_MARKER),
-                            Ok(Object::Boolean(true))
-                        ) =>
-                    {
-                        return Err(anyhow!(
-                            "pipeline-owned OCR layer is inline and cannot be edited safely"
-                        ));
-                    }
-                    _ => {}
-                }
-            }
+            collect_content_references(items, &mut references)?;
         }
         Ok(Object::Stream(stream))
             if matches!(stream.dict.get(OCR_LAYER_MARKER), Ok(Object::Boolean(true))) =>
