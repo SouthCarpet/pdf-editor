@@ -3,9 +3,7 @@
 //! reference to an array object, or nothing.
 
 use lopdf::{dictionary, Document, Object, ObjectId};
-use pdf_editor_lib::services::annotations::{
-    save_annotations, Annotation, AnnotationRef,
-};
+use pdf_editor_lib::services::annotations::{save_annotations, Annotation, AnnotationRef};
 use pdf_editor_lib::services::text_style::TextStyle;
 use std::path::Path;
 use tempfile::TempDir;
@@ -176,8 +174,7 @@ fn a2_remove_keeps_the_links_of_an_indirect_annots_list() {
     let free_text_id = free_text_id.expect("free text in fixture");
     write_fixture(&mut fx, &input);
 
-    save_annotations(&input, &output, &[], &[AnnotationRef::from(free_text_id)])
-        .expect("save");
+    save_annotations(&input, &output, &[], &[AnnotationRef::from(free_text_id)]).expect("save");
 
     let (doc, annots) = resolved_annots(&output);
     assert_eq!(annots.len(), 2);
@@ -186,7 +183,7 @@ fn a2_remove_keeps_the_links_of_an_indirect_annots_list() {
         assert!(kept.contains(link), "link {link:?} lost");
     }
     assert!(!kept.contains(&free_text_id));
-    assert!(doc.objects.get(&free_text_id).is_none());
+    assert!(!doc.objects.contains_key(&free_text_id));
 }
 
 #[test]

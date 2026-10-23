@@ -182,19 +182,15 @@ pub fn save_annotations(
         written.push(Some(AnnotationRef::from(annot_id)));
         if let Some(obj) = doc.objects.get_mut(&page_id) {
             if let Ok(p) = obj.as_dict_mut() {
-                let mut annots: Vec<Object> = match p.get(b"Annots").cloned() {
-                    Ok(Object::Array(a)) => a,
-                    _ => Vec::new(),
-                };
-                annots.push(Object::Reference(annot_id));
-                p.set("Annots", annots);
-
                 // Bind any embedded font to the page's /Resources /Font.
                 if let Some((alias, font_id)) = font_binding {
                     ensure_page_font(p, &alias, font_id);
                 }
             }
         }
+        with_page_annots(&mut doc, page_id, |annots| {
+            annots.push(Object::Reference(annot_id));
+        });
     }
     doc.compress();
     replace_file_atomically(output, |file| {
@@ -204,6 +200,34 @@ pub fn save_annotations(
         Ok(())
     })?;
     Ok(written)
+}
+
+/// Runs `edit` on the page's `/Annots` array. A direct array is edited in the
+/// page. An indirect reference keeps pointing at its array object, which is
+/// edited in place. A missing or unusable `/Annots` starts an empty direct
+/// array. Plan 119 O0: the add path once replaced an indirect list with a
+/// one-item list, and the remove path skipped it.
+fn with_page_annots(doc: &mut Document, page_id: ObjectId, edit: impl FnOnce(&mut Vec<Object>)) {
+    let indirect = doc
+        .get_dictionary(page_id)
+        .ok()
+        .and_then(|page| page.get(b"Annots").ok())
+        .and_then(|entry| entry.as_reference().ok());
+    if let Some(Object::Array(annots)) = indirect.and_then(|id| doc.objects.get_mut(&id)) {
+        edit(annots);
+        return;
+    }
+    let Ok(page) = doc.get_object_mut(page_id).and_then(Object::as_dict_mut) else {
+        return;
+    };
+    let mut annots = match page.get_mut(b"Annots") {
+        Ok(Object::Array(annots)) => std::mem::take(annots),
+        _ => Vec::new(),
+    };
+    edit(&mut annots);
+    if !annots.is_empty() {
+        page.set("Annots", annots);
+    }
 }
 
 /// Plan 119 p1c: a FreeText with no text, no border and no background draws
@@ -229,13 +253,9 @@ fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
         .map(|reference| (reference.object, reference.generation))
         .collect();
     for page_id in doc.get_pages().into_values() {
-        let annots = doc
-            .get_object_mut(page_id)
-            .and_then(Object::as_dict_mut)
-            .and_then(|page| page.get_mut(b"Annots"));
-        if let Ok(Object::Array(annots)) = annots {
+        with_page_annots(doc, page_id, |annots| {
             annots.retain(|annot| !matches!(annot, Object::Reference(id) if ids.contains(id)));
-        }
+        });
     }
     for id in ids {
         if let Some(Object::Dictionary(annot)) = doc.objects.remove(&id) {

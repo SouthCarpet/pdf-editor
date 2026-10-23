@@ -102,5 +102,6 @@
 
 ### Fixed
 
+- Annotations on a page with an indirect /Annots list were dropped when saving or deleting an annotation.
 - Troubleshooting guide: the database is `app.db` (not `state.db`), and the
   data and log folders are under `%APPDATA%\PdfEditor\PdfEditor\data`.
