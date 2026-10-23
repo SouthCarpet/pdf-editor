@@ -141,14 +141,14 @@ Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bum
 
 ## 4. Sidecar binárky (zabaľované do inštalátora)
 
-Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do `.msi` cez `tauri.conf.json` `bundle.externalBin`.
+Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do per-user inštalátora (Inno Setup 6, `packaging/payload.json`) v rovnakom rozložení ako staré MSI cez `tauri.conf.json` `bundle.externalBin`.
 
 | Binárka | Verzia | Licencia | Veľkosť | Použitie |
 |---|---|---|---|---|
 | **qpdf** (`qpdf.exe`) | 12.3.2+ | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
 | **Ghostscript** (`gswin64c.exe` + libs) | 10.x | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
 | **MuPDF tools** (`mutool.exe` + `libmupdf.dll`) | 1.24+ | AGPL-3.0 | ~15 MB | Companion k `mupdf-rs`. `mutool clean -gggg` = full GC + xref kompakcia + object/stream dedup (object-level cleanup). `-S` = font subsetting (EXPERIMENTAL — používať s opatrnosťou) |
-| **LibreOffice portable** (`soffice.exe` + libs) | 24.x | MPL 2.0 | ~150 MB | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export |
+| **LibreOffice** (`soffice.exe`), nie je zabalený (plán 119) | 24.x | MPL 2.0 | ~350 MB, inštaluje používateľ | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export. Aplikácia ho nájde v registri; inštalátor ponúkne inštaláciu cez winget (`docs/install-contract.md`) |
 | **Tesseract OCR** (`tesseract.exe` + `tesseract.dll`) | 5.x | Apache 2.0 | ~30 MB | OCR (alternatíva k Rust `tesseract` crate; zabalené pre robustnosť) |
 | **tessdata_best** (eng, slk, ces, deu) | latest | Apache 2.0 | ~200 MB | OCR jazykové modely (4 jazyky pre offline; user môže drag-drop ďalšie do `%AppData%\PdfEditor\tessdata-extra\`) |
 | **pdfcrack** (`pdfcrack.exe`) | 0.20+ | GPL-2.0+ | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
@@ -165,7 +165,8 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 | `rustup` | latest | Rust toolchain manager |
 | `node` | 20.19+ LTS | TypeScript / Vite runtime (Vite 6 minimum) |
 | `tauri-cli` | 2.x | `tauri dev`, `tauri build` |
-| `wix` | 4.x | MSI generation |
+| Inno Setup | 6.x | Per-user inštalátor (`packaging/build-installer.ps1`, plán 119) |
+| `wix` | 3.14 | Staré MSI (`pnpm tauri build`) |
 | `pwsh` | 7+ | Build skripty (Windows-friendly) |
 
 ## 6. CI / linting / formátovanie
@@ -185,11 +186,11 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 - **OS:** Windows 10 21H2+ alebo Windows 11
 - **Architecture:** x64
-- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10 fallback inštalácia v MSI ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
+- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10: inštalátor ju po súhlase stiahne, ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
 - **Disk:** ~480 MB pre app + dáta v `%AppData%\PdfEditor\`
 - **RAM:** 4 GB minimum, 8 GB odporúčané (OCR a veľké PDF benefity)
 - **CPU:** ľubovoľný x64 z posledných 8 rokov; Tesseract a Ghostscript sú CPU-bound
-- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline
+- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline. Jediná požiadavka je voliteľná kontrola novej verzie na GitHube (predvolene vypnutá, plán 119)
 
 ## 8. Licencie zhrnutie
 
@@ -209,7 +210,7 @@ Pre referenciu, čo sme zámerne **odmietli** a prečo:
 - ❌ **Redux** — Zustand je menej boilerplate pre tento usecase
 - ❌ **Webpack** — Vite je rýchlejší, modernejší
 - ❌ **CRA (Create React App)** — deprecated v 2023
-- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania
+- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania. Výnimka (plán 119): `reqwest` iba v `src-tauri/src/services/release_check.rs`, kontrola a stiahnutie aktualizácie po súhlase
 - ❌ **GitHub Pages / cloud hosting** — localhost-only, žiadny server
 - ❌ **LLM SDKs** (OpenAI, Anthropic, atď.) — žiadny LLM
 - ❌ **Telemetria** (PostHog, Sentry, Mixpanel) — žiadne tracking

@@ -12,5 +12,6 @@
   "encoding_mismatch": "The selected font or encoding cannot represent the new text: {{detail}}",
   "boundary_title": "Something went wrong",
   "boundary_retry": "Retry",
-  "boundary_copy": "Copy details"
+  "boundary_copy": "Copy details",
+  "libreoffice_missing": "Office conversion needs LibreOffice, which is not installed. Download it from {{detail}} and try again."
 }

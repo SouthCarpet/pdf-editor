@@ -25,8 +25,29 @@ export const commands = {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("open_logs_folder")),
-	checkForUpdate: () => __TAURI_INVOKE<VersionCheck>("check_for_update"),
-	launchUpdate: () => typedError<null, string>(__TAURI_INVOKE("launch_update")),
+	buildInfo: () => __TAURI_INVOKE<BuildInfo>("build_info"),
+	checkForUpdate: () => __TAURI_INVOKE<UpdateCheck>("check_for_update"),
+	/**
+	 *  Downloads and verifies the setup of release `tag` (the tag the check
+	 *  showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
+	 *  after a click on **Update**; the frontend asks about unsaved work first.
+	 *  The stored setup keeps `%TEMP%` and that folder pinned until it is
+	 *  replaced or the app exits.
+	 */
+	downloadUpdate: (tag: string) => __TAURI_INVOKE<UpdateInstall>("download_update", { tag }),
+	/**
+	 *  Hashes the verified setup again, starts it with its wizard (no silent
+	 *  switches) and exits the app so the setup can replace its files.
+	 */
+	installUpdate: () => __TAURI_INVOKE<UpdateInstall>("install_update"),
+	getUpdateCheckEnabled: () => typedError<boolean, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("get_update_check_enabled")),
+	setUpdateCheckEnabled: (enabled: boolean) => typedError<null, {
+	key: string,
+	data: unknown,
+}>(__TAURI_INVOKE("set_update_check_enabled", { enabled })),
 	mergePdfsCmd: (args: MergeArgs) => typedError<MergeResult, {
 	key: string,
 	data: unknown,
@@ -351,6 +372,15 @@ export type ApplyAnnotsArgs = {
 };
 
 export type BorderStyle = "solid" | "dashed" | "dotted";
+
+export type BuildInfo = {
+	/**  Release version of this build (`X.Y.Z`). */
+	version: string,
+	/**  Git commit the build was made from, or `unknown`. */
+	commit: string,
+	/**  The build had uncommitted changes. */
+	dirty: boolean,
+};
 
 export type CompareArgs = {
 	left: string,
@@ -1165,14 +1195,71 @@ export type UnlockArgs = {
 
 export type UnlockResult = { type: "ok"; output_paths: string[] } | { type: "password_required" };
 
-export type VersionCheck = {
-	embedded_commit: string,
-	embedded_dirty: boolean,
-	repo_head: string | null,
-	dirty: boolean,
-	behind: boolean,
-	error: string | null,
+export type UpdateCheck = {
+	status: UpdateStatus,
+	current_version: string,
+	/**  The latest stable release version (`X.Y.Z`, no `v`), when known. */
+	latest_version: string | null,
+	/**
+	 *  The release tag as GitHub lists it (`vX.Y.Z`). **Update** passes it
+	 *  back, and the download refuses a release whose tag changed.
+	 */
+	tag: string | null,
+	release_url: string | null,
+	/**  Error text for `ConnectionError` and `ResponseError`. */
+	detail: string | null,
 };
+
+export type UpdateInstall = {
+	status: UpdateInstallStatus,
+	/**  The release version (`X.Y.Z`), when known. */
+	version: string | null,
+	/**  Error text for the failure statuses. */
+	detail: string | null,
+};
+
+export type UpdateInstallStatus = 
+/**  The setup is downloaded and verified; `install_update` can start it. */
+"ready" | 
+/**  The setup started; the app exits now. */
+"started" | 
+/**  The stored consent is off. No request was made. */
+"disabled" | 
+/**  The latest release is no longer the one the check showed. */
+"release_changed" | 
+/**
+ *  The release has no `pdf-editor-setup-X.Y.Z.exe` or no
+ *  `SHA256SUMS.txt`, or nothing was downloaded yet.
+ */
+"no_setup" | 
+/**  The setup is larger than its metadata or than `MAX_SETUP_BYTES`. */
+"too_large" | 
+/**  A URL or redirect leaves `https://` on `ALLOWED_HOSTS`. */
+"blocked_host" | 
+/**  Connection error, HTTP error or an incomplete download. */
+"download_failed" | 
+/**  `SHA256SUMS.txt` has no line for the setup's file name. */
+"checksum_missing" | 
+/**  The downloaded setup does not match its SHA-256 line. */
+"checksum_mismatch" | 
+/**  The setup could not be written (for example, the disk is full). */
+"disk_error" | 
+/**  The setup file changed after the download check. */
+"file_changed" | 
+/**  Windows could not start the setup. */
+"start_failed";
+
+export type UpdateStatus = 
+/**  The consent is off or cannot be read. No request was made. */
+"disabled" | 
+/**  The latest stable release is not newer than this build. */
+"up_to_date" | 
+/**  A newer stable release exists. */
+"available" | 
+/**  The request did not complete: offline, DNS, TLS or timeout. */
+"connection_error" | 
+/**  GitHub answered, but not with a usable stable release. */
+"response_error";
 
 export type VerticalAlign = "top" | "middle" | "bottom";
 

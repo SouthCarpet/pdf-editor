@@ -93,14 +93,14 @@ export function CloseGuardDialog() {
 
   if (!request) return null;
 
-  const docIds = request.kind === "window" ? request.docIds : [request.docId];
+  const docIds = request.kind === "tab" ? [request.docId] : request.docIds;
   const names = docIds.map((id) => fileName(documents.get(id)?.path ?? id)).join(", ");
 
   function finish() {
     const finished = request;
     dismiss();
     if (finished?.kind === "window") void requestWindowClose();
-    else if (finished?.kind === "tab") finished.onClosed();
+    else finished?.onClosed();
   }
 
   async function onSave() {

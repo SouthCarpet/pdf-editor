@@ -75,4 +75,18 @@ describe("ProgressList", () => {
       consoleError.mockRestore();
     }
   });
+
+  it("names LibreOffice and its download page when Office conversion cannot run (plan 119)", async () => {
+    const url = "https://www.libreoffice.org/download/download-libreoffice/";
+    useJobsStore.getState().start("j1", "convert-import", ["a.docx"]);
+    useJobsStore.getState().fail("j1", "libreoffice_missing", url);
+
+    renderWithProviders(<ProgressList />);
+
+    expect(
+      await screen.findByText(
+        `Office conversion needs LibreOffice, which is not installed. Download it from ${url} and try again.`,
+      ),
+    ).toBeInTheDocument();
+  });
 });

@@ -15,6 +15,14 @@
 #     enabled via a tauri-plugin-* we add; scanning Cargo.toml catches
 #     both surfaces.
 #
+# Plan 119 exception: the owner approved one opt-in update check (ledger
+# 9403). `reqwest` is allowed as a direct dependency, but only
+# `src-tauri/src/services/release_check.rs` may use it. That module holds
+# the HTTP client: one GET to the GitHub releases API, and the setup
+# download that `update_install.rs` runs through a trait after a click on
+# Update. Both run only when the stored consent `update_check_enabled` is
+# on. Any other source file that names `reqwest` fails this check.
+#
 # CI: runs as the `privacy` job. Locally: `pwsh scripts/test-privacy.ps1`.
 
 $ErrorActionPreference = "Stop"
@@ -30,7 +38,6 @@ if (-not (Test-Path $cargoToml)) {
 # promise. Each one either (a) is itself an outbound HTTP client or (b)
 # enables the relevant tauri feature flags.
 $forbidden = @(
-    "reqwest",
     "ureq",
     "isahc",
     "surf",
@@ -64,4 +71,18 @@ if ($fail) {
     exit 1
 }
 
-Write-Host "[OK] no outbound-network or updater crates in src-tauri/Cargo.toml direct deps"
+$allowedHttpModule = "src-tauri/src/services/release_check.rs"
+$sourceRoot = Join-Path $ProjectRoot "src-tauri/src"
+$httpUsers = Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter *.rs |
+    Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match "\breqwest\b" } |
+    ForEach-Object { [IO.Path]::GetRelativePath($ProjectRoot, $_.FullName).Replace([char]92, [char]47) } |
+    Where-Object { $_ -ne $allowedHttpModule }
+if ($httpUsers) {
+    foreach ($file in $httpUsers) {
+        Write-Host "[FAIL] reqwest used outside ${allowedHttpModule}: ${file}"
+    }
+    Write-Error "Privacy check failed: HTTP client used outside the consent-gated release check"
+    exit 1
+}
+
+Write-Host "[OK] no outbound-network or updater crates in src-tauri/Cargo.toml direct deps; reqwest only in ${allowedHttpModule}"

@@ -45,6 +45,13 @@ ignore = [
 # (cargo-fuzz harness in src-tauri/fuzz/, gated by feature in CI nightly).
 allow = ["MIT", "MIT-0", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "CC0-1.0", "ISC", "Unicode-DFS-2016", "Unicode-3.0", "Zlib", "MPL-2.0", "AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later", "NCSA"]
 confidence-threshold = 0.8
+# Plan 119: reqwest (the opt-in update check) pulls rustls-platform-verifier,
+# which lists webpki-root-certs (Mozilla root CA data, CDLA-Permissive-2.0)
+# for the wasm32 target only. The Windows build never compiles it; the
+# exception is scoped to that one crate.
+exceptions = [
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-root-certs" },
+]
 
 [bans]
 multiple-versions = "warn"

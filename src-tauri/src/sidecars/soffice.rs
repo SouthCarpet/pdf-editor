@@ -5,8 +5,29 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use crate::error::{AppError, AppResult};
+use crate::util::install_detect::LIBREOFFICE_DOWNLOAD_URL;
 
 const SOFFICE_RELATIVE: &str = "resources/libreoffice/App/libreoffice/program/soffice.exe";
+
+/// The error Office conversion returns when LibreOffice is not found.
+pub fn libreoffice_missing() -> AppError {
+    AppError::LibreofficeMissing {
+        detail: LIBREOFFICE_DOWNLOAD_URL.to_owned(),
+    }
+}
+
+#[cfg(windows)]
+fn installed_soffice() -> Option<PathBuf> {
+    crate::util::install_detect::find_libreoffice(
+        &crate::util::install_detect::WindowsRegistry,
+        Path::is_file,
+    )
+}
+
+#[cfg(not(windows))]
+fn installed_soffice() -> Option<PathBuf> {
+    None
+}
 
 pub struct SofficeWrapper {
     _mgr: crate::sidecars::manager::SidecarManager,
@@ -17,19 +38,20 @@ impl SofficeWrapper {
         Self { _mgr: mgr }
     }
 
-    fn resolve() -> PathBuf {
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(p) = exe.parent() {
-                let rel = p.join(SOFFICE_RELATIVE);
-                if rel.exists() {
-                    return rel;
-                }
-            }
-        }
-        let workspace = std::env::var("CARGO_MANIFEST_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("."));
-        workspace.join(SOFFICE_RELATIVE)
+    /// A portable tree next to the app (developer builds), then the
+    /// LibreOffice install the registry lists (`install_detect`, the same
+    /// rule the setup uses). `None` when neither exists.
+    fn resolve() -> Option<PathBuf> {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|exe| exe.parent().map(Path::to_path_buf));
+        let workspace = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
+        exe_dir
+            .into_iter()
+            .chain(workspace)
+            .map(|dir| dir.join(SOFFICE_RELATIVE))
+            .find(|path| path.is_file())
+            .or_else(installed_soffice)
     }
 
     pub async fn convert_to_pdf(
@@ -48,7 +70,7 @@ impl SofficeWrapper {
         target_format: &str,
         cancel: Option<CancellationToken>,
     ) -> AppResult<PathBuf> {
-        let bin = Self::resolve();
+        let bin = Self::resolve().ok_or_else(libreoffice_missing)?;
         let user_profile = out_dir.join(".lo-profile");
         std::fs::create_dir_all(&user_profile).ok();
 

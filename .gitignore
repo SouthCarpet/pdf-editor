@@ -99,3 +99,7 @@ scripts/vault/__pycache__/
 
 # Playwright verification screenshots from agent runs
 output/
+
+# Per-user setup build output (plan 119): setup EXE, SHA256SUMS.txt,
+# payload report and the generated payload-files.iss include.
+packaging/output/

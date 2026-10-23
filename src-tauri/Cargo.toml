@@ -81,6 +81,10 @@ bitflags = "2"
 # Phase 14 Task 77 — pipeline_run_on_folder_cmd uses walkdir to discover
 # PDFs in a chosen folder.
 walkdir = "2"
+# Plan 119: the opt-in GitHub release check (services/release_check.rs, the
+# only module allowed to use it; scripts/test-privacy.ps1 enforces that).
+# No default features: rustls only, no system proxy, no HTTP/2.
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls"] }
 
 # Delta P: SetUnhandledExceptionFilter for the Windows SEH crash logger
 # (segfault / access violation / stack overflow). Only used on target_os=windows
@@ -92,7 +96,11 @@ walkdir = "2"
 # `LPTOP_LEVEL_EXCEPTION_FILTER` to be gated in (the previous skeleton missed
 # this).  `EXCEPTION_CONTINUE_SEARCH` lives in `System::Diagnostics::Debug`
 # as a plain `i32` constant, not in `Foundation`.
-windows = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_Foundation"] }
+# `Win32_System_Registry` (plan 119): read-only registry lookup in
+# `util/install_detect.rs` that finds the old MSI and the Inno setup install.
+# `Win32_Storage_FileSystem` (plan 119): folder and file handles in
+# `util/pinned_dir.rs` for the uninstall cleanup and the update download.
+windows = { version = "0.59", features = ["Win32_System_Diagnostics_Debug", "Win32_System_Kernel", "Win32_Foundation", "Win32_System_Registry", "Win32_Storage_FileSystem"] }
 
 [features]
 default = ["custom-protocol"]

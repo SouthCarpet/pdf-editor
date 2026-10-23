@@ -9,8 +9,6 @@ export function GeneralSettings() {
   const { theme, setTheme } = useTheme();
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
-  const privacyStrict = useAppStore((s) => s.privacyStrict);
-  const setPrivacy = useAppStore((s) => s.setPrivacy);
 
   // Delta P: shells out to explorer.exe via the open_logs_folder Tauri
   // command. We don't surface errors visually - the only way it can fail
@@ -57,17 +55,6 @@ export function GeneralSettings() {
           <option value="en">English</option>
           <option value="sk">Slovenčina</option>
         </select>
-      </div>
-
-      <div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={privacyStrict}
-            onChange={(e) => setPrivacy(e.target.checked)}
-          />
-          {t("settings:strict_privacy")}
-        </label>
       </div>
 
       <div>

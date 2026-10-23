@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowLeft, Home, Moon, Sun, Monitor, Settings } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useAppStore } from "@/stores/appStore";
+import { useUpdateStore } from "@/stores/updateStore";
 import { Button } from "@/components/ui/button";
 
 export function TopBar() {
@@ -12,6 +13,7 @@ export function TopBar() {
   const canGoBack = useCanGoBack();
   const lang = i18n.resolvedLanguage === "sk" ? "sk" : "en";
   const setLanguage = useAppStore((s) => s.setLanguage);
+  const updateFlag = useUpdateStore((s) => s.updateFlag);
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
@@ -62,8 +64,20 @@ export function TopBar() {
           )}
         </Button>
         <Link to="/settings" data-onboard="settings">
-          <Button variant="ghost" size="icon" aria-label={t("settings")}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            aria-label={updateFlag ? t("settings_update_available") : t("settings")}
+          >
             <Settings className="h-4 w-4" />
+            {updateFlag && (
+              <span
+                data-testid="update-dot"
+                aria-hidden="true"
+                className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[var(--color-warning)]"
+              />
+            )}
           </Button>
         </Link>
       </div>
