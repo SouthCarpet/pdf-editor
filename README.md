@@ -2,7 +2,7 @@
 
 Localhost-only Windows desktop application for handling PDF files. 12 tools, offline by default, no paywalls, no LLM, no telemetry. The only network requests are the opt-in update check against GitHub releases and, after a click on **Update**, the download of the new setup (off by default, see [Update check](#update-check)).
 
-Personal use project, not publicly distributed.
+Source code is available under AGPL-3.0-or-later.
 
 ## Features
 
@@ -144,3 +144,7 @@ The SQL migrations in `src-tauri/migrations/` must keep LF line endings: sqlx st
 - [Implementation plan](docs/superpowers/plans/2026-05-10-pdf-editor.md)
 - [Stack](docs/stack.md)
 - [Vault](.vault/) — engine specs, debug notes, ADRs
+
+## Licence
+
+PDF Editor is licensed under the GNU Affero General Public License, version 3 or later ([full text](LICENSE)). Third-party programs, libraries and OCR models keep their own licences; see [Third-party notices](THIRD-PARTY-NOTICES.md).
