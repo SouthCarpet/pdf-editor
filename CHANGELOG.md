@@ -4,6 +4,12 @@
 
 ### Added
 
+- Own field model: text boxes use 140 x 22 pt, checkboxes use 14 x 14 pt,
+  and drawn boxes have a 12 pt minimum on each side. Boxes stay on the page.
+  Pending own fields support undo and redo, the shared save path, the close
+  guard and autosave. A move made during save stays pending and replaces
+  the written field on the next save. Empty own fields do not enter prefill
+  history. Placement controls follow in the Forms panel work.
 - Per-user Windows setup (Inno Setup 6): `packaging/pdf-editor.iss` and
   `packaging/build-installer.ps1`. Installs into
   `%LOCALAPPDATA%\Programs\PDF Editor` without administrator rights,
