@@ -346,7 +346,20 @@ fill_color: [(number | null), (number | null), (number | null), (number | null)]
  *  Delta U: full TextStyle replaces the old enum-based font.
  *  Non-Standard-14 fonts are embedded via Type0 CIDFont.
  */
-style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean } | { type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null } | { type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean };
+style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean } | { type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null } | { type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean } | 
+/**
+ *  Plan 119 O1: a form field the user draws. `own_fields` writes it as
+ *  a real AcroForm field; it has no value when saved.
+ */
+{ type: "form_field"; page: number; 
+/**  PDF points, `[x1, y1, x2, y2]`, unrotated page user space. */
+rect: [(number | null), (number | null), (number | null), (number | null)]; 
+/**  Requested partial name; the writer sanitizes it and makes it unique. */
+name: string; kind: OwnFieldKind; 
+/**  Text only. */
+multiline: boolean; 
+/**  Points; `0.0` means auto. */
+font_size: number | null };
 
 /**
  *  Plan 119 p1b: an annotation object already in a saved file, by its PDF
@@ -902,6 +915,8 @@ export type OptimizeResult = {
 export type OrganizeResult = {
 	output_paths: string[],
 };
+
+export type OwnFieldKind = "text" | "checkbox";
 
 export type PdfMetadata = {
 	title: string | null,
