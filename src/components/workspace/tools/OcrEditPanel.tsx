@@ -76,7 +76,7 @@ export function OcrEditPanel({
       {loading ? (
         <p className="text-xs text-[var(--color-muted)]">{t("ocr_edit.loading")}</p>
       ) : layerNotice ? (
-        <p role="status" className="text-xs text-[var(--color-warning)]">
+        <p role="status" className="text-xs text-[var(--color-warning-text)]">
           {t("ocr_edit.no_layer")}
         </p>
       ) : (

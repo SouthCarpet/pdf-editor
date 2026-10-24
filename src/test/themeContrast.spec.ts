@@ -26,7 +26,8 @@ function block(css: string, selector: string): Vars {
 function themeVars(theme: "light" | "dark"): Vars {
   // File order is the cascade order: tokens root, tokens dark, then the aliases.
   const dark = theme === "dark" ? block(tokensCss, '[data-theme="dark"]') : {};
-  return { ...block(tokensCss, ":root"), ...dark, ...block(globalsCss, ":root") };
+  const aliasDark = theme === "dark" ? block(globalsCss, '[data-theme="dark"]') : {};
+  return { ...block(tokensCss, ":root"), ...dark, ...block(globalsCss, ":root"), ...aliasDark };
 }
 
 function resolve(vars: Vars, name: string): string {
@@ -77,6 +78,8 @@ const requiredPairs = [
   ["danger-foreground", "danger"],
   ["danger-text", "background"],
   ["danger-soft-foreground", "danger-soft"],
+  ["warning-text", "background"],
+  ["warning-text", "card"],
   ["warning-foreground", "warning"],
   ["warning-soft-foreground", "warning-soft"],
   ["success-text", "background"],
@@ -91,24 +94,5 @@ describe.each(["light", "dark"] as const)("%s theme contrast", (theme) => {
   it.each(requiredPairs)("%s on %s meets WCAG AA", (foreground, background) => {
     const ratio = contrast(resolve(vars, foreground), resolve(vars, background));
     expect(ratio).toBeGreaterThanOrEqual(4.5);
-  });
-});
-
-// Known gap, not a lowered bar: the Kaliber `warning` token is 4.44:1 on the
-// light paper, 0.06 under AA, and the app writes a few short warning lines in
-// it. The token belongs to the design tree, so the decision does too. This
-// test fails when the token changes, and then the pair moves back into the
-// list above.
-describe("known gap", () => {
-  it("warning text on the light paper is still just under AA", () => {
-    const vars = themeVars("light");
-    const ratio = contrast(resolve(vars, "warning"), resolve(vars, "background"));
-    expect(ratio).toBeGreaterThan(4.3);
-    expect(ratio).toBeLessThan(4.5);
-  });
-
-  it("warning text on the dark paper meets AA", () => {
-    const vars = themeVars("dark");
-    expect(contrast(resolve(vars, "warning"), resolve(vars, "background"))).toBeGreaterThanOrEqual(4.5);
   });
 });

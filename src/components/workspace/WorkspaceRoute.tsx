@@ -367,7 +367,7 @@ export function WorkspaceRoute() {
               </p>
               {ocrResult.low_confidence_pages.length > 0 && (
                 <div>
-                  <p className="font-medium text-[var(--color-warning)]">
+                  <p className="font-medium text-[var(--color-warning-text)]">
                     {t("ocr_result.low_confidence")}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">

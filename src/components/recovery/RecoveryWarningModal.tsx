@@ -19,7 +19,7 @@ export function RecoveryWarningModal({ open, onConfirm, onCancel }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
       <div className="w-[28rem] rounded-lg border border-[var(--color-warning)] bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl">
-        <h2 className="text-lg font-semibold text-[var(--color-warning)]">
+        <h2 className="text-lg font-semibold text-[var(--color-warning-text)]">
           {t("recovery:warning_title")}
         </h2>
         <p className="mt-2 text-sm text-[var(--color-muted)]">{t("recovery:warning_body")}</p>

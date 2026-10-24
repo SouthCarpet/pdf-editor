@@ -158,7 +158,7 @@ export function EditFormsPanel({
               {t("forms.field_count", { count: fields.length })}
             </span>
             {dirtyUpdates.length > 0 && (
-              <span className="font-medium text-[var(--color-warning)]">
+              <span className="font-medium text-[var(--color-warning-text)]">
                 {t("forms.unsaved_count", { count: dirtyUpdates.length })}
               </span>
             )}
