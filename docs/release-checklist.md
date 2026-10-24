@@ -1,7 +1,7 @@
 # Release checklist
 
-How a PDF Editor release is made and accepted. The agents build and check;
-Michal runs the setup and accepts the release. Nobody runs a setup on the
+How a PDF Editor release is made and accepted. The agents build and check.
+The owner runs the setup and accepts the release. Nobody runs a setup on the
 development machine: use a test Windows user or a virtual machine.
 
 ## 1. Build
@@ -27,7 +27,7 @@ development machine: use a test Windows user or a virtual machine.
 3. A manual run keeps the setup as the workflow artifact `setup` and
    creates no release.
 
-## 2. Manual acceptance (Michal)
+## 2. Manual acceptance (owner)
 
 Use a test Windows user or a virtual machine. Keep the setup log:
 `pdf-editor-setup-X.Y.Z.exe /LOG="%TEMP%\pdf-editor-setup.log"`.

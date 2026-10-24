@@ -88,7 +88,7 @@ jobs:
         with:
           name: setup
           path: assets
-      # A new release starts as a draft: Michal publishes it after the
+      # A new release starts as a draft: the owner publishes it after the
       # manual acceptance steps in docs/release-checklist.md. The app's
       # update check sees only published, non-pre-release releases.
       # The gate prints create (no release) or upload (a draft) and stops
