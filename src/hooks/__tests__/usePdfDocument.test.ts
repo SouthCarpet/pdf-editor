@@ -18,8 +18,8 @@ vi.mock("pdfjs-dist", () => ({
 
 import { usePdfDocument } from "../usePdfDocument";
 
-const ORIGINAL = "A:\\docs\\hodiny.pdf";
-const SAVED = "A:\\docs\\hodiny.filled.pdf";
+const ORIGINAL = "A:\\docs\\timesheet-scan.pdf";
+const SAVED = "A:\\docs\\timesheet-scan.filled.pdf";
 
 function fakePdf(name: string) {
   return { name, numPages: 1, destroy: vi.fn() };

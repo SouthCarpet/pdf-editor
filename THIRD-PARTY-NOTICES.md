@@ -1199,6 +1199,7 @@ texts; runtime code is bundled, development tools are not shipped as programs.
 | lodash-es | 4.18.1 | MIT | [npm source archive](https://registry.npmjs.org/lodash-es/-/lodash-es-4.18.1.tgz) |
 | lru-cache | 11.3.6 | BlueOak-1.0.0 | [npm source archive](https://registry.npmjs.org/lru-cache/-/lru-cache-11.3.6.tgz) |
 | lru-cache | 5.1.1 | ISC | [npm source archive](https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz) |
+| lucide-react | 1.14.0 | ISC | [npm source archive](https://registry.npmjs.org/lucide-react/-/lucide-react-1.14.0.tgz) |
 | lz-string | 1.5.0 | MIT | [npm source archive](https://registry.npmjs.org/lz-string/-/lz-string-1.5.0.tgz) |
 | magic-string | 0.30.21 | MIT | [npm source archive](https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz) |
 | mdn-data | 2.27.1 | CC0-1.0 | [npm source archive](https://registry.npmjs.org/mdn-data/-/mdn-data-2.27.1.tgz) |

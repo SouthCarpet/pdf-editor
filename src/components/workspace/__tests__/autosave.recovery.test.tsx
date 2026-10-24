@@ -14,7 +14,7 @@ import { fakeBridge, resetFakeBridge } from "@/test/fakeTauriBridge";
 import { serializePendingState, type AutosaveRecord } from "../autosave";
 import { DocumentAutosave } from "../DocumentAutosave";
 
-const DOC = "A:\\scans\\hodiny.pdf";
+const DOC = "A:\\scans\\timesheet-scan.pdf";
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 

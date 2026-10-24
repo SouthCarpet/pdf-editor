@@ -15,7 +15,7 @@ import { useFormDrafts, type FormPlace } from "@/stores/formDraftStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { resetFakeBridge } from "@/test/fakeTauriBridge";
 
-const DOC = "A:\\scans\\hodiny.pdf";
+const DOC = "A:\\scans\\timesheet-scan.pdf";
 const FORM_PLACE: FormPlace = { kind: "text", page_index: 0, rect: [36, 700, 240, 724] };
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
