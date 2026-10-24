@@ -1,19 +1,29 @@
-// Phase 15 Task 79 - Project list page.
+// Phase 15 Task 79 - Project list page, Kaliber r4 (plan 119 K3b).
 //
-// Queries `project_list` once on mount via the projects store, renders a
-// responsive grid of cards (one card per project) plus a top-right
-// "+ New" button that opens a name dialog and routes to the detail page
-// on create.
+// The project ledger is the lead element (R24, R34 b): a ruled table on the
+// paper with the name first, the description next and the update date as a
+// right-aligned tabular figure. The count sits in one muted line under the
+// title. Opening PDFs is a quiet row below the table, not a dashed card.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { FileUp, FolderOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useOpenFiles } from "@/components/opening/openFilesContext";
 import { useProjectsStore } from "@/stores/projectsStore";
+import { useCountLabels } from "./useCountLabels";
 
 export function ProjectList() {
-  const { t } = useTranslation("common");
+  const { t, i18n } = useTranslation("common");
+  const counts = useCountLabels();
   const projects = useProjectsStore((s) => s.projects);
   const loading = useProjectsStore((s) => s.loading);
   const refresh = useProjectsStore((s) => s.refresh);
@@ -44,86 +54,97 @@ export function ProjectList() {
     }
   }
 
+  const dateFormat = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" });
+
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t("tools.projects")}</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => void browseForPdfs()}>
-            <FolderOpen className="mr-2 h-4 w-4" />
-            {t("browse")}
-          </Button>
-          <Button onClick={() => setShowNew(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("projects.new")}
-          </Button>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="k-pagehead">
+        <div className="mr-auto min-w-0">
+          <h1 className="text-2xl font-bold text-balance">{t("tools.projects")}</h1>
+          <p className="k-caption tabular-nums">{counts.projects(projects.length)}</p>
         </div>
+        <Button variant="outline" onClick={() => void browseForPdfs()}>
+          <FolderOpen className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("browse")}
+        </Button>
+        <Button onClick={() => setShowNew(true)}>
+          <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+          {t("projects.new")}
+        </Button>
       </div>
 
-      <div className="flex items-center gap-4 rounded-lg border-2 border-dashed border-[var(--color-border)] px-5 py-4">
-        <FileUp className="h-7 w-7 shrink-0 text-[var(--color-muted)]" />
+      {loading && projects.length === 0 && <p className="k-caption">{t("loading")}</p>}
+      {!loading && projects.length === 0 && <p className="k-caption">{t("projects.empty")}</p>}
+
+      {projects.length > 0 && (
+        <div className="k-table-wrap">
+          <table className="k-table">
+            <thead>
+              <tr>
+                <th scope="col">{t("projects.name")}</th>
+                <th scope="col">{t("projects.description")}</th>
+                <th scope="col" className="k-cell-number">
+                  {t("projects.updated")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {projects.map((p) => (
+                <tr key={p.id}>
+                  <th scope="row">
+                    <Link
+                      to="/projects/$id"
+                      params={{ id: String(p.id) }}
+                      className="hover:underline"
+                    >
+                      {p.name}
+                    </Link>
+                  </th>
+                  <td className="text-[var(--color-text-muted)]">{p.description}</td>
+                  <td className="k-cell-number tabular-nums text-[var(--color-text-muted)]">
+                    {dateFormat.format(new Date(p.updated_at))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 border-t border-[var(--color-border)] pt-4">
+        <FileUp className="h-5 w-5 shrink-0 text-[var(--color-text-muted)]" aria-hidden="true" />
         <div>
-          <p className="font-medium">{t("projects.open_title")}</p>
-          <p className="mt-0.5 text-sm text-[var(--color-muted)]">
-            {t("projects.open_description")}
-          </p>
+          <p className="text-sm font-semibold">{t("projects.open_title")}</p>
+          <p className="k-caption">{t("projects.open_description")}</p>
         </div>
       </div>
 
-      {loading && projects.length === 0 && (
-        <p className="text-sm text-[var(--color-muted)]">{t("loading")}</p>
-      )}
-      {!loading && projects.length === 0 && (
-        <p className="text-sm text-[var(--color-muted)]">{t("projects.empty")}</p>
-      )}
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        {projects.map((p) => (
-          <Link
-            key={p.id}
-            to="/projects/$id"
-            params={{ id: String(p.id) }}
-            className="block rounded border border-[var(--color-border)] bg-[var(--color-card)] p-4 hover:bg-[var(--color-control-hover)]"
-          >
-            <div className="font-medium">{p.name}</div>
-            {p.description && (
-              <div className="mt-1 text-xs text-[var(--color-muted)]">
-                {p.description}
-              </div>
-            )}
-            <div className="mt-2 text-xs text-[var(--color-muted)]">
-              Updated {new Date(p.updated_at).toLocaleDateString()}
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
-          <div className="w-96 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-6 shadow-xl">
-            <h2 className="text-lg font-semibold">{t("projects.new")}</h2>
-            <input
-              className="mt-3 block w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+      <Dialog open={showNew} onOpenChange={(next) => !next && setShowNew(false)}>
+        <DialogContent closeLabel={t("close")}>
+          <DialogHeader>
+            <DialogTitle>{t("projects.new")}</DialogTitle>
+          </DialogHeader>
+          <label className="k-field-block">
+            <span className="k-label">{t("projects.name")}</span>
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={t("projects.name")}
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === "Enter") onCreate();
-                if (e.key === "Escape") setShowNew(false);
+                if (e.key === "Enter") void onCreate();
               }}
             />
-            <div className="mt-4 flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setShowNew(false)}>
-                {t("cancel")}
-              </Button>
-              <Button onClick={onCreate} disabled={busy || !name.trim()}>
-                {busy ? t("projects.creating") : t("projects.create")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+          </label>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowNew(false)}>
+              {t("cancel")}
+            </Button>
+            <Button onClick={onCreate} disabled={busy || !name.trim()}>
+              {busy ? t("projects.creating") : t("projects.create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

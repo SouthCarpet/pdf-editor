@@ -5,17 +5,22 @@
 // editor store, register a job_id, open a tauri::ipc::Channel for
 // progress events, and stream them into the in-dialog progress UI.
 //
+// Kaliber r4 (plan 119 K3b): a modal Dialog on the shared ui/dialog, a
+// determinate k-progress bar, one k-alert for preflight warnings, and a ruled
+// results table whose state is a mark plus a word (R28), not a coloured pill.
+//
 // The dialog shows:
 //   - per-file rows with status (queued / running / ok / failed)
 //   - the live progress bar from the executor's per-node updates
 //   - the Delta Y preflight warnings the report carries
 //   - a final summary with success / failed counts
 //   - "Open output folder" if any output was written
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Channel } from "@tauri-apps/api/core";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   commands,
   type PipelineRunReport,
@@ -28,10 +33,9 @@ import {
   type PipelineEditorNode,
 } from "@/stores/pipelineStore";
 import { payloadToRust } from "@/pipeline/nodeKinds";
-import {
-  computeEdgeWarnings,
-  artifactLabel,
-} from "@/pipeline/preservation";
+import { computeEdgeWarnings } from "@/pipeline/preservation";
+import { translateNodeLabel } from "@/pipeline/nodeLabels";
+import { useArtifactNames } from "./useArtifactNames";
 
 interface Props {
   open: boolean;
@@ -118,7 +122,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
         await commands.cancelJob(jobId);
       } catch (e) {
         // best-effort; surface the error inline
-        setError(`cancel failed: ${String(e)}`);
+        setError(t("cancel_failed", { error: String(e) }));
       }
     }
   }
@@ -127,11 +131,11 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     const ch = new Channel<PipelineProgressEvent>();
     ch.onmessage = (ev) => {
       if (ev.type === "started") {
-        setProgress({ ratio: 0, label: ev.label ?? "starting" });
+        setProgress({ ratio: 0, label: ev.label ?? t("progress_start") });
       } else if (ev.type === "progress") {
         setProgress({ ratio: ev.ratio ?? 0, label: ev.label ?? "" });
       } else if (ev.type === "done") {
-        setProgress({ ratio: 1, label: ev.message ?? "done" });
+        setProgress({ ratio: 1, label: ev.message ?? t("progress_done") });
       } else if (ev.type === "error") {
         setError(`${ev.key}: ${ev.detail ?? ""}`);
       }
@@ -195,7 +199,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     setRunning(true);
     const id = crypto.randomUUID();
     setJobId(id);
-    setRows([{ path: dir, status: "running", message: "scanning folder" }]);
+    setRows([{ path: dir, status: "running", message: t("scanning_folder") }]);
     try {
       const r = unwrap(
         await commands.pipelineRunOnFolderCmd(
@@ -250,7 +254,7 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     const first = report.output_paths[0];
     navigator.clipboard
       .writeText(first)
-      .catch(() => setError("Failed to copy path to clipboard"));
+      .catch(() => setError(t("copy_failed")));
   }
 
   useEffect(() => {
@@ -263,132 +267,51 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  const labelOf = (id: string) => {
+    const node = nodes.find((n) => n.id === id);
+    return node ? translateNodeLabel(t, node.data.kind) : id;
+  };
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--color-overlay-soft)]">
-      <div className="flex h-[80vh] w-[640px] flex-col gap-3 rounded-md bg-[var(--color-card)] p-4 text-[var(--color-foreground)] shadow-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Run pipeline</h2>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClose}
-            disabled={running}
-          >
-            Close
-          </Button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(next) => !next && handleClose()}>
+      <DialogContent closeLabel={t("common:close")} className="flex h-[80vh] max-w-[640px] flex-col">
+        <DialogHeader>
+          <DialogTitle>{t("run_dialog_title")}</DialogTitle>
+        </DialogHeader>
 
-        {warnings.length > 0 && (
-          <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
-            <strong>Preservation warnings ({warnings.length})</strong>:
-            <ul className="ml-4 list-disc">
-              {warnings.map((w) => (
-                <li key={`${w.from}->${w.to}`}>
-                  {w.from} -&gt; {w.to}: may strip{" "}
-                  {w.artifacts.map(artifactLabel).join(", ")}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <WarningsBlock warnings={warnings} labelOf={labelOf} />
 
-        <div className="flex gap-2">
-          {hasOpenFileNode ? (
-            <Button
-              onClick={runConfiguredFiles}
-              disabled={running || configuredOpenFilePaths.length === 0}
-            >
-              {t("open_file.run_selected")}
-            </Button>
-          ) : (
-            <>
-              <Button
-                onClick={runOnFiles}
-                disabled={running || nodes.length === 0}
-              >
-                Run on files
-              </Button>
-              <Button
-                onClick={runOnFolder}
-                disabled={running || nodes.length === 0}
-              >
-                Run on folder
-              </Button>
-            </>
-          )}
-          {running && jobId && (
-            <Button variant="outline" onClick={handleCancel}>
-              Cancel
-            </Button>
-          )}
-        </div>
+        <RunActions
+          configured={hasOpenFileNode}
+          configuredCount={configuredOpenFilePaths.length}
+          hasNodes={nodes.length > 0}
+          running={running}
+          cancellable={running && jobId !== null}
+          onConfigured={runConfiguredFiles}
+          onFiles={runOnFiles}
+          onFolder={runOnFolder}
+          onCancel={handleCancel}
+        />
 
-        {progress && (
-          <div className="space-y-1">
-            <div className="h-2 w-full rounded bg-[var(--color-control-active)]">
-              <div
-                className="h-2 rounded bg-[var(--color-accent)] transition-all"
-                style={{ width: `${Math.round(progress.ratio * 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-[var(--color-muted)]">{progress.label}</p>
-          </div>
-        )}
+        {progress && <ProgressBlock ratio={progress.ratio} label={progress.label} />}
 
         {error && (
-          <p className="rounded border border-[var(--color-danger)] bg-[var(--color-danger-soft)] p-2 text-xs text-[var(--color-danger-soft-foreground)]">
-            {error}
-          </p>
+          <div className="k-alert k-alert--error">
+            <span className="k-mark k-mark--error k-alert-icon" aria-hidden="true" />
+            <p className="k-alert-body">{error}</p>
+          </div>
         )}
 
-        <div className="flex-1 overflow-y-auto rounded border">
-          <table className="w-full text-xs">
-            <thead className="bg-[var(--color-control-hover)]">
-              <tr>
-                <th className="p-1 text-left">File</th>
-                <th className="p-1 text-left">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={2} className="p-2 text-center text-[var(--color-muted)]">
-                    {hasOpenFileNode
-                      ? t("open_file.run_hint")
-                      : "Pick files or a folder to start."}
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r, i) => (
-                  <tr key={`${r.path}-${i}`} className="border-t">
-                    <td className="max-w-[400px] truncate p-1" title={r.path}>
-                      {r.path}
-                    </td>
-                    <td className="p-1">
-                      <StatusBadge state={r.status} />
-                      {r.message && (
-                        <span className="ml-2 text-[var(--color-muted)]">
-                          {r.message}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <ResultsTable rows={rows} hint={hasOpenFileNode ? t("open_file.run_hint") : t("pick_hint")} />
 
         {report && (
-          <div className="flex items-center justify-between text-xs">
-            <p>
-              <span className="text-[var(--color-success-text)]">{report.success} ok</span>
-              {" / "}
-              <span className="text-[var(--color-danger-text)]">{report.failed} failed</span>
-              {" / "}
-              <span>{report.output_paths.length} outputs</span>
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <p className="tabular-nums">
+              {t("summary", {
+                ok: report.success,
+                failed: report.failed,
+                outputs: report.output_paths.length,
+              })}
             </p>
             <Button
               variant="outline"
@@ -396,24 +319,164 @@ export function PipelineRunDialog({ open: isOpen, onClose }: Props) {
               onClick={openOutput}
               disabled={report.output_paths.length === 0}
             >
-              Open output folder
+              {t("copy_output")}
             </Button>
           </div>
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProgressBlock({ ratio, label }: { ratio: number; label: string }) {
+  const { t } = useTranslation("pipeline");
+  return (
+    <div className="space-y-1">
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(ratio * 100)}
+        aria-label={label || t("run_dialog_title")}
+        className="k-progress"
+      >
+        <span className="k-progress-fill" style={{ "--k-value": ratio } as CSSProperties} />
+      </div>
+      <p className="k-caption">{label}</p>
+    </div>
+  );
+}
+
+function WarningsBlock({
+  warnings,
+  labelOf,
+}: {
+  warnings: ReturnType<typeof computeEdgeWarnings>;
+  labelOf: (id: string) => string;
+}) {
+  const { t } = useTranslation("pipeline");
+  const artifactNames = useArtifactNames();
+  if (warnings.length === 0) return null;
+  return (
+    <div className="k-alert k-alert--warning">
+      <span className="k-mark k-mark--error k-alert-icon" aria-hidden="true" />
+      <div className="k-alert-body">
+        <p className="font-medium">{t("preflight_warnings")}</p>
+        <ul className="ml-4 list-disc">
+          {warnings.map((w) => (
+            <li key={`${w.from}->${w.to}`}>
+              {t("edge_strips", {
+                from: labelOf(w.from),
+                to: labelOf(w.to),
+                artifacts: artifactNames(w.artifacts),
+              })}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
 }
 
-function StatusBadge({ state }: { state: RowState["status"] }) {
-  const cls = {
-    queued:
-      "bg-[var(--color-control-active)] text-[var(--color-control-foreground)]",
-    running:
-      "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]",
-    ok: "bg-[var(--color-success-soft)] text-[var(--color-success-soft-foreground)]",
-    failed:
-      "bg-[var(--color-danger-soft)] text-[var(--color-danger-soft-foreground)]",
+function ResultsTable({ rows, hint }: { rows: RowState[]; hint: string }) {
+  const { t } = useTranslation("pipeline");
+  return (
+    <div className="k-table-wrap min-h-0 flex-1 overflow-y-auto">
+      <table className="k-table">
+        <thead>
+          <tr>
+            <th scope="col">{t("table.file")}</th>
+            <th scope="col">{t("table.status")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={2} className="k-caption">
+                {hint}
+              </td>
+            </tr>
+          ) : (
+            rows.map((r, i) => (
+              <tr key={`${r.path}-${i}`}>
+                <td className="max-w-[400px] truncate" title={r.path}>
+                  {r.path}
+                </td>
+                <td>
+                  <StatusMark state={r.status} />
+                  {r.message && <span className="k-caption ml-2">{r.message}</span>}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// A state is a mark shape plus a word; colour only supports it (R28).
+const MARK: Record<RowState["status"], string> = {
+  queued: "k-mark",
+  running: "k-mark k-mark--half",
+  ok: "k-mark k-mark--full",
+  failed: "k-mark k-mark--error",
+};
+
+function StatusMark({ state }: { state: RowState["status"] }) {
+  const { t } = useTranslation("pipeline");
+  const label = {
+    queued: t("status.queued"),
+    running: t("status.running"),
+    ok: t("status.ok"),
+    failed: t("status.failed"),
   }[state];
-  return <span className={`rounded px-1.5 py-0.5 ${cls}`}>{state}</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className={MARK[state]} aria-hidden="true" />
+      {label}
+    </span>
+  );
+}
+
+interface RunActionsProps {
+  configured: boolean;
+  configuredCount: number;
+  hasNodes: boolean;
+  running: boolean;
+  cancellable: boolean;
+  onConfigured: () => void;
+  onFiles: () => void;
+  onFolder: () => void;
+  onCancel: () => void;
+}
+
+function RunActions(props: RunActionsProps) {
+  const { t } = useTranslation("pipeline");
+  return (
+    <div className="flex gap-2">
+      {props.configured ? (
+        <Button
+          onClick={props.onConfigured}
+          disabled={props.running || props.configuredCount === 0}
+        >
+          {t("open_file.run_selected")}
+        </Button>
+      ) : (
+        <>
+          <Button onClick={props.onFiles} disabled={props.running || !props.hasNodes}>
+            {t("run_on_files")}
+          </Button>
+          <Button onClick={props.onFolder} disabled={props.running || !props.hasNodes}>
+            {t("run_on_folder")}
+          </Button>
+        </>
+      )}
+      {props.cancellable && (
+        <Button variant="outline" onClick={props.onCancel}>
+          {t("common:cancel")}
+        </Button>
+      )}
+    </div>
+  );
 }
