@@ -349,6 +349,21 @@ fn acroform(doc: &Document) -> Option<&Dictionary> {
     resolve(doc, catalog.get(b"AcroForm").ok()?)?.as_dict().ok()
 }
 
+/// Include fields whose `/FT` is inherited and separate widget children.
+pub(crate) fn field_tree_ids(doc: &Document) -> HashSet<ObjectId> {
+    let mut pending = acroform(doc).map_or_else(Vec::new, |form| references(doc, form, b"Fields"));
+    let mut ids = HashSet::new();
+    while let Some(id) = pending.pop() {
+        if !ids.insert(id) {
+            continue;
+        }
+        if let Ok(field) = doc.get_dictionary(id) {
+            pending.extend(references(doc, field, b"Kids"));
+        }
+    }
+    ids
+}
+
 /// The `/AcroForm` dictionary, direct in the catalog or an indirect object.
 fn acroform_mut(doc: &mut Document) -> Option<&mut Dictionary> {
     let root = catalog_id(doc)?;

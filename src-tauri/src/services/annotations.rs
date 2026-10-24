@@ -299,11 +299,17 @@ fn is_empty_fill(ann: &Annotation) -> bool {
 }
 
 fn validate_removals(doc: &Document, replaced: &[AnnotationRef]) -> Result<()> {
+    if replaced.is_empty() {
+        return Ok(());
+    }
+    let field_ids = own_fields::field_tree_ids(doc);
     for reference in replaced {
-        let Ok(field) = doc.get_dictionary((reference.object, reference.generation)) else {
+        let id = (reference.object, reference.generation);
+        let Ok(field) = doc.get_dictionary(id) else {
             continue;
         };
-        let is_field = field.has(b"FT")
+        let is_field = field_ids.contains(&id)
+            || field.has(b"FT")
             || field
                 .get(b"Subtype")
                 .and_then(Object::as_name)

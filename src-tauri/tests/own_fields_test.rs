@@ -16,6 +16,60 @@ const NAME_RECT: [f32; 4] = [100.0, 650.0, 240.0, 672.0];
 const MOVED_RECT: [f32; 4] = [100.0, 600.0, 240.0, 622.0];
 const EXISTING_RECT: [f32; 4] = [36.0, 700.0, 240.0, 724.0];
 
+// Oracle: O4 protects every source field. A terminal field can inherit
+// /FT from an ancestor and have a separate widget, without its own /FT.
+#[test]
+fn o4_source_field_with_inherited_type_is_refused_without_writing() {
+    let fixture = fixture(None, Form::Direct { existing: "Source" });
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let widget_id = fixture.existing_id.unwrap();
+    let ancestor_id = doc.new_object_id();
+    let field_id = doc.new_object_id();
+    let widget = doc.get_dictionary_mut(widget_id).unwrap();
+    widget.remove(b"FT");
+    widget.remove(b"T");
+    widget.remove(b"V");
+    widget.set("Parent", Object::Reference(field_id));
+    doc.set_object(
+        ancestor_id,
+        dictionary! {
+            "FT" => "Tx", "T" => text_string("Group"),
+            "Kids" => vec![Object::Reference(field_id)],
+        },
+    );
+    doc.set_object(
+        field_id,
+        dictionary! {
+            "T" => text_string("Source"), "V" => text_string("Hello"),
+            "Parent" => Object::Reference(ancestor_id),
+            "Kids" => vec![Object::Reference(widget_id)],
+        },
+    );
+    let catalog_id = doc
+        .trailer
+        .get(b"Root")
+        .and_then(Object::as_reference)
+        .unwrap();
+    doc.get_dictionary_mut(catalog_id).unwrap().set(
+        "AcroForm",
+        dictionary! {
+            "Fields" => vec![Object::Reference(ancestor_id)],
+        },
+    );
+    doc.save(&fixture.input).unwrap();
+    let read = fields(&fixture.input);
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].name, "Group.Source");
+    assert!(!read[0].own);
+    let output = fixture.path("refused-inherited.pdf");
+    let result = save_annotations(&fixture.input, &output, &[], &[field_id.into()]);
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "cannot remove a source form field"
+    );
+    assert!(!output.exists());
+}
+
 // Oracle: new fields start empty. Deleting a filled field and drawing a
 // new one with the same name must not copy the deleted field's value.
 #[test]
