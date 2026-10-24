@@ -18,6 +18,7 @@ const KIND_LABELS = {
   dll: "DLL",
   tessdata: "tessdata",
   ocr: "OCR model",
+  licence: "licence",
 };
 
 export function setupFileName(version) {

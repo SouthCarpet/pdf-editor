@@ -65,6 +65,17 @@ Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bum
 | `react-dnd-html5-backend` | 16.x | Browser DnD backend |
 | `react-error-boundary` | 4.x | Error boundaries per route |
 
+### 2.4a Dizajn (Kaliber r4)
+
+| Súbor | Čo to je | Poznámka |
+|---|---|---|
+| `src/styles/tokens.css` | Vygenerované tokeny (`design-tokens css --app pdf-editor`) | Bajtová kópia `design/web/pdf-editor.tokens.css`. Neupravuj ručne. |
+| `src/styles/kaliber.css` | Spoločná vrstva komponentov `.k-*` | Bajtová kópia `design/web/kaliber.css`. Neupravuj ručne. |
+| `src/assets/fonts/fira-sans/` | Písmo Fira Sans 400, 500, 600, 700 + `OFL.txt` + `SHA256SUMS` | SIL OFL 1.1. `kaliber.css` ich hľadá relatívne k sebe. |
+| `src/styles/globals.css` | Poradie importov a pravidlá aplikácie | Poradie: `tailwindcss`, `tokens.css`, `kaliber.css` vo vrstve `components`, potom CSS aplikácie. Vrstva zaručí, že utilita (napr. `p-6`) vyhrá nad `.k-btn`. Blok aliasov mapuje staré mená tokenov na role Kaliber, kým ich úlohy K2 až K4 neodstránia (K6 zmaže blok). Blok drží aj rolu `--color-warning-text` (text varovania, 4,5:1), pôvodné veľkosti písma a polomery Tailwindu (`--text-xs` až `--text-3xl`, `--radius-sm` až `--radius-lg`) a veľkosť písma stránky (`--text-body`, 1rem), ktoré by tokeny Kaliber inak prepísali. |
+
+Téma: `src/components/ThemeProvider.tsx` nastaví `data-theme` (pre tokeny) aj triedu `dark` (pre staré selektory) a ukladá voľbu pod kľúč `kaliber-theme`. Voľba „system" je bez uloženej hodnoty. Starý kľúč `theme` sa prečíta raz a zmaže.
+
 ### 2.5 Frontend dev / test
 
 | Nástroj | Verzia | Účel |
@@ -196,6 +207,7 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 - **Naša app code:** AGPL-3.0 (kvôli AGPL sidecarom MuPDF + Ghostscript)
 - **Bundlované sidecary:** každý so svojou licenciou (Apache 2.0, AGPL-3.0, MPL 2.0, GPL-2.0+, MS-RL)
+- **Písmo Fira Sans:** SIL Open Font License 1.1 (text v `src/assets/fonts/fira-sans/OFL.txt`, inštalátor ho dá do `resources\licenses\FiraSans-OFL.txt`)
 - **THIRD_PARTY_LICENSES.md** v inštalátore obsahuje plný text + source URL každej zložky (AGPL §6 source-offer obligation)
 
 ## 9. Mimo scope (čo NEpoužívame)

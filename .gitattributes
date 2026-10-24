@@ -61,3 +61,7 @@
 # converted. `-text` disables conversion in both directions.
 src-tauri/resources/ocr/*.txt    -text
 src-tauri/resources/ocr/*.onnx   -text
+
+# Fira Sans files stay byte-identical to the design tree (SHA256SUMS in the folder
+# checks them), so git must not convert line endings of OFL.txt or SHA256SUMS.
+src/assets/fonts/fira-sans/* -text

@@ -32,6 +32,7 @@ const manifest = {
     { kind: "dll", from: "sidecars/qpdf30.dll", to: "sidecars/qpdf30.dll" },
     { kind: "tessdata", from: "tessdata/eng.traineddata", to: "resources/tessdata/eng.traineddata" },
     { kind: "ocr", from: "ocr/det.onnx", to: "resources/ocr/det.onnx" },
+    { kind: "licence", from: "fira/OFL.txt", to: "resources/licenses/FiraSans-OFL.txt" },
   ],
 };
 
@@ -41,6 +42,7 @@ const complete = {
   "sidecars/qpdf30.dll": "dll",
   "tessdata/eng.traineddata": "eng",
   "ocr/det.onnx": "onnx",
+  "fira/OFL.txt": "ofl",
 };
 
 afterEach(() => {
@@ -51,7 +53,7 @@ describe("checkPayload", () => {
   it("hashes every file when the payload is complete", () => {
     const entries = checkPayload(fakeRepo(complete), manifest);
 
-    expect(entries).toHaveLength(5);
+    expect(entries).toHaveLength(6);
     expect(entries[0].sha256).toBe("9095bdb859308b62acf04036ffd4adfe366d7f737d276eb6c46ae434f3816c9b");
   });
 
@@ -68,6 +70,13 @@ describe("checkPayload", () => {
     const root = fakeRepo({ ...complete, "tessdata/eng.traineddata": "" });
 
     expect(() => checkPayload(root, manifest)).toThrow("tessdata: tessdata/eng.traineddata");
+  });
+
+  it("fails and names the font licence when it is missing", () => {
+    const files = { ...complete };
+    delete files["fira/OFL.txt"];
+
+    expect(() => checkPayload(fakeRepo(files), manifest)).toThrow("licence: fira/OFL.txt");
   });
 
   it("lists every gap in one error when a DLL and a model are missing", () => {

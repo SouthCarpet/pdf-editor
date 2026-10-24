@@ -395,6 +395,11 @@
       "kind": "ocr",
       "from": "src-tauri/resources/ocr/ppocrv5_latin_dict.txt",
       "to": "resources/ocr/ppocrv5_latin_dict.txt"
+    },
+    {
+      "kind": "licence",
+      "from": "src/assets/fonts/fira-sans/OFL.txt",
+      "to": "resources/licenses/FiraSans-OFL.txt"
     }
   ]
 }

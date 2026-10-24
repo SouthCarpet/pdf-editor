@@ -83,6 +83,14 @@
   sets `cognitive-complexity-threshold = 12`. Long functions in the
   pipeline executor, OCR, optimize, export and sidecar code are split into
   helpers. Behaviour is the same.
+- The app now uses the Kaliber r4 design language, step one: the face is
+  Fira Sans, the colours come from the shared Kaliber tokens (accent hue 235,
+  light and dark), and the theme choice is saved under `kaliber-theme`
+  (a choice saved under the old `theme` key moves over once). Screens keep
+  their layout; later steps change them. The licence of Fira Sans (SIL OFL
+  1.1) is installed to `resources\licenses\FiraSans-OFL.txt`.
+  Warning text uses a new role that meets 4.5:1, and the type sizes, the page
+  text size and the corner radii stay as before until the screen steps.
 - The update check compares GitHub releases, not the local git commit. The
   "Update" banner and the local-source updater button are gone; download
   and install of an update come later in plan 119.

@@ -69,7 +69,7 @@ blob.
 
 ## Runtime payload
 
-`packaging/payload.json` lists all 79 files, with the same layout as the MSI
+`packaging/payload.json` lists all 80 files, with the same layout as the MSI
 (`tauri.conf.json` `bundle.externalBin` and `bundle.resources`):
 
 | Kind | Count | Source | Installed to |
@@ -79,6 +79,7 @@ blob.
 | Sidecar DLLs | 61 | `src-tauri/sidecars/*.dll` | `{app}\sidecars\` (`SidecarManager` puts this folder on the child `PATH`) |
 | Tesseract data | 5 | `src-tauri/resources/tessdata/` (ces, deu, eng, pol, slk) | `{app}\resources\tessdata\` |
 | RapidOCR | 7 | `src-tauri/resources/ocr/` (2 ONNX models, `onnxruntime.dll`, dictionary, 2 licences, provenance note) | `{app}\resources\ocr\` |
+| Font licence | 1 | `src/assets/fonts/fira-sans/OFL.txt` (SIL OFL 1.1 of Fira Sans, whose four TTF files sit inside the app) | `{app}\resources\licenses\FiraSans-OFL.txt` |
 
 `{app}` is `%LOCALAPPDATA%\Programs\PDF Editor`.
 
