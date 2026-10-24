@@ -79,6 +79,8 @@
 
 ### Changed
 
+- Password recovery uses Kaliber choices, inputs, estimate and result marks, and a flat form layout. The legal warning uses the shared keyboard-accessible dialog.
+
 - Rust code stays under cognitive complexity 12. `src-tauri/.clippy.toml`
   sets `cognitive-complexity-threshold = 12`. Long functions in the
   pipeline executor, OCR, optimize, export and sidecar code are split into

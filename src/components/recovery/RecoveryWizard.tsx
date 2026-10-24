@@ -1,17 +1,17 @@
 // Phase 16 Task 81 / Delta U: Recovery wizard (Dictionary / Mask / Brute).
 //
-// Three tabs:
+// Three modes:
 //   - Dictionary: bundled top-1k wordlist and Custom .txt picker, preview of
 //     the first 20 lines, runtime estimate based on candidate count and a
 //     conservative 200 attempts/sec assumption for pdfcrack.
 //   - Mask: visual mask builder (drag-free, button-driven token append).
 //     Run button is disabled. The backend surfaces Unimplemented per the
 //     NON-NEGOTIABLE rule (no silent fallback). A clear banner explains
-//     why and points users to the Brute tab.
-//   - Brute: charset multi-select + min/max length sliders; live candidate
+//     why and points users to Brute force.
+//   - Brute: charset choices + min/max length fields; live candidate
 //     count + runtime estimate.
 //
-// Shared top bar: while running, shows "Time spent / Estimated remaining"
+// Shared status row: while running, shows "Time spent / Estimated remaining"
 // and a Stop button that calls cancel_job.
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -120,7 +120,7 @@ function formatDuration(seconds: number): string {
 }
 
 export function RecoveryWizard({ inputPath }: Props) {
-  const { t } = useTranslation(["recovery", "common"]);
+  const { t, i18n } = useTranslation(["recovery", "common"]);
   const [tab, setTab] = useState<Tab>("dictionary");
 
   // Shared run state.
@@ -314,199 +314,239 @@ export function RecoveryWizard({ inputPath }: Props) {
     return null;
   }, [running, tab, wordlistCount, bruteCandidateCount, elapsed]);
 
-  return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-2xl font-bold">{t("recovery:title")}</h1>
-      <p className="truncate text-sm text-[var(--color-muted)]" title={inputPath}>
-        {inputPath}
-      </p>
-
-      <div className="flex gap-1 rounded border border-[var(--color-border)] p-1">
-        {(["dictionary", "mask", "brute"] as Tab[]).map((id) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            disabled={running}
-            className={`flex-1 rounded px-3 py-2 text-sm capitalize ${
-              tab === id
-                ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
-                : "hover:bg-[var(--color-control-hover)]"
-            }`}
-          >
-            {tabLabel(t, id)}
-          </button>
-        ))}
-      </div>
-
-      {tab === "dictionary" && (
-        <div className="space-y-3 rounded border border-[var(--color-border)] p-4">
-          <div className="flex gap-2 text-sm">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={wordlist === "top-1k"}
-                onChange={() => setWordlist("top-1k")}
-              />
-              {t("recovery:wordlist_top_1k")}
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                checked={wordlist === "custom"}
-                onChange={() => setWordlist("custom")}
-              />
-              {t("recovery:wordlist_custom")}
-            </label>
-            {wordlist === "custom" && (
-              <Button size="sm" variant="outline" onClick={pickCustomWordlist}>
-                {t("recovery:choose_file")}
-              </Button>
-            )}
-          </div>
-          {customWordlistPath && wordlist === "custom" && (
-            <p className="truncate text-xs text-[var(--color-muted)]">{customWordlistPath}</p>
+  function renderDictionaryPanel() {
+    return (
+      <div className="space-y-[var(--space-4)]">
+        <fieldset className="k-radio-group k-radio-group--row">
+          <legend className="mb-2 text-[length:var(--text-md)] font-semibold">
+            {t("recovery:wordlist")}
+          </legend>
+          <label className="k-radio-row">
+            <input
+              type="radio"
+              name="recovery-wordlist"
+              className="k-radio-input"
+              checked={wordlist === "top-1k"}
+              onChange={() => setWordlist("top-1k")}
+            />
+            <span className="k-radio-dot" aria-hidden="true" />
+            <span className="k-radio-text">{t("recovery:wordlist_top_1k")}</span>
+          </label>
+          <label className="k-radio-row">
+            <input
+              type="radio"
+              name="recovery-wordlist"
+              className="k-radio-input"
+              checked={wordlist === "custom"}
+              onChange={() => setWordlist("custom")}
+            />
+            <span className="k-radio-dot" aria-hidden="true" />
+            <span className="k-radio-text">{t("recovery:wordlist_custom")}</span>
+          </label>
+          {wordlist === "custom" && (
+            <Button size="sm" variant="outline" onClick={pickCustomWordlist}>
+              {t("recovery:choose_file")}
+            </Button>
           )}
-          <div className="text-xs text-[var(--color-muted)]">
-            {wordlistCount !== null && (
-              <>
-                <span>
-                  {t("recovery:candidates")}: {wordlistCount.toLocaleString()}
-                </span>{" "}
-                ·{" "}
-                <span>
-                  {t("recovery:estimated_time")}: {dictionaryEta} ({PDFCRACK_ATTEMPTS_PER_SEC}/s)
-                </span>
-              </>
-            )}
-          </div>
-          {preview.length > 0 && (
-            <pre className="max-h-32 overflow-auto rounded bg-[var(--color-control)] p-2 font-mono text-[11px]">
-              {preview.join("\n")}
-            </pre>
+        </fieldset>
+        {customWordlistPath && wordlist === "custom" && (
+          <p className="truncate text-xs text-[var(--color-text-muted)]">{customWordlistPath}</p>
+        )}
+        <div className="k-state-label text-[var(--color-text-muted)] tabular-nums">
+          {wordlistCount !== null && <span className="k-mark k-mark--half" aria-hidden="true" />}
+          {wordlistCount !== null && (
+            <>
+              <span>
+                {t("recovery:candidates")}: {wordlistCount.toLocaleString(i18n.resolvedLanguage)}
+              </span>{" "}
+              ·{" "}
+              <span>
+                {t("recovery:estimated_time")}: {dictionaryEta} ({PDFCRACK_ATTEMPTS_PER_SEC}/s)
+              </span>
+            </>
           )}
         </div>
-      )}
+        {preview.length > 0 && (
+          <pre
+            aria-label={t("recovery:wordlist_preview")}
+            className="max-h-32 overflow-auto bg-[var(--color-well)] p-[var(--space-3)] font-sans text-[length:var(--text-xs)]"
+          >
+            {preview.join("\n")}
+          </pre>
+        )}
+      </div>
+    );
+  }
 
-      {tab === "mask" && (
-        <div className="space-y-3 rounded border border-[var(--color-border)] p-4">
-          <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-3 text-xs text-[var(--color-warning-soft-foreground)]">
+  function renderMaskPanel() {
+    return (
+      <div className="space-y-[var(--space-4)]">
+        <div className="k-alert k-alert--warning">
+          <span className="k-mark k-mark--error k-alert-icon" aria-hidden="true" />
+          <div className="k-alert-body">
             <p className="font-medium">{t("recovery:mask_unimplemented")}</p>
             <p>{t("recovery:mask_help")}</p>
           </div>
-          <div>
-            <p className="mb-1 text-xs text-[var(--color-muted)]">{t("recovery:token_palette")}</p>
-            <div className="flex flex-wrap gap-1">
-              {MASK_TOKENS.map((m) => (
-                <Button
-                  key={m.key}
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setMaskTokens((t) => [...t, m.key])}
-                >
-                  {maskTokenLabel(t, m.key)}
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <p className="mb-1 text-xs text-[var(--color-muted)]">{t("recovery:mask_builder")}</p>
-            <div className="flex min-h-[32px] flex-wrap gap-1 rounded border border-[var(--color-border)] bg-[var(--color-background)] p-2">
-              {maskTokens.length === 0 && (
-                <span className="text-xs text-[var(--color-muted)]">{t("recovery:empty")}</span>
-              )}
-              {maskTokens.map((tok, i) => (
-                <button
-                  key={i}
-                  onClick={() => setMaskTokens((t) => t.filter((_, idx) => idx !== i))}
-                  className="rounded bg-[var(--color-accent-soft)] px-2 py-1 text-xs text-[var(--color-accent-soft-foreground)] hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
-                  title={t("recovery:click_to_remove")}
-                >
-                  {tok}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1 text-xs text-[var(--color-muted)]">
-              {t("recovery:candidates")}:{" "}
-              {maskCandidateCount === Infinity ? ">10^18" : maskCandidateCount.toLocaleString()}
-            </p>
+        </div>
+        <div>
+          <p className="mb-1 text-xs text-[var(--color-text-muted)]">
+            {t("recovery:token_palette")}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {MASK_TOKENS.map((m) => (
+              <Button
+                key={m.key}
+                size="sm"
+                variant="outline"
+                onClick={() => setMaskTokens((t) => [...t, m.key])}
+              >
+                {maskTokenLabel(t, m.key)}
+              </Button>
+            ))}
           </div>
         </div>
-      )}
-
-      {tab === "brute" && (
-        <div className="space-y-3 rounded border border-[var(--color-border)] p-4">
-          <div>
-            <p className="mb-1 text-xs text-[var(--color-muted)]">{t("recovery:charset")}</p>
-            <div className="flex flex-wrap gap-2 text-xs">
-              {CHARSETS.map((c) => (
-                <label key={c.key} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={selectedCharsets.includes(c.key)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedCharsets((s) => [...s, c.key]);
-                      } else {
-                        setSelectedCharsets((s) => s.filter((k) => k !== c.key));
-                      }
-                    }}
-                  />
-                  {charsetLabel(t, c.key)}
-                </label>
-              ))}
-            </div>
+        <div>
+          <p className="mb-1 text-xs text-[var(--color-text-muted)]">
+            {t("recovery:mask_builder")}
+          </p>
+          <div className="flex min-h-[var(--control-h)] flex-wrap gap-2 border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-2">
+            {maskTokens.length === 0 && (
+              <span className="text-xs text-[var(--color-text-muted)]">{t("recovery:empty")}</span>
+            )}
+            {maskTokens.map((tok, i) => (
+              <button
+                key={i}
+                onClick={() => setMaskTokens((t) => t.filter((_, idx) => idx !== i))}
+                className="k-btn k-btn-secondary k-btn-auto"
+                title={t("recovery:click_to_remove")}
+              >
+                {tok}
+              </button>
+            ))}
           </div>
-          <label className="block text-xs">
-            <span className="text-[var(--color-muted)]">{t("recovery:charset_custom")}</span>
+          <p className="k-state-label mt-1 text-[var(--color-text-muted)]">
+            <span className="k-mark k-mark--half" aria-hidden="true" />
+            {t("recovery:candidates")}:{" "}
+            {maskCandidateCount === Infinity
+              ? ">10^18"
+              : maskCandidateCount.toLocaleString(i18n.resolvedLanguage)}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  function renderBrutePanel() {
+    return (
+      <div className="space-y-[var(--space-4)]">
+        <div>
+          <p className="mb-1 text-xs text-[var(--color-text-muted)]">{t("recovery:charset")}</p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {CHARSETS.map((c) => (
+              <label key={c.key} className="k-check">
+                <input
+                  type="checkbox"
+                  className="k-check-input"
+                  checked={selectedCharsets.includes(c.key)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedCharsets((s) => [...s, c.key]);
+                    } else {
+                      setSelectedCharsets((s) => s.filter((k) => k !== c.key));
+                    }
+                  }}
+                />
+                <svg className="k-check-mark" viewBox="0 0 16 16" aria-hidden="true">
+                  <path className="k-check-tick" pathLength="1" d="m3 8 3 3 7-7" />
+                </svg>
+                <span className="k-check-text">{charsetLabel(t, c.key)}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <label className="block text-xs">
+          <span className="text-[var(--color-text-muted)]">{t("recovery:charset_custom")}</span>
+          <Input
+            value={customCharset}
+            onChange={(e) => setCustomCharset(e.target.value)}
+            placeholder={t("recovery:charset_custom_example")}
+            className="k-input mt-1"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <label>
+            <span className="text-[var(--color-text-muted)]">{t("recovery:min_length")}</span>
             <Input
-              value={customCharset}
-              onChange={(e) => setCustomCharset(e.target.value)}
-              placeholder={t("recovery:charset_custom_example")}
-              className="mt-1"
+              type="number"
+              min={1}
+              max={20}
+              value={minLen}
+              onChange={(e) => setMinLen(Math.max(1, Math.min(20, Number(e.target.value))))}
+              className="k-input mt-1"
             />
           </label>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <label>
-              <span className="text-[var(--color-muted)]">{t("recovery:min_length")}</span>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={minLen}
-                onChange={(e) => setMinLen(Math.max(1, Math.min(20, Number(e.target.value))))}
-                className="mt-1"
-              />
-            </label>
-            <label>
-              <span className="text-[var(--color-muted)]">{t("recovery:max_length")}</span>
-              <Input
-                type="number"
-                min={1}
-                max={20}
-                value={maxLen}
-                onChange={(e) => setMaxLen(Math.max(1, Math.min(20, Number(e.target.value))))}
-                className="mt-1"
-              />
-            </label>
-          </div>
-          <div className="text-xs text-[var(--color-muted)]">
-            <span>
-              {t("recovery:charset")}: {fullCharset.length}
-            </span>{" "}
-            ·{" "}
-            <span>
-              {t("recovery:candidates")}:{" "}
-              {bruteCandidateCount === Infinity ? ">10^18" : bruteCandidateCount.toLocaleString()}
-            </span>{" "}
-            · <span>≈ {bruteEta}</span>
-          </div>
+          <label>
+            <span className="text-[var(--color-text-muted)]">{t("recovery:max_length")}</span>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              value={maxLen}
+              onChange={(e) => setMaxLen(Math.max(1, Math.min(20, Number(e.target.value))))}
+              className="k-input mt-1"
+            />
+          </label>
         </div>
-      )}
+        <div className="k-state-label text-[var(--color-text-muted)] tabular-nums">
+          <span className="k-mark k-mark--half" aria-hidden="true" />
+          <span>
+            {t("recovery:charset")}: {fullCharset.length}
+          </span>{" "}
+          ·{" "}
+          <span>
+            {t("recovery:candidates")}:{" "}
+            {bruteCandidateCount === Infinity
+              ? ">10^18"
+              : bruteCandidateCount.toLocaleString(i18n.resolvedLanguage)}
+          </span>{" "}
+          · <span>≈ {bruteEta}</span>
+        </div>
+      </div>
+    );
+  }
 
-      <div className="flex items-center justify-between gap-2 rounded border border-[var(--color-border)] p-3">
+  function renderResult() {
+    if (result?.password)
+      return (
+        <span className="k-state-label">
+          <span className="k-mark k-mark--full" aria-hidden="true" />
+          {t("recovery:found", { password: result.password })}
+        </span>
+      );
+    if (result)
+      return (
+        <span className="k-state-label">
+          <span className="k-mark k-mark--error" aria-hidden="true" />
+          {t("recovery:not_found")}
+        </span>
+      );
+    return (
+      <span className="k-state-label">
+        <span className="k-mark" aria-hidden="true" />
+        {t("recovery:ready")}
+      </span>
+    );
+  }
+
+  function renderRunStatus() {
+    return (
+      <div className="flex items-center justify-between gap-[var(--space-3)] border-t border-[var(--color-border)] pt-[var(--space-4)] tabular-nums">
         {running ? (
           <>
-            <div className="text-sm">
+            <div role="status" className="relative pb-[var(--space-2)] text-sm">
+              <div className="k-activity block" aria-hidden="true">
+                <span className="k-activity-bar w-full" />
+              </div>
               <span className="font-medium">{t("common:running")}</span> ·{" "}
               {t("recovery:time_spent")}: {formatDuration(elapsed)}{" "}
               {etaSeconds !== null && (
@@ -515,22 +555,14 @@ export function RecoveryWizard({ inputPath }: Props) {
                 </>
               )}
             </div>
-            <Button onClick={stop} variant="destructive">
+            <Button onClick={stop} variant="outline">
               {t("recovery:stop")}
             </Button>
           </>
         ) : (
           <>
-            <div className="text-sm text-[var(--color-muted)]">
-              {result?.password ? (
-                <span className="font-medium text-[var(--color-success-text)]">
-                  {t("recovery:found", { password: result.password })}
-                </span>
-              ) : result ? (
-                <span>{t("recovery:not_found")}</span>
-              ) : (
-                t("recovery:ready")
-              )}
+            <div role="status" className="text-sm text-[var(--color-text-muted)]">
+              {renderResult()}
             </div>
             {tab === "dictionary" && (
               <Button onClick={runDictionary} disabled={wordlistCount === null}>
@@ -550,8 +582,46 @@ export function RecoveryWizard({ inputPath }: Props) {
           </>
         )}
       </div>
+    );
+  }
 
-      {error && <p className="text-xs text-[var(--color-danger-text)]">{error}</p>}
+  return (
+    <div className="mx-auto max-w-3xl space-y-[var(--space-6)] text-[var(--color-text)]">
+      <h1 className="k-page-title">{t("recovery:title")}</h1>
+      <p className="truncate text-sm text-[var(--color-text-muted)]" title={inputPath}>
+        {inputPath}
+      </p>
+
+      <fieldset className="k-segmented" disabled={running}>
+        <legend className="sr-only">{t("recovery:mode")}</legend>
+        {(["dictionary", "mask", "brute"] as Tab[]).map((id) => (
+          <label key={id} className="k-segmented-item">
+            <input
+              className="k-segmented-input"
+              type="radio"
+              name="recovery-mode"
+              checked={tab === id}
+              onChange={() => setTab(id)}
+            />
+            <span className="k-segmented-label">{tabLabel(t, id)}</span>
+          </label>
+        ))}
+      </fieldset>
+
+      {tab === "dictionary" && renderDictionaryPanel()}
+
+      {tab === "mask" && renderMaskPanel()}
+
+      {tab === "brute" && renderBrutePanel()}
+
+      {renderRunStatus()}
+
+      {error && (
+        <p role="alert" className="k-field-error">
+          <span className="k-mark k-mark--error" aria-hidden="true" />
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,11 +1,6 @@
-// Phase 16 Task 82: Recovery warning modal and legal disclaimer.
-//
-// Gates the Recovery wizard behind an explicit acknowledgement that the
-// user understands they should only recover PDFs they own. AES-256 caveat
-// is also surfaced because the runtime cost difference between V<=4 and
-// V=5 is enormous and users routinely don't realize.
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Props {
   open: boolean;
@@ -15,24 +10,34 @@ interface Props {
 
 export function RecoveryWarningModal({ open, onConfirm, onCancel }: Props) {
   const { t } = useTranslation(["recovery", "common"]);
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
-      <div className="w-[28rem] rounded-lg border border-[var(--color-warning)] bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl">
-        <h2 className="text-lg font-semibold text-[var(--color-warning-text)]">
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value) onCancel();
+      }}
+    >
+      <DialogContent
+        closeLabel={t("common:cancel")}
+        className="k-dialog rounded-[var(--radius-sm)] border-[var(--color-border)] bg-[var(--color-surface-raised)] text-[var(--color-text)] shadow-none sm:rounded-[var(--radius-sm)]"
+      >
+        <DialogTitle className="k-dialog-title pr-8 text-[length:var(--text-xl)]">
           {t("recovery:warning_title")}
-        </h2>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">{t("recovery:warning_body")}</p>
-        <p className="mt-2 text-sm text-[var(--color-muted)]">{t("recovery:warning_aes")}</p>
-        <div className="mt-4 flex justify-end gap-2">
+        </DialogTitle>
+        <DialogDescription className="k-dialog-body text-[var(--color-text-muted)]">
+          {t("recovery:warning_body")}
+        </DialogDescription>
+        <p className="k-state-label text-[var(--color-text-muted)]">
+          <span className="k-mark k-mark--half" aria-hidden="true" />
+          {t("recovery:warning_aes")}
+        </p>
+        <div className="k-dialog-actions">
           <Button variant="ghost" onClick={onCancel}>
             {t("common:cancel")}
           </Button>
-          <Button onClick={onConfirm} variant="destructive">
-            {t("recovery:warning_accept")}
-          </Button>
+          <Button onClick={onConfirm}>{t("recovery:warning_accept")}</Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
