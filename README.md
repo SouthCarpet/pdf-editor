@@ -106,6 +106,14 @@ changes while it holds them, as far as the Windows sharing rules allow.
 Another program that runs under your own account is outside it, because
 Windows does not separate programs of one user.
 
+## Design
+
+The face is Fira Sans (SIL Open Font License 1.1, text in
+`src/assets/fonts/fira-sans/OFL.txt`; the setup installs it to
+`resources\licenses\FiraSans-OFL.txt`). Colours and type come from the shared
+Kaliber r4 tokens. `src/styles/tokens.css` and `src/styles/kaliber.css` are byte
+copies from the design tree: do not edit them by hand (see `docs/stack.md`).
+
 ## Build
 
 ```
