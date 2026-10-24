@@ -21,6 +21,11 @@ const PRINT_FLAG: i64 = 4;
 const BORDER_GRAY: f32 = 0.4;
 const BORDER_WIDTH: f32 = 0.5;
 const DEFAULT_APPEARANCE: &str = "/Helv 0 Tf 0 g";
+const OWN_FIELD_MARKER: &[u8] = b"PdfEditorOwn";
+
+pub(crate) fn is_own_field(field: &Dictionary) -> bool {
+    matches!(field.get(OWN_FIELD_MARKER), Ok(Object::Boolean(true)))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
@@ -112,12 +117,32 @@ pub(crate) fn write_own_field(
     page_id: ObjectId,
     field: &OwnField<'_>,
     names: &mut FieldNames,
+    saved: Option<Dictionary>,
 ) -> Result<ObjectId> {
     validate_rect(&field.rect)?;
     ensure_acroform(doc)?;
     let name = names.claim(field.name);
-    let mut widget = widget_dict(field, &name, page_id, page_rotation(doc, page_id));
-    add_appearance(doc, &mut widget, field);
+    let widget = match saved {
+        Some(mut widget) => {
+            // Layout edits keep the saved value, settings and appearance.
+            widget.set(
+                "Rect",
+                field
+                    .rect
+                    .iter()
+                    .map(|value| Object::Real(*value))
+                    .collect::<Vec<_>>(),
+            );
+            widget.set("P", Object::Reference(page_id));
+            widget.set("T", text_string(&name));
+            widget
+        }
+        None => {
+            let mut widget = widget_dict(field, &name, page_id, page_rotation(doc, page_id));
+            add_appearance(doc, &mut widget, field);
+            widget
+        }
+    };
     let id = doc.add_object(widget);
     with_fields(doc, |fields| fields.push(Object::Reference(id)));
     Ok(id)
@@ -156,6 +181,7 @@ fn widget_dict(field: &OwnField<'_>, name: &str, page_id: ObjectId, rotation: i6
     dictionary! {
         "Type" => "Annot",
         "Subtype" => "Widget",
+        "PdfEditorOwn" => true,
         "FT" => field_type,
         "T" => text_string(name),
         "Rect" => field.rect.iter().map(|value| Object::Real(*value)).collect::<Vec<_>>(),

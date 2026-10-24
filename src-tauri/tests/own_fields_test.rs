@@ -16,6 +16,370 @@ const NAME_RECT: [f32; 4] = [100.0, 650.0, 240.0, 672.0];
 const MOVED_RECT: [f32; 4] = [100.0, 600.0, 240.0, 622.0];
 const EXISTING_RECT: [f32; 4] = [36.0, 700.0, 240.0, 724.0];
 
+// Oracle: new fields start empty. Deleting a filled field and drawing a
+// new one with the same name must not copy the deleted field's value.
+#[test]
+fn o4_new_field_reusing_a_deleted_name_starts_empty() {
+    let fixture = fixture(None, Form::Missing);
+    let output = fixture.path("reuse-name.pdf");
+    let original = save(
+        &fixture.input,
+        &output,
+        &[text_field("Employee", NAME_RECT)],
+        &[],
+    )[0]
+    .unwrap();
+    set_form_values(
+        &output,
+        &output,
+        &[FormValueUpdate {
+            field_id: format!("{}:{}", original.object, original.generation),
+            value: Some("Alice".into()),
+        }],
+    )
+    .unwrap();
+    save(
+        &output,
+        &output,
+        &[text_field("Employee", MOVED_RECT)],
+        &[original],
+    );
+    let read = fields(&output);
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].name, "Employee");
+    assert_eq!(read[0].value, None);
+}
+
+fn linked_field(source: AnnotationRef, rect: [f32; 4]) -> Annotation {
+    serde_json::from_value(serde_json::json!({
+        "type": "form_field", "page": 0, "rect": rect,
+        "name": "Employee", "kind": "text", "multiline": false,
+        "font_size": 0, "source_field": source,
+    }))
+    .unwrap()
+}
+
+// Oracle: a layout source must be removed in the same atomic save.
+#[test]
+fn o4_source_not_in_removals_is_refused_without_writing() {
+    let fixture = fixture(None, Form::Missing);
+    let first = fixture.path("first.pdf");
+    let output = fixture.path("refused-source.pdf");
+    let original = save(
+        &fixture.input,
+        &first,
+        &[text_field("Employee", NAME_RECT)],
+        &[],
+    )[0]
+    .unwrap();
+    let result = save_annotations(&first, &output, &[linked_field(original, MOVED_RECT)], &[]);
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "saved own field source must be replaced"
+    );
+    assert!(!output.exists());
+}
+
+// Oracle: one saved object can supply only one layout replacement.
+#[test]
+fn o4_source_used_twice_is_refused_without_writing() {
+    let fixture = fixture(None, Form::Missing);
+    let first = fixture.path("first.pdf");
+    let output = fixture.path("refused-duplicate.pdf");
+    let original = save(
+        &fixture.input,
+        &first,
+        &[text_field("Employee", NAME_RECT)],
+        &[],
+    )[0]
+    .unwrap();
+    let result = save_annotations(
+        &first,
+        &output,
+        &[
+            linked_field(original, MOVED_RECT),
+            linked_field(original, NAME_RECT),
+        ],
+        &[original],
+    );
+    assert_eq!(
+        result.unwrap_err().to_string(),
+        "duplicate saved own field source"
+    );
+    assert!(!output.exists());
+}
+
+// Oracle: O4 brief, part 1. Only marked app fields can be moved or deleted.
+#[test]
+fn o4_saved_field_has_marker_and_source_field_does_not() {
+    let fixture = fixture(None, Form::Direct { existing: "Source" });
+    let output = fixture.path("marked.pdf");
+    let written = save(
+        &fixture.input,
+        &output,
+        &[text_field("Own", NAME_RECT)],
+        &[],
+    );
+    let doc = Document::load(&output).unwrap();
+    assert_eq!(
+        widget(&doc, written_id(&written, 0))
+            .get(b"PdfEditorOwn")
+            .unwrap(),
+        &Object::Boolean(true)
+    );
+    let read = fields(&output);
+    assert_eq!(
+        serde_json::to_value(field_with_rect(&read, NAME_RECT)).unwrap()["own"],
+        true
+    );
+    assert_eq!(
+        serde_json::to_value(field_with_rect(&read, EXISTING_RECT)).unwrap()["own"],
+        false
+    );
+}
+
+#[test]
+fn o4_move_keeps_one_named_field_and_delete_leaves_no_dangling_fields() {
+    let fixture = fixture(None, Form::Indirect);
+    let first = fixture.path("first.pdf");
+    let moved = fixture.path("moved.pdf");
+    let deleted = fixture.path("deleted.pdf");
+    let original = save(
+        &fixture.input,
+        &first,
+        &[text_field("Employee", NAME_RECT)],
+        &[],
+    )[0]
+    .unwrap();
+    let replacement = save(
+        &first,
+        &moved,
+        &[text_field("Employee", MOVED_RECT)],
+        &[original],
+    )[0]
+    .unwrap();
+    let read = fields(&moved);
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].name, "Employee");
+    assert_eq!(read[0].rect, MOVED_RECT);
+    let doc = Document::load(&moved).unwrap();
+    assert_eq!(field_ids(&doc), vec![object_id(replacement)]);
+    assert_eq!(page_annot_ids(&doc), vec![object_id(replacement)]);
+    save(&moved, &deleted, &[], &[replacement]);
+    assert_eq!(fields(&deleted), vec![]);
+    let doc = Document::load(&deleted).unwrap();
+    assert_eq!(field_ids(&doc), vec![]);
+    assert_eq!(page_annot_ids(&doc), vec![]);
+}
+
+#[test]
+fn o4_delete_unmarked_source_widget_is_refused_without_writing() {
+    let fixture = fixture(None, Form::Direct { existing: "Source" });
+    let output = fixture.path("refused.pdf");
+    let result = save_annotations(
+        &fixture.input,
+        &output,
+        &[],
+        &[fixture.existing_id.unwrap().into()],
+    );
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("cannot remove a source form field"));
+    assert!(!output.exists());
+    assert_eq!(fields(&fixture.input).len(), 1);
+}
+
+// Oracle: a layout move changes placement only, never a filled value or
+// the saved text settings. O4 permits move/resize/delete of saved fields.
+#[test]
+fn o4_move_preserves_filled_text_and_saved_text_settings() {
+    let fixture = fixture(None, Form::Missing);
+    let output = fixture.path("filled.pdf");
+    let field = Annotation::FormField {
+        page: 0,
+        rect: NAME_RECT,
+        name: "Employee".into(),
+        kind: OwnFieldKind::Text,
+        multiline: true,
+        font_size: 16.0,
+        source_field: None,
+    };
+    let original = save(&fixture.input, &output, &[field], &[])[0].unwrap();
+    set_form_values(
+        &output,
+        &output,
+        &[FormValueUpdate {
+            field_id: format!("{}:{}", original.object, original.generation),
+            value: Some("Alice".into()),
+        }],
+    )
+    .unwrap();
+    let replacement = save(
+        &output,
+        &output,
+        &[linked_field(original, MOVED_RECT)],
+        &[original],
+    )[0]
+    .unwrap();
+    assert_eq!(fields(&output)[0].value.as_deref(), Some("Alice"));
+    let doc = Document::load(&output).unwrap();
+    let widget = widget(&doc, object_id(replacement));
+    assert_eq!(widget.get(b"Ff").unwrap(), &Object::Integer(4096));
+    assert_eq!(
+        widget.get(b"DA").and_then(Object::as_str).unwrap(),
+        b"/Helv 16 Tf 0 g"
+    );
+    assert!(
+        !widget.has(b"AP"),
+        "the filled text appearance is generated by the reader"
+    );
+}
+
+#[test]
+fn o4_resize_preserves_checked_state_and_resolving_appearances() {
+    let fixture = fixture(None, Form::Missing);
+    let output = fixture.path("checked.pdf");
+    let original = save(
+        &fixture.input,
+        &output,
+        &[checkbox("Consent", [100.0, 650.0, 114.0, 664.0])],
+        &[],
+    )[0]
+    .unwrap();
+    set_form_values(
+        &output,
+        &output,
+        &[FormValueUpdate {
+            field_id: format!("{}:{}", original.object, original.generation),
+            value: Some("Yes".into()),
+        }],
+    )
+    .unwrap();
+    let replacement = save(
+        &output,
+        &output,
+        &[Annotation::FormField {
+            page: 0,
+            rect: [100.0, 600.0, 128.0, 628.0],
+            name: "Consent".into(),
+            kind: OwnFieldKind::Checkbox,
+            multiline: false,
+            font_size: 0.0,
+            source_field: Some(original),
+        }],
+        &[original],
+    )[0]
+    .unwrap();
+    assert_eq!(fields(&output)[0].value.as_deref(), Some("Yes"));
+    let doc = Document::load(&output).unwrap();
+    let widget = widget(&doc, object_id(replacement));
+    assert_eq!(name_of(widget, b"AS"), "Yes");
+    let states = widget
+        .get(b"AP")
+        .and_then(Object::as_dict)
+        .unwrap()
+        .get(b"N")
+        .and_then(Object::as_dict)
+        .unwrap();
+    let yes = states.get(b"Yes").and_then(Object::as_reference).unwrap();
+    assert!(doc.get_object(yes).and_then(Object::as_stream).is_ok());
+}
+
+// Oracle: V-P0 F3. Saving a visible value must preserve Im0, including
+// indirect Resources and Font dictionaries, so the original image renders.
+fn indirect_resources_value_copy() -> (Fixture, PathBuf, ObjectId) {
+    use pdf_editor_lib::services::text_style::TextStyle;
+    let fixture = fixture(None, Form::Missing);
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let image = doc.add_object(lopdf::Stream::new(
+        dictionary! {
+            "Type" => "XObject", "Subtype" => "Image", "Width" => 1,
+            "Height" => 1, "ColorSpace" => "DeviceRGB", "BitsPerComponent" => 8,
+        },
+        vec![255, 0, 0],
+    ));
+    let fonts = doc.add_object(dictionary! { "Original" => dictionary! {
+        "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Courier",
+    }});
+    let resources = doc.add_object(dictionary! {
+        "XObject" => dictionary! { "Im0" => Object::Reference(image) },
+        "Font" => Object::Reference(fonts),
+    });
+    let content = doc.add_object(lopdf::Stream::new(
+        dictionary! {},
+        b"q 100 0 0 100 0 0 cm /Im0 Do Q".to_vec(),
+    ));
+    let page = doc.get_dictionary_mut(fixture.page_id).unwrap();
+    page.set("Resources", Object::Reference(resources));
+    page.set("Contents", Object::Reference(content));
+    doc.save(&fixture.input).unwrap();
+    let output = fixture.path("values.pdf");
+    save(
+        &fixture.input,
+        &output,
+        &[Annotation::FreeText {
+            page: 0,
+            rect: NAME_RECT,
+            contents: "Alice".to_string(),
+            style: TextStyle::default(),
+            background_fill: None,
+            border_color: [0.0; 3],
+            border_width: 0.0,
+            auto_resize: false,
+        }],
+        &[],
+    );
+    (fixture, output, image)
+}
+
+#[test]
+fn o4_value_save_preserves_indirect_page_resources_and_image() {
+    let (fixture, output, image) = indirect_resources_value_copy();
+    let saved = Document::load(&output).unwrap();
+    let page = saved.get_dictionary(fixture.page_id).unwrap();
+    let resources = resolve(&saved, page.get(b"Resources").unwrap())
+        .as_dict()
+        .unwrap();
+    assert_eq!(
+        resources
+            .get(b"XObject")
+            .and_then(Object::as_dict)
+            .unwrap()
+            .get(b"Im0")
+            .unwrap(),
+        &Object::Reference(image)
+    );
+    let fonts = resolve(&saved, resources.get(b"Font").unwrap())
+        .as_dict()
+        .unwrap();
+    assert!(fonts.has(b"Original"));
+    assert!(fonts.len() >= 2, "the new value font must also be bound");
+}
+
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires mutool; --features sidecar-tests"
+)]
+async fn o4_indirect_resources_value_copy_renders_without_missing_im0() {
+    let (fixture, output, _) = indirect_resources_value_copy();
+    let png = fixture.path("values.png");
+    let args = [
+        "draw",
+        "-F",
+        "png",
+        "-o",
+        png.to_str().unwrap(),
+        output.to_str().unwrap(),
+        "1",
+    ]
+    .map(String::from);
+    let (_, stderr) = run_sidecar("mutool", &args).await;
+    assert!(!stderr.to_lowercase().contains("error"), "{stderr}");
+    assert!(png.exists());
+}
+
 /// The AcroForm of the fixture.
 #[derive(Clone, Copy)]
 enum Form {
@@ -120,6 +484,7 @@ fn text_field(name: &str, rect: [f32; 4]) -> Annotation {
         kind: OwnFieldKind::Text,
         multiline: false,
         font_size: 0.0,
+        source_field: None,
     }
 }
 
@@ -131,6 +496,7 @@ fn checkbox(name: &str, rect: [f32; 4]) -> Annotation {
         kind: OwnFieldKind::Checkbox,
         multiline: false,
         font_size: 0.0,
+        source_field: None,
     }
 }
 
@@ -233,6 +599,7 @@ fn r1_text_field_is_a_real_acroform_field() {
         options: Vec::new(),
         read_only: false,
         required: false,
+        own: true,
     };
     assert_eq!(read, vec![expected]);
 

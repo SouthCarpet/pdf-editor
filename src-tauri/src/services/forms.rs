@@ -29,6 +29,8 @@ pub struct FormField {
     pub options: Vec<String>,
     pub read_only: bool,
     pub required: bool,
+    /// The merged field/widget carries the app's private ownership marker.
+    pub own: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -273,6 +275,7 @@ fn walk_field(
             options,
             read_only: current.flags & FIELD_FLAG_READ_ONLY != 0,
             required: current.flags & FIELD_FLAG_REQUIRED != 0,
+            own: crate::services::own_fields::is_own_field(dict),
         },
         owner_id: field_id,
         widget_ids,

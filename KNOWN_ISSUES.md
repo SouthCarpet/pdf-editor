@@ -10,6 +10,22 @@ radio and signature fields are not available as own fields. A pending box
 defines the field only. Save it first, then fill its value in the Forms
 list or another PDF reader. The field name is a label, not a filled value.
 
+## Older own fields have no ownership marker
+
+Only fields saved with the `/PdfEditorOwn true` marker offer layout editing
+in Forms. Fields saved before this change have no marker and are treated
+as source fields. Their values can still be filled, but they cannot be
+moved, resized or deleted in this app. Draw a new field to replace their
+layout in a separate copy if needed.
+
+## Last-resort text replacement can lose page images
+
+When a font cannot be decoded, Edit Text offers a redaction-style fallback.
+That fallback can lose images and existing fonts when the page stores its
+resources indirectly. Avoid that fallback on such pages. This is separate
+from saving form values, whose resource handling is fixed. The remaining
+writer is `text_edit.rs::replace_run_via_redaction`.
+
 ## Update check and download fail behind a corporate proxy
 
 **What happens.** With the update consent on (Settings -> About), the
