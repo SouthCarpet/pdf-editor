@@ -6,6 +6,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./tauri/queryClient";
 import { installCrashHandlers } from "@/lib/crashHandler";
+import { applyTheme, readStoredTheme } from "@/components/ThemeProvider";
 import { Toaster } from "@/components/ui/toaster";
 import "./i18n";
 import "./styles/globals.css";
@@ -15,6 +16,9 @@ import "./styles/globals.css";
 // crash logger so a single logs directory contains the full incident
 // timeline. installCrashHandlers() is idempotent.
 installCrashHandlers();
+
+// Set the theme before the first paint, so a dark choice does not flash light.
+applyTheme(readStoredTheme());
 
 const router = createRouter({ routeTree });
 declare module "@tanstack/react-router" {

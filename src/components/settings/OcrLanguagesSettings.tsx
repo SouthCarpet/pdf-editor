@@ -94,7 +94,7 @@ export function OcrLanguagesSettings() {
             ))}
           </div>
           {!rapidocr.available && rapidocr.unavailable_reason && (
-            <p className="text-xs break-words text-[var(--color-warning)]">
+            <p className="text-xs break-words text-[var(--color-warning-text)]">
               {t("ocr_backend_unavailable", {
                 reason: rapidocr.unavailable_reason,
               })}

@@ -13,12 +13,13 @@
 // mid-call). Progress: emitted between nodes as `(step / total)` ratios.
 
 use crate::app_state::AppState;
+use crate::commands::ocr::{recognize_pdf_pages, RecognizedOcrPage};
 use crate::error::{AppError, AppResult};
 use crate::pipeline::dag::{
-    NodeExportFormat, NodeKind, NodeOcrOutputMode, Pipeline, PreservationWarning,
+    NodeExportFormat, NodeKind, NodeOcrOutputMode, Pipeline, PipelineNode, PreservationWarning,
 };
 use crate::pipeline::preservation::Artifact;
-use crate::services::ocr_engine::{OcrEngine, OcrOptions, OcrOutputMode};
+use crate::services::ocr_engine::{OcrBackend, OcrEngine, OcrOptions, OcrOutputMode};
 use crate::services::pdf_editor;
 use crate::services::workspace::inspect_document;
 use crate::util::progress::ProgressReporter;
@@ -26,6 +27,7 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
@@ -117,43 +119,20 @@ pub async fn run_pipeline(
     // Delta Y: log preflight warnings (the run command surfaces them in
     // the report so the frontend can decorate the canvas; we log so the
     // ops logs reflect what the user accepted before running).
-    for w in preflight_warnings(pipeline) {
-        tracing::warn!(
-            from = %w.from,
-            to = %w.to,
-            artifacts = ?w.artifacts,
-            "pipeline preflight: downstream node may strip upstream artifact",
-        );
-    }
+    log_preflight_warnings(pipeline);
 
     for (i, node_id) in order.iter().enumerate() {
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        let node = pipeline
-            .nodes
-            .iter()
-            .find(|n| &n.id == node_id)
-            .ok_or_else(|| AppError::Internal {
-                detail: format!("node {node_id} disappeared after topo sort"),
-            })?;
+        let node = find_node(pipeline, node_id)?;
         let label = format!(
             "node {} of {}: {}",
             i + 1,
             order.len(),
             node_label(&node.kind)
         );
-        // Delta Y: trace each node's preservation contract so a post-run
-        // investigation can reconstruct what was guaranteed kept vs what
-        // was permitted to be stripped on a per-step basis.
-        let contract = node.kind.preservation();
-        tracing::info!(
-            node = %node.id,
-            label = %label,
-            preserves = ?contract.preserves,
-            may_strip = ?contract.may_strip,
-            "pipeline node preservation contract",
-        );
+        log_node_contract(node, &label);
         reporter.progress(i as f32 / total, Some(label)).await;
         current_files = run_node(
             state,
@@ -175,6 +154,41 @@ pub async fn run_pipeline(
     // the TempDir cleanup.
     let final_paths = materialize_final(&scratch, &current_files)?;
     Ok(final_paths)
+}
+
+fn log_preflight_warnings(pipeline: &Pipeline) {
+    for w in preflight_warnings(pipeline) {
+        tracing::warn!(
+            from = %w.from,
+            to = %w.to,
+            artifacts = ?w.artifacts,
+            "pipeline preflight: downstream node may strip upstream artifact",
+        );
+    }
+}
+
+fn find_node<'a>(pipeline: &'a Pipeline, node_id: &str) -> AppResult<&'a PipelineNode> {
+    pipeline
+        .nodes
+        .iter()
+        .find(|n| n.id == node_id)
+        .ok_or_else(|| AppError::Internal {
+            detail: format!("node {node_id} disappeared after topo sort"),
+        })
+}
+
+/// Delta Y: trace each node's preservation contract so a post-run
+/// investigation can reconstruct what was guaranteed kept vs what
+/// was permitted to be stripped on a per-step basis.
+fn log_node_contract(node: &PipelineNode, label: &str) {
+    let contract = node.kind.preservation();
+    tracing::info!(
+        node = %node.id,
+        label = %label,
+        preserves = ?contract.preserves,
+        may_strip = ?contract.may_strip,
+        "pipeline node preservation contract",
+    );
 }
 
 fn node_label(kind: &NodeKind) -> &'static str {
@@ -266,6 +280,58 @@ pub(crate) fn resolve_open_file_paths(paths: &[String]) -> AppResult<Vec<PathBuf
     Ok(out)
 }
 
+/// Everything one node needs from its surroundings.
+struct NodeCtx<'a> {
+    state: &'a AppState,
+    inputs: &'a [PathBuf],
+    scratch: &'a Path,
+    cancel: CancellationToken,
+    node_idx: usize,
+}
+
+impl NodeCtx<'_> {
+    /// `<scratch>/<prefix>_<node>_<input>.pdf`
+    fn scratch_pdf(&self, prefix: &str, input_idx: usize) -> PathBuf {
+        self.scratch
+            .join(format!("{prefix}_{}_{input_idx}.pdf", self.node_idx))
+    }
+}
+
+/// Runs a blocking PDF job off the async runtime and maps both failure
+/// layers (join error, job error) to `AppError::Internal`.
+async fn run_blocking<T: Send + 'static>(
+    job: impl FnOnce() -> anyhow::Result<T> + Send + 'static,
+) -> AppResult<T> {
+    tokio::task::spawn_blocking(job)
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })
+}
+
+/// Applies `op(input, output)` on a blocking thread to every input and
+/// returns the produced `<prefix>_<node>_<input>.pdf` paths.
+async fn map_inputs_blocking<F>(ctx: &NodeCtx<'_>, prefix: &str, op: F) -> AppResult<Vec<PathBuf>>
+where
+    F: Fn(&Path, &Path) -> anyhow::Result<()> + Clone + Send + 'static,
+{
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let out = ctx.scratch_pdf(prefix, i);
+        let (src_owned, out_owned, op) = (src.clone(), out.clone(), op.clone());
+        run_blocking(move || op(&src_owned, &out_owned)).await?;
+        outs.push(out);
+    }
+    Ok(outs)
+}
+
+/// A node's result, boxed so every match arm in `run_node` has one type.
+type NodeFuture<'a> =
+    std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<Vec<PathBuf>>> + Send + 'a>>;
+
 async fn run_node(
     state: &AppState,
     kind: &NodeKind,
@@ -274,7 +340,14 @@ async fn run_node(
     cancel: CancellationToken,
     node_idx: usize,
 ) -> AppResult<Vec<PathBuf>> {
-    match kind {
+    let ctx = NodeCtx {
+        state,
+        inputs,
+        scratch,
+        cancel,
+        node_idx,
+    };
+    let running: NodeFuture<'_> = match kind {
         NodeKind::Compress {
             preset,
             custom_quality: _,
@@ -288,22 +361,7 @@ async fn run_node(
             filter: _,
             downsample: _,
             remove_exif: _,
-        } => {
-            // Custom quality/dpi are advisory; GhostscriptWrapper::compress
-            // doesn't yet take custom knobs (Phase 9 ships preset-only). The
-            // pipeline accepts the fields so the UI form survives across the
-            // FFI boundary, and a follow-up phase can wire them through.
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let dst = scratch.join(format!("compress_{node_idx}_{i}.pdf"));
-                state
-                    .gs
-                    .compress(src, &dst, (*preset).into(), Some(cancel.clone()))
-                    .await?;
-                outs.push(dst);
-            }
-            Ok(outs)
-        }
+        } => Box::pin(run_compress_node(&ctx, (*preset).into())),
         NodeKind::Optimize {
             linearize,
             remove_unused,
@@ -321,130 +379,20 @@ async fn run_node(
             convert_pdfa,
             pdfa_engine: _,
         } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let mut current = src.clone();
-                if *flatten_annotations {
-                    let next = scratch.join(format!("opt_flatten_{node_idx}_{i}.pdf"));
-                    state
-                        .qpdf
-                        .flatten_annotations(&current, &next, Some(cancel.clone()))
-                        .await?;
-                    current = next;
-                }
-                if *subset_fonts {
-                    let next = scratch.join(format!("opt_subset_{node_idx}_{i}.pdf"));
-                    state
-                        .mupdf
-                        .clean_subset_fonts(&current, &next, Some(cancel.clone()))
-                        .await?;
-                    current = next;
-                }
-                if *object_streams || *remove_unused {
-                    let next = scratch.join(format!("opt_os_{node_idx}_{i}.pdf"));
-                    state
-                        .qpdf
-                        .object_streams_generate(&current, &next, Some(cancel.clone()))
-                        .await?;
-                    current = next;
-                }
-                if *linearize {
-                    let next = scratch.join(format!("opt_lin_{node_idx}_{i}.pdf"));
-                    state
-                        .qpdf
-                        .linearize(&current, &next, Some(cancel.clone()))
-                        .await?;
-                    current = next;
-                }
-                if let Some(_lang) = make_searchable_ocr {
-                    // Optimize-stage OCR — Phase 13 wired the full OCR
-                    // command but Optimize currently elides it (see
-                    // commands/optimize.rs). Pipeline follows the same
-                    // policy: log + skip. The user can chain a dedicated
-                    // OCR node before/after Optimize for the real layer.
-                    tracing::warn!(
-                        "pipeline optimize: make_searchable_ocr ignored (use an OCR node instead)"
-                    );
-                }
-                if let Some(version) = convert_pdfa {
-                    let lo_target = "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
-                    let lo_attempt = state
-                        .soffice
-                        .convert(&current, scratch, lo_target, Some(cancel.clone()))
-                        .await;
-                    current = match lo_attempt {
-                        Ok(out) => out,
-                        Err(_) => {
-                            let gs_out = scratch.join(format!("opt_pdfa_{node_idx}_{i}.pdf"));
-                            state
-                                .gs
-                                .convert_to_pdfa(&current, &gs_out, *version, Some(cancel.clone()))
-                                .await?;
-                            gs_out
-                        }
-                    };
-                }
-                if *strip_metadata || *remove_form_data {
-                    let cur = current.clone();
-                    let next = scratch.join(format!("opt_strip_{node_idx}_{i}.pdf"));
-                    let next_cloned = next.clone();
-                    let strip = *strip_metadata;
-                    let removeform = *remove_form_data;
-                    tokio::task::spawn_blocking(move || -> AppResult<()> {
-                        let mut doc =
-                            crate::services::pdf_guard::load_guarded(&cur).map_err(|e| {
-                                AppError::PdfCorrupted {
-                                    detail: e.to_string(),
-                                }
-                            })?;
-                        if strip {
-                            doc.trailer.remove(b"Info");
-                            if let Ok(catalog_id) =
-                                doc.trailer.get(b"Root").and_then(|o| o.as_reference())
-                            {
-                                if let Some(catalog) = doc.objects.get_mut(&catalog_id) {
-                                    if let Ok(d) = catalog.as_dict_mut() {
-                                        d.remove(b"Metadata");
-                                    }
-                                }
-                            }
-                        }
-                        if removeform {
-                            if let Ok(catalog_id) =
-                                doc.trailer.get(b"Root").and_then(|o| o.as_reference())
-                            {
-                                if let Some(catalog) = doc.objects.get_mut(&catalog_id) {
-                                    if let Ok(d) = catalog.as_dict_mut() {
-                                        d.remove(b"AcroForm");
-                                    }
-                                }
-                            }
-                        }
-                        doc.compress();
-                        doc.save(&next_cloned).map_err(|e| AppError::Internal {
-                            detail: e.to_string(),
-                        })?;
-                        Ok(())
-                    })
-                    .await
-                    .map_err(|e| AppError::Internal {
-                        detail: e.to_string(),
-                    })??;
-                    current = next;
-                }
-                outs.push(current);
-            }
-            Ok(outs)
+            let stages = OptimizeStages {
+                flatten_annotations: *flatten_annotations,
+                subset_fonts: *subset_fonts,
+                object_streams: *object_streams,
+                remove_unused: *remove_unused,
+                linearize: *linearize,
+                make_searchable_ocr: make_searchable_ocr.is_some(),
+                convert_pdfa: *convert_pdfa,
+                strip_metadata: *strip_metadata,
+                remove_form_data: *remove_form_data,
+            };
+            Box::pin(run_optimize_node(&ctx, stages))
         }
-        NodeKind::Unlock { password } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let dst = scratch.join(format!("unlock_{node_idx}_{i}.pdf"));
-                state.qpdf.decrypt(src, &dst, password.as_deref()).await?;
-                outs.push(dst);
-            }
-            Ok(outs)
-        }
+        NodeKind::Unlock { password } => Box::pin(run_unlock_node(&ctx, password.as_deref())),
         NodeKind::Convert {
             format,
             out_dir,
@@ -464,112 +412,7 @@ async fn run_node(
             pdfa_version: _,
             pdfa_engine: _,
             pdfa_embed_all_fonts: _,
-        } => {
-            // Convert produces non-PDF outputs (PNG/JPG/TIFF/TXT/DOCX/...);
-            // those don't feed back into a downstream PDF pipeline. We
-            // still return them so the caller can collect them in a Save
-            // node OR show them in the result list.
-            let dir = out_dir
-                .as_ref()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| scratch.to_path_buf());
-            std::fs::create_dir_all(&dir).ok();
-            let mut outs = Vec::new();
-            for (idx, src) in inputs.iter().enumerate() {
-                let stem = src
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("out")
-                    .to_string();
-                match format {
-                    NodeExportFormat::Png | NodeExportFormat::Jpg | NodeExportFormat::Tiff => {
-                        let (fmt, ext, multi) = match format {
-                            NodeExportFormat::Png => ("png", "png", false),
-                            NodeExportFormat::Jpg => ("jpeg", "jpg", false),
-                            NodeExportFormat::Tiff => ("tiff", "tiff", true),
-                            _ => unreachable!(),
-                        };
-                        let pattern = if multi {
-                            dir.join(format!("{stem}-{idx}.{ext}"))
-                        } else {
-                            dir.join(format!("{stem}-{idx}-%d.{ext}"))
-                        };
-                        state
-                            .mupdf
-                            .convert_to_format(src, &pattern, fmt, 150, Some(cancel.clone()))
-                            .await?;
-                        if multi {
-                            outs.push(pattern);
-                        } else {
-                            for n in 1..=10_000u32 {
-                                let cand = dir.join(format!("{stem}-{idx}-{n}.{ext}"));
-                                if cand.exists() {
-                                    outs.push(cand);
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    NodeExportFormat::Txt => {
-                        let out = dir.join(format!("{stem}-{idx}.txt"));
-                        let text = state.mupdf.extract_text(src).await?;
-                        tokio::fs::write(&out, text)
-                            .await
-                            .map_err(|e| AppError::IoError {
-                                detail: e.to_string(),
-                            })?;
-                        outs.push(out);
-                    }
-                    NodeExportFormat::Html => {
-                        let out = dir.join(format!("{stem}-{idx}.html"));
-                        state
-                            .mupdf
-                            .convert_to_format(src, &out, "html", 150, Some(cancel.clone()))
-                            .await?;
-                        outs.push(out);
-                    }
-                    NodeExportFormat::Docx
-                    | NodeExportFormat::Odt
-                    | NodeExportFormat::Rtf
-                    | NodeExportFormat::Epub => {
-                        let target = match format {
-                            NodeExportFormat::Docx => "docx",
-                            NodeExportFormat::Odt => "odt",
-                            NodeExportFormat::Rtf => "rtf",
-                            NodeExportFormat::Epub => "epub",
-                            _ => unreachable!(),
-                        };
-                        let out = state
-                            .soffice
-                            .convert(src, &dir, target, Some(cancel.clone()))
-                            .await?;
-                        outs.push(out);
-                    }
-                    NodeExportFormat::Pdfa => {
-                        // Delta E: LO primary, GS fallback.
-                        let lo_target =
-                            "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
-                        let lo_attempt = state
-                            .soffice
-                            .convert(src, &dir, lo_target, Some(cancel.clone()))
-                            .await;
-                        match lo_attempt {
-                            Ok(out) => outs.push(out),
-                            Err(_) => {
-                                let gs_out = dir.join(format!("{stem}-{idx}-pdfa.pdf"));
-                                state
-                                    .gs
-                                    .convert_to_pdfa(src, &gs_out, 2, Some(cancel.clone()))
-                                    .await?;
-                                outs.push(gs_out);
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(outs)
-        }
+        } => Box::pin(run_convert_node(&ctx, format, out_dir.as_deref())),
         NodeKind::ConvertImport {
             extra_inputs,
             page_size: _,
@@ -580,179 +423,23 @@ async fn run_node(
             custom_margin_mm: _,
             image_fit: _,
             arrangement: _,
-        } => {
-            // Convert non-PDF inputs to PDFs via LibreOffice. Image-to-PDF
-            // for bitmaps would be ideal but the existing pipeline routes
-            // both office and image inputs through soffice in
-            // commands::convert_import (image_to_pdf is the alternative
-            // service); we mirror the simpler soffice path for v1 across
-            // both image and office types.
-            let mut outs = Vec::new();
-            let combined: Vec<PathBuf> = inputs
-                .iter()
-                .cloned()
-                .chain(extra_inputs.iter().map(PathBuf::from))
-                .collect();
-            for src in combined.iter() {
-                let out = state
-                    .soffice
-                    .convert(src, scratch, "pdf", Some(cancel.clone()))
-                    .await?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
-        NodeKind::Merge {} => {
-            if inputs.is_empty() {
-                return Ok(vec![]);
-            }
-            let dst = scratch.join(format!("merged_{node_idx}.pdf"));
-            let inputs_owned = inputs.to_vec();
-            let dst_owned = dst.clone();
-            tokio::task::spawn_blocking(move || pdf_editor::merge_pdfs(&inputs_owned, &dst_owned))
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-            Ok(vec![dst])
-        }
-        NodeKind::Split { ranges } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let dir = scratch.join(format!("split_{node_idx}_{i}"));
-                std::fs::create_dir_all(&dir).ok();
-                let r: Vec<RangeInclusive<u32>> = ranges.iter().map(|[a, b]| *a..=*b).collect();
-                let src_owned = src.clone();
-                let dir_owned = dir.clone();
-                let parts = tokio::task::spawn_blocking(move || {
-                    pdf_editor::split_pdf(&src_owned, &r, &dir_owned)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.extend(parts);
-            }
-            Ok(outs)
-        }
-        NodeKind::Extract { pages } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let out = scratch.join(format!("extract_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let p = pages.clone();
-                tokio::task::spawn_blocking(move || {
-                    pdf_editor::extract_pages(&src_owned, &p, &out_owned)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
-        NodeKind::OrganizeRotate { rotations } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let out = scratch.join(format!("rotate_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let pairs: Vec<(u32, i64)> =
-                    rotations.iter().map(|[p, d]| (*p as u32, *d)).collect();
-                tokio::task::spawn_blocking(move || {
-                    pdf_editor::rotate_pages(&src_owned, &pairs, &out_owned)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
-        NodeKind::OrganizeDelete { pages } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let out = scratch.join(format!("delete_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let pgs = pages.clone();
-                tokio::task::spawn_blocking(move || {
-                    pdf_editor::delete_pages(&src_owned, &pgs, &out_owned)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
-        NodeKind::OrganizeReorder { new_order } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let out = scratch.join(format!("reorder_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let order = new_order.clone();
-                tokio::task::spawn_blocking(move || {
-                    pdf_editor::reorder_pages(&src_owned, &order, &out_owned)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
+        } => Box::pin(run_convert_import_node(&ctx, extra_inputs)),
+        NodeKind::Merge {} => Box::pin(run_merge_node(&ctx)),
+        NodeKind::Split { ranges } => Box::pin(run_split_node(&ctx, ranges)),
+        NodeKind::Extract { pages } => Box::pin(run_extract_node(&ctx, pages)),
+        NodeKind::OrganizeRotate { rotations } => Box::pin(run_rotate_node(&ctx, rotations)),
+        NodeKind::OrganizeDelete { pages } => Box::pin(run_delete_node(&ctx, pages)),
+        NodeKind::OrganizeReorder { new_order } => Box::pin(run_reorder_node(&ctx, new_order)),
         NodeKind::OrganizeInsertBlank {
             after_page_index,
             width,
             height,
-        } => {
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let out = scratch.join(format!("insertblank_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let after = *after_page_index;
-                let w = *width;
-                let h = *height;
-                tokio::task::spawn_blocking(move || {
-                    pdf_editor::insert_blank_page(&src_owned, after, &out_owned, w, h)
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-                outs.push(out);
-            }
-            Ok(outs)
-        }
+        } => Box::pin(run_insert_blank_node(
+            &ctx,
+            *after_page_index,
+            *width,
+            *height,
+        )),
         NodeKind::Crop {
             bbox,
             auto_detect,
@@ -768,89 +455,14 @@ async fn run_node(
             apply_range: _,
             auto_detect_threshold,
         } => {
-            use crate::services::crop::auto_detect_bbox_from_image;
-            const AUTO_DETECT_DPI: u32 = 100;
-            let auto_threshold: u8 = *auto_detect_threshold;
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let resolved: [f32; 4] = if *auto_detect {
-                    let inner_tmp = tempfile::tempdir().map_err(|e| AppError::IoError {
-                        detail: e.to_string(),
-                    })?;
-                    let png = inner_tmp.path().join("p.png");
-                    state
-                        .mupdf
-                        .render_page_to_png(
-                            src,
-                            *page_index,
-                            &png,
-                            AUTO_DETECT_DPI,
-                            Some(cancel.clone()),
-                        )
-                        .await?;
-                    let png_clone = png.clone();
-                    let detected = tokio::task::spawn_blocking(move || {
-                        auto_detect_bbox_from_image(&png_clone, AUTO_DETECT_DPI, auto_threshold)
-                    })
-                    .await
-                    .map_err(|e| AppError::Internal {
-                        detail: e.to_string(),
-                    })?
-                    .map_err(|e| AppError::Internal {
-                        detail: format!("{e:#}"),
-                    })?;
-                    [detected.0, detected.1, detected.2, detected.3]
-                } else {
-                    bbox.ok_or_else(|| AppError::InvalidArgument {
-                        detail: "crop node: bbox required when auto_detect = false".into(),
-                    })?
-                };
-                let out = scratch.join(format!("crop_{node_idx}_{i}.pdf"));
-                let src_owned = src.clone();
-                let out_owned = out.clone();
-                let target_all = *apply_to_all_pages;
-                let page_idx = *page_index;
-                tokio::task::spawn_blocking(move || -> AppResult<()> {
-                    let mut doc =
-                        crate::services::pdf_guard::load_guarded(&src_owned).map_err(|e| {
-                            AppError::PdfCorrupted {
-                                detail: e.to_string(),
-                            }
-                        })?;
-                    let pages = doc.get_pages();
-                    let target_pages: Vec<u32> = if target_all {
-                        pages.keys().copied().collect()
-                    } else {
-                        vec![page_idx + 1]
-                    };
-                    for page_num in target_pages {
-                        if let Some(&page_id) = pages.get(&page_num) {
-                            if let Some(obj) = doc.objects.get_mut(&page_id) {
-                                if let Ok(d) = obj.as_dict_mut() {
-                                    let crop_array: Vec<lopdf::Object> = vec![
-                                        lopdf::Object::Real(resolved[0]),
-                                        lopdf::Object::Real(resolved[1]),
-                                        lopdf::Object::Real(resolved[0] + resolved[2]),
-                                        lopdf::Object::Real(resolved[1] + resolved[3]),
-                                    ];
-                                    d.set("CropBox", crop_array);
-                                }
-                            }
-                        }
-                    }
-                    doc.compress();
-                    doc.save(&out_owned).map_err(|e| AppError::Internal {
-                        detail: e.to_string(),
-                    })?;
-                    Ok(())
-                })
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })??;
-                outs.push(out);
-            }
-            Ok(outs)
+            let spec = CropSpec {
+                bbox: *bbox,
+                auto_detect: *auto_detect,
+                apply_to_all_pages: *apply_to_all_pages,
+                page_index: *page_index,
+                auto_threshold: *auto_detect_threshold,
+            };
+            Box::pin(run_crop_node(&ctx, spec))
         }
         NodeKind::Ocr {
             engine,
@@ -860,177 +472,762 @@ async fn run_node(
             deskew,
             despeckle,
         } => {
-            // Mirror commands::ocr::ocr_pdf logic via the same service
-            // composition. Delegates to commands::ocr::inject_text_layers so
-            // the Delta W Type0 CIDFont path is the only OCR layer path.
-            use crate::commands::ocr::{
-                inject_word_layers, recognize_pdf_pages, recognized_pages_to_text,
-            };
-            use crate::services::ocr_engine::OcrBackend;
-            use std::sync::Arc;
-
-            let opts = OcrOptions {
-                engine: match engine {
-                    crate::pipeline::dag::NodeOcrEngine::Tesseract => OcrEngine::Tesseract,
-                    crate::pipeline::dag::NodeOcrEngine::RapidOcr => OcrEngine::RapidOcr,
-                },
-                language: language.clone(),
-                dpi: *dpi,
-                psm: 3,
-                oem: 3,
-                output: match output {
-                    NodeOcrOutputMode::SearchablePdf => OcrOutputMode::SearchablePdf,
-                    NodeOcrOutputMode::PdfPlusText => OcrOutputMode::PdfPlusText,
-                    NodeOcrOutputMode::TextOnly => OcrOutputMode::TextOnly,
-                },
-                deskew: *deskew,
-                despeckle: *despeckle,
-                preserve_raster: true,
-            };
-
-            let mut outs = Vec::new();
-            for (idx, src) in inputs.iter().enumerate() {
-                if cancel.is_cancelled() {
-                    return Err(AppError::Cancelled);
-                }
-                let dst = scratch.join(format!("ocr_{node_idx}_{idx}.pdf"));
-                let pdf_in = src.clone();
-                let pdf_out = dst.clone();
-                let doc_pages = {
-                    let doc = crate::services::pdf_guard::load_guarded(&pdf_in).map_err(|e| {
-                        AppError::Internal {
-                            detail: format!("load: {e}"),
-                        }
-                    })?;
-                    doc.get_pages().len() as u32
-                };
-                let (backend, fallback): (Arc<dyn OcrBackend>, Option<Arc<dyn OcrBackend>>) =
-                    match opts.engine {
-                        OcrEngine::Tesseract => (state.tesseract.clone(), None),
-                        OcrEngine::RapidOcr => {
-                            #[cfg(windows)]
-                            {
-                                match state.rapidocr.backend.clone() {
-                                    Some(rapidocr) => (rapidocr, Some(state.tesseract.clone())),
-                                    None => (state.tesseract.clone(), None),
-                                }
-                            }
-                            #[cfg(not(windows))]
-                            {
-                                (state.tesseract.clone(), None)
-                            }
-                        }
-                    };
-                let primary_pages = recognize_pdf_pages(
-                    &pdf_in,
-                    doc_pages,
-                    &opts,
-                    state.mupdf.clone(),
-                    backend,
-                    state.pool.clone(),
-                    cancel.clone(),
-                )
-                .await;
-                let pages = match primary_pages {
-                    Ok(pages) => pages,
-                    Err(AppError::Cancelled) => return Err(AppError::Cancelled),
-                    Err(error) => {
-                        let Some(fallback) = fallback else {
-                            return Err(error);
-                        };
-                        tracing::warn!(
-                            target: "ocr",
-                            "RapidOCR pipeline node failed; retrying with Tesseract: {error}"
-                        );
-                        recognize_pdf_pages(
-                            &pdf_in,
-                            doc_pages,
-                            &opts,
-                            state.mupdf.clone(),
-                            fallback,
-                            state.pool.clone(),
-                            cancel.clone(),
-                        )
-                        .await?
-                    }
-                };
-                if !matches!(opts.output, OcrOutputMode::TextOnly) {
-                    let pdf_in_b = pdf_in.clone();
-                    let pdf_out_b = pdf_out.clone();
-                    let pages_b = pages.clone();
-                    let opts_b = opts.clone();
-                    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-                        inject_word_layers(&pdf_in_b, &pdf_out_b, &opts_b, &pages_b)
-                    })
-                    .await
-                    .map_err(|e| AppError::Internal {
-                        detail: e.to_string(),
-                    })?
-                    .map_err(|e| AppError::Internal {
-                        detail: format!("{e:#}"),
-                    })?;
-                    outs.push(dst);
-                } else {
-                    // TextOnly: write a sidecar .txt for the .pdf in scratch
-                    // and emit the .txt as the "output" of this node.
-                    let plain = recognized_pages_to_text(&pages);
-                    let txt = scratch.join(format!("ocr_{node_idx}_{idx}.txt"));
-                    std::fs::write(&txt, plain).map_err(|e| AppError::IoError {
-                        detail: e.to_string(),
-                    })?;
-                    outs.push(txt);
-                }
-            }
-            Ok(outs)
+            let opts = ocr_node_options(engine, language, *dpi, output, *deskew, *despeckle);
+            Box::pin(run_ocr_node(&ctx, opts))
         }
         NodeKind::Watermark { text, opacity } => {
-            // Per non-negotiable rule #1 (no hardcoded fonts in PDF output)
-            // and rule #2 (no silent fallback to Standard 14): the Watermark
-            // node intentionally surfaces `Unimplemented` until the
-            // Watermark tool's font picker (list_fonts_cmd + FontSubsetter)
-            // is wired. The standalone Watermark tool does not ship in
-            // Phase 14; ship the executor with a clean error sentinel rather
-            // than a Helvetica-substitution surprise.
-            tracing::warn!(
-                "watermark node ({} chars, opacity={}) — Unimplemented until font picker lands",
-                text.len(),
-                opacity
-            );
-            Err(AppError::Unimplemented {
-                feature: "pipeline.watermark (awaits Watermark tool font picker)".into(),
-            })
+            Box::pin(std::future::ready(watermark_unimplemented(text, *opacity)))
         }
         NodeKind::OpenFile { paths } => {
             // This node is an explicit source. Configured paths replace
             // ambient command inputs instead of being appended to them.
-            resolve_open_file_paths(paths)
+            Box::pin(std::future::ready(resolve_open_file_paths(paths)))
         }
         NodeKind::Save { dir, name_template } => {
-            std::fs::create_dir_all(dir).ok();
-            let date = Utc::now().format("%Y-%m-%d").to_string();
-            let tool = "pipeline";
-            let mut outs = Vec::new();
-            for (i, src) in inputs.iter().enumerate() {
-                let stem = src.file_stem().and_then(|s| s.to_str()).unwrap_or("out");
-                let ext = src.extension().and_then(|s| s.to_str()).unwrap_or("pdf");
-                let mut name = name_template
-                    .replace("{stem}", stem)
-                    .replace("{i}", &i.to_string())
-                    .replace("{date}", &date)
-                    .replace("{tool}", tool);
-                if !name.contains('.') {
-                    name.push('.');
-                    name.push_str(ext);
-                }
-                let dst = PathBuf::from(dir).join(name);
-                std::fs::copy(src, &dst).map_err(|e| AppError::IoError {
-                    detail: e.to_string(),
-                })?;
-                outs.push(dst);
-            }
-            Ok(outs)
+            Box::pin(std::future::ready(run_save_node(&ctx, dir, name_template)))
+        }
+    };
+    running.await
+}
+
+fn watermark_unimplemented(text: &str, opacity: f32) -> AppResult<Vec<PathBuf>> {
+    // Per non-negotiable rule #1 (no hardcoded fonts in PDF output)
+    // and rule #2 (no silent fallback to Standard 14): the Watermark
+    // node intentionally surfaces `Unimplemented` until the
+    // Watermark tool's font picker (list_fonts_cmd + FontSubsetter)
+    // is wired. The standalone Watermark tool does not ship in
+    // Phase 14; ship the executor with a clean error sentinel rather
+    // than a Helvetica-substitution surprise.
+    tracing::warn!(
+        "watermark node ({} chars, opacity={}) — Unimplemented until font picker lands",
+        text.len(),
+        opacity
+    );
+    Err(AppError::Unimplemented {
+        feature: "pipeline.watermark (awaits Watermark tool font picker)".into(),
+    })
+}
+
+async fn run_extract_node(ctx: &NodeCtx<'_>, pages: &[u32]) -> AppResult<Vec<PathBuf>> {
+    let pages = pages.to_vec();
+    map_inputs_blocking(ctx, "extract", move |src, out| {
+        pdf_editor::extract_pages(src, &pages, out)
+    })
+    .await
+}
+
+async fn run_rotate_node(ctx: &NodeCtx<'_>, rotations: &[[i64; 2]]) -> AppResult<Vec<PathBuf>> {
+    let pairs: Vec<(u32, i64)> = rotations.iter().map(|[p, d]| (*p as u32, *d)).collect();
+    map_inputs_blocking(ctx, "rotate", move |src, out| {
+        pdf_editor::rotate_pages(src, &pairs, out)
+    })
+    .await
+}
+
+async fn run_delete_node(ctx: &NodeCtx<'_>, pages: &[u32]) -> AppResult<Vec<PathBuf>> {
+    let pages = pages.to_vec();
+    map_inputs_blocking(ctx, "delete", move |src, out| {
+        pdf_editor::delete_pages(src, &pages, out)
+    })
+    .await
+}
+
+async fn run_reorder_node(ctx: &NodeCtx<'_>, new_order: &[u32]) -> AppResult<Vec<PathBuf>> {
+    let order = new_order.to_vec();
+    map_inputs_blocking(ctx, "reorder", move |src, out| {
+        pdf_editor::reorder_pages(src, &order, out)
+    })
+    .await
+}
+
+async fn run_insert_blank_node(
+    ctx: &NodeCtx<'_>,
+    after: u32,
+    w: f32,
+    h: f32,
+) -> AppResult<Vec<PathBuf>> {
+    map_inputs_blocking(ctx, "insertblank", move |src, out| {
+        pdf_editor::insert_blank_page(src, after, out, w, h)
+    })
+    .await
+}
+
+async fn run_compress_node(
+    ctx: &NodeCtx<'_>,
+    preset: crate::sidecars::ghostscript::CompressionPreset,
+) -> AppResult<Vec<PathBuf>> {
+    // Custom quality/dpi are advisory; GhostscriptWrapper::compress
+    // doesn't yet take custom knobs (Phase 9 ships preset-only). The
+    // pipeline accepts the fields so the UI form survives across the
+    // FFI boundary, and a follow-up phase can wire them through.
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let dst = ctx.scratch_pdf("compress", i);
+        ctx.state
+            .gs
+            .compress(src, &dst, preset, Some(ctx.cancel.clone()))
+            .await?;
+        outs.push(dst);
+    }
+    Ok(outs)
+}
+
+/// The Optimize node's switches that the pipeline acts on.
+struct OptimizeStages {
+    flatten_annotations: bool,
+    subset_fonts: bool,
+    object_streams: bool,
+    remove_unused: bool,
+    linearize: bool,
+    make_searchable_ocr: bool,
+    convert_pdfa: Option<u8>,
+    strip_metadata: bool,
+    remove_form_data: bool,
+}
+
+async fn run_optimize_node(ctx: &NodeCtx<'_>, stages: OptimizeStages) -> AppResult<Vec<PathBuf>> {
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let current = optimize_core_stages(ctx, &stages, src, i).await?;
+        outs.push(optimize_finish_stages(ctx, &stages, current, i).await?);
+    }
+    Ok(outs)
+}
+
+async fn optimize_core_stages(
+    ctx: &NodeCtx<'_>,
+    stages: &OptimizeStages,
+    src: &Path,
+    i: usize,
+) -> AppResult<PathBuf> {
+    let state = ctx.state;
+    let mut current = src.to_path_buf();
+    if stages.flatten_annotations {
+        let next = ctx.scratch_pdf("opt_flatten", i);
+        state
+            .qpdf
+            .flatten_annotations(&current, &next, Some(ctx.cancel.clone()))
+            .await?;
+        current = next;
+    }
+    if stages.subset_fonts {
+        let next = ctx.scratch_pdf("opt_subset", i);
+        state
+            .mupdf
+            .clean_subset_fonts(&current, &next, Some(ctx.cancel.clone()))
+            .await?;
+        current = next;
+    }
+    if stages.object_streams || stages.remove_unused {
+        let next = ctx.scratch_pdf("opt_os", i);
+        state
+            .qpdf
+            .object_streams_generate(&current, &next, Some(ctx.cancel.clone()))
+            .await?;
+        current = next;
+    }
+    if stages.linearize {
+        let next = ctx.scratch_pdf("opt_lin", i);
+        state
+            .qpdf
+            .linearize(&current, &next, Some(ctx.cancel.clone()))
+            .await?;
+        current = next;
+    }
+    Ok(current)
+}
+
+async fn optimize_finish_stages(
+    ctx: &NodeCtx<'_>,
+    stages: &OptimizeStages,
+    mut current: PathBuf,
+    i: usize,
+) -> AppResult<PathBuf> {
+    if stages.make_searchable_ocr {
+        warn_ocr_ignored();
+    }
+    if let Some(version) = stages.convert_pdfa {
+        current = optimize_pdfa_stage(ctx, &current, version, i).await?;
+    }
+    if stages.strip_metadata || stages.remove_form_data {
+        current = optimize_strip_stage(ctx, &current, stages, i).await?;
+    }
+    Ok(current)
+}
+
+fn warn_ocr_ignored() {
+    // Optimize-stage OCR — Phase 13 wired the full OCR
+    // command but Optimize currently elides it (see
+    // commands/optimize.rs). Pipeline follows the same
+    // policy: log + skip. The user can chain a dedicated
+    // OCR node before/after Optimize for the real layer.
+    tracing::warn!("pipeline optimize: make_searchable_ocr ignored (use an OCR node instead)");
+}
+
+async fn optimize_pdfa_stage(
+    ctx: &NodeCtx<'_>,
+    current: &Path,
+    version: u8,
+    i: usize,
+) -> AppResult<PathBuf> {
+    let lo_target =
+        "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+    let lo_attempt = ctx
+        .state
+        .soffice
+        .convert(current, ctx.scratch, lo_target, Some(ctx.cancel.clone()))
+        .await;
+    match lo_attempt {
+        Ok(out) => Ok(out),
+        Err(_) => {
+            let gs_out = ctx.scratch_pdf("opt_pdfa", i);
+            ctx.state
+                .gs
+                .convert_to_pdfa(current, &gs_out, version, Some(ctx.cancel.clone()))
+                .await?;
+            Ok(gs_out)
         }
     }
+}
+
+async fn optimize_strip_stage(
+    ctx: &NodeCtx<'_>,
+    current: &Path,
+    stages: &OptimizeStages,
+    i: usize,
+) -> AppResult<PathBuf> {
+    let cur = current.to_path_buf();
+    let next = ctx.scratch_pdf("opt_strip", i);
+    let next_cloned = next.clone();
+    let strip = stages.strip_metadata;
+    let removeform = stages.remove_form_data;
+    tokio::task::spawn_blocking(move || strip_pdf_entries(&cur, &next_cloned, strip, removeform))
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })??;
+    Ok(next)
+}
+
+fn strip_pdf_entries(cur: &Path, out: &Path, strip: bool, removeform: bool) -> AppResult<()> {
+    let mut doc =
+        crate::services::pdf_guard::load_guarded(cur).map_err(|e| AppError::PdfCorrupted {
+            detail: e.to_string(),
+        })?;
+    if strip {
+        doc.trailer.remove(b"Info");
+        remove_catalog_entry(&mut doc, b"Metadata");
+    }
+    if removeform {
+        remove_catalog_entry(&mut doc, b"AcroForm");
+    }
+    doc.compress();
+    doc.save(out).map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
+    Ok(())
+}
+
+fn remove_catalog_entry(doc: &mut lopdf::Document, key: &[u8]) {
+    if let Ok(catalog_id) = doc.trailer.get(b"Root").and_then(|o| o.as_reference()) {
+        if let Some(catalog) = doc.objects.get_mut(&catalog_id) {
+            if let Ok(d) = catalog.as_dict_mut() {
+                d.remove(key);
+            }
+        }
+    }
+}
+
+async fn run_unlock_node(ctx: &NodeCtx<'_>, password: Option<&str>) -> AppResult<Vec<PathBuf>> {
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let dst = ctx.scratch_pdf("unlock", i);
+        ctx.state.qpdf.decrypt(src, &dst, password).await?;
+        outs.push(dst);
+    }
+    Ok(outs)
+}
+
+async fn run_convert_node(
+    ctx: &NodeCtx<'_>,
+    format: &NodeExportFormat,
+    out_dir: Option<&str>,
+) -> AppResult<Vec<PathBuf>> {
+    // Convert produces non-PDF outputs (PNG/JPG/TIFF/TXT/DOCX/...);
+    // those don't feed back into a downstream PDF pipeline. We
+    // still return them so the caller can collect them in a Save
+    // node OR show them in the result list.
+    let dir = out_dir
+        .map(PathBuf::from)
+        .unwrap_or_else(|| ctx.scratch.to_path_buf());
+    std::fs::create_dir_all(&dir).ok();
+    let mut outs = Vec::new();
+    for (idx, src) in ctx.inputs.iter().enumerate() {
+        let stem = src
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("out")
+            .to_string();
+        outs.extend(convert_one(ctx, format, &dir, src, &stem, idx).await?);
+    }
+    Ok(outs)
+}
+
+async fn convert_one(
+    ctx: &NodeCtx<'_>,
+    format: &NodeExportFormat,
+    dir: &Path,
+    src: &Path,
+    stem: &str,
+    idx: usize,
+) -> AppResult<Vec<PathBuf>> {
+    match format {
+        NodeExportFormat::Png | NodeExportFormat::Jpg | NodeExportFormat::Tiff => {
+            convert_raster(ctx, format, dir, src, stem, idx).await
+        }
+        NodeExportFormat::Txt => {
+            let out = dir.join(format!("{stem}-{idx}.txt"));
+            let text = ctx.state.mupdf.extract_text(src).await?;
+            tokio::fs::write(&out, text)
+                .await
+                .map_err(|e| AppError::IoError {
+                    detail: e.to_string(),
+                })?;
+            Ok(vec![out])
+        }
+        NodeExportFormat::Html => {
+            let out = dir.join(format!("{stem}-{idx}.html"));
+            ctx.state
+                .mupdf
+                .convert_to_format(src, &out, "html", 150, Some(ctx.cancel.clone()))
+                .await?;
+            Ok(vec![out])
+        }
+        NodeExportFormat::Docx
+        | NodeExportFormat::Odt
+        | NodeExportFormat::Rtf
+        | NodeExportFormat::Epub => {
+            let target = match format {
+                NodeExportFormat::Docx => "docx",
+                NodeExportFormat::Odt => "odt",
+                NodeExportFormat::Rtf => "rtf",
+                NodeExportFormat::Epub => "epub",
+                _ => unreachable!(),
+            };
+            let out = ctx
+                .state
+                .soffice
+                .convert(src, dir, target, Some(ctx.cancel.clone()))
+                .await?;
+            Ok(vec![out])
+        }
+        NodeExportFormat::Pdfa => convert_pdfa(ctx, dir, src, stem, idx).await,
+    }
+}
+
+async fn convert_raster(
+    ctx: &NodeCtx<'_>,
+    format: &NodeExportFormat,
+    dir: &Path,
+    src: &Path,
+    stem: &str,
+    idx: usize,
+) -> AppResult<Vec<PathBuf>> {
+    let (fmt, ext, multi) = match format {
+        NodeExportFormat::Png => ("png", "png", false),
+        NodeExportFormat::Jpg => ("jpeg", "jpg", false),
+        NodeExportFormat::Tiff => ("tiff", "tiff", true),
+        _ => unreachable!(),
+    };
+    let pattern = if multi {
+        dir.join(format!("{stem}-{idx}.{ext}"))
+    } else {
+        dir.join(format!("{stem}-{idx}-%d.{ext}"))
+    };
+    ctx.state
+        .mupdf
+        .convert_to_format(src, &pattern, fmt, 150, Some(ctx.cancel.clone()))
+        .await?;
+    if multi {
+        return Ok(vec![pattern]);
+    }
+    let mut outs = Vec::new();
+    for n in 1..=10_000u32 {
+        let cand = dir.join(format!("{stem}-{idx}-{n}.{ext}"));
+        if !cand.exists() {
+            break;
+        }
+        outs.push(cand);
+    }
+    Ok(outs)
+}
+
+async fn convert_pdfa(
+    ctx: &NodeCtx<'_>,
+    dir: &Path,
+    src: &Path,
+    stem: &str,
+    idx: usize,
+) -> AppResult<Vec<PathBuf>> {
+    // Delta E: LO primary, GS fallback.
+    let lo_target =
+        "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+    let lo_attempt = ctx
+        .state
+        .soffice
+        .convert(src, dir, lo_target, Some(ctx.cancel.clone()))
+        .await;
+    match lo_attempt {
+        Ok(out) => Ok(vec![out]),
+        Err(_) => {
+            let gs_out = dir.join(format!("{stem}-{idx}-pdfa.pdf"));
+            ctx.state
+                .gs
+                .convert_to_pdfa(src, &gs_out, 2, Some(ctx.cancel.clone()))
+                .await?;
+            Ok(vec![gs_out])
+        }
+    }
+}
+
+async fn run_convert_import_node(
+    ctx: &NodeCtx<'_>,
+    extra_inputs: &[String],
+) -> AppResult<Vec<PathBuf>> {
+    // Convert non-PDF inputs to PDFs via LibreOffice. Image-to-PDF
+    // for bitmaps would be ideal but the existing pipeline routes
+    // both office and image inputs through soffice in
+    // commands::convert_import (image_to_pdf is the alternative
+    // service); we mirror the simpler soffice path for v1 across
+    // both image and office types.
+    let mut outs = Vec::new();
+    let combined: Vec<PathBuf> = ctx
+        .inputs
+        .iter()
+        .cloned()
+        .chain(extra_inputs.iter().map(PathBuf::from))
+        .collect();
+    for src in combined.iter() {
+        let out = ctx
+            .state
+            .soffice
+            .convert(src, ctx.scratch, "pdf", Some(ctx.cancel.clone()))
+            .await?;
+        outs.push(out);
+    }
+    Ok(outs)
+}
+
+async fn run_merge_node(ctx: &NodeCtx<'_>) -> AppResult<Vec<PathBuf>> {
+    if ctx.inputs.is_empty() {
+        return Ok(vec![]);
+    }
+    let dst = ctx.scratch.join(format!("merged_{}.pdf", ctx.node_idx));
+    let inputs_owned = ctx.inputs.to_vec();
+    let dst_owned = dst.clone();
+    run_blocking(move || pdf_editor::merge_pdfs(&inputs_owned, &dst_owned)).await?;
+    Ok(vec![dst])
+}
+
+async fn run_split_node(ctx: &NodeCtx<'_>, ranges: &[[u32; 2]]) -> AppResult<Vec<PathBuf>> {
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let dir = ctx.scratch.join(format!("split_{}_{i}", ctx.node_idx));
+        std::fs::create_dir_all(&dir).ok();
+        let r: Vec<RangeInclusive<u32>> = ranges.iter().map(|[a, b]| *a..=*b).collect();
+        let src_owned = src.clone();
+        let dir_owned = dir.clone();
+        let parts = run_blocking(move || pdf_editor::split_pdf(&src_owned, &r, &dir_owned)).await?;
+        outs.extend(parts);
+    }
+    Ok(outs)
+}
+
+/// The Crop node's switches that the pipeline acts on.
+struct CropSpec {
+    bbox: Option<[f32; 4]>,
+    auto_detect: bool,
+    apply_to_all_pages: bool,
+    page_index: u32,
+    auto_threshold: u8,
+}
+
+async fn run_crop_node(ctx: &NodeCtx<'_>, spec: CropSpec) -> AppResult<Vec<PathBuf>> {
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let resolved = resolve_crop_box(ctx, &spec, src).await?;
+        let out = ctx.scratch_pdf("crop", i);
+        let src_owned = src.clone();
+        let out_owned = out.clone();
+        let target_all = spec.apply_to_all_pages;
+        let page_idx = spec.page_index;
+        tokio::task::spawn_blocking(move || {
+            write_crop_box(&src_owned, &out_owned, resolved, target_all, page_idx)
+        })
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })??;
+        outs.push(out);
+    }
+    Ok(outs)
+}
+
+async fn resolve_crop_box(ctx: &NodeCtx<'_>, spec: &CropSpec, src: &Path) -> AppResult<[f32; 4]> {
+    use crate::services::crop::auto_detect_bbox_from_image;
+    const AUTO_DETECT_DPI: u32 = 100;
+    if !spec.auto_detect {
+        return spec.bbox.ok_or_else(|| AppError::InvalidArgument {
+            detail: "crop node: bbox required when auto_detect = false".into(),
+        });
+    }
+    let auto_threshold = spec.auto_threshold;
+    let inner_tmp = tempfile::tempdir().map_err(|e| AppError::IoError {
+        detail: e.to_string(),
+    })?;
+    let png = inner_tmp.path().join("p.png");
+    ctx.state
+        .mupdf
+        .render_page_to_png(
+            src,
+            spec.page_index,
+            &png,
+            AUTO_DETECT_DPI,
+            Some(ctx.cancel.clone()),
+        )
+        .await?;
+    let png_clone = png.clone();
+    let detected = tokio::task::spawn_blocking(move || {
+        auto_detect_bbox_from_image(&png_clone, AUTO_DETECT_DPI, auto_threshold)
+    })
+    .await
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?
+    .map_err(|e| AppError::Internal {
+        detail: format!("{e:#}"),
+    })?;
+    Ok([detected.0, detected.1, detected.2, detected.3])
+}
+
+fn write_crop_box(
+    src: &Path,
+    out: &Path,
+    resolved: [f32; 4],
+    target_all: bool,
+    page_idx: u32,
+) -> AppResult<()> {
+    let mut doc =
+        crate::services::pdf_guard::load_guarded(src).map_err(|e| AppError::PdfCorrupted {
+            detail: e.to_string(),
+        })?;
+    let pages = doc.get_pages();
+    let target_pages: Vec<u32> = if target_all {
+        pages.keys().copied().collect()
+    } else {
+        vec![page_idx + 1]
+    };
+    for page_num in target_pages {
+        if let Some(&page_id) = pages.get(&page_num) {
+            set_crop_box(&mut doc, page_id, resolved);
+        }
+    }
+    doc.compress();
+    doc.save(out).map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?;
+    Ok(())
+}
+
+fn set_crop_box(doc: &mut lopdf::Document, page_id: lopdf::ObjectId, resolved: [f32; 4]) {
+    if let Some(obj) = doc.objects.get_mut(&page_id) {
+        if let Ok(d) = obj.as_dict_mut() {
+            let crop_array: Vec<lopdf::Object> = vec![
+                lopdf::Object::Real(resolved[0]),
+                lopdf::Object::Real(resolved[1]),
+                lopdf::Object::Real(resolved[0] + resolved[2]),
+                lopdf::Object::Real(resolved[1] + resolved[3]),
+            ];
+            d.set("CropBox", crop_array);
+        }
+    }
+}
+
+fn ocr_node_options(
+    engine: &crate::pipeline::dag::NodeOcrEngine,
+    language: &str,
+    dpi: u32,
+    output: &NodeOcrOutputMode,
+    deskew: bool,
+    despeckle: bool,
+) -> OcrOptions {
+    OcrOptions {
+        engine: match engine {
+            crate::pipeline::dag::NodeOcrEngine::Tesseract => OcrEngine::Tesseract,
+            crate::pipeline::dag::NodeOcrEngine::RapidOcr => OcrEngine::RapidOcr,
+        },
+        language: language.to_string(),
+        dpi,
+        psm: 3,
+        oem: 3,
+        output: match output {
+            NodeOcrOutputMode::SearchablePdf => OcrOutputMode::SearchablePdf,
+            NodeOcrOutputMode::PdfPlusText => OcrOutputMode::PdfPlusText,
+            NodeOcrOutputMode::TextOnly => OcrOutputMode::TextOnly,
+        },
+        deskew,
+        despeckle,
+        preserve_raster: true,
+    }
+}
+
+type OcrBackendPair = (Arc<dyn OcrBackend>, Option<Arc<dyn OcrBackend>>);
+
+/// The primary OCR backend for an engine, plus the Tesseract fallback that
+/// RapidOCR may retry with.
+fn ocr_node_backends(state: &AppState, engine: OcrEngine) -> OcrBackendPair {
+    match engine {
+        OcrEngine::Tesseract => (state.tesseract.clone(), None),
+        OcrEngine::RapidOcr => {
+            #[cfg(windows)]
+            {
+                match state.rapidocr.backend.clone() {
+                    Some(rapidocr) => (rapidocr, Some(state.tesseract.clone())),
+                    None => (state.tesseract.clone(), None),
+                }
+            }
+            #[cfg(not(windows))]
+            {
+                (state.tesseract.clone(), None)
+            }
+        }
+    }
+}
+
+async fn run_ocr_node(ctx: &NodeCtx<'_>, opts: OcrOptions) -> AppResult<Vec<PathBuf>> {
+    let mut outs = Vec::new();
+    for (idx, src) in ctx.inputs.iter().enumerate() {
+        if ctx.cancel.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        outs.push(ocr_one(ctx, &opts, src, idx).await?);
+    }
+    Ok(outs)
+}
+
+async fn ocr_one(
+    ctx: &NodeCtx<'_>,
+    opts: &OcrOptions,
+    src: &Path,
+    idx: usize,
+) -> AppResult<PathBuf> {
+    // Mirror commands::ocr::ocr_pdf logic via the same service
+    // composition. Delegates to commands::ocr::inject_text_layers so
+    // the Delta W Type0 CIDFont path is the only OCR layer path.
+    use crate::commands::ocr::{inject_word_layers, recognized_pages_to_text};
+
+    let dst = ctx.scratch_pdf("ocr", idx);
+    let doc_pages = {
+        let doc =
+            crate::services::pdf_guard::load_guarded(src).map_err(|e| AppError::Internal {
+                detail: format!("load: {e}"),
+            })?;
+        doc.get_pages().len() as u32
+    };
+    let (backend, fallback) = ocr_node_backends(ctx.state, opts.engine);
+    let pages = recognize_node_pages(ctx, opts, src, doc_pages, backend, fallback).await?;
+    if matches!(opts.output, OcrOutputMode::TextOnly) {
+        // TextOnly: write a sidecar .txt for the .pdf in scratch
+        // and emit the .txt as the "output" of this node.
+        let plain = recognized_pages_to_text(&pages);
+        let txt = ctx.scratch.join(format!("ocr_{}_{idx}.txt", ctx.node_idx));
+        std::fs::write(&txt, plain).map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?;
+        return Ok(txt);
+    }
+    let pdf_in_b = src.to_path_buf();
+    let pdf_out_b = dst.clone();
+    let pages_b = pages.clone();
+    let opts_b = opts.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        inject_word_layers(&pdf_in_b, &pdf_out_b, &opts_b, &pages_b)
+    })
+    .await
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })?
+    .map_err(|e| AppError::Internal {
+        detail: format!("{e:#}"),
+    })?;
+    Ok(dst)
+}
+
+/// Recognizes with the primary backend. A failed RapidOCR run retries once
+/// with the fallback; a cancellation never retries.
+async fn recognize_node_pages(
+    ctx: &NodeCtx<'_>,
+    opts: &OcrOptions,
+    pdf_in: &Path,
+    doc_pages: u32,
+    backend: Arc<dyn OcrBackend>,
+    fallback: Option<Arc<dyn OcrBackend>>,
+) -> AppResult<Vec<RecognizedOcrPage>> {
+    let recognize = |backend: Arc<dyn OcrBackend>| {
+        recognize_pdf_pages(
+            pdf_in,
+            doc_pages,
+            opts,
+            ctx.state.mupdf.clone(),
+            backend,
+            ctx.state.pool.clone(),
+            ctx.cancel.clone(),
+        )
+    };
+    match recognize(backend).await {
+        Ok(pages) => Ok(pages),
+        Err(AppError::Cancelled) => Err(AppError::Cancelled),
+        Err(error) => {
+            let Some(fallback) = fallback else {
+                return Err(error);
+            };
+            tracing::warn!(
+                target: "ocr",
+                "RapidOCR pipeline node failed; retrying with Tesseract: {error}"
+            );
+            recognize(fallback).await
+        }
+    }
+}
+
+fn run_save_node(ctx: &NodeCtx<'_>, dir: &str, name_template: &str) -> AppResult<Vec<PathBuf>> {
+    std::fs::create_dir_all(dir).ok();
+    let date = Utc::now().format("%Y-%m-%d").to_string();
+    let mut outs = Vec::new();
+    for (i, src) in ctx.inputs.iter().enumerate() {
+        let dst = PathBuf::from(dir).join(save_file_name(name_template, src, i, &date));
+        std::fs::copy(src, &dst).map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })?;
+        outs.push(dst);
+    }
+    Ok(outs)
+}
+
+fn save_file_name(name_template: &str, src: &Path, i: usize, date: &str) -> String {
+    let tool = "pipeline";
+    let stem = src.file_stem().and_then(|s| s.to_str()).unwrap_or("out");
+    let ext = src.extension().and_then(|s| s.to_str()).unwrap_or("pdf");
+    let mut name = name_template
+        .replace("{stem}", stem)
+        .replace("{i}", &i.to_string())
+        .replace("{date}", date)
+        .replace("{tool}", tool);
+    if !name.contains('.') {
+        name.push('.');
+        name.push_str(ext);
+    }
+    name
 }
 
 #[cfg(test)]

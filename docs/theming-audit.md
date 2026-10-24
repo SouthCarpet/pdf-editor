@@ -3,6 +3,12 @@
 Scope: `src/` at `4c84b0c`. This is the item 1 audit only; it records the
 pre-fix state and does not prescribe a redesign.
 
+Since Kaliber r4 (plan 119 K1) the sections below are history: the theme
+source is `src/styles/tokens.css` (generated) with an alias block in
+`src/styles/globals.css`, `ThemeProvider` sets `data-theme` and the `dark`
+class, and the choice is saved under `kaliber-theme`. See `docs/stack.md`
+section 2.4a.
+
 ## Existing theme path
 
 - `src/styles/globals.css` is the single theme source. Tailwind v4 exposes five

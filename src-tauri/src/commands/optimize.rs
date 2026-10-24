@@ -204,113 +204,31 @@ pub async fn optimize_pdf_cmd(
 ) -> AppResult<OptimizeResult> {
     let input = PathBuf::from(&args.input);
     let output = PathBuf::from(&args.output);
-    let before_bytes = std::fs::metadata(&input)
-        .map_err(|e| AppError::IoError {
-            detail: e.to_string(),
-        })?
-        .len();
+    let before_bytes = file_len(&input)?;
     let token = state.cancellation.register(&args.job_id);
 
     let tmp_dir = tempfile::tempdir().map_err(|e| AppError::IoError {
         detail: e.to_string(),
     })?;
-    let mut current = input.clone();
+    let mut current = prepare_optimized_pdf(&state, &args, &input, tmp_dir.path(), &token).await?;
 
-    if args.flatten_annotations {
-        let next = tmp_dir.path().join("flat.pdf");
-        state
-            .qpdf
-            .flatten_annotations(&current, &next, Some(token.clone()))
-            .await?;
-        current = next;
-    }
-
-    if args.subset_fonts {
-        let next = tmp_dir.path().join("subset.pdf");
-        state
-            .mupdf
-            .clean_subset_fonts(&current, &next, Some(token.clone()))
-            .await?;
-        current = next;
-    }
-
-    if args.object_streams || args.remove_unused {
-        let next = tmp_dir.path().join("os.pdf");
-        state
-            .qpdf
-            .object_streams_generate(&current, &next, Some(token.clone()))
-            .await?;
-        current = next;
-    }
-
-    if args.linearize {
-        let next = tmp_dir.path().join("lin.pdf");
-        state
-            .qpdf
-            .linearize(&current, &next, Some(token.clone()))
-            .await?;
-        current = next;
-    }
-
-    if let Some(_lang) = args.make_searchable_ocr.as_ref() {
-        // Phase 13 wires the real hOCR-pdf assembly via TesseractWrapper +
-        // MupdfWrapper. For now, log and skip the step so the rest of the
-        // pipeline still completes; the user can run OCR via the dedicated
-        // OCR tool once Phase 13 lands.
-        warn!(
-            "optimize: make_searchable_ocr requested but OCR pipeline is gated to Phase 13; skipping"
-        );
+    if args.make_searchable_ocr.is_some() {
+        warn_ocr_gated();
     }
 
     if let Some(version) = args.convert_pdfa {
-        // Delta E: LibreOffice primary, Ghostscript fallback.
-        let lo_target =
-            "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
-        let lo_attempt = state
-            .soffice
-            .convert(&current, tmp_dir.path(), lo_target, Some(token.clone()))
-            .await;
-        let pdfa_path = match lo_attempt {
-            Ok(out) => out,
-            Err(lo_err) => {
-                warn!(error = ?lo_err, "LibreOffice PDF/A export failed; falling back to Ghostscript");
-                let gs_out = tmp_dir.path().join("pdfa.pdf");
-                state
-                    .gs
-                    .convert_to_pdfa(&current, &gs_out, version, Some(token.clone()))
-                    .await?;
-                gs_out
-            }
-        };
+        let pdfa_path = optimize_pdfa(&state, &current, tmp_dir.path(), version, &token).await?;
         current = pdfa_path;
     }
 
-    if args.strip_metadata || args.remove_form_data {
-        let cur = current.clone();
-        let next = tmp_dir.path().join("strip.pdf");
-        let next_cloned = next.clone();
-        let strip = args.strip_metadata;
-        let removeform = args.remove_form_data;
-        tokio::task::spawn_blocking(move || {
-            apply_lopdf_cleanup(&cur, &next_cloned, strip, removeform)
-        })
-        .await
-        .map_err(|e| AppError::Internal {
-            detail: e.to_string(),
-        })??;
-        current = next;
-    }
+    current = cleanup_optimized_pdf(&args, &current, tmp_dir.path()).await?;
 
     std::fs::copy(&current, &output).map_err(|e| AppError::IoError {
         detail: e.to_string(),
     })?;
     state.cancellation.forget(&args.job_id);
 
-    let after_bytes = std::fs::metadata(&output)
-        .map_err(|e| AppError::IoError {
-            detail: e.to_string(),
-        })?
-        .len();
+    let after_bytes = file_len(&output)?;
     Ok(OptimizeResult {
         output_paths: vec![args.output],
         before_bytes,
@@ -407,23 +325,13 @@ async fn run_optimize_dry_run(
             .await?;
         current = next;
     }
-    if options.strip_metadata || options.remove_form_data {
-        let source = current.clone();
-        let next = tmp_dir.path().join("clean.pdf");
-        let output = next.clone();
-        let strip_metadata = options.strip_metadata;
-        let remove_form_data = options.remove_form_data;
-        tokio::task::spawn_blocking(move || {
-            apply_lopdf_cleanup(&source, &output, strip_metadata, remove_form_data)
-        })
-        .await
-        .map_err(|e| AppError::Internal {
-            detail: e.to_string(),
-        })??;
-        current = next;
-    }
+    current = cleanup_optimize_dry_run(&current, tmp_dir.path(), options).await?;
 
-    std::fs::metadata(&current)
+    file_len(&current)
+}
+
+fn file_len(path: &Path) -> AppResult<u64> {
+    std::fs::metadata(path)
         .map(|metadata| metadata.len())
         .map_err(|e| AppError::IoError {
             detail: e.to_string(),
@@ -543,6 +451,139 @@ fn collect_references(object: &Object, doc: &Document, reachable: &mut HashSet<O
         }
         _ => {}
     }
+}
+
+fn warn_ocr_gated() {
+    // Phase 13 wires the real hOCR-pdf assembly via TesseractWrapper +
+    // MupdfWrapper. For now, log and skip the step so the rest of the
+    // pipeline still completes; the user can run OCR via the dedicated
+    // OCR tool once Phase 13 lands.
+    warn!(
+        "optimize: make_searchable_ocr requested but OCR pipeline is gated to Phase 13; skipping"
+    );
+}
+
+async fn prepare_optimized_pdf(
+    state: &AppState,
+    args: &OptimizeArgs,
+    input: &Path,
+    scratch: &Path,
+    token: &tokio_util::sync::CancellationToken,
+) -> AppResult<PathBuf> {
+    let mut current = input.to_path_buf();
+
+    if args.flatten_annotations {
+        let next = scratch.join("flat.pdf");
+        state
+            .qpdf
+            .flatten_annotations(&current, &next, Some(token.clone()))
+            .await?;
+        current = next;
+    }
+
+    if args.subset_fonts {
+        let next = scratch.join("subset.pdf");
+        state
+            .mupdf
+            .clean_subset_fonts(&current, &next, Some(token.clone()))
+            .await?;
+        current = next;
+    }
+
+    if args.object_streams || args.remove_unused {
+        let next = scratch.join("os.pdf");
+        state
+            .qpdf
+            .object_streams_generate(&current, &next, Some(token.clone()))
+            .await?;
+        current = next;
+    }
+
+    if args.linearize {
+        let next = scratch.join("lin.pdf");
+        state
+            .qpdf
+            .linearize(&current, &next, Some(token.clone()))
+            .await?;
+        current = next;
+    }
+
+    Ok(current)
+}
+
+async fn optimize_pdfa(
+    state: &AppState,
+    input: &Path,
+    scratch: &Path,
+    version: u8,
+    token: &tokio_util::sync::CancellationToken,
+) -> AppResult<PathBuf> {
+    // Delta E: LibreOffice primary, Ghostscript fallback.
+    let lo_target =
+        "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+    let lo_attempt = state
+        .soffice
+        .convert(input, scratch, lo_target, Some(token.clone()))
+        .await;
+    let output = match lo_attempt {
+        Ok(out) => out,
+        Err(lo_err) => {
+            warn!(error = ?lo_err, "LibreOffice PDF/A export failed; falling back to Ghostscript");
+            let gs_out = scratch.join("pdfa.pdf");
+            state
+                .gs
+                .convert_to_pdfa(input, &gs_out, version, Some(token.clone()))
+                .await?;
+            gs_out
+        }
+    };
+    Ok(output)
+}
+
+async fn cleanup_optimized_pdf(
+    args: &OptimizeArgs,
+    current: &Path,
+    scratch: &Path,
+) -> AppResult<PathBuf> {
+    if args.strip_metadata || args.remove_form_data {
+        let cur = current.to_path_buf();
+        let next = scratch.join("strip.pdf");
+        let next_cloned = next.clone();
+        let strip = args.strip_metadata;
+        let removeform = args.remove_form_data;
+        tokio::task::spawn_blocking(move || {
+            apply_lopdf_cleanup(&cur, &next_cloned, strip, removeform)
+        })
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })??;
+        return Ok(next);
+    }
+    Ok(current.to_path_buf())
+}
+
+async fn cleanup_optimize_dry_run(
+    current: &Path,
+    scratch: &Path,
+    options: &EstimateOptions,
+) -> AppResult<PathBuf> {
+    if !(options.strip_metadata || options.remove_form_data) {
+        return Ok(current.to_path_buf());
+    }
+    let source = current.to_path_buf();
+    let next = scratch.join("clean.pdf");
+    let output = next.clone();
+    let strip_metadata = options.strip_metadata;
+    let remove_form_data = options.remove_form_data;
+    tokio::task::spawn_blocking(move || {
+        apply_lopdf_cleanup(&source, &output, strip_metadata, remove_form_data)
+    })
+    .await
+    .map_err(|e| AppError::Internal {
+        detail: e.to_string(),
+    })??;
+    Ok(next)
 }
 
 #[cfg(test)]

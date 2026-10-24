@@ -10,7 +10,7 @@ use tracing::{debug, warn};
 
 use crate::error::{AppError, AppResult};
 
-fn stderr_tail(stderr: &[u8]) -> String {
+pub(crate) fn stderr_tail(stderr: &[u8]) -> String {
     String::from_utf8_lossy(stderr)
         .chars()
         .rev()
@@ -19,6 +19,25 @@ fn stderr_tail(stderr: &[u8]) -> String {
         .chars()
         .rev()
         .collect()
+}
+
+/// Races `work` against `token`. A cancelled token logs `<label> cancelled`
+/// and returns `AppError::Cancelled`; no token just awaits `work`.
+pub(crate) async fn or_cancelled<T>(
+    token: Option<CancellationToken>,
+    label: &str,
+    work: impl std::future::Future<Output = AppResult<T>>,
+) -> AppResult<T> {
+    let Some(token) = token else {
+        return work.await;
+    };
+    tokio::select! {
+        out = work => out,
+        _ = token.cancelled() => {
+            warn!("{label} cancelled");
+            Err(AppError::Cancelled)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -123,19 +142,8 @@ impl SidecarManager {
         workspace.join(format!("sidecars/{name}-x86_64-pc-windows-msvc.exe"))
     }
 
-    pub async fn run(&self, spec: SidecarRunSpec) -> AppResult<SidecarOutput> {
-        let _permit =
-            self.semaphore
-                .clone()
-                .acquire_owned()
-                .await
-                .map_err(|e| AppError::Internal {
-                    detail: e.to_string(),
-                })?;
-        let binary = self.resolve_binary(&spec.name);
-        debug!(?binary, args = ?spec.args, "spawning sidecar");
-
-        let mut cmd = Command::new(&binary);
+    fn sidecar_command(binary: &std::path::Path, spec: &SidecarRunSpec) -> Command {
+        let mut cmd = Command::new(binary);
         cmd.args(&spec.args)
             .stdin(if spec.stdin.is_some() {
                 Stdio::piped()
@@ -175,7 +183,43 @@ impl SidecarManager {
                 cmd.env(var, val);
             }
         }
+        cmd
+    }
 
+    async fn wait_for_output(
+        child: tokio::process::Child,
+        spec: &SidecarRunSpec,
+    ) -> AppResult<std::process::Output> {
+        let work = Self::wait_with_timeout(child, spec);
+        let label = format!("sidecar {}", spec.name);
+        or_cancelled(spec.cancellation.clone(), &label, work).await
+    }
+
+    async fn wait_with_timeout(
+        child: tokio::process::Child,
+        spec: &SidecarRunSpec,
+    ) -> AppResult<std::process::Output> {
+        let wait_fut = child.wait_with_output();
+        let finished =
+            match spec.timeout {
+                Some(t) => tokio::time::timeout(t, wait_fut).await.map_err(|_| {
+                    AppError::SidecarFailed {
+                        tool: spec.name.clone(),
+                        exit_code: -2,
+                        stderr_tail: "timeout".into(),
+                    }
+                })?,
+                None => wait_fut.await,
+            };
+        finished.map_err(|e| AppError::IoError {
+            detail: e.to_string(),
+        })
+    }
+
+    async fn spawn_with_stdin(
+        mut cmd: Command,
+        spec: &SidecarRunSpec,
+    ) -> AppResult<tokio::process::Child> {
         let mut child = cmd.spawn().map_err(|e| AppError::SidecarFailed {
             tool: spec.name.clone(),
             exit_code: -1,
@@ -188,48 +232,25 @@ impl SidecarManager {
                 s.shutdown().await.ok();
             }
         }
+        Ok(child)
+    }
 
-        let wait_fut = child.wait_with_output();
+    pub async fn run(&self, spec: SidecarRunSpec) -> AppResult<SidecarOutput> {
+        let _permit =
+            self.semaphore
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|e| AppError::Internal {
+                    detail: e.to_string(),
+                })?;
+        let binary = self.resolve_binary(&spec.name);
+        debug!(?binary, args = ?spec.args, "spawning sidecar");
 
-        let output = if let Some(token) = spec.cancellation.clone() {
-            tokio::select! {
-                out = wait_fut => out.map_err(|e| AppError::IoError { detail: e.to_string() })?,
-                _ = token.cancelled() => {
-                    warn!("sidecar {} cancelled", spec.name);
-                    return Err(AppError::Cancelled);
-                }
-                _ = async {
-                    if let Some(t) = spec.timeout { tokio::time::sleep(t).await; }
-                    else { std::future::pending::<()>().await; }
-                } => {
-                    return Err(AppError::SidecarFailed {
-                        tool: spec.name.clone(),
-                        exit_code: -2,
-                        stderr_tail: "timeout".into(),
-                    });
-                }
-            }
-        } else if let Some(t) = spec.timeout {
-            match tokio::time::timeout(t, wait_fut).await {
-                Ok(Ok(out)) => out,
-                Ok(Err(e)) => {
-                    return Err(AppError::IoError {
-                        detail: e.to_string(),
-                    })
-                }
-                Err(_) => {
-                    return Err(AppError::SidecarFailed {
-                        tool: spec.name.clone(),
-                        exit_code: -2,
-                        stderr_tail: "timeout".into(),
-                    })
-                }
-            }
-        } else {
-            wait_fut.await.map_err(|e| AppError::IoError {
-                detail: e.to_string(),
-            })?
-        };
+        let cmd = Self::sidecar_command(&binary, &spec);
+        let child = Self::spawn_with_stdin(cmd, &spec).await?;
+
+        let output = Self::wait_for_output(child, &spec).await?;
 
         if !output.status.success() {
             return Err(AppError::SidecarFailed {
