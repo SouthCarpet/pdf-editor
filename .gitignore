@@ -37,14 +37,14 @@ src-tauri/tests/fixtures/pdfs/*.pdf
 # shells out to the real mutool sidecar, and the cargo-test jobs only have
 # zero-byte sidecar stubs, so running the generator there fails with "not a
 # valid application for this OS platform". The five generated fixtures total
-# 28 KB; hodiny.pdf is a fixed regression sample. Tracking them makes tests
+# 28 KB; timesheet-scan.pdf is a synthetic regression sample. Tracking them makes tests
 # hermetic instead of dependent on a sidecar download.
 !src-tauri/tests/fixtures/pdfs/sample.pdf
 !src-tauri/tests/fixtures/pdfs/scanned.pdf
 !src-tauri/tests/fixtures/pdfs/large.pdf
 !src-tauri/tests/fixtures/pdfs/password-open.pdf
 !src-tauri/tests/fixtures/pdfs/password-permission.pdf
-!src-tauri/tests/fixtures/pdfs/hodiny.pdf
+!src-tauri/tests/fixtures/pdfs/timesheet-scan.pdf
 src-tauri/tests/fixtures/docs/*.docx
 src-tauri/tests/fixtures/docs/*.odt
 src-tauri/tests/fixtures/images/*.png
