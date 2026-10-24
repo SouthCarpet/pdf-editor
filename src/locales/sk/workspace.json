@@ -203,6 +203,18 @@
       "choice": "výber",
       "signature": "podpis",
       "button": "tlačidlo"
+    },
+    "own": {
+      "title": "Vlastné polia",
+      "text": "Textové pole",
+      "checkbox": "Začiarkavacie pole",
+      "name": "Názov poľa",
+      "multiline": "Viac riadkov",
+      "font_size": "Veľkosť písma (pt, 0 = automaticky)",
+      "delete": "Zmazať pole",
+      "place_hint": "Kliknite alebo ťahajte na strane. Escape zruší vkladanie.",
+      "save_hint": "Uložením vznikne formulárové pole. Hodnotu vyplňte po uložení.",
+      "move_hint": "Ťahajte pole alebo jeho okraje. Šípky posúvajú o 1 pt, so Shift o 10 pt."
     }
   },
   "ocr_edit": {

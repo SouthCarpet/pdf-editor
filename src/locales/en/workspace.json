@@ -200,6 +200,18 @@
       "choice": "choice",
       "signature": "signature",
       "button": "button"
+    },
+    "own": {
+      "title": "Own fields",
+      "text": "Text field",
+      "checkbox": "Checkbox",
+      "name": "Field name",
+      "multiline": "Multiline",
+      "font_size": "Font size (pt, 0 = auto)",
+      "delete": "Delete field",
+      "place_hint": "Click or drag on the page. Press Escape to cancel.",
+      "save_hint": "Save writes a form field. Fill its value after saving.",
+      "move_hint": "Drag the box or its edge handles. Arrow keys move it 1 pt; Shift moves it 10 pt."
     }
   },
   "ocr_edit": {

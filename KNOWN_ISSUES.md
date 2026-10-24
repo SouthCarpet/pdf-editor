@@ -3,6 +3,13 @@
 Limits we know about and accept for now. Each entry says what happens, why,
 and what to do instead.
 
+## Own fields support text and checkboxes
+
+Own fields can be single-line text, multiline text or checkboxes. Choice,
+radio and signature fields are not available as own fields. A pending box
+defines the field only. Save it first, then fill its value in the Forms
+list or another PDF reader. The field name is a label, not a filled value.
+
 ## Update check and download fail behind a corporate proxy
 
 **What happens.** With the update consent on (Settings -> About), the

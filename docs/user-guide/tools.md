@@ -35,6 +35,33 @@ Three sub-tools, all in the Workspace:
 - **Annotations**: text notes, highlights, shapes, free-draw.
 - **Text**: real inline text editing of existing content. Replaces text with proper Type0 CIDFont embedding (preserves Slovak/Czech/German/etc. diacritics with no Standard-14 fallback).
 
+### Draw your own form fields
+
+In **Edit -> Forms**, select **Text field** or **Checkbox**. Click the page
+to place a default box (text: 140 x 22 pt; checkbox: 14 x 14 pt), or drag
+to draw one. A drawn box is at least 12 x 12 pt. Checkboxes stay square.
+The box stays inside the page. Placement ends after one field. Press Escape
+to cancel placement.
+
+Click a pending box or its name in the **Own fields** list to select it.
+The list can also take you to a field on another page. Change its name and,
+for text, **Multiline** and **Font size** (0 means automatic). Drag the box
+to move it, or drag an edge handle to resize it. Arrow keys move it 1 pt;
+Shift+arrow moves it 10 pt. Delete removes the selected box when focus is
+outside a text input. **Delete field** also removes it. Ctrl+Z and Ctrl+Y
+undo and redo creation, edits, moves, resizes and deletion.
+
+On save, dots in a name become underscores. Control characters and outer
+spaces are removed. The name is cut to 128 characters, then a suffix such
+as `_2` is added if needed to make it unique. An empty name becomes `Field`.
+
+Use the toolbar **Save** or Ctrl+S to write real AcroForm fields. The close
+guard and autosave include pending fields. A pending box stays visible in
+other tools and on the facing page of a book spread as a read-only preview.
+After saving, it leaves the pending
+layer and appears in the native Forms list. Fill its value there, or open
+the saved PDF in another form reader. Pending fields do not accept values.
+
 ## Crop
 Set page-box rectangles manually, lock to a preset paper size, or auto-detect content margins. Supports per-page or apply-to-all.
 

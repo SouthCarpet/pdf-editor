@@ -15,6 +15,8 @@ import { PendingFormValueLayer } from "./PendingFormValueLayer";
 import { PendingFreeTextLayer } from "./PendingFreeTextLayer";
 import type { PendingFormValue } from "./pendingFormValues";
 import { PendingStampLayer } from "./PendingStampLayer";
+import { PendingOwnFieldLayer } from "./PendingOwnFieldLayer";
+import type { OwnFieldKind } from "@/bindings";
 
 interface Props {
   width: number;
@@ -34,6 +36,9 @@ interface Props {
   pageWidth: number;
   pageHeight: number;
   onPlaceStamp: (rect: [number, number, number, number]) => void;
+  fieldPlacement?: OwnFieldKind | null;
+  onPlaceField?: (rect: [number, number, number, number]) => void;
+  ownFieldsEditable?: boolean;
 }
 
 interface PreviewProps {
@@ -87,6 +92,15 @@ export function PendingPreviewOverlay({
         onRectChange={ignore}
       />
       <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
+      <PendingOwnFieldLayer
+        interactive={false}
+        page={page}
+        viewport={viewport}
+        annotations={pendingAnnotations}
+        selectedId={null}
+        onSelect={ignore}
+        onRectChange={ignore}
+      />
     </OverlayCanvas>
   );
 }
@@ -108,6 +122,9 @@ export function EditPageOverlay({
   pageWidth,
   pageHeight,
   onPlaceStamp,
+  fieldPlacement = null,
+  onPlaceField,
+  ownFieldsEditable = true,
 }: Props) {
   return (
     <OverlayCanvas width={width} height={height}>
@@ -140,6 +157,17 @@ export function EditPageOverlay({
         onRectChange={onPendingRectChange}
       />
       <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
+      <PendingOwnFieldLayer
+        interactive={ownFieldsEditable}
+        page={page}
+        viewport={viewport}
+        annotations={pendingAnnotations}
+        selectedId={selectedPendingId}
+        onSelect={onSelectPending}
+        onRectChange={onPendingRectChange}
+        placement={fieldPlacement}
+        onPlace={onPlaceField}
+      />
     </OverlayCanvas>
   );
 }
