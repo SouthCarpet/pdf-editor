@@ -204,11 +204,7 @@ pub async fn optimize_pdf_cmd(
 ) -> AppResult<OptimizeResult> {
     let input = PathBuf::from(&args.input);
     let output = PathBuf::from(&args.output);
-    let before_bytes = std::fs::metadata(&input)
-        .map_err(|e| AppError::IoError {
-            detail: e.to_string(),
-        })?
-        .len();
+    let before_bytes = file_len(&input)?;
     let token = state.cancellation.register(&args.job_id);
 
     let tmp_dir = tempfile::tempdir().map_err(|e| AppError::IoError {
@@ -216,14 +212,8 @@ pub async fn optimize_pdf_cmd(
     })?;
     let mut current = prepare_optimized_pdf(&state, &args, &input, tmp_dir.path(), &token).await?;
 
-    if let Some(_lang) = args.make_searchable_ocr.as_ref() {
-        // Phase 13 wires the real hOCR-pdf assembly via TesseractWrapper +
-        // MupdfWrapper. For now, log and skip the step so the rest of the
-        // pipeline still completes; the user can run OCR via the dedicated
-        // OCR tool once Phase 13 lands.
-        warn!(
-            "optimize: make_searchable_ocr requested but OCR pipeline is gated to Phase 13; skipping"
-        );
+    if args.make_searchable_ocr.is_some() {
+        warn_ocr_gated();
     }
 
     if let Some(version) = args.convert_pdfa {
@@ -238,11 +228,7 @@ pub async fn optimize_pdf_cmd(
     })?;
     state.cancellation.forget(&args.job_id);
 
-    let after_bytes = std::fs::metadata(&output)
-        .map_err(|e| AppError::IoError {
-            detail: e.to_string(),
-        })?
-        .len();
+    let after_bytes = file_len(&output)?;
     Ok(OptimizeResult {
         output_paths: vec![args.output],
         before_bytes,
@@ -339,12 +325,13 @@ async fn run_optimize_dry_run(
             .await?;
         current = next;
     }
-    if options.strip_metadata || options.remove_form_data {
-        let next = cleanup_optimize_dry_run(&current, tmp_dir.path(), options).await?;
-        current = next;
-    }
+    current = cleanup_optimize_dry_run(&current, tmp_dir.path(), options).await?;
 
-    std::fs::metadata(&current)
+    file_len(&current)
+}
+
+fn file_len(path: &Path) -> AppResult<u64> {
+    std::fs::metadata(path)
         .map(|metadata| metadata.len())
         .map_err(|e| AppError::IoError {
             detail: e.to_string(),
@@ -466,6 +453,16 @@ fn collect_references(object: &Object, doc: &Document, reachable: &mut HashSet<O
     }
 }
 
+fn warn_ocr_gated() {
+    // Phase 13 wires the real hOCR-pdf assembly via TesseractWrapper +
+    // MupdfWrapper. For now, log and skip the step so the rest of the
+    // pipeline still completes; the user can run OCR via the dedicated
+    // OCR tool once Phase 13 lands.
+    warn!(
+        "optimize: make_searchable_ocr requested but OCR pipeline is gated to Phase 13; skipping"
+    );
+}
+
 async fn prepare_optimized_pdf(
     state: &AppState,
     args: &OptimizeArgs,
@@ -571,6 +568,9 @@ async fn cleanup_optimize_dry_run(
     scratch: &Path,
     options: &EstimateOptions,
 ) -> AppResult<PathBuf> {
+    if !(options.strip_metadata || options.remove_form_data) {
+        return Ok(current.to_path_buf());
+    }
     let source = current.to_path_buf();
     let next = scratch.join("clean.pdf");
     let output = next.clone();
