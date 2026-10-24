@@ -219,12 +219,22 @@ fn r1_text_field_is_a_real_acroform_field() {
     );
 
     let read = fields(&output);
-    assert_eq!(read.len(), 1);
-    assert_eq!(read[0].name, "Meno");
-    assert_eq!(read[0].kind, FormFieldKind::Text);
-    assert_eq!(read[0].page_index, Some(0));
-    assert_eq!(read[0].rect, NAME_RECT);
-    assert_eq!(read[0].value, None);
+    let expected = FormField {
+        id: format!(
+            "{}:{}",
+            written_id(&written, 0).0,
+            written_id(&written, 0).1
+        ),
+        name: "Meno".to_string(),
+        kind: FormFieldKind::Text,
+        value: None,
+        page_index: Some(0),
+        rect: NAME_RECT,
+        options: Vec::new(),
+        read_only: false,
+        required: false,
+    };
+    assert_eq!(read, vec![expected]);
 
     let doc = Document::load(&output).expect("load saved copy");
     let id = written_id(&written, 0);
