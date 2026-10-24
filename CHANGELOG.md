@@ -81,6 +81,8 @@
 
 ### Changed
 
+- The dark theme background and surfaces are darker, from the shared Kaliber tokens.
+
 - Password recovery uses Kaliber choices, inputs, estimate and result marks, and a flat form layout. The legal warning uses the shared keyboard-accessible dialog.
 
 - Rust code stays under cognitive complexity 12. `src-tauri/.clippy.toml`
