@@ -190,23 +190,7 @@ pub async fn pipeline_run_on_folder_cmd(
         });
     }
 
-    let mut inputs: Vec<PathBuf> = Vec::new();
-    for entry in walkdir::WalkDir::new(folder)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_type().is_file()
-            && entry
-                .path()
-                .extension()
-                .and_then(|x| x.to_str())
-                .map(|s| s.eq_ignore_ascii_case("pdf"))
-                .unwrap_or(false)
-        {
-            inputs.push(entry.path().to_path_buf());
-        }
-    }
+    let inputs = folder_pdf_inputs(folder);
 
     let (tx, rx) = mpsc::channel(256);
     let reporter = ProgressReporter::new(args.job_id.clone(), tx);
@@ -292,4 +276,25 @@ pub async fn pipeline_run_on_folder_cmd(
     drop(reporter);
     let _ = pump_handle.await;
     Ok(report)
+}
+
+fn folder_pdf_inputs(folder: &std::path::Path) -> Vec<PathBuf> {
+    let mut inputs: Vec<PathBuf> = Vec::new();
+    for entry in walkdir::WalkDir::new(folder)
+        .max_depth(2)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
+        if entry.file_type().is_file()
+            && entry
+                .path()
+                .extension()
+                .and_then(|x| x.to_str())
+                .map(|s| s.eq_ignore_ascii_case("pdf"))
+                .unwrap_or(false)
+        {
+            inputs.push(entry.path().to_path_buf());
+        }
+    }
+    inputs
 }
