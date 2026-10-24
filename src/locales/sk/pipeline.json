@@ -30,7 +30,6 @@
   "preset_name_required": "Názov je povinný",
   "preset_empty": "Zatiaľ nie sú uložené žiadne predvoľby.",
   "preset_load_failed": "Predvoľbu sa nepodarilo načítať: {{error}}",
-  "preset_delete_confirm": "Odstrániť predvoľbu '{{name}}'? Túto akciu nie je možné vrátiť.",
   "editor": {
     "selection_hint": "Krok môžete kedykoľvek vybrať v zozname Uzly a potom ho pripojiť zhora nadol. Výberom uzla upravíte jeho nastavenia."
   },
@@ -49,6 +48,42 @@
     "metadata": "metadáta",
     "bookmarks": "záložky",
     "signatures": "podpisy",
-    "outlines": "obrysy"
-  }
+    "outlines": "obrysy",
+    "text_layer": "textová vrstva",
+    "embedded_fonts": "vložené písma",
+    "pdfa_compliance": "zhoda s PDF/A",
+    "linearization": "linearizácia"
+  },
+  "run_dialog_title": "Spustiť pipeline",
+  "run_on_files": "Spustiť na súboroch",
+  "pick_hint": "Vyberte súbory alebo priečinok.",
+  "table": {
+    "file": "Súbor",
+    "status": "Stav"
+  },
+  "status": {
+    "queued": "Čaká",
+    "running": "Beží",
+    "ok": "Hotovo",
+    "failed": "Zlyhalo"
+  },
+  "edge_strips": "{{from}} do {{to}}: môže odstrániť {{artifacts}}",
+  "edge_title": "Ďalší krok odstráni: {{artifacts}}",
+  "summary": "Hotovo {{ok}}, zlyhalo {{failed}}, výstupných súborov {{outputs}}",
+  "copy_output": "Kopírovať cestu k výstupu",
+  "copy_failed": "Cestu sa nepodarilo skopírovať.",
+  "cancel_failed": "Zrušenie zlyhalo: {{error}}",
+  "progress_start": "Spúšťa sa",
+  "progress_done": "Hotovo",
+  "scanning_folder": "Prehľadáva sa priečinok",
+  "default_config": "Predvolené nastavenia",
+  "watermark_note": "Vodoznak sa zatiaľ nedá spustiť. Uzol zostane v grafe a pri spustení sa zobrazí jasná chyba.",
+  "watermark_text": "Text",
+  "watermark_opacity": "Priehľadnosť",
+  "save_dir_placeholder": "C:\\out",
+  "save_dir": "Výstupný priečinok",
+  "save_template": "Šablóna názvu",
+  "save_variables": "Premenné: {stem}, {i}, {date}, {tool}, {ext}.",
+  "preset_delete_title": "Odstrániť predvoľbu „{{name}}“?",
+  "preset_delete_body": "Predvoľba má {{steps}}. Túto akciu nemožno vrátiť."
 }

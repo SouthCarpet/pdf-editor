@@ -4,11 +4,17 @@
 // options component as the matching standalone tool, in `mode =
 // "pipeline-node"`. No duplicated UI - patches the node's `data.config`
 // through `usePipelineStore.setNodeConfig`.
+//
+// Kaliber r4 (plan 119 K3b): the panel sits on the sheet with one hairline;
+// the two own forms (watermark, save) use labelled Kaliber fields and the
+// shared slider, and every string comes from the pipeline catalog.
+import type { ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { FileText, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SliderField } from "@/components/tools/options/fields";
 import { CompressOptions } from "@/components/tools/options/CompressOptions";
 import { OptimizeOptions } from "@/components/tools/options/OptimizeOptions";
 import { UnlockOptions } from "@/components/tools/options/UnlockOptions";
@@ -45,7 +51,7 @@ export function NodeConfigPanel({ node }: Props) {
   const config = node.data.config;
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+    <div className="flex h-full flex-col gap-3 overflow-y-auto border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] p-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">{translateNodeLabel(t, node.data.kind)}</h2>
         <Button variant="ghost" size="sm" onClick={() => removeNode(node.id)}>
@@ -55,176 +61,185 @@ export function NodeConfigPanel({ node }: Props) {
 
       {/* Delta U: dispatch to the SAME Options component the standalone
           tool uses. mode="pipeline-node" hides the standalone-only hint. */}
-      {config.kind === "open_file" && <OpenFileConfig config={config} patch={patch} />}
-      {config.kind === "compress" && (
-        <CompressOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "compress", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "optimize" && (
-        <OptimizeOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "optimize", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "unlock" && (
-        <UnlockOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "unlock", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "convert" && (
-        <ConvertExportOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "convert", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "convert_import" && <ConvertImportOptions mode="pipeline-node" />}
-      {config.kind === "merge" && <MergeOptions mode="pipeline-node" />}
-      {config.kind === "split" && (
-        <SplitOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "split", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "extract" && (
-        <ExtractOptions
-          value={config.options}
-          onChange={(o) => patch({ kind: "extract", options: o })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "organize_rotate" && (
-        <RotatePagesOptions
-          value={{ rotations: config.rotations }}
-          onChange={(o) => patch({ kind: "organize_rotate", rotations: o.rotations })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "organize_delete" && (
-        <DeletePagesOptions
-          value={{ pages: config.pages }}
-          onChange={(o) => patch({ kind: "organize_delete", pages: o.pages })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "organize_reorder" && (
-        <ReorderPagesOptions
-          value={{ new_order: config.new_order }}
-          onChange={(o) => patch({ kind: "organize_reorder", new_order: o.new_order })}
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "organize_insert_blank" && (
-        <InsertBlankOptions
-          value={{
-            after_page_index: config.after_page_index,
-            width: config.width,
-            height: config.height,
-          }}
-          onChange={(o) =>
-            patch({
-              kind: "organize_insert_blank",
-              after_page_index: o.after_page_index,
-              width: o.width,
-              height: o.height,
-            })
-          }
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "crop" && (
-        <CropOptions
-          value={{
-            bbox: config.bbox,
-            auto_detect: config.auto_detect,
-            apply_to_all_pages: config.apply_to_all_pages,
-            page_index: config.page_index,
-            aspect_ratio:
-              (config.aspect_ratio as
-                | "free"
-                | "1:1"
-                | "4:3"
-                | "16:9"
-                | "a4-portrait"
-                | "a4-landscape"
-                | "letter-portrait"
-                | "letter-landscape"
-                | "custom") ?? "free",
-            aspect_ratio_w: config.aspect_ratio_w ?? 1,
-            aspect_ratio_h: config.aspect_ratio_h ?? 1,
-            page_size_preset:
-              (config.page_size_preset as
-                | "a3"
-                | "a4"
-                | "a5"
-                | "letter"
-                | "legal"
-                | "tabloid"
-                | "custom") ?? "custom",
-            margin_preset:
-              (config.margin_preset as "none" | "tight" | "standard" | "loose" | "custom") ??
-              "none",
-            margin_custom_mm: config.margin_custom_mm ?? 0,
-            apply_to: config.apply_to ?? "all",
-            apply_range: config.apply_range ?? "",
-            auto_detect_threshold: config.auto_detect_threshold ?? 240,
-            unit: "pt",
-          }}
-          onChange={(o) =>
-            patch({
-              kind: "crop",
-              bbox: o.bbox,
-              auto_detect: o.auto_detect,
-              apply_to_all_pages: o.apply_to_all_pages,
-              page_index: o.page_index,
-              aspect_ratio: o.aspect_ratio,
-              aspect_ratio_w: o.aspect_ratio_w,
-              aspect_ratio_h: o.aspect_ratio_h,
-              page_size_preset: o.page_size_preset,
-              margin_preset: o.margin_preset,
-              margin_custom_mm: o.margin_custom_mm,
-              apply_to: o.apply_to,
-              apply_range: o.apply_range,
-              auto_detect_threshold: o.auto_detect_threshold,
-            })
-          }
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "ocr" && (
-        <OcrOptions
-          value={{
-            engine: config.engine ?? "tesseract",
-            language: config.language,
-            dpi: config.dpi,
-            output: config.output,
-            deskew: config.deskew,
-            despeckle: config.despeckle,
-          }}
-          onChange={(o) =>
-            patch({
-              kind: "ocr",
-              engine: o.engine,
-              language: o.language,
-              dpi: o.dpi,
-              output: o.output,
-              deskew: o.deskew,
-              despeckle: o.despeckle,
-            })
-          }
-          mode="pipeline-node"
-        />
-      )}
-      {config.kind === "watermark" && <WatermarkConfig config={config} patch={patch} />}
-      {config.kind === "save" && <SaveConfig config={config} patch={patch} />}
+      {renderOptions(config, patch)}
     </div>
+  );
+}
+
+type Kind = NodeKindPayload["kind"];
+type Patch = (next: NodeKindPayload) => void;
+type Renderer<K extends Kind> = (
+  config: Extract<NodeKindPayload, { kind: K }>,
+  patch: Patch,
+) => ReactNode;
+
+const PIPELINE_NODE = "pipeline-node" as const;
+
+// One renderer per node kind, so the dispatch stays a table lookup and the
+// panel's complexity does not grow with every new kind.
+const RENDERERS: { [K in Kind]: Renderer<K> } = {
+  open_file: (config, patch) => <OpenFileConfig config={config} patch={patch} />,
+  compress: (config, patch) => (
+    <CompressOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "compress", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  optimize: (config, patch) => (
+    <OptimizeOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "optimize", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  unlock: (config, patch) => (
+    <UnlockOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "unlock", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  convert: (config, patch) => (
+    <ConvertExportOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "convert", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  convert_import: () => <ConvertImportOptions mode={PIPELINE_NODE} />,
+  merge: () => <MergeOptions mode={PIPELINE_NODE} />,
+  split: (config, patch) => (
+    <SplitOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "split", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  extract: (config, patch) => (
+    <ExtractOptions
+      value={config.options}
+      onChange={(o) => patch({ kind: "extract", options: o })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  organize_rotate: (config, patch) => (
+    <RotatePagesOptions
+      value={{ rotations: config.rotations }}
+      onChange={(o) => patch({ kind: "organize_rotate", rotations: o.rotations })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  organize_delete: (config, patch) => (
+    <DeletePagesOptions
+      value={{ pages: config.pages }}
+      onChange={(o) => patch({ kind: "organize_delete", pages: o.pages })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  organize_reorder: (config, patch) => (
+    <ReorderPagesOptions
+      value={{ new_order: config.new_order }}
+      onChange={(o) => patch({ kind: "organize_reorder", new_order: o.new_order })}
+      mode={PIPELINE_NODE}
+    />
+  ),
+  organize_insert_blank: (config, patch) => (
+    <InsertBlankOptions
+      value={{
+        after_page_index: config.after_page_index,
+        width: config.width,
+        height: config.height,
+      }}
+      onChange={(o) =>
+        patch({
+          kind: "organize_insert_blank",
+          after_page_index: o.after_page_index,
+          width: o.width,
+          height: o.height,
+        })
+      }
+      mode={PIPELINE_NODE}
+    />
+  ),
+  crop: (config, patch) => <CropConfig config={config} patch={patch} />,
+  ocr: (config, patch) => (
+    <OcrOptions
+      value={{
+        engine: config.engine ?? "tesseract",
+        language: config.language,
+        dpi: config.dpi,
+        output: config.output,
+        deskew: config.deskew,
+        despeckle: config.despeckle,
+      }}
+      onChange={(o) =>
+        patch({
+          kind: "ocr",
+          engine: o.engine,
+          language: o.language,
+          dpi: o.dpi,
+          output: o.output,
+          deskew: o.deskew,
+          despeckle: o.despeckle,
+        })
+      }
+      mode={PIPELINE_NODE}
+    />
+  ),
+  watermark: (config, patch) => <WatermarkConfig config={config} patch={patch} />,
+  save: (config, patch) => <SaveConfig config={config} patch={patch} />,
+};
+
+function renderOptions(config: NodeKindPayload, patch: Patch): ReactNode {
+  // The table is indexed by the discriminant, so the entry always takes this config.
+  const render = RENDERERS[config.kind] as (c: NodeKindPayload, p: Patch) => ReactNode;
+  return render(config, patch);
+}
+
+type CropAspect = "free" | "1:1" | "4:3" | "16:9" | "a4-portrait" | "a4-landscape" | "letter-portrait" | "letter-landscape" | "custom";
+type CropPageSize = "a3" | "a4" | "a5" | "letter" | "legal" | "tabloid" | "custom";
+type CropMargin = "none" | "tight" | "standard" | "loose" | "custom";
+
+function CropConfig({ config, patch }: KConf<"crop">) {
+  return (
+    <CropOptions
+      value={{
+        bbox: config.bbox,
+        auto_detect: config.auto_detect,
+        apply_to_all_pages: config.apply_to_all_pages,
+        page_index: config.page_index,
+        aspect_ratio: (config.aspect_ratio as CropAspect) ?? "free",
+        aspect_ratio_w: config.aspect_ratio_w ?? 1,
+        aspect_ratio_h: config.aspect_ratio_h ?? 1,
+        page_size_preset: (config.page_size_preset as CropPageSize) ?? "custom",
+        margin_preset: (config.margin_preset as CropMargin) ?? "none",
+        margin_custom_mm: config.margin_custom_mm ?? 0,
+        apply_to: config.apply_to ?? "all",
+        apply_range: config.apply_range ?? "",
+        auto_detect_threshold: config.auto_detect_threshold ?? 240,
+        unit: "pt",
+      }}
+      onChange={(o) =>
+        patch({
+          kind: "crop",
+          bbox: o.bbox,
+          auto_detect: o.auto_detect,
+          apply_to_all_pages: o.apply_to_all_pages,
+          page_index: o.page_index,
+          aspect_ratio: o.aspect_ratio,
+          aspect_ratio_w: o.aspect_ratio_w,
+          aspect_ratio_h: o.aspect_ratio_h,
+          page_size_preset: o.page_size_preset,
+          margin_preset: o.margin_preset,
+          margin_custom_mm: o.margin_custom_mm,
+          apply_to: o.apply_to,
+          apply_range: o.apply_range,
+          auto_detect_threshold: o.auto_detect_threshold,
+        })
+      }
+      mode={PIPELINE_NODE}
+    />
   );
 }
 
@@ -255,7 +270,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
 
   return (
     <div className="space-y-3 text-sm">
-      <p className="text-xs text-[var(--color-muted)]">{t("open_file.description")}</p>
+      <p className="k-caption">{t("open_file.description")}</p>
       <Button
         variant="outline"
         className="w-full transition-transform duration-150 ease-out active:scale-[0.96]"
@@ -264,7 +279,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
         {t("open_file.choose")}
       </Button>
       {config.paths.length === 0 ? (
-        <p className="rounded-md bg-[var(--color-control-hover)] p-3 text-xs text-[var(--color-muted)]">
+        <p className="k-caption rounded-md bg-[var(--color-surface-hover)] p-3">
           {t("open_file.empty")}
         </p>
       ) : (
@@ -272,7 +287,7 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
           {config.paths.map((path) => (
             <li
               key={path}
-              className="flex min-w-0 items-center gap-2 rounded-md bg-[var(--color-control-hover)] p-2"
+              className="flex min-w-0 items-center gap-2 rounded-md bg-[var(--color-surface-hover)] p-2"
             >
               <FileText className="size-4 shrink-0" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-xs" title={path}>
@@ -297,43 +312,41 @@ function OpenFileConfig({ config, patch }: KConf<"open_file">) {
 }
 
 function WatermarkConfig({ config, patch }: KConf<"watermark">) {
+  const { t } = useTranslation("pipeline");
   // The Watermark NodeKind on the Rust side is still the simplified
   // {text, opacity} pair until the font picker lands (Phase 17). The
   // full WatermarkOptions surface lives in src/components/tools/options
   // /WatermarkOptions.tsx and is ready to wire when the executor's
   // Unimplemented sentinel is replaced with a real run path.
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <p className="rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
-        Watermark execution is unimplemented in the executor (awaits the Watermark tool font picker
-        so we do not silently fall back to Standard 14). The node persists in the graph; running it
-        surfaces a clear error.
-      </p>
-      <label className="block">
-        Text:
+    <div className="space-y-3 text-sm">
+      <div className="k-alert k-alert--warning">
+        <span className="k-mark k-mark--error k-alert-icon" aria-hidden="true" />
+        <p className="k-alert-body">{t("watermark_note")}</p>
+      </div>
+      <label className="k-field-block">
+        <span className="k-label">{t("watermark_text")}</span>
         <Input
           type="text"
           value={config.text}
           onChange={(e) => patch({ ...config, text: e.target.value })}
         />
       </label>
-      <label className="block">
-        Opacity ({Math.round(config.opacity * 100)}%):
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={config.opacity}
-          onChange={(e) => patch({ ...config, opacity: Number(e.target.value) })}
-          className="ml-2 w-32 align-middle"
-        />
-      </label>
+      <SliderField
+        label={t("watermark_opacity")}
+        value={Math.round(config.opacity * 100)}
+        min={0}
+        max={100}
+        step={5}
+        unit="%"
+        onChange={(v) => patch({ ...config, opacity: v / 100 })}
+      />
     </div>
   );
 }
 
 function SaveConfig({ config, patch }: KConf<"save">) {
+  const { t } = useTranslation("pipeline");
   async function pickDir() {
     const dir = await open({ directory: true, multiple: false });
     if (dir && !Array.isArray(dir)) {
@@ -341,32 +354,30 @@ function SaveConfig({ config, patch }: KConf<"save">) {
     }
   }
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <label className="block">
-        Output directory:
-        <div className="mt-1 flex gap-2">
+    <div className="space-y-3 text-sm">
+      <label className="k-field-block">
+        <span className="k-label">{t("save_dir")}</span>
+        <div className="flex gap-2">
           <Input
             type="text"
             value={config.dir}
             onChange={(e) => patch({ ...config, dir: e.target.value })}
-            placeholder="C:\\out"
+            placeholder={t("save_dir_placeholder")}
           />
           <Button variant="outline" size="sm" onClick={pickDir}>
-            Browse
+            {t("common:browse")}
           </Button>
         </div>
       </label>
-      <label className="block">
-        Name template:
+      <label className="k-field-block">
+        <span className="k-label">{t("save_template")}</span>
         <Input
           type="text"
           value={config.name_template}
           onChange={(e) => patch({ ...config, name_template: e.target.value })}
           placeholder="{stem}_{date}.pdf"
         />
-        <p className="mt-1 text-xs text-[var(--color-muted)]">
-          Variables: {"{stem}"}, {"{i}"}, {"{date}"}, {"{tool}"}, {"{ext}"}.
-        </p>
+        <span className="k-caption">{t("save_variables")}</span>
       </label>
     </div>
   );

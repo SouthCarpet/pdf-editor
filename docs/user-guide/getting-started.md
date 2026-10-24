@@ -26,6 +26,11 @@ The app walks you through a short onboarding tour highlighting the dashboard, fi
 
 The header has four tabs: Tools, Projects, Pipeline and Settings (last). The sun and moon switch changes between Light and Dark; Settings > Appearance also has System. **Ctrl+comma** opens Settings. The help panel (**F1**) has a search field, short topics and the list of all keyboard shortcuts.
 
+## Projects and Pipeline
+
+- **Projects** lists your projects in a table with the name, the description and the date of the last change. Open a project to rename it, add or remove PDF files, attach pipeline presets, export it or import another one. **Delete** asks first and shows how many files and presets the project holds. The PDF files on disk are never deleted.
+- **Pipeline** is the step graph. Add steps from the list on the left, connect them from top to bottom and select a step to change its settings. **Run** opens a window where you choose files or a folder. Each file shows a mark and a word (Queued, Running, Done, Failed). A warning in the window names the steps that can remove parts of the PDF, such as the text layer or form fields. **Copy output path** copies the path of the first output file.
+
 ## Where files go
 
 - Output files default to the same folder as the input (or to your chosen "Save As" location).

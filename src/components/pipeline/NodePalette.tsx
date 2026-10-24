@@ -1,7 +1,8 @@
-// Phase 14 Task 75: Pipeline NodePalette.
+// Phase 14 Task 75: Pipeline NodePalette, Kaliber r4 (plan 119 K3b).
 //
 // Left sidebar with one row per registered NodeKind grouped by category.
 // Click "Add" to insert a default-config node into the canvas.
+// The palette is a muted side list on the sheet: small labels, ghost rows.
 import { Button } from "@/components/ui/button";
 import { NODE_KINDS, type NodeKindMeta } from "@/pipeline/nodeKinds";
 import { translateNodeLabel } from "@/pipeline/nodeLabels";
@@ -30,16 +31,14 @@ export function NodePalette({ onAdd }: Props) {
   const { t } = useTranslation("pipeline");
 
   return (
-    <div className="flex h-full flex-col gap-3 overflow-y-auto border-r border-[var(--color-border)] bg-[var(--color-card)] p-3">
-      <h2 className="text-sm font-semibold">{t("node_palette")}</h2>
+    <div className="flex h-full flex-col gap-4 overflow-y-auto border-r border-[var(--color-border)] bg-[var(--color-surface-raised)] p-3">
+      <h2 className="k-label">{t("node_palette")}</h2>
       {ORDER.map((cat) => {
         const items = NODE_KINDS.filter((k) => k.category === cat);
         if (items.length === 0) return null;
         return (
           <div key={cat} className="space-y-1">
-            <h3 className="text-xs tracking-wide text-[var(--color-muted)] uppercase">
-              {groupLabel(t, cat)}
-            </h3>
+            <h3 className="k-caption">{groupLabel(t, cat)}</h3>
             {items.map((k) => (
               <Button
                 key={k.key}
