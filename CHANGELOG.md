@@ -84,7 +84,17 @@
 - The dark theme background and surfaces are darker, from the shared Kaliber tokens.
 
 - Password recovery uses Kaliber choices, inputs, estimate and result marks, and a flat form layout. The legal warning uses the shared keyboard-accessible dialog.
-
+- Kaliber r4, step two: the shell and Settings. The header has four tabs
+  (Tools, Projects, Pipeline, Settings last) and a sun and moon switch for
+  Light and Dark. The footer has a Help link. F1 opens a help panel with
+  search, topics, all keyboard shortcuts and "Show tour again". Ctrl+comma
+  opens Settings. A found update shows as a quiet "Update available" line in
+  the header, not as a dot. Settings has Appearance (theme as Light, Dark,
+  System; language), Saving and opening, OCR languages, Updates and About
+  (last). About lists the licences of the app, Fira Sans and the OCR parts.
+  The buttons, fields, dialogs, menus, toasts and the unsaved-changes dialog
+  use the Kaliber controls. The theme has one saved copy only (`kaliber-theme`);
+  the old `theme` field in the app store is gone.
 - Rust code stays under cognitive complexity 12. `src-tauri/.clippy.toml`
   sets `cognitive-complexity-threshold = 12`. Long functions in the
   pipeline executor, OCR, optimize, export and sidecar code are split into

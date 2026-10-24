@@ -5,64 +5,22 @@
 //   1. welcome
 //   2. tool tiles (find one via the `tool-tile-merge` class hook in
 //      ToolTile.tsx)
-//   3. settings button (via the data-onboard="settings" hook in
+//   3. settings tab (via the data-onboard="settings" hook in
 //      TopBar.tsx)
 //   4. drag-PDFs-onto-any-tool hint
 //
 // After completion the `onboarded` localStorage flag is set so the
-// tour never auto-replays. (A Settings entry can clear it for a
-// manual re-run.)
+// tour never auto-replays. Kaliber r4: "Show tour again" in the help panel
+// (F1) runs the same tour (see shell/tour.ts).
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import introJs from "intro.js";
-import "intro.js/introjs.css";
+import { ONBOARDED_KEY, runTour, TOUR_START_DELAY_MS } from "./shell/tour";
 
 export function Onboarding() {
   const { t } = useTranslation("common");
   useEffect(() => {
-    if (localStorage.getItem("onboarded") === "1") return;
-    // The tiles + settings button mount on the Dashboard / TopBar
-    // routes; wait a frame so they're in the DOM before introJs scans
-    // for them.
-    const handle = setTimeout(() => {
-      try {
-        introJs()
-          .setOptions({
-            showProgress: true,
-            showBullets: false,
-            scrollToElement: true,
-            prevLabel: t("onboarding.back"),
-            nextLabel: t("onboarding.next"),
-            doneLabel: t("onboarding.done"),
-            steps: [
-              {
-                intro: t("onboarding.welcome"),
-              },
-              {
-                element: ".tool-tile-merge",
-                intro: t("onboarding.tools"),
-              },
-              {
-                element: "[data-onboard='settings']",
-                intro: t("onboarding.settings"),
-              },
-              {
-                intro: t("onboarding.drag_tip"),
-              },
-            ],
-          })
-          .oncomplete(() => {
-            localStorage.setItem("onboarded", "1");
-          })
-          .onexit(() => {
-            localStorage.setItem("onboarded", "1");
-          })
-          .start();
-      } catch {
-        // The tour is a convenience; never block the app on it.
-        localStorage.setItem("onboarded", "1");
-      }
-    }, 350);
+    if (localStorage.getItem(ONBOARDED_KEY) === "1") return;
+    const handle = setTimeout(() => runTour(t), TOUR_START_DELAY_MS);
     return () => clearTimeout(handle);
   }, [t]);
   return null;

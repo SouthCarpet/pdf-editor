@@ -153,13 +153,13 @@ export function CloseGuardDialog() {
           <DialogDescription>{t("close_guard.description", { names })}</DialogDescription>
         </DialogHeader>
         {hint ? (
-          <p className="text-sm text-muted-foreground">{t("close_guard.text_draft_hint")}</p>
+          <p className="k-caption">{t("close_guard.text_draft_hint")}</p>
         ) : null}
         <DialogFooter>
           <Button variant="ghost" onClick={dismiss} disabled={busy}>
             {t("close_guard.cancel")}
           </Button>
-          <Button variant="outline" onClick={() => void onDiscard()} disabled={busy}>
+          <Button variant="destructive" onClick={() => void onDiscard()} disabled={busy}>
             {t("close_guard.discard")}
           </Button>
           <Button onClick={() => void onSave()} disabled={busy}>

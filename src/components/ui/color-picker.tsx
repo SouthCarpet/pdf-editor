@@ -33,13 +33,13 @@ export function ColorPicker({
   return (
     <div className="flex items-center gap-2">
       {label && (
-        <span className="text-xs text-[var(--color-muted)]">{label}</span>
+        <span className="text-xs text-[var(--color-text-muted)]">{label}</span>
       )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="h-7 w-10 rounded border border-[var(--color-border)] shadow-sm"
+            className="h-7 w-10 rounded-[var(--radius-md)] border border-[var(--color-border-strong)]"
             style={{
               background:
                 value === "transparent"
@@ -59,7 +59,7 @@ export function ColorPicker({
             color={value === "transparent" ? "#000000" : value}
             onChange={(c) => handleCommit(c)}
             prefixed
-            className="block w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] p-1 text-sm"
+            className="k-input block w-full border-[var(--color-border-strong)]"
           />
           {recents.length > 0 && (
             <div className="flex flex-wrap gap-1">
@@ -68,7 +68,7 @@ export function ColorPicker({
                   key={c}
                   type="button"
                   onClick={() => handleCommit(c)}
-                  className="h-5 w-5 rounded border border-[var(--color-border)]"
+                  className="h-5 w-5 rounded-[var(--radius-sm)] border border-[var(--color-border-strong)]"
                   style={{ background: c }}
                   aria-label={`Use ${c}`}
                 />
@@ -79,7 +79,7 @@ export function ColorPicker({
             <button
               type="button"
               onClick={() => onChange("transparent")}
-              className="block w-full rounded border border-[var(--color-border)] p-1 text-xs hover:bg-[var(--color-control-hover)]"
+              className="k-btn k-btn-secondary border-[var(--color-border-strong)] text-xs"
             >
               No fill (transparent)
             </button>

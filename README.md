@@ -75,17 +75,19 @@ Data paths, registry keys and the payload list:
 
 ## Update check
 
-Settings > About shows the release version and commit of the build. The
-**Check GitHub for new versions** option is off by default and is stored in
+Settings > About shows the release version and commit of the build and lists
+the licences of the app, Fira Sans and the OCR parts. Settings > Updates holds
+the **Check GitHub for new versions** option. It is off by default and is stored in
 `settings.json` (`update_check_enabled`). When it is on, the app asks
 `https://api.github.com/repos/SouthCarpet/pdf-editor/releases/latest` for the
-latest release at app start (silent: a dot on the Settings button when a
-newer version exists), when About opens and after **Check now**. When it is
+latest release at app start (silent: a quiet **Update available** line in the
+header when a newer version exists), when Settings opens and after **Check now**
+(in About). When it is
 off, no request leaves the machine. Only a stable `vX.Y.Z` release that is
 newer than the running version counts. A connection error shows as its own
 status, not as "latest version". The check downloads nothing.
 
-When a newer release exists, About shows **Update to X.Y.Z**. A click asks
+When a newer release exists, Settings > Updates shows **Update to X.Y.Z**. A click asks
 about unsaved work first, then downloads `pdf-editor-setup-X.Y.Z.exe` and
 `SHA256SUMS.txt` from that release into a new folder
 `%TEMP%\pdf-editor-update-<random>\`. The app keeps `%TEMP%` and that folder
@@ -113,6 +115,12 @@ The face is Fira Sans (SIL Open Font License 1.1, text in
 `resources\licenses\FiraSans-OFL.txt`). Colours and type come from the shared
 Kaliber r4 tokens. `src/styles/tokens.css` and `src/styles/kaliber.css` are byte
 copies from the design tree: do not edit them by hand (see `docs/stack.md`).
+
+The shell follows the Kaliber app shell: four header tabs (Tools, Projects,
+Pipeline, Settings last), the sun and moon switch for Light and Dark in the
+header (Settings > Appearance also has System), and a footer with **Help**.
+**F1** opens the help panel (search, topics, all keyboard shortcuts and **Show
+tour again**). **Ctrl+comma** opens Settings.
 
 ## Build
 

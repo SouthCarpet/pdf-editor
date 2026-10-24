@@ -75,3 +75,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 }
 
 export const useTheme = () => useContext(ThemeCtx);
+
+/** The theme on screen now: "system" resolved through the OS setting. */
+export function useResolvedTheme(): "light" | "dark" {
+  const { theme } = useTheme();
+  const [systemDark, setSystemDark] = useState(() => resolveTheme("system") === "dark");
+
+  useEffect(() => {
+    if (theme !== "system") return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const sync = () => setSystemDark(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, [theme]);
+
+  if (theme !== "system") return theme;
+  return systemDark ? "dark" : "light";
+}

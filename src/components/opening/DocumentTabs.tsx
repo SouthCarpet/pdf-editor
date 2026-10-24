@@ -61,7 +61,7 @@ export function DocumentTabs() {
   return (
     <nav
       aria-label={t("opening.open_documents")}
-      className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-card)] px-2"
+      className="flex h-9 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2"
     >
       {documents.map((document) => (
         <DocumentTabItem
@@ -76,6 +76,9 @@ export function DocumentTabs() {
   );
 }
 
+/** One open document. The active tab follows the Kaliber tab: the selected
+ * fill, bold text and a square accent mark. The mark slot is always there,
+ * so a selection never moves a name. */
 function DocumentTabItem({
   document,
   active,
@@ -93,30 +96,34 @@ function DocumentTabItem({
 
   return (
     <div
-      className={`flex h-8 max-w-56 shrink-0 items-center rounded-t-md border border-b-0 ${
+      className={`flex h-8 max-w-56 shrink-0 items-center rounded-t-[var(--radius-sm)] ${
         active
-          ? "border-[var(--color-border)] bg-[var(--color-background)]"
-          : "border-transparent text-[var(--color-muted)] hover:bg-[var(--color-control-hover)]"
+          ? "bg-[var(--color-surface-selected)] font-bold text-[var(--color-text)]"
+          : "text-[var(--color-text-muted)] hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]"
       }`}
     >
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 text-sm"
+        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 text-sm"
         title={document.path}
         onClick={onActivate}
       >
+        <span
+          aria-hidden="true"
+          className={`h-1.5 w-1.5 shrink-0 ${active ? "bg-[var(--color-accent)]" : "bg-transparent"}`}
+        />
         <FileText className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate">{name}</span>
         {dirty && (
           <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-foreground)]"
+            className="h-1.5 w-1.5 shrink-0 bg-[var(--color-text)]"
             aria-label={t("opening.unsaved_changes")}
           />
         )}
       </button>
       <button
         type="button"
-        className="mr-1 rounded p-1 hover:bg-[var(--color-control-active)]"
+        className="k-x-btn mr-1"
         aria-label={t("opening.close_document", { name })}
         onClick={onClose}
       >

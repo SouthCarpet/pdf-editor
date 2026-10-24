@@ -1,7 +1,6 @@
 {
   "app_name": "PDF Editor",
   "back": "Back",
-  "home": "Home",
   "browse": "Browse",
   "open": "Open",
   "save": "Save",
@@ -17,13 +16,42 @@
   "running": "Running",
   "loading": "Loading",
   "settings": "Settings",
-  "settings_update_available": "Settings (a new version is available)",
   "language": "Language",
   "theme": {
     "label": "Theme",
     "light": "Light",
     "dark": "Dark",
     "system": "System"
+  },
+  "shell": {
+    "sections": "Sections of PDF Editor",
+    "tools_tab": "Tools",
+    "projects_tab": "Projects",
+    "pipeline_tab": "Pipeline",
+    "dark_theme": "Dark theme",
+    "update_available": "Update available",
+    "footer_hint": "F1 opens Help. Ctrl+comma opens Settings.",
+    "footer_nav": "Footer of PDF Editor",
+    "help": {
+      "link": "Help",
+      "title": "Help",
+      "close": "Close help",
+      "search": "Search help",
+      "none": "No topic matches. Try another word.",
+      "show_tour": "Show tour again",
+      "app_keys": "F1 opens this panel. Ctrl+comma opens Settings. Escape closes this panel.",
+      "open_title": "Open a PDF",
+      "open_body": "Drop PDFs anywhere in the app, or use Browse on the Projects page. Each PDF opens in its own tab.",
+      "tools_title": "Use a tool",
+      "tools_body": "Choose a tile on the Tools page. Every tool runs on your computer.",
+      "save_title": "Save and close",
+      "save_body": "Press Ctrl+S to save. When a document has unsaved changes, PDF Editor asks before it closes the tab.",
+      "theme_title": "Change the theme",
+      "theme_body": "The sun and moon switch in the header changes between Light and Dark. Settings, Appearance also has System.",
+      "update_title": "Check for updates",
+      "update_body": "PDF Editor looks for a new version only after you allow it in Settings, About. A new version then shows as Update available in the header.",
+      "shortcuts_title": "Keyboard shortcuts"
+    }
   },
   "opening": {
     "drop_title": "Drop PDFs to open",

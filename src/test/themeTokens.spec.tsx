@@ -22,13 +22,13 @@ describe("dark theme token coverage", () => {
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Browse" })).toHaveClass(
-      "bg-[var(--color-control)]",
-      "text-[var(--color-control-foreground)]",
-    );
+    // Kaliber r4 (plan 119 K2): the shared controls take their colours from
+    // the `.k-*` classes, which read the theme tokens; they carry no colour
+    // class of their own.
+    expect(screen.getByRole("button", { name: "Browse" })).toHaveClass("k-btn", "k-btn-secondary");
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveClass(
-      "bg-[var(--color-control)]",
-      "placeholder:text-[var(--color-placeholder)]",
+      "k-input",
+      "placeholder:text-[var(--color-text-muted)]",
     );
     // Located by test id, not by copy: this test is about theme tokens, and
     // it broke the moment the placeholder went through t() (plan 029), which
@@ -45,7 +45,7 @@ describe("dark theme token coverage", () => {
     render(<GeneralSettings />);
 
     for (const select of screen.getAllByRole("combobox")) {
-      expect(select.className).toContain("var(--color-");
+      expect(select.className).toContain("k-select");
       expect(select.className).not.toMatch(/\bbg-white\b|\btext-black\b/);
     }
   });
