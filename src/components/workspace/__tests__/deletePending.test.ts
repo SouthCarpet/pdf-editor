@@ -10,7 +10,7 @@ import { EMPTY_FILLED_FIELDS, markFieldFilled } from "../filledFieldsState";
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 
-const DOC_PATH = "A:\\scans\\hodiny.pdf";
+const DOC_PATH = "A:\\scans\\timesheet-scan.pdf";
 const PAGE_KEY = `${DOC_PATH}\u00000`;
 
 function freeText(): FreeText {

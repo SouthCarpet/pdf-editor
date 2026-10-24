@@ -29,8 +29,8 @@ import { useWorkspace } from "@/stores/workspaceStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 
 const SEPARATOR = String.fromCharCode(92);
-const DOC_PATH = ["A:", "scans", "hodiny.pdf"].join(SEPARATOR);
-const OCR_OUT = ["A:", "scans", "hodiny.ocr.pdf"].join(SEPARATOR);
+const DOC_PATH = ["A:", "scans", "timesheet-scan.pdf"].join(SEPARATOR);
+const OCR_OUT = ["A:", "scans", "timesheet-scan.ocr.pdf"].join(SEPARATOR);
 
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
@@ -150,7 +150,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
           ? [
               {
                 page: 0,
-                text: "hodiny",
+                text: "timesheet-scan",
                 bbox: [0, 0, 10, 10],
                 operator_index: 0,
                 font: "Helvetica",
@@ -183,7 +183,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
     // opening on its own. Wait for that detection to resolve, then assert
     // the store never flipped - this is the exact defect Michal reported
     // (the prompt appeared every time, unconditionally).
-    await screen.findAllByText(/hodiny\.pdf/);
+    await screen.findAllByText(/timesheet-scan\.pdf/);
     await waitFor(() => expect(commandFakes.detectScannedPdf).toHaveBeenCalledWith(DOC_PATH));
     expect(useWorkspace.getState().ocrPromptOpen).toBe(false);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -214,7 +214,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
 
     // The scanned tab is replaced by the OCR output tab.
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    await screen.findAllByText(/hodiny\.ocr\.pdf/);
+    await screen.findAllByText(/timesheet-scan\.ocr\.pdf/);
     expect(useDocuments.getState().documents.has(DOC_PATH)).toBe(false);
     expect(useDocuments.getState().documents.has(OCR_OUT)).toBe(true);
     expect(useDocuments.getState().activeDocId).toBe(OCR_OUT);
@@ -235,7 +235,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
 
     // The toast names the output file.
     const toast = screen.getByRole("status");
-    expect(within(toast).getByText(/hodiny\.ocr\.pdf/)).toBeInTheDocument();
+    expect(within(toast).getByText(/timesheet-scan\.ocr\.pdf/)).toBeInTheDocument();
   });
 
   it("asks before swapping when the original has unsaved work, and cancelling keeps it open (R2)", async () => {
@@ -255,7 +255,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
     await user.click(within(dialog).getByRole("button", { name: "Spustiť OCR" }));
 
     const guard = await screen.findByRole("dialog");
-    expect(within(guard).getByText(/hodiny\.pdf/)).toBeInTheDocument();
+    expect(within(guard).getByText(/timesheet-scan\.pdf/)).toBeInTheDocument();
     // Nothing swapped yet while the guard is up.
     expect(useDocuments.getState().documents.has(DOC_PATH)).toBe(true);
     expect(commandFakes.openDocument.mock.calls.some(([p]) => p === OCR_OUT)).toBe(false);

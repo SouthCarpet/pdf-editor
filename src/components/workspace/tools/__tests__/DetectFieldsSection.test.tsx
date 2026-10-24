@@ -23,8 +23,8 @@ import { useWorkspace } from "@/stores/workspaceStore";
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 
 const SEPARATOR = String.fromCharCode(92);
-const DOC_PATH = ["A:", "scans", "hodiny.pdf"].join(SEPARATOR);
-const OUTPUT_PATH = ["A:", "scans", "hodiny.filled.pdf"].join(SEPARATOR);
+const DOC_PATH = ["A:", "scans", "timesheet-scan.pdf"].join(SEPARATOR);
+const OUTPUT_PATH = ["A:", "scans", "timesheet-scan.filled.pdf"].join(SEPARATOR);
 
 const BOX_FIELD: DetectedFormField = {
   id: "0:0",

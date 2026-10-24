@@ -5,7 +5,7 @@ import { useAnnotations } from "@/stores/annotationsStore";
 import { selectAdjacentField, selectDetectedField } from "../fieldNavigation";
 import { EMPTY_FILLED_FIELDS, markFieldFilled } from "../filledFieldsState";
 
-const DOC_PATH = "A:\\scans\\hodiny.pdf";
+const DOC_PATH = "A:\\scans\\timesheet-scan.pdf";
 const PAGE_KEY = `${DOC_PATH}\u00000`;
 
 function field(id: string, x: number): DetectedFormField {

@@ -1,11 +1,12 @@
-// Plan 050 task D2: scanned form field detection on the real sample.
+// Plan 050 task D2: scanned form field detection on the synthetic scan.
 //
 // The ADR `.vault/process/plans/plan_v1_scanned_form_field_detection.md`
 // section "Verification plan for D2-impl" lists what "verified on
-// hodiny.pdf" means. Every bullet there has an assertion here.
+// timesheet-scan.pdf" means. Every bullet there has an assertion here.
 //
-// hodiny.pdf is a Genius Scan JPEG-only PDF: one page, no text layer, no
-// AcroForm, MediaBox [0 0 595.44 841.91519], no /Rotate, no /CropBox.
+// timesheet-scan.pdf is a generated 1-bit image-only PDF: one page,
+// no text layer or AcroForm, MediaBox [0 0 595.44 841.91519],
+// rotation 0, no /CropBox.
 //
 // Gated behind `sidecar-tests` like the other tests that need a real
 // binary: detection renders the page through the mutool sidecar.
@@ -20,34 +21,29 @@ use pdf_editor_lib::sidecars::mupdf::MupdfWrapper;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-const HODINY: &str = "tests/fixtures/pdfs/hodiny.pdf";
+const TIMESHEET: &str = "tests/fixtures/pdfs/timesheet-scan.pdf";
 const DPI: u32 = 150;
 const PAGE_WIDTH_PT: f32 = 595.44;
 const PAGE_HEIGHT_PT: f32 = 841.915_19;
 
-// Locked after plan 119 p1 (debug note 051): 151 fields, all boxes, on a
-// 1241x1754 raster (2026-10-12). The earlier lock (327 fields: 170 box and
-// 157 underline, 2026-08-29) counted every table border a second time as an
-// underline inside the cell its box already covered, and kept 19 label
-// cells (Name:, KW:, the column headers, the day names, the logo). hodiny.pdf
-// has no free-standing line to write on ("Datum von:" and "Bis:" have none),
-// so zero underlines is the correct count. The +/-10% band allows minor
-// raster/toolchain drift; a field per cell border would leave it at once.
-const MIN_FIELDS: usize = 136;
-const MAX_FIELDS: usize = 166;
-// "Unterschrift Bauleiter:" has a label and a wide free stretch to sign in.
-const SIGNATURE_CELL_PT: [f32; 4] = [52.8, 159.4, 342.7, 179.0];
-// "KW:" is a label cell with no room to write.
-const KW_LABEL_CELL_PT: [f32; 4] = [52.8, 643.7, 94.0, 676.3];
+// Synthetic grid: 35 empty value cells plus one signature cell.
+// The +/-10% band allows minor raster/toolchain drift, but rejects a
+// duplicate underline for every table border.
+const MIN_FIELDS: usize = 32;
+const MAX_FIELDS: usize = 40;
+// "Sign:" leaves a wide free stretch to type in.
+const SIGNATURE_CELL_PT: [f32; 4] = [53.0, 160.0, 344.0, 180.0];
+// "Day" fills a narrow label cell.
+const DAY_LABEL_CELL_PT: [f32; 4] = [53.0, 644.0, 94.0, 664.0];
 const FIRST_MO_ROW_BOTTOM_PT: f32 = 624.0;
-const FIRST_MO_ROW_TOP_PT: f32 = 642.0;
+const FIRST_MO_ROW_TOP_PT: f32 = 644.0;
 const COLUMN_POSITION_TOLERANCE_PT: f32 = 0.5;
 
 async fn detect() -> DetectionAnalysis {
     let mupdf = MupdfWrapper::new(SidecarManager::new(2));
-    detect_scanned_form_fields(&mupdf, Path::new(HODINY), 0, DPI)
+    detect_scanned_form_fields(&mupdf, Path::new(TIMESHEET), 0, DPI)
         .await
-        .expect("detection runs on hodiny.pdf")
+        .expect("detection runs on timesheet-scan.pdf")
 }
 
 #[tokio::test]
@@ -55,7 +51,7 @@ async fn detect() -> DetectionAnalysis {
     not(feature = "sidecar-tests"),
     ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
 )]
-async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
+async fn timesheet_yields_one_box_per_cell_inside_the_locked_band() {
     let analysis = detect().await;
     let boxes = analysis
         .fields
@@ -68,7 +64,7 @@ async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
         .filter(|field| field.kind == DetectedFieldKind::Underline)
         .count();
     println!(
-        "hodiny.pdf: {} fields ({boxes} boxes, {underlines} underlines), raster {}x{}",
+        "timesheet-scan.pdf: {} fields ({boxes} boxes, {underlines} underlines), raster {}x{}",
         analysis.fields.len(),
         analysis.raster_width,
         analysis.raster_height
@@ -82,7 +78,7 @@ async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
         .map(|field| field.rect)
         .collect();
     first_mo_row_rects.sort_by(|left, right| left[0].total_cmp(&right[0]));
-    println!("hodiny first Mo row fields sorted by x: {first_mo_row_rects:#?}");
+    println!("timesheet-scan first Mo row fields sorted by x: {first_mo_row_rects:#?}");
 
     assert!(boxes >= 1, "the sample has visible empty boxes");
     assert_eq!(
@@ -107,8 +103,8 @@ async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
         !analysis
             .fields
             .iter()
-            .any(|field| covers(field.rect, KW_LABEL_CELL_PT)),
-        "the KW: label cell is not a field"
+            .any(|field| covers(field.rect, DAY_LABEL_CELL_PT)),
+        "the Day label cell is not a field"
     );
 
     assert_eq!(
@@ -125,15 +121,13 @@ async fn hodiny_yields_one_box_per_cell_inside_the_locked_band() {
          {first_mo_row_rects:?}"
     );
 
-    // Oracle: the five column boundaries measured from the locked fixture's
-    // first Mo row, allowing roughly one 150-DPI pixel. They are the same
-    // columns the 2026-08-29 lock measured on the duplicate underlines.
+    // Column interiors measured from the generated scan at 150 DPI.
     let expected_x_ranges = [
-        [97.400_74, 153.058_3],
-        [156.416_95, 214.473_56],
-        [217.832_2, 273.489_78],
-        [276.368_6, 342.581_9],
-        [345.460_75, 522.989_2],
+        [94.5, 153.5],
+        [154.5, 213.5],
+        [214.5, 273.5],
+        [274.5, 343.5],
+        [344.5, 523.5],
     ];
     for (actual, expected) in first_mo_row_rects.iter().zip(expected_x_ranges) {
         assert!(
@@ -193,7 +187,7 @@ async fn accepted_candidates_satisfy_every_filter() {
 )]
 async fn every_rect_is_inside_the_mediabox_and_matches_the_naive_mapping() {
     let analysis = detect().await;
-    // hodiny.pdf has origin 0 and rotation 0, so the general mapping must
+    // timesheet-scan.pdf has origin 0 and rotation 0, so the general mapping must
     // still agree with `pixel / (dpi / 72)` here. The only difference
     // allowed is the sub-pixel rounding mutool applies when it sizes the
     // raster.
@@ -260,9 +254,10 @@ async fn filling_two_cells_writes_rects_inside_the_detected_fields() {
     let (first, second) = (cells[0], cells[1]);
 
     let tmp = TempDir::new().unwrap();
-    let output: PathBuf = tmp.path().join("hodiny.filled.pdf");
+    let output: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
     let annotations = vec![free_text(first, "07:00"), free_text(second, "15:30")];
-    apply_annotations(Path::new(HODINY), &output, &annotations).expect("fill the detected fields");
+    apply_annotations(Path::new(TIMESHEET), &output, &annotations)
+        .expect("fill the detected fields");
 
     let written = annotation_rects(&output);
     assert_eq!(written.len(), 2, "one FreeText per filled field");
@@ -288,10 +283,14 @@ async fn a_second_save_over_the_saved_copy_keeps_the_first_values() {
     let analysis = detect().await;
     let cells = first_mo_row(&analysis.fields);
     let tmp = TempDir::new().unwrap();
-    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
 
-    apply_annotations(Path::new(HODINY), &saved, &[free_text(cells[0], "07:00")])
-        .expect("first save");
+    apply_annotations(
+        Path::new(TIMESHEET),
+        &saved,
+        &[free_text(cells[0], "07:00")],
+    )
+    .expect("first save");
     apply_annotations(&saved, &saved, &[free_text(cells[1], "Štúrovo č. 5")])
         .expect("second save over the saved copy");
 
@@ -312,10 +311,15 @@ async fn editing_a_saved_value_replaces_it() {
     let analysis = detect().await;
     let cell = first_mo_row(&analysis.fields)[0];
     let tmp = TempDir::new().unwrap();
-    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
 
-    let written = save_annotations(Path::new(HODINY), &saved, &[free_text(cell, "07:00")], &[])
-        .expect("first save");
+    let written = save_annotations(
+        Path::new(TIMESHEET),
+        &saved,
+        &[free_text(cell, "07:00")],
+        &[],
+    )
+    .expect("first save");
     let old = written[0].expect("the value was written");
     save_annotations(&saved, &saved, &[free_text(cell, "08:30")], &[old])
         .expect("save the edited value");
@@ -338,8 +342,8 @@ async fn a_saved_copy_with_values_yields_the_same_fields() {
         .map(|cell| free_text(cell, "Štúrovo námestie č. 5, Ľubica"))
         .collect();
     let tmp = TempDir::new().unwrap();
-    let saved: PathBuf = tmp.path().join("hodiny.filled.pdf");
-    apply_annotations(Path::new(HODINY), &saved, &values).expect("save the values");
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
+    apply_annotations(Path::new(TIMESHEET), &saved, &values).expect("save the values");
 
     let mupdf = MupdfWrapper::new(SidecarManager::new(2));
     let reopened = detect_scanned_form_fields(&mupdf, &saved, 0, DPI)
@@ -361,9 +365,8 @@ fn first_mo_row(fields: &[DetectedFormField]) -> Vec<&DetectedFormField> {
     row
 }
 
-// Plan 119 p1 (debug note 051): the owner saw two fields inside one visible
-// cell of hodiny.pdf. Two fields that share half of the smaller one's area
-// are two fields in one cell.
+// Regression for duplicate box/underline candidates in one visible cell.
+// The synthetic scan keeps table borders that exercise both candidates.
 #[tokio::test]
 #[cfg_attr(
     not(feature = "sidecar-tests"),

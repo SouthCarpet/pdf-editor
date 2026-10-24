@@ -94,6 +94,11 @@ blob.
 - **Visual C++ runtime:** the sidecar DLL set carries its own
   `vcruntime140*.dll` and `msvcp140*.dll` in `{app}\sidecars\`.
 
+Third-party licence inventory: [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
+The inventory is repository documentation; it adds no installer payload files.
+The payload already includes the two OCR licence texts listed above. DLL
+entries marked "unknown, to check" still need review before binary distribution.
+
 ## Per-user setup (`packaging/pdf-editor.iss`)
 
 | Item | Value |

@@ -19,7 +19,7 @@ import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 
 const SEPARATOR = String.fromCharCode(92);
-const DOC_PATH = ["A:", "scans", "hodiny.pdf"].join(SEPARATOR);
+const DOC_PATH = ["A:", "scans", "timesheet-scan.pdf"].join(SEPARATOR);
 
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
@@ -38,7 +38,7 @@ vi.mock("@/bindings", () => ({
 }));
 
 // The real hook needs the pdf.js worker, which jsdom has no use for. The stub
-// keeps the page count of hodiny.pdf (1 page).
+// keeps the page count of timesheet-scan.pdf (1 page).
 vi.mock("@/hooks/usePdfDocument", () => ({
   usePdfDocument: (path: string | null) =>
     path
@@ -73,7 +73,7 @@ async function renderAndCollectErrors() {
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     renderWorkspace();
-    await screen.findAllByText(/hodiny\.pdf/);
+    await screen.findAllByText(/timesheet-scan\.pdf/);
     const messages = consoleError.mock.calls.map((call) =>
       call.map(String).join(" "),
     );
@@ -143,7 +143,7 @@ describe("workspace route for a scanned PDF", () => {
     useWorkspace.setState({ editSubTool: "forms" });
     const looped = await renderAndCollectErrors();
     expect(looped).toBe(false);
-    expect(screen.getByText(/hodiny\.pdf/)).toBeInTheDocument();
+    expect(screen.getByText(/timesheet-scan\.pdf/)).toBeInTheDocument();
   });
 
   it("stays stable with two tabs of the same file", async () => {

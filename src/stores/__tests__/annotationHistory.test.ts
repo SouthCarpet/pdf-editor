@@ -11,7 +11,7 @@ import { historyStore } from "../historyStore";
 type FreeText = Extract<Annotation, { type: "free_text" }>;
 type Stamp = Extract<Annotation, { type: "stamp" }>;
 
-const DOC_PATH = "A:\\scans\\hodiny.pdf";
+const DOC_PATH = "A:\\scans\\timesheet-scan.pdf";
 
 function freeText(overrides: Partial<FreeText> = {}): FreeText {
   return {
