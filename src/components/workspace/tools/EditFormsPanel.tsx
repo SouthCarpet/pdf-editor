@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type RefObject,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type DetectedFormField, type FormField } from "@/bindings";
@@ -35,6 +42,8 @@ interface FieldState {
   fields: FormField[] | null;
 }
 
+const noop = () => {};
+
 export function EditFormsPanel({
   docPath,
   onSelectPage,
@@ -44,9 +53,52 @@ export function EditFormsPanel({
   pageSize,
 }: Props) {
   const fallbackAutoDetectHandledRef = useRef(0);
-  const resolvedAutoDetectHandledRef = autoDetectHandledRef ?? fallbackAutoDetectHandledRef;
   const { t } = useTranslation("workspace");
   const activePage = useWorkspace((state) => state.activePage);
+  const form = useFormPanelState(docPath);
+  const detect = {
+    docPath,
+    pageIndex: activePage,
+    fields: detectedFields,
+    onDetected: onDetectedFields ?? noop,
+    autoDetectHandledRef: autoDetectHandledRef ?? fallbackAutoDetectHandledRef,
+    pageSize,
+  };
+
+  if (form.fields === null) {
+    return (
+      <section aria-labelledby="forms-title" className="space-y-2">
+        <PanelTitle />
+        <p className="text-xs text-[var(--color-muted)]">{t("forms.loading")}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section aria-labelledby="forms-title" className="space-y-3">
+      <PanelTitle />
+      {form.fields.length === 0 ? (
+        <DetectFieldsSection {...detect} />
+      ) : (
+        <FieldsBody
+          fields={form.fields}
+          values={form.values}
+          dirtyCount={form.dirtyCount}
+          busy={form.busy}
+          onUpdate={form.updateValue}
+          onSave={form.onSave}
+          onSelectPage={onSelectPage}
+          detect={detect}
+        />
+      )}
+      <SaveStatus saved={form.saved} err={form.err} />
+    </section>
+  );
+}
+
+/** Reads the fields of the latest saved copy and owns the draft, save and
+ * status state of the panel. */
+function useFormPanelState(docPath: string) {
   const [fieldState, setFieldState] = useState<FieldState>({
     path: docPath,
     fields: null,
@@ -95,8 +147,8 @@ export function EditFormsPanel({
   const fields = fieldState.path === docPath ? fieldState.fields : null;
   // Unsaved: changed since the last save. `saveFormDraft` sends the values
   // that differ from the file the save starts from (the latest saved copy).
-  const dirtyUpdates = useMemo(
-    () => changedFields(fields, values, savedValues),
+  const dirtyCount = useMemo(
+    () => changedFields(fields, values, savedValues).length,
     [fields, savedValues, values],
   );
 
@@ -110,7 +162,7 @@ export function EditFormsPanel({
   }
 
   async function onSave() {
-    if (dirtyUpdates.length === 0) return;
+    if (dirtyCount === 0) return;
     setBusy(true);
     setErr(null);
     setSaved(false);
@@ -130,76 +182,71 @@ export function EditFormsPanel({
     }
   }
 
-  if (fields === null) {
-    return (
-      <section aria-labelledby="forms-title" className="space-y-2">
-        <PanelTitle />
-        <p className="text-xs text-[var(--color-muted)]">{t("forms.loading")}</p>
-      </section>
-    );
-  }
+  return { fields, values, dirtyCount, busy, err, saved, updateValue, onSave };
+}
 
+function FieldsBody({
+  fields,
+  values,
+  dirtyCount,
+  busy,
+  onUpdate,
+  onSave,
+  onSelectPage,
+  detect,
+}: {
+  fields: FormField[];
+  values: DraftValues;
+  dirtyCount: number;
+  busy: boolean;
+  onUpdate: (field: FormField, value: string | null) => void;
+  onSave: () => void;
+  onSelectPage?: (pageIndex: number) => void;
+  detect: ComponentProps<typeof DetectFieldsSection>;
+}) {
+  const { t } = useTranslation("workspace");
   return (
-    <section aria-labelledby="forms-title" className="space-y-3">
-      <PanelTitle />
-      {fields.length === 0 ? (
-        <DetectFieldsSection
-          docPath={docPath}
-          pageIndex={activePage}
-          fields={detectedFields}
-          onDetected={onDetectedFields ?? (() => {})}
-          autoDetectHandledRef={resolvedAutoDetectHandledRef}
-          pageSize={pageSize}
-        />
-      ) : (
-        <>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[var(--color-muted)]">
-              {t("forms.field_count", { count: fields.length })}
-            </span>
-            {dirtyUpdates.length > 0 && (
-              <span className="font-medium text-[var(--color-warning-text)]">
-                {t("forms.unsaved_count", { count: dirtyUpdates.length })}
-              </span>
-            )}
-          </div>
+    <>
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-[var(--color-muted)]">
+          {t("forms.field_count", { count: fields.length })}
+        </span>
+        {dirtyCount > 0 && (
+          <span className="font-medium text-[var(--color-warning-text)]">
+            {t("forms.unsaved_count", { count: dirtyCount })}
+          </span>
+        )}
+      </div>
 
-          <div className="max-h-[480px] divide-y divide-[var(--color-border)] overflow-auto border-y border-[var(--color-border)]">
-            {fields.map((field) => (
-              <FormFieldRow
-                key={field.id}
-                field={field}
-                value={values[field.id] ?? null}
-                onChange={(value) => updateValue(field, value)}
-                onSelectPage={onSelectPage}
-              />
-            ))}
-          </div>
-
-          <Button
-            size="sm"
-            className="w-full"
-            disabled={busy || dirtyUpdates.length === 0}
-            onClick={onSave}
-          >
-            {busy ? t("forms.saving") : t("forms.save_copy")}
-          </Button>
-          <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
-            {t("forms.live_form_note")}
-          </p>
-          {/* Plan 119 p1c: a page of this document may hold printed boxes
-              that are no form field (a scan appended to a form). */}
-          <DetectFieldsSection
-            docPath={docPath}
-            pageIndex={activePage}
-            fields={detectedFields}
-            onDetected={onDetectedFields ?? (() => {})}
-            autoDetectHandledRef={resolvedAutoDetectHandledRef}
-            pageSize={pageSize}
-            hasNativeFields
+      <div className="max-h-[480px] divide-y divide-[var(--color-border)] overflow-auto border-y border-[var(--color-border)]">
+        {fields.map((field) => (
+          <FormFieldRow
+            key={field.id}
+            field={field}
+            value={values[field.id] ?? null}
+            onChange={(value) => onUpdate(field, value)}
+            onSelectPage={onSelectPage}
           />
-        </>
-      )}
+        ))}
+      </div>
+
+      <Button size="sm" className="w-full" disabled={busy || dirtyCount === 0} onClick={onSave}>
+        {busy ? t("forms.saving") : t("forms.save_copy")}
+      </Button>
+      <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
+        {t("forms.live_form_note")}
+      </p>
+      {/* Plan 119 p1c: a page of this document may hold printed boxes
+          that are no form field (a scan appended to a form). */}
+      <DetectFieldsSection {...detect} hasNativeFields />
+    </>
+  );
+}
+
+function SaveStatus({ saved, err }: { saved: boolean; err: string | null }) {
+  const { t } = useTranslation("workspace");
+  return (
+    <>
       {saved && (
         <p role="status" className="text-xs text-[var(--color-success-text)]">
           {t("forms.saved")}
@@ -210,7 +257,7 @@ export function EditFormsPanel({
           {err}
         </p>
       )}
-    </section>
+    </>
   );
 }
 
@@ -307,58 +354,72 @@ function FormFieldRow({
   );
 }
 
-function FieldControl({
-  id,
-  field,
-  value,
-  editable,
-  onChange,
-}: {
+interface ControlProps {
   id: string;
   field: FormField;
   value: string | null;
   editable: boolean;
   onChange: (value: string | null) => void;
-}) {
+}
+
+function isChecked(value: string | null): boolean {
+  return value !== null && value !== "Off";
+}
+
+function FieldControl(props: ControlProps) {
+  switch (props.field.kind) {
+    case "checkbox":
+      return <CheckboxControl {...props} />;
+    case "radio":
+    case "choice":
+      return <ChoiceControl {...props} />;
+    default:
+      return <TextControl {...props} />;
+  }
+}
+
+function CheckboxControl({ id, field, value, editable, onChange }: ControlProps) {
   const { t } = useTranslation("workspace");
-
-  if (field.kind === "checkbox") {
-    const onValue = field.options[0] ?? "Yes";
-    return (
-      <label htmlFor={id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-        <input
-          id={id}
-          type="checkbox"
-          disabled={!editable}
-          checked={value !== null && value !== "Off"}
-          onChange={(event) => onChange(event.target.checked ? onValue : null)}
-        />
-        {value !== null && value !== "Off" ? t("forms.checked") : t("forms.not_checked")}
-      </label>
-    );
-  }
-
-  if (field.kind === "radio" || field.kind === "choice") {
-    const options =
-      value !== null && !field.options.includes(value) ? [value, ...field.options] : field.options;
-    return (
-      <select
+  const onValue = field.options[0] ?? "Yes";
+  const checked = isChecked(value);
+  return (
+    <label htmlFor={id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+      <input
         id={id}
+        type="checkbox"
         disabled={!editable}
-        value={value ?? ""}
-        onChange={(event) => onChange(event.target.value || null)}
-        className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs"
-      >
-        <option value="">{t("forms.no_value")}</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    );
-  }
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked ? onValue : null)}
+      />
+      {checked ? t("forms.checked") : t("forms.not_checked")}
+    </label>
+  );
+}
 
+function ChoiceControl({ id, field, value, editable, onChange }: ControlProps) {
+  const { t } = useTranslation("workspace");
+  const options =
+    value !== null && !field.options.includes(value) ? [value, ...field.options] : field.options;
+  return (
+    <select
+      id={id}
+      disabled={!editable}
+      value={value ?? ""}
+      onChange={(event) => onChange(event.target.value || null)}
+      className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs"
+    >
+      <option value="">{t("forms.no_value")}</option>
+      {options.map((option) => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function TextControl({ id, value, editable, onChange }: ControlProps) {
+  const { t } = useTranslation("workspace");
   return (
     <input
       id={id}
