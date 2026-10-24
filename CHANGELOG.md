@@ -76,6 +76,11 @@
   on a draft.
 - `docs/release-checklist.md` (manual acceptance steps) and
   `KNOWN_ISSUES.md`.
+- Own form fields, save side: the annotation type `form_field` (text or
+  checkbox) is saved as a real AcroForm field with a unique name. A
+  replaced or deleted own field is also removed from `/AcroForm /Fields`.
+  A rect smaller than 4 x 4 pt fails the save with "own field rect must be
+  finite and at least 4 x 4 pt".
 
 ### Changed
 

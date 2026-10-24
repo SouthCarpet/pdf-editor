@@ -26,7 +26,7 @@ use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts::{
     find_by_postscript_name, is_standard_14, list_system_fonts, SystemFont,
 };
-use crate::services::own_fields::OwnFieldKind;
+use crate::services::own_fields::{self, FieldNames, OwnField, OwnFieldKind};
 use crate::services::text_style::{textBlockOffset, TextAlign, TextStyle};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -180,29 +180,18 @@ pub fn save_annotations(
 ) -> Result<Vec<Option<AnnotationRef>>> {
     let mut doc = crate::services::pdf_guard::load_guarded(input)?;
     remove_annotations(&mut doc, replaced);
+    // After the removal, so a replaced own field can keep its name.
+    let mut names = FieldNames::of(&doc);
     let pages = doc.get_pages();
     let mut written = Vec::with_capacity(annotations.len());
     for ann in annotations {
-        if is_empty_fill(ann) {
-            written.push(None);
-            continue;
-        }
-        let page_num = annotation_page(ann);
-        let Some(&page_id) = pages.get(&(page_num + 1)) else {
+        let target = pages.get(&(annotation_page(ann) + 1));
+        let Some(&page_id) = target.filter(|_| !is_empty_fill(ann)) else {
             written.push(None);
             continue;
         };
-        let (dict, font_binding) = build_annot_dict(ann, &mut doc)?;
-        let annot_id = doc.add_object(Object::Dictionary(dict));
+        let annot_id = write_annotation(&mut doc, page_id, ann, &mut names)?;
         written.push(Some(AnnotationRef::from(annot_id)));
-        if let Some(obj) = doc.objects.get_mut(&page_id) {
-            if let Ok(p) = obj.as_dict_mut() {
-                // Bind any embedded font to the page's /Resources /Font.
-                if let Some((alias, font_id)) = font_binding {
-                    ensure_page_font(p, &alias, font_id);
-                }
-            }
-        }
         with_page_annots(&mut doc, page_id, |annots| {
             annots.push(Object::Reference(annot_id));
         });
@@ -215,6 +204,43 @@ pub fn save_annotations(
         Ok(())
     })?;
     Ok(written)
+}
+
+/// Adds the object of one annotation and returns its id. An own field goes
+/// to `own_fields` (plan 119 O1), because it also changes the catalog.
+fn write_annotation(
+    doc: &mut Document,
+    page_id: ObjectId,
+    ann: &Annotation,
+    names: &mut FieldNames,
+) -> Result<ObjectId> {
+    if let Annotation::FormField {
+        rect,
+        name,
+        kind,
+        multiline,
+        font_size,
+        ..
+    } = ann
+    {
+        let field = OwnField {
+            rect: *rect,
+            name,
+            kind: *kind,
+            multiline: *multiline,
+            font_size: *font_size,
+        };
+        return own_fields::write_own_field(doc, page_id, &field, names);
+    }
+    let (dict, font_binding) = build_annot_dict(ann, doc)?;
+    let annot_id = doc.add_object(Object::Dictionary(dict));
+    // Bind any embedded font to the page's /Resources /Font.
+    if let Some((alias, font_id)) = font_binding {
+        if let Ok(page) = doc.get_object_mut(page_id).and_then(Object::as_dict_mut) {
+            ensure_page_font(page, &alias, font_id);
+        }
+    }
+    Ok(annot_id)
 }
 
 /// Runs `edit` on the page's `/Annots` array. A direct array is edited in the
@@ -257,8 +283,9 @@ fn is_empty_fill(ann: &Annotation) -> bool {
     )
 }
 
-/// Drops each referenced annotation from every page's `/Annots` and deletes
-/// its object and its normal appearance stream.
+/// Drops each referenced annotation from every page's `/Annots` and from
+/// the top level of `/AcroForm /Fields` (plan 119 O1 rule 9), then deletes
+/// its object and its normal appearance streams.
 fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
     if replaced.is_empty() {
         return;
@@ -272,22 +299,31 @@ fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
             annots.retain(|annot| !matches!(annot, Object::Reference(id) if ids.contains(id)));
         });
     }
+    own_fields::remove_from_fields(doc, &ids);
     for id in ids {
         if let Some(Object::Dictionary(annot)) = doc.objects.remove(&id) {
-            if let Some(appearance) = normal_appearance_id(&annot) {
+            for appearance in normal_appearance_ids(&annot) {
                 doc.objects.remove(&appearance);
             }
         }
     }
 }
 
-fn normal_appearance_id(annot: &lopdf::Dictionary) -> Option<ObjectId> {
-    annot
+/// The normal appearance stream, or one stream per state (a checkbox has
+/// `/Off` and `/Yes`).
+fn normal_appearance_ids(annot: &lopdf::Dictionary) -> Vec<ObjectId> {
+    let normal = annot
         .get(b"AP")
         .and_then(Object::as_dict)
-        .and_then(|appearance| appearance.get(b"N"))
-        .and_then(Object::as_reference)
-        .ok()
+        .and_then(|appearance| appearance.get(b"N"));
+    match normal {
+        Ok(Object::Reference(id)) => vec![*id],
+        Ok(Object::Dictionary(states)) => states
+            .iter()
+            .filter_map(|(_, state)| state.as_reference().ok())
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Plan 119 p1: a save may write over the copy it started from (the second
@@ -691,7 +727,7 @@ fn build_annot_dict(
             );
             Ok((d, None))
         }
-        Annotation::FormField { .. } => anyhow::bail!("own fields are not written yet"),
+        Annotation::FormField { .. } => anyhow::bail!("an own field is written by own_fields"),
     }
 }
 
