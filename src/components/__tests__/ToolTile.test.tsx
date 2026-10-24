@@ -59,4 +59,11 @@ describe("ToolTile", () => {
       expect(container.querySelector("svg")).not.toBeNull();
     });
   });
+  it("is a plain list row, not a bordered card (R24, SLOP-LAYOUT-01)", async () => {
+    renderWithRouter(<ToolTile tool={tool} />);
+    const link = await waitFor(() => screen.getByRole("link"));
+    expect(link.className).toContain("k-list-item");
+    expect(link.className).not.toContain("border");
+    expect(link.className).not.toContain("aspect-square");
+  });
 });

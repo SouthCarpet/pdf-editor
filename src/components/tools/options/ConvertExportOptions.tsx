@@ -10,6 +10,7 @@
 // PDF/A exposes version, engine preference, and embed-all-fonts.
 import type { ExportFormat } from "@/bindings";
 import { useTranslation } from "react-i18next";
+import { CheckField, SelectField, SliderField, TextField } from "./fields";
 import type {
   ConvertExportOptionsValue,
   PageBreakBehavior,
@@ -35,29 +36,208 @@ const FORMATS: ExportFormat[] = [
   "pdfa",
 ];
 
-function formatLabel(t: ReturnType<typeof useTranslation>["t"], format: ExportFormat) {
-  switch (format) {
-    case "png":
-      return t("convert_export.format_png");
-    case "jpg":
-      return t("convert_export.format_jpg");
-    case "tiff":
-      return t("convert_export.format_tiff");
-    case "txt":
-      return t("convert_export.format_txt");
-    case "html":
-      return t("convert_export.format_html");
-    case "docx":
-      return t("convert_export.format_docx");
-    case "odt":
-      return t("convert_export.format_odt");
-    case "rtf":
-      return t("convert_export.format_rtf");
-    case "epub":
-      return t("convert_export.format_epub");
-    case "pdfa":
-      return t("convert_export.format_pdfa");
-  }
+const RASTER = new Set<ExportFormat>(["png", "jpg", "tiff"]);
+const OFFICE = new Set<ExportFormat>(["docx", "odt", "rtf", "epub"]);
+
+type TFn = ReturnType<typeof useTranslation>["t"];
+type Setter = <K extends keyof ConvertExportOptionsValue>(
+  key: K,
+  next: ConvertExportOptionsValue[K]
+) => void;
+
+interface SectionProps {
+  value: ConvertExportOptionsValue;
+  set: Setter;
+  t: TFn;
+}
+
+const SECTION_CLASS = "space-y-4 border-t border-[var(--color-border)] pt-4";
+
+function formatLabels(t: TFn): Record<ExportFormat, string> {
+  return {
+    png: t("convert_export.format_png"),
+    jpg: t("convert_export.format_jpg"),
+    tiff: t("convert_export.format_tiff"),
+    txt: t("convert_export.format_txt"),
+    html: t("convert_export.format_html"),
+    docx: t("convert_export.format_docx"),
+    odt: t("convert_export.format_odt"),
+    rtf: t("convert_export.format_rtf"),
+    epub: t("convert_export.format_epub"),
+    pdfa: t("convert_export.format_pdfa"),
+  };
+}
+
+function PageRangeField({ value, set, t }: SectionProps) {
+  const all = t("convert_export.page_range_all");
+  return (
+    <TextField label={t("convert_export.page_range")}>
+      <input
+        type="text"
+        className="k-input"
+        value={value.pageRange === "all" ? all : value.pageRange}
+        onChange={(e) => set("pageRange", e.target.value === all ? "all" : e.target.value)}
+        placeholder={t("convert_export.page_range_placeholder")}
+        aria-label={t("convert_export.page_range")}
+      />
+    </TextField>
+  );
+}
+
+function RasterSection({ value, set, t }: SectionProps) {
+  const f = value.format;
+  return (
+    <div className={SECTION_CLASS}>
+      <SliderField
+        label={t("convert_export.raster_dpi")}
+        value={value.rasterDpi}
+        min={72}
+        max={600}
+        unit="dpi"
+        onChange={(v) => set("rasterDpi", v)}
+      />
+      <SelectField
+        label={t("convert_export.raster_color_mode")}
+        value={value.rasterColorMode}
+        onChange={(v) => set("rasterColorMode", v as RasterColorMode)}
+      >
+        <option value="rgb">{t("convert_export.raster_color_rgb")}</option>
+        <option value="rgba">{t("convert_export.raster_color_rgba")}</option>
+        <option value="grayscale">{t("convert_export.raster_color_grayscale")}</option>
+        <option value="mono">{t("convert_export.raster_color_monochrome")}</option>
+      </SelectField>
+      {f === "jpg" && (
+        <SliderField
+          label={t("convert_export.raster_quality")}
+          value={value.jpegQuality}
+          min={1}
+          max={100}
+          onChange={(v) => set("jpegQuality", v)}
+        />
+      )}
+      {f === "tiff" && (
+        <SelectField
+          label={t("convert_export.tiff_compression")}
+          value={value.tiffCompression}
+          onChange={(v) => set("tiffCompression", v as TiffCompression)}
+        >
+          <option value="none">{t("convert_export.txt_layout_none")}</option>
+          <option value="lzw">LZW</option>
+          <option value="deflate">Deflate</option>
+          <option value="jpeg">JPEG</option>
+        </SelectField>
+      )}
+      <PageRangeField value={value} set={set} t={t} />
+    </div>
+  );
+}
+
+function TxtSection({ value, set, t }: SectionProps) {
+  return (
+    <div className={SECTION_CLASS}>
+      <SelectField
+        label={t("convert_export.txt_encoding")}
+        value={value.txtEncoding}
+        onChange={(v) => set("txtEncoding", v as TxtEncoding)}
+      >
+        <option value="utf-8">UTF-8</option>
+        <option value="utf-16le">UTF-16 LE</option>
+        <option value="windows-1250">Windows-1250</option>
+      </SelectField>
+      <SelectField
+        label={t("convert_export.txt_layout")}
+        value={value.txtLayout}
+        onChange={(v) => set("txtLayout", v as TxtLayout)}
+      >
+        <option value="none">{t("convert_export.txt_layout_none")}</option>
+        <option value="per-line">{t("convert_export.txt_layout_per_line")}</option>
+        <option value="per-block">{t("convert_export.txt_layout_per_block")}</option>
+      </SelectField>
+      <TextField label={t("convert_export.txt_page_separator")}>
+        <input
+          type="text"
+          className="k-input"
+          value={value.txtPageSeparator}
+          onChange={(e) => set("txtPageSeparator", e.target.value)}
+          placeholder="\\n\\f\\n"
+          aria-label={t("convert_export.txt_page_separator")}
+        />
+      </TextField>
+    </div>
+  );
+}
+
+function HtmlSection({ value, set, t }: SectionProps) {
+  return (
+    <div className={SECTION_CLASS}>
+      <CheckField
+        label={t("convert_export.html_split")}
+        checked={!value.htmlSingleFile}
+        onChange={(c) => set("htmlSingleFile", !c)}
+      />
+      <CheckField
+        label={t("convert_export.html_embed_images")}
+        checked={value.htmlEmbedImagesBase64}
+        onChange={(c) => set("htmlEmbedImagesBase64", c)}
+      />
+    </div>
+  );
+}
+
+function OfficeSection({ value, set, t }: SectionProps) {
+  return (
+    <div className={SECTION_CLASS}>
+      <CheckField
+        label={t("convert_export.office_preserve_formatting")}
+        checked={value.officePreserveFormatting}
+        onChange={(c) => set("officePreserveFormatting", c)}
+      />
+      <CheckField
+        label={t("convert_export.office_embed_images")}
+        checked={value.officeEmbedImages}
+        onChange={(c) => set("officeEmbedImages", c)}
+      />
+      <SelectField
+        label={t("convert_export.office_page_breaks")}
+        value={value.officePageBreak}
+        onChange={(v) => set("officePageBreak", v as PageBreakBehavior)}
+      >
+        <option value="match-pdf">{t("convert_export.page_break_match")}</option>
+        <option value="auto">{t("convert_export.page_break_auto")}</option>
+        <option value="continuous">{t("convert_export.page_break_continuous")}</option>
+      </SelectField>
+    </div>
+  );
+}
+
+function PdfaSection({ value, set, t }: SectionProps) {
+  return (
+    <div className={SECTION_CLASS}>
+      <SelectField
+        label={t("convert_export.pdfa_version")}
+        value={String(value.pdfaVersion)}
+        onChange={(v) => set("pdfaVersion", Number(v) as 1 | 2 | 3)}
+      >
+        <option value={1}>1b</option>
+        <option value={2}>2b/2u</option>
+        <option value={3}>3b</option>
+      </SelectField>
+      <SelectField
+        label={t("convert_export.pdfa_engine")}
+        value={value.pdfaEngine}
+        onChange={(v) => set("pdfaEngine", v as PdfaEngine)}
+      >
+        <option value="auto">{t("optimize.pdfa_engine_auto")}</option>
+        <option value="libreoffice">LibreOffice</option>
+        <option value="ghostscript">Ghostscript</option>
+      </SelectField>
+      <CheckField
+        label={t("convert_export.pdfa_embed_fonts")}
+        checked={value.pdfaEmbedAllFonts}
+        onChange={(c) => set("pdfaEmbedAllFonts", c)}
+      />
+    </div>
+  );
 }
 
 interface Props {
@@ -68,249 +248,27 @@ interface Props {
 
 export function ConvertExportOptions({ value, onChange }: Props) {
   const { t } = useTranslation("tools");
-  function set<K extends keyof ConvertExportOptionsValue>(
-    key: K,
-    next: ConvertExportOptionsValue[K]
-  ) {
-    onChange({ ...value, [key]: next });
-  }
+  const set: Setter = (key, next) => onChange({ ...value, [key]: next });
+  const labels = formatLabels(t);
   const f = value.format;
-  const isRaster = f === "png" || f === "jpg" || f === "tiff";
-  const isOffice = f === "docx" || f === "odt" || f === "rtf" || f === "epub";
   return (
-    <div className="space-y-2">
-      <label className="text-sm text-[var(--color-muted)]">{t("convert_export.format")}</label>
-      <select
+    <div className="space-y-4">
+      <SelectField
+        label={t("convert_export.format")}
         value={value.format}
-        onChange={(e) => set("format", e.target.value as ExportFormat)}
-        className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
-        aria-label={t("convert_export.format")}
+        onChange={(v) => set("format", v as ExportFormat)}
       >
         {FORMATS.map((format) => (
           <option key={format} value={format}>
-            {formatLabel(t, format)}
+            {labels[format]}
           </option>
         ))}
-      </select>
-
-      {isRaster && (
-        <div className="space-y-2 rounded border p-3 text-xs">
-          <label className="block">
-            {t("convert_export.raster_dpi")}: {value.rasterDpi}
-            <input
-              type="range"
-              min={72}
-              max={600}
-              value={value.rasterDpi}
-              onChange={(e) => set("rasterDpi", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("convert_export.raster_dpi")}
-            />
-          </label>
-          <label className="block">
-            {t("convert_export.raster_color_mode")}
-            <select
-              value={value.rasterColorMode}
-              onChange={(e) => set("rasterColorMode", e.target.value as RasterColorMode)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.raster_color_mode")}
-            >
-              <option value="rgb">{t("convert_export.raster_color_rgb")}</option>
-              <option value="rgba">{t("convert_export.raster_color_rgba")}</option>
-              <option value="grayscale">{t("convert_export.raster_color_grayscale")}</option>
-              <option value="mono">{t("convert_export.raster_color_monochrome")}</option>
-            </select>
-          </label>
-          {f === "jpg" && (
-            <label className="block">
-              {t("convert_export.raster_quality")}: {value.jpegQuality}
-              <input
-                type="range"
-                min={1}
-                max={100}
-                value={value.jpegQuality}
-                onChange={(e) => set("jpegQuality", Number(e.target.value))}
-                className="w-full"
-                aria-label={t("convert_export.raster_quality")}
-              />
-            </label>
-          )}
-          {f === "tiff" && (
-            <label className="block">
-              {t("convert_export.tiff_compression")}
-              <select
-                value={value.tiffCompression}
-                onChange={(e) => set("tiffCompression", e.target.value as TiffCompression)}
-                className="h-7 w-full rounded border px-2"
-                aria-label={t("convert_export.tiff_compression")}
-              >
-                <option value="none">{t("convert_export.txt_layout_none")}</option>
-                <option value="lzw">LZW</option>
-                <option value="deflate">Deflate</option>
-                <option value="jpeg">JPEG</option>
-              </select>
-            </label>
-          )}
-          <label className="block">
-            {t("convert_export.page_range")}:
-            <input
-              type="text"
-              value={
-                value.pageRange === "all"
-                  ? t("convert_export.page_range_all")
-                  : value.pageRange
-              }
-              onChange={(e) =>
-                set(
-                  "pageRange",
-                  e.target.value === t("convert_export.page_range_all")
-                    ? "all"
-                    : e.target.value,
-                )
-              }
-              placeholder={t("convert_export.page_range_placeholder")}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.page_range")}
-            />
-          </label>
-        </div>
-      )}
-
-      {f === "txt" && (
-        <div className="space-y-2 rounded border p-3 text-xs">
-          <label className="block">
-            {t("convert_export.txt_encoding")}
-            <select
-              value={value.txtEncoding}
-              onChange={(e) => set("txtEncoding", e.target.value as TxtEncoding)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.txt_encoding")}
-            >
-              <option value="utf-8">UTF-8</option>
-              <option value="utf-16le">UTF-16 LE</option>
-              <option value="windows-1250">Windows-1250</option>
-            </select>
-          </label>
-          <label className="block">
-            {t("convert_export.txt_layout")}
-            <select
-              value={value.txtLayout}
-              onChange={(e) => set("txtLayout", e.target.value as TxtLayout)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.txt_layout")}
-            >
-              <option value="none">{t("convert_export.txt_layout_none")}</option>
-              <option value="per-line">{t("convert_export.txt_layout_per_line")}</option>
-              <option value="per-block">{t("convert_export.txt_layout_per_block")}</option>
-            </select>
-          </label>
-          <label className="block">
-            {t("convert_export.txt_page_separator")}
-            <input
-              type="text"
-              value={value.txtPageSeparator}
-              onChange={(e) => set("txtPageSeparator", e.target.value)}
-              placeholder="\\n\\f\\n"
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.txt_page_separator")}
-            />
-          </label>
-        </div>
-      )}
-
-      {f === "html" && (
-        <div className="space-y-2 rounded border p-3 text-xs">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={!value.htmlSingleFile}
-              onChange={(e) => set("htmlSingleFile", !e.target.checked)}
-            />
-            {t("convert_export.html_split")}
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.htmlEmbedImagesBase64}
-              onChange={(e) => set("htmlEmbedImagesBase64", e.target.checked)}
-            />
-            {t("convert_export.html_embed_images")}
-          </label>
-        </div>
-      )}
-
-      {isOffice && (
-        <div className="space-y-2 rounded border p-3 text-xs">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.officePreserveFormatting}
-              onChange={(e) => set("officePreserveFormatting", e.target.checked)}
-            />
-            {t("convert_export.office_preserve_formatting")}
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.officeEmbedImages}
-              onChange={(e) => set("officeEmbedImages", e.target.checked)}
-            />
-            {t("convert_export.office_embed_images")}
-          </label>
-          <label className="block">
-            {t("convert_export.office_page_breaks")}
-            <select
-              value={value.officePageBreak}
-              onChange={(e) => set("officePageBreak", e.target.value as PageBreakBehavior)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.office_page_breaks")}
-            >
-              <option value="match-pdf">{t("convert_export.page_break_match")}</option>
-              <option value="auto">{t("convert_export.page_break_auto")}</option>
-              <option value="continuous">{t("convert_export.page_break_continuous")}</option>
-            </select>
-          </label>
-        </div>
-      )}
-
-      {f === "pdfa" && (
-        <div className="space-y-2 rounded border p-3 text-xs">
-          <label className="block">
-            {t("convert_export.pdfa_version")}
-            <select
-              value={value.pdfaVersion}
-              onChange={(e) => set("pdfaVersion", Number(e.target.value) as 1 | 2 | 3)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.pdfa_version")}
-            >
-              <option value={1}>1b</option>
-              <option value={2}>2b/2u</option>
-              <option value={3}>3b</option>
-            </select>
-          </label>
-          <label className="block">
-            {t("convert_export.pdfa_engine")}
-            <select
-              value={value.pdfaEngine}
-              onChange={(e) => set("pdfaEngine", e.target.value as PdfaEngine)}
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("convert_export.pdfa_engine")}
-            >
-              <option value="auto">{t("optimize.pdfa_engine_auto")}</option>
-              <option value="libreoffice">LibreOffice</option>
-              <option value="ghostscript">Ghostscript</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.pdfaEmbedAllFonts}
-              onChange={(e) => set("pdfaEmbedAllFonts", e.target.checked)}
-            />
-            {t("convert_export.pdfa_embed_fonts")}
-          </label>
-        </div>
-      )}
+      </SelectField>
+      {RASTER.has(f) && <RasterSection value={value} set={set} t={t} />}
+      {f === "txt" && <TxtSection value={value} set={set} t={t} />}
+      {f === "html" && <HtmlSection value={value} set={set} t={t} />}
+      {OFFICE.has(f) && <OfficeSection value={value} set={set} t={t} />}
+      {f === "pdfa" && <PdfaSection value={value} set={set} t={t} />}
     </div>
   );
 }

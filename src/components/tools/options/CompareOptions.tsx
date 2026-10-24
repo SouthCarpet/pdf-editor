@@ -12,6 +12,7 @@
 // min change unit (Char / Word / Sentence), diff style (Inline /
 // Side-by-side / Unified).
 import { useTranslation } from "react-i18next";
+import { CheckField, RadioField, SelectField, SliderField, TextField } from "./fields";
 import type {
   CompareDiffStyle,
   CompareDiffUnit,
@@ -34,142 +35,99 @@ export function CompareOptions({ value, onChange }: Props) {
     visual: t("compare.options.visual"),
     text: t("compare.options.text"),
   };
-  function set<K extends keyof CompareOptionsValue>(
-    key: K,
-    next: CompareOptionsValue[K],
-  ) {
+  function set<K extends keyof CompareOptionsValue>(key: K, next: CompareOptionsValue[K]) {
     onChange({ ...value, [key]: next });
   }
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <fieldset className="flex gap-3" aria-label={t("compare.options.mode")}>
+    <div className="space-y-4">
+      <fieldset className="k-radio-group k-radio-group--row" aria-label={t("compare.options.mode")}>
         {(["visual", "text"] as CompareMode[]).map((m) => (
-          <label key={m} className="flex items-center gap-1 text-xs">
-            <input
-              type="radio"
-              name="compare-mode"
-              checked={value.mode === m}
-              onChange={() => set("mode", m)}
-            />
-            {modeLabels[m]}
-          </label>
+          <RadioField
+            key={m}
+            name="compare-mode"
+            label={modeLabels[m]}
+            checked={value.mode === m}
+            onChange={() => set("mode", m)}
+          />
         ))}
       </fieldset>
 
       {value.mode === "visual" && (
-        <div className="space-y-2 rounded border p-2 text-xs">
-          <label className="block">
-            {t("compare.options.dpi")}: {value.visualDpi}
-            <input
-              type="range"
-              min={72}
-              max={300}
-              value={value.visualDpi}
-              onChange={(e) => set("visualDpi", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("compare.options.visual_dpi")}
-            />
-          </label>
-          <label className="block">
-            {t("compare.options.tolerance")}: {value.visualTolerancePercent}%
-            <input
-              type="range"
-              min={0}
-              max={10}
-              step={0.5}
-              value={value.visualTolerancePercent}
-              onChange={(e) =>
-                set("visualTolerancePercent", Number(e.target.value))
-              }
-              className="w-full"
-              aria-label={t("compare.options.visual_tolerance")}
-            />
-          </label>
-          <label className="flex items-center gap-2">
-            {t("compare.options.diff_color")}
+        <div className="space-y-4 border-t border-[var(--color-border)] pt-4">
+          <SliderField
+            label={t("compare.options.dpi")}
+            ariaLabel={t("compare.options.visual_dpi")}
+            value={value.visualDpi}
+            min={72}
+            max={300}
+            onChange={(v) => set("visualDpi", v)}
+          />
+          <SliderField
+            label={t("compare.options.tolerance")}
+            ariaLabel={t("compare.options.visual_tolerance")}
+            value={value.visualTolerancePercent}
+            min={0}
+            max={10}
+            step={0.5}
+            unit="%"
+            onChange={(v) => set("visualTolerancePercent", v)}
+          />
+          <TextField label={t("compare.options.diff_color")}>
             <input
               type="color"
               value={value.visualDiffColor}
               onChange={(e) => set("visualDiffColor", e.target.value)}
-              aria-label={t("compare.options.diff_color")}
+              className="h-8 w-12"
             />
-          </label>
-          <label className="block">
-            {t("compare.options.view_mode")}
-            <select
-              value={value.visualView}
-              onChange={(e) =>
-                set("visualView", e.target.value as CompareView)
-              }
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("compare.options.visual_view_mode")}
-            >
-              <option value="side-by-side">{t("compare.options.side_by_side")}</option>
-              <option value="overlay">{t("compare.options.overlay")}</option>
-              <option value="difference-only">{t("compare.options.difference_only")}</option>
-            </select>
-          </label>
+          </TextField>
+          <SelectField
+            label={t("compare.options.view_mode")}
+            ariaLabel={t("compare.options.visual_view_mode")}
+            value={value.visualView}
+            onChange={(v) => set("visualView", v as CompareView)}
+          >
+            <option value="side-by-side">{t("compare.options.side_by_side")}</option>
+            <option value="overlay">{t("compare.options.overlay")}</option>
+            <option value="difference-only">{t("compare.options.difference_only")}</option>
+          </SelectField>
         </div>
       )}
 
       {value.mode === "text" && (
-        <div className="space-y-2 rounded border p-2 text-xs">
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.textWordBoundary}
-              onChange={(e) => set("textWordBoundary", e.target.checked)}
-            />
-            {t("compare.options.word_boundary")}
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.textIgnoreCase}
-              onChange={(e) => set("textIgnoreCase", e.target.checked)}
-            />
-            {t("compare.options.ignore_case")}
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={value.textIgnoreWhitespace}
-              onChange={(e) =>
-                set("textIgnoreWhitespace", e.target.checked)
-              }
-            />
-            {t("compare.options.ignore_whitespace")}
-          </label>
-          <label className="block">
-            {t("compare.options.min_change_unit")}
-            <select
-              value={value.textMinChangeUnit}
-              onChange={(e) =>
-                set("textMinChangeUnit", e.target.value as CompareDiffUnit)
-              }
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("compare.options.min_change_unit")}
-            >
-              <option value="char">{t("compare.options.character")}</option>
-              <option value="word">{t("compare.options.word")}</option>
-              <option value="sentence">{t("compare.options.sentence")}</option>
-            </select>
-          </label>
-          <label className="block">
-            {t("compare.options.diff_style")}
-            <select
-              value={value.textDiffStyle}
-              onChange={(e) =>
-                set("textDiffStyle", e.target.value as CompareDiffStyle)
-              }
-              className="h-7 w-full rounded border px-2"
-              aria-label={t("compare.options.diff_style")}
-            >
-              <option value="inline">{t("compare.options.inline")}</option>
-              <option value="side-by-side">{t("compare.options.side_by_side")}</option>
-              <option value="unified">{t("compare.options.unified")}</option>
-            </select>
-          </label>
+        <div className="space-y-4 border-t border-[var(--color-border)] pt-4">
+          <CheckField
+            label={t("compare.options.word_boundary")}
+            checked={value.textWordBoundary}
+            onChange={(c) => set("textWordBoundary", c)}
+          />
+          <CheckField
+            label={t("compare.options.ignore_case")}
+            checked={value.textIgnoreCase}
+            onChange={(c) => set("textIgnoreCase", c)}
+          />
+          <CheckField
+            label={t("compare.options.ignore_whitespace")}
+            checked={value.textIgnoreWhitespace}
+            onChange={(c) => set("textIgnoreWhitespace", c)}
+          />
+          <SelectField
+            label={t("compare.options.min_change_unit")}
+            value={value.textMinChangeUnit}
+            onChange={(v) => set("textMinChangeUnit", v as CompareDiffUnit)}
+          >
+            <option value="char">{t("compare.options.character")}</option>
+            <option value="word">{t("compare.options.word")}</option>
+            <option value="sentence">{t("compare.options.sentence")}</option>
+          </SelectField>
+          <SelectField
+            label={t("compare.options.diff_style")}
+            value={value.textDiffStyle}
+            onChange={(v) => set("textDiffStyle", v as CompareDiffStyle)}
+          >
+            <option value="inline">{t("compare.options.inline")}</option>
+            <option value="side-by-side">{t("compare.options.side_by_side")}</option>
+            <option value="unified">{t("compare.options.unified")}</option>
+          </SelectField>
         </div>
       )}
     </div>

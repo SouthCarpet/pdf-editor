@@ -91,6 +91,14 @@
   1.1) is installed to `resources\licenses\FiraSans-OFL.txt`.
   Warning text uses a new role that meets 4.5:1, and the type sizes, the page
   text size and the corner radii stay as before until the screen steps.
+- Kaliber r4, step two (Home and tool pages): the tools on Home are a plain
+  list of link rows, not a grid of cards, and the **Tools** heading leads the
+  page. Tool pages use the Kaliber controls (select with a permanent label,
+  slider with its value, check box, radio) in place of own styles. The job
+  list shows each state as a mark and a word (Waiting, Running, Done, Failed,
+  Cancelled), and a running job has a progress bar instead of a spinner. The
+  Compress result and the Unlock messages are now translated (English and
+  Slovak).
 - The update check compares GitHub releases, not the local git commit. The
   "Update" banner and the local-source updater button are gone; download
   and install of an update come later in plan 119.

@@ -40,7 +40,10 @@
     "downsample_bicubic": "Bikubická",
     "remove_exif": "Odstrániť EXIF z obrázkov",
     "tip": "Zvoľte Vlastné pre prepísanie kvality JPEG a DPI použitých pri redukcii.",
-    "run": "Skomprimovať"
+    "run": "Skomprimovať",
+    "before": "Pred",
+    "after": "Po",
+    "saved": "Ušetrené"
   },
   "optimize": {
     "description": "Linearizácia, podmnožiny fontov, odstránenie metadát a iné jednorazové optimalizácie.",
@@ -88,7 +91,11 @@
     "description": "Dešifrovať PDF chránené heslom alebo odstrániť obmedzenia prístupu.",
     "password_label": "Heslo (nechajte prázdne ak je len obmedzený prístup)",
     "detect": "Detegovať šifrovanie",
-    "run": "Odomknúť"
+    "run": "Odomknúť",
+    "inspecting": "Kontrolujem…",
+    "not_encrypted": "Tento PDF nie je zašifrovaný.",
+    "saved_to": "Uložené do {{path}}",
+    "forgot_password": "Zabudli ste heslo? Skúsiť obnovu →"
   },
   "convert_export": {
     "description": "Exportovať PDF do obrázkov, textu, kancelárskych formátov alebo PDF/A.",
@@ -153,7 +160,8 @@
     "office_bookmarks": "Zachovať záložky",
     "office_annotations": "Exportovať anotácie",
     "office_image_quality": "Kvalita obrázkov",
-    "run": "Konvertovať"
+    "run": "Konvertovať",
+    "one_per_page": "Jedna na stranu"
   },
   "crop": {
     "description": "Orezať strany podľa pevného ohraničenia alebo automaticky detegovať okraje obsahu.",
@@ -191,7 +199,20 @@
     "rotate_before": "Otočiť pred orezom",
     "mirror_h": "Zrkadliť horizontálne",
     "mirror_v": "Zrkadliť vertikálne",
-    "run": "Orezať"
+    "run": "Orezať",
+    "aspect_ratio_width": "Šírka pomeru strán",
+    "aspect_ratio_height": "Výška pomeru strán",
+    "letter_portrait": "Letter na výšku",
+    "letter_landscape": "Letter na šírku",
+    "unit_mm": "mm",
+    "margin_custom_aria": "Vlastný okraj v mm",
+    "apply_to": "Použiť na",
+    "range_placeholder": "1-5, 8, 10",
+    "page_range_aria": "Rozsah strán",
+    "bbox_placeholder": "36, 36, 540, 720",
+    "bbox_aria": "Ohraničujúci rámec",
+    "toggle_advanced": "Prepnúť rozšírené možnosti",
+    "sample_page_aria": "Index vzorovej strany"
   },
   "organize": {
     "description": "Otočiť, zmazať, preusporiadať alebo vložiť prázdne strany.",
@@ -219,7 +240,13 @@
     "delete": "Zmazať stranu",
     "undo_delete": "Vrátiť zmazanie",
     "insert_blank_after": "Vložiť prázdnu stranu za",
-    "drag_count": "{{count}} strán"
+    "drag_count": "{{count}} strán",
+    "rotate_hint": "Otočenia ako dvojice strana:uhol oddelené čiarkou. Uhly sú 0, 90, 180, 270 (stupne v smere hodinových ručičiek).",
+    "rotate_placeholder": "1:90, 3:180",
+    "delete_hint": "Čísla strán na odstránenie (od 1, oddelené čiarkou).",
+    "delete_placeholder": "2, 4, 6",
+    "reorder_hint": "Nové poradie strán ako indexy od 1 oddelené čiarkou. Musí obsahovať každú existujúcu stranu práve raz.",
+    "reorder_placeholder": "3, 1, 2, 4"
   },
   "compare": {
     "description": "Porovnať dve PDF vizuálne alebo podľa extrahovaného textu.",
@@ -250,5 +277,37 @@
     "diff_unified": "Zjednotený",
     "run": "Spustiť porovnanie",
     "running": "Porovnávanie..."
+  },
+  "progress": {
+    "pending": "Čaká",
+    "running": "Beží",
+    "done": "Hotovo",
+    "error": "Zlyhalo",
+    "cancelled": "Zrušené"
+  },
+  "alert": {
+    "info": "Informácia",
+    "warning": "Upozornenie",
+    "error": "Chyba",
+    "success": "Hotovo"
+  },
+  "annotate": {
+    "free_text": "Voľný text"
+  },
+  "watermark": {
+    "pipeline_note": "Spustenie vodoznaku nie je v exekútore pipeline hotové (čaká na výber písma v samostatnom nástroji Vodoznak). Uzol zostane v grafe, pri spustení sa zobrazí jasná chyba.",
+    "text_placeholder": "KONCEPT",
+    "font_placeholder": "Arial",
+    "image_placeholder": "C:\\path\\to\\watermark.png",
+    "pages_placeholder": "all",
+    "position_top_left": "Vľavo hore",
+    "position_top_center": "Hore v strede",
+    "position_top_right": "Vpravo hore",
+    "position_middle_left": "Vľavo v strede",
+    "position_center": "V strede",
+    "position_middle_right": "Vpravo v strede",
+    "position_bottom_left": "Vľavo dole",
+    "position_bottom_center": "Dole v strede",
+    "position_bottom_right": "Vpravo dole"
   }
 }

@@ -34,8 +34,10 @@ describe("dark theme token coverage", () => {
     // it broke the moment the placeholder went through t() (plan 029), which
     // is a copy change that says nothing about theming.
     const placeholder = screen.getByTestId("dropzone-placeholder");
-    expect(placeholder).toHaveClass("text-[var(--color-placeholder)]");
-    expect(placeholder.parentElement).toHaveClass("bg-[var(--color-dropzone)]");
+    // The drop surface is the Kaliber .k-drop-zone: its colours come from the
+    // tokens in kaliber.css, so the theme switch reaches it with no own class.
+    expect(placeholder).toHaveClass("k-drop-hint");
+    expect(placeholder.parentElement).toHaveClass("k-drop-zone");
   });
 
   it("keeps native selects on themed surfaces under the dark root class", () => {

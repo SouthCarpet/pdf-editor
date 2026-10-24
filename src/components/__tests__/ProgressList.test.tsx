@@ -89,4 +89,33 @@ describe("ProgressList", () => {
       ),
     ).toBeInTheDocument();
   });
+  it("marks a running job with a word and a determinate k-progress bar, not a spinner", async () => {
+    useJobsStore.getState().start("j1", "merge", ["a.pdf"]);
+    act(() => {
+      useJobsStore.getState().update("j1", { status: "running", progress: 0.25 });
+    });
+    const { container } = renderWithProviders(<ProgressList />);
+
+    expect(await screen.findByText("Running")).toBeInTheDocument();
+    const bar = await screen.findByRole("progressbar", { name: "merge progress" });
+    expect(bar).toHaveClass("k-progress");
+    expect(bar.querySelector(".k-progress-fill")).toHaveStyle({ "--k-value": "0.25" });
+    expect(container.querySelector(".animate-spin")).toBeNull();
+  });
+
+  it("names each finished state in words (done, failed, cancelled)", async () => {
+    const jobs = useJobsStore.getState();
+    jobs.start("d", "merge", ["a.pdf"]);
+    jobs.finish("d", ["out.pdf"]);
+    jobs.start("e", "split", ["b.pdf"]);
+    jobs.fail("e", "internal");
+    jobs.start("c", "extract", ["c.pdf"]);
+    jobs.cancel("c");
+
+    renderWithProviders(<ProgressList />);
+
+    expect(await screen.findByText("Done")).toBeInTheDocument();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.getByText("Cancelled")).toBeInTheDocument();
+  });
 });

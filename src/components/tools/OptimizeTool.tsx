@@ -1,11 +1,12 @@
 import { invokeCommand, pickSavePath } from "@/tauri/bridge";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFile } from "./SelectedFiles";
+import { AlertNote } from "./options/fields";
 import { useToolJob } from "@/hooks/useToolJob";
 import {
   DEFAULT_OPTIMIZE_OPTIONS,
@@ -117,19 +118,19 @@ export function OptimizeTool() {
   return (
     <ToolPage title={t("tools.optimize")} description={t("tools:optimize.description")}>
       <FileDropzone onFiles={selectFile} multiple={false} />
-      {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
+      {file && <SelectedFile path={file} />}
       {file && (
-        <div className="min-h-10 text-sm" aria-live="polite">
+        <div className="min-h-10" aria-live="polite">
           {estimating && (
-            <div className="flex items-center gap-2 text-[var(--color-muted)]">
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <div className="k-caption flex items-center gap-2">
+              <span className="k-mark k-mark--half" aria-hidden="true" />
               <span>{t("tools:optimize.estimate_loading")}</span>
             </div>
           )}
           {estimateError && (
-            <p className="text-[var(--color-danger)]">
+            <AlertNote kind="error">
               {t("tools:optimize.estimate_error", { error: estimateError })}
-            </p>
+            </AlertNote>
           )}
           {estimate && !estimating && (
             <div>
@@ -140,7 +141,7 @@ export function OptimizeTool() {
                   percent: estimatePercent(estimate),
                 })}
               </p>
-              <p className="text-xs text-[var(--color-muted)]">
+              <p className="k-caption">
                 {t("tools:optimize.estimate_difference", {
                   difference: formatBytes(
                     Math.abs(estimate.current_bytes - estimate.estimated_bytes),

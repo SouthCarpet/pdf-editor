@@ -6,7 +6,9 @@
 // In the workspace, the OrganizePanel drives these via thumbnail clicks
 // + selections; the pipeline editor surface here is text-driven (page
 // number lists) because there is no preview canvas inside a node.
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { TextField } from "./fields";
 import type {
   RotateOptionsValue,
   DeletePagesOptionsValue,
@@ -23,12 +25,10 @@ interface RotateProps {
 }
 
 export function RotatePagesOptions({ value, onChange, mode = "standalone" }: RotateProps) {
+  const { t } = useTranslation("tools");
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <p className="text-[var(--color-muted)]">
-        Rotations as comma-separated <code>page:angle</code> pairs. Angles are
-        0, 90, 180, 270 (degrees clockwise).
-      </p>
+    <div className="space-y-4">
+      <p className="k-caption">{t("organize.rotate_hint")}</p>
       <Input
         type="text"
         value={value.rotations.map(([p, a]) => `${p}:${a}`).join(", ")}
@@ -44,10 +44,10 @@ export function RotatePagesOptions({ value, onChange, mode = "standalone" }: Rot
             .filter(([p, a]) => Number.isFinite(p) && Number.isFinite(a));
           onChange({ rotations: parsed });
         }}
-        placeholder="1:90, 3:180"
+        placeholder={t("organize.rotate_placeholder")}
       />
       {mode === "standalone" && (
-        <p className="text-xs text-[var(--color-muted)]">
+        <p className="k-caption">
           Tip: rotate selected thumbnails in the workspace for click-driven editing.
         </p>
       )}
@@ -62,11 +62,10 @@ interface DeletePagesProps {
 }
 
 export function DeletePagesOptions({ value, onChange }: DeletePagesProps) {
+  const { t } = useTranslation("tools");
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <p className="text-[var(--color-muted)]">
-        Page numbers to delete (1-based, comma-separated).
-      </p>
+    <div className="space-y-4">
+      <p className="k-caption">{t("organize.delete_hint")}</p>
       <Input
         type="text"
         value={value.pages.join(", ")}
@@ -77,7 +76,7 @@ export function DeletePagesOptions({ value, onChange }: DeletePagesProps) {
             .filter((n) => Number.isFinite(n) && n > 0);
           onChange({ pages: parsed });
         }}
-        placeholder="2, 4, 6"
+        placeholder={t("organize.delete_placeholder")}
       />
     </div>
   );
@@ -90,12 +89,10 @@ interface ReorderProps {
 }
 
 export function ReorderPagesOptions({ value, onChange }: ReorderProps) {
+  const { t } = useTranslation("tools");
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <p className="text-[var(--color-muted)]">
-        New page order as comma-separated 1-based indices. Must cover every
-        existing page exactly once.
-      </p>
+    <div className="space-y-4">
+      <p className="k-caption">{t("organize.reorder_hint")}</p>
       <Input
         type="text"
         value={value.new_order.join(", ")}
@@ -106,7 +103,7 @@ export function ReorderPagesOptions({ value, onChange }: ReorderProps) {
             .filter((n) => Number.isFinite(n) && n > 0);
           onChange({ new_order: parsed });
         }}
-        placeholder="3, 1, 2, 4"
+        placeholder={t("organize.reorder_placeholder")}
       />
     </div>
   );
@@ -120,9 +117,8 @@ interface InsertBlankProps {
 
 export function InsertBlankOptions({ value, onChange }: InsertBlankProps) {
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <label className="block">
-        After page index (0-based):
+    <div className="space-y-4">
+      <TextField label="After page index (0-based)">
         <Input
           type="number"
           min={0}
@@ -131,18 +127,16 @@ export function InsertBlankOptions({ value, onChange }: InsertBlankProps) {
             onChange({ ...value, after_page_index: Number(e.target.value) })
           }
         />
-      </label>
-      <label className="block">
-        Width (pt):
+      </TextField>
+      <TextField label="Width (pt)">
         <Input
           type="number"
           min={1}
           value={value.width}
           onChange={(e) => onChange({ ...value, width: Number(e.target.value) })}
         />
-      </label>
-      <label className="block">
-        Height (pt):
+      </TextField>
+      <TextField label="Height (pt)">
         <Input
           type="number"
           min={1}
@@ -151,7 +145,7 @@ export function InsertBlankOptions({ value, onChange }: InsertBlankProps) {
             onChange({ ...value, height: Number(e.target.value) })
           }
         />
-      </label>
+      </TextField>
     </div>
   );
 }
