@@ -41,7 +41,10 @@
   /* Type sizes and radii: tokens.css reuses the names of Tailwind's own theme
      values (text-xs to text-3xl, radius-sm to radius-lg), so the Kaliber
      numbers would resize every text-* and rounded-* class. Until the screen
-     tasks K2 to K4 adopt them, the Tailwind defaults of 186f632 stay. */
+     tasks K2 to K4 adopt them, the Tailwind defaults of 186f632 stay.
+     kaliber.css also sets the page text size from --text-body (15 px), which
+     moves every control that inherits it. 1rem is the size before r4. */
+  --text-body: 1rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-lg: 1.125rem;
