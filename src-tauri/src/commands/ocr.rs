@@ -229,45 +229,16 @@ async fn ocr_pdf(
         doc.get_pages().len() as u32
     };
 
-    let primary_engine = backend.capabilities().id.to_string();
-    let primary = recognize_pdf_pages(
-        &input,
+    let run = OcrRun {
+        input: &input,
         page_count,
-        &options,
-        mupdf.clone(),
-        backend,
-        pool.clone(),
-        cancel.clone(),
-    )
-    .await;
-    let (pages, engine) = match primary {
-        Ok(pages) => (pages, primary_engine),
-        Err(AppError::Cancelled) => return Err(AppError::Cancelled),
-        Err(error) => {
-            let Some(fallback) = fallback else {
-                return Err(error);
-            };
-            tracing::warn!(
-                target: "ocr",
-                "RapidOCR recognition failed; retrying the document with Tesseract: {error}"
-            );
-            backend_notice = Some(format!(
-                "RapidOCR failed: {error}. Tesseract was used for this document."
-            ));
-            let fallback_engine = fallback.capabilities().id.to_string();
-            let pages = recognize_pdf_pages(
-                &input,
-                page_count,
-                &options,
-                mupdf,
-                fallback,
-                pool,
-                cancel.clone(),
-            )
-            .await?;
-            (pages, fallback_engine)
-        }
+        options: &options,
+        mupdf: &mupdf,
+        pool: &pool,
+        cancel: &cancel,
     };
+    let (pages, engine) =
+        recognize_with_fallback(&run, backend, fallback, &mut backend_notice).await?;
     let plain_text = recognized_pages_to_text(&pages);
     let total_chars = pages
         .iter()
@@ -275,48 +246,9 @@ async fn ocr_pdf(
         .map(|word| word.text.chars().count())
         .sum();
 
-    // Inject overlays unless TextOnly mode.
-    if !matches!(options.output, OcrOutputMode::TextOnly) {
-        let in_clone = input.clone();
-        let out_clone = output.clone();
-        let opts_clone = options.clone();
-        let pages_clone = pages.clone();
-        tokio::task::spawn_blocking(move || {
-            inject_word_layers(&in_clone, &out_clone, &opts_clone, &pages_clone)
-        })
-        .await
-        .map_err(|e| AppError::Internal {
-            detail: e.to_string(),
-        })?
-        .map_err(|e| AppError::Internal {
-            detail: format!("{e:#}"),
-        })?;
-    }
+    let output_paths = write_ocr_outputs(&input, &output, &options, &pages, plain_text).await?;
 
-    // Sidecar .txt path for PdfPlusText / TextOnly.
-    let mut output_paths = vec![output.display().to_string()];
-    if matches!(
-        options.output,
-        OcrOutputMode::PdfPlusText | OcrOutputMode::TextOnly
-    ) {
-        let txt_path = output.with_extension("txt");
-        std::fs::write(&txt_path, plain_text)?;
-        output_paths.push(txt_path.display().to_string());
-    }
-
-    let page_confidences: Vec<OcrPageConfidence> = pages
-        .iter()
-        .map(|page| {
-            let confidence = average_confidence(&page.words);
-            OcrPageConfidence {
-                page_number: page.page_index + 1,
-                confidence,
-                low_confidence: confidence
-                    .map(|value| value < LOW_CONFIDENCE_THRESHOLD)
-                    .unwrap_or(false),
-            }
-        })
-        .collect();
+    let page_confidences = build_page_confidences(&pages);
     let all_words: Vec<WordBox> = pages
         .iter()
         .flat_map(|page| page.words.iter().cloned())
@@ -339,6 +271,117 @@ async fn ocr_pdf(
     })
 }
 
+/// Borrowed inputs shared by the primary and the fallback recognition pass.
+struct OcrRun<'a> {
+    input: &'a Path,
+    page_count: u32,
+    options: &'a OcrOptions,
+    mupdf: &'a Arc<crate::sidecars::mupdf::MupdfWrapper>,
+    pool: &'a SqlitePool,
+    cancel: &'a tokio_util::sync::CancellationToken,
+}
+
+impl OcrRun<'_> {
+    async fn recognize(&self, backend: Arc<dyn OcrBackend>) -> AppResult<Vec<RecognizedOcrPage>> {
+        recognize_pdf_pages(
+            self.input,
+            self.page_count,
+            self.options,
+            self.mupdf.clone(),
+            backend,
+            self.pool.clone(),
+            self.cancel.clone(),
+        )
+        .await
+    }
+}
+
+/// Recognizes with the primary backend. A failed RapidOCR run retries the
+/// whole document with the fallback and records why in `backend_notice`.
+async fn recognize_with_fallback(
+    run: &OcrRun<'_>,
+    backend: Arc<dyn OcrBackend>,
+    fallback: Option<Arc<dyn OcrBackend>>,
+    backend_notice: &mut Option<String>,
+) -> AppResult<(Vec<RecognizedOcrPage>, String)> {
+    let primary_engine = backend.capabilities().id.to_string();
+    match run.recognize(backend).await {
+        Ok(pages) => Ok((pages, primary_engine)),
+        Err(AppError::Cancelled) => Err(AppError::Cancelled),
+        Err(error) => {
+            let Some(fallback) = fallback else {
+                return Err(error);
+            };
+            tracing::warn!(
+                target: "ocr",
+                "RapidOCR recognition failed; retrying the document with Tesseract: {error}"
+            );
+            *backend_notice = Some(format!(
+                "RapidOCR failed: {error}. Tesseract was used for this document."
+            ));
+            let fallback_engine = fallback.capabilities().id.to_string();
+            let pages = run.recognize(fallback).await?;
+            Ok((pages, fallback_engine))
+        }
+    }
+}
+
+/// Writes the overlay PDF (unless TextOnly) and the sidecar .txt (for
+/// PdfPlusText and TextOnly). Returns every output path.
+async fn write_ocr_outputs(
+    input: &Path,
+    output: &Path,
+    options: &OcrOptions,
+    pages: &[RecognizedOcrPage],
+    plain_text: String,
+) -> AppResult<Vec<String>> {
+    // Inject overlays unless TextOnly mode.
+    if !matches!(options.output, OcrOutputMode::TextOnly) {
+        let in_clone = input.to_path_buf();
+        let out_clone = output.to_path_buf();
+        let opts_clone = options.clone();
+        let pages_clone = pages.to_vec();
+        tokio::task::spawn_blocking(move || {
+            inject_word_layers(&in_clone, &out_clone, &opts_clone, &pages_clone)
+        })
+        .await
+        .map_err(|e| AppError::Internal {
+            detail: e.to_string(),
+        })?
+        .map_err(|e| AppError::Internal {
+            detail: format!("{e:#}"),
+        })?;
+    }
+
+    // Sidecar .txt path for PdfPlusText / TextOnly.
+    let mut output_paths = vec![output.display().to_string()];
+    if matches!(
+        options.output,
+        OcrOutputMode::PdfPlusText | OcrOutputMode::TextOnly
+    ) {
+        let txt_path = output.with_extension("txt");
+        std::fs::write(&txt_path, plain_text)?;
+        output_paths.push(txt_path.display().to_string());
+    }
+    Ok(output_paths)
+}
+
+fn build_page_confidences(pages: &[RecognizedOcrPage]) -> Vec<OcrPageConfidence> {
+    pages
+        .iter()
+        .map(|page| {
+            let confidence = average_confidence(&page.words);
+            OcrPageConfidence {
+                page_number: page.page_index + 1,
+                confidence,
+                low_confidence: confidence
+                    .map(|value| value < LOW_CONFIDENCE_THRESHOLD)
+                    .unwrap_or(false),
+            }
+        })
+        .collect()
+}
+
 pub(crate) async fn recognize_pdf_pages(
     input: &Path,
     page_count: u32,
@@ -358,6 +401,52 @@ pub(crate) async fn recognize_pdf_pages(
             detail: e.to_string(),
         })?;
     let engine = backend.capabilities().id.to_string();
+    let (mut pages, misses) =
+        scan_ocr_cache(&pool, &file_sha256, &engine, options, page_count, &cancel).await?;
+
+    if !misses.is_empty() {
+        let recognizer = MissRecognizer {
+            input: input.to_path_buf(),
+            options: options.clone(),
+            mupdf,
+            backend,
+            pool,
+            cancel,
+            file_sha256,
+            engine,
+        };
+        pages.extend(recognizer.run(misses).await?);
+    }
+
+    pages.sort_by_key(|page| page.page_index);
+    Ok(pages)
+}
+
+fn page_cache_key(
+    file_sha256: &str,
+    page_index: u32,
+    engine: &str,
+    options: &OcrOptions,
+) -> OcrCacheKey {
+    OcrCacheKey {
+        file_sha256: file_sha256.to_string(),
+        page_index,
+        dpi: options.dpi,
+        language: options.language.clone(),
+        engine: engine.to_string(),
+    }
+}
+
+/// Reads every page from the OCR cache. Returns the cached pages and the
+/// indexes that still need recognition (cache miss or cache read error).
+async fn scan_ocr_cache(
+    pool: &SqlitePool,
+    file_sha256: &str,
+    engine: &str,
+    options: &OcrOptions,
+    page_count: u32,
+    cancel: &tokio_util::sync::CancellationToken,
+) -> AppResult<(Vec<RecognizedOcrPage>, Vec<u32>)> {
     let mut pages = Vec::with_capacity(page_count as usize);
     let mut misses = Vec::new();
 
@@ -365,14 +454,8 @@ pub(crate) async fn recognize_pdf_pages(
         if cancel.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        let key = OcrCacheKey {
-            file_sha256: file_sha256.clone(),
-            page_index,
-            dpi: options.dpi,
-            language: options.language.clone(),
-            engine: engine.clone(),
-        };
-        match ocr_cache::get(&pool, &key).await {
+        let key = page_cache_key(file_sha256, page_index, engine, options);
+        match ocr_cache::get(pool, &key).await {
             Ok(Some(cached)) => pages.push(RecognizedOcrPage {
                 page_index,
                 words: parse_hocr_word(&cached.hocr),
@@ -392,71 +475,36 @@ pub(crate) async fn recognize_pdf_pages(
             }
         }
     }
+    Ok((pages, misses))
+}
 
-    if !misses.is_empty() {
+/// Everything needed to rasterize and recognize the pages missing from the cache.
+struct MissRecognizer {
+    input: PathBuf,
+    options: OcrOptions,
+    mupdf: Arc<crate::sidecars::mupdf::MupdfWrapper>,
+    backend: Arc<dyn OcrBackend>,
+    pool: SqlitePool,
+    cancel: tokio_util::sync::CancellationToken,
+    file_sha256: String,
+    engine: String,
+}
+
+impl MissRecognizer {
+    async fn run(self, misses: Vec<u32>) -> AppResult<Vec<RecognizedOcrPage>> {
         let tempdir = tempfile::tempdir().map_err(|e| AppError::Internal {
             detail: e.to_string(),
         })?;
         let temp_root = tempdir.path().to_path_buf();
-        let input = input.to_path_buf();
-        let options = options.clone();
         let runtime = tokio::runtime::Handle::current();
         let computed = tokio::task::spawn_blocking(move || {
             misses
                 .into_par_iter()
                 .map(|page_index| {
-                    if cancel.is_cancelled() {
+                    if self.cancel.is_cancelled() {
                         return Err(AppError::Cancelled);
                     }
-                    let raster_path = temp_root.join(format!("page-{page_index}.png"));
-                    let key = OcrCacheKey {
-                        file_sha256: file_sha256.clone(),
-                        page_index,
-                        dpi: options.dpi,
-                        language: options.language.clone(),
-                        engine: engine.clone(),
-                    };
-                    runtime.block_on(async {
-                        mupdf
-                            .render_page_to_png(
-                                &input,
-                                page_index,
-                                &raster_path,
-                                options.dpi,
-                                Some(cancel.clone()),
-                            )
-                            .await?;
-                        let (pixel_width, pixel_height) =
-                            read_png_dimensions(&raster_path).unwrap_or((1, 1));
-                        let recognition_options = OcrRecognitionOptions {
-                            psm: options.psm,
-                            oem: options.oem,
-                            cancellation: Some(cancel.clone()),
-                        };
-                        let words = backend
-                            .recognize(&raster_path, &options.language, &recognition_options)
-                            .await?;
-                        let cached = CachedOcrPage {
-                            hocr: words_to_hocr(&words),
-                            pixel_width,
-                            pixel_height,
-                        };
-                        if let Err(error) = ocr_cache::put(&pool, &key, &cached).await {
-                            tracing::warn!(
-                                target: "ocr",
-                                page_index,
-                                "OCR cache write failed: {error:#}"
-                            );
-                        }
-                        Ok(RecognizedOcrPage {
-                            page_index,
-                            words,
-                            pixel_width,
-                            pixel_height,
-                            cache_hit: false,
-                            cache_key: Some(key),
-                        })
-                    })
+                    runtime.block_on(self.recognize_page(&temp_root, page_index))
                 })
                 .collect::<Vec<AppResult<RecognizedOcrPage>>>()
         })
@@ -464,13 +512,56 @@ pub(crate) async fn recognize_pdf_pages(
         .map_err(|e| AppError::Internal {
             detail: e.to_string(),
         })?;
-        for page in computed {
-            pages.push(page?);
-        }
+        computed.into_iter().collect()
     }
 
-    pages.sort_by_key(|page| page.page_index);
-    Ok(pages)
+    async fn recognize_page(
+        &self,
+        temp_root: &Path,
+        page_index: u32,
+    ) -> AppResult<RecognizedOcrPage> {
+        let raster_path = temp_root.join(format!("page-{page_index}.png"));
+        let key = page_cache_key(&self.file_sha256, page_index, &self.engine, &self.options);
+        self.mupdf
+            .render_page_to_png(
+                &self.input,
+                page_index,
+                &raster_path,
+                self.options.dpi,
+                Some(self.cancel.clone()),
+            )
+            .await?;
+        let (pixel_width, pixel_height) = read_png_dimensions(&raster_path).unwrap_or((1, 1));
+        let recognition_options = OcrRecognitionOptions {
+            psm: self.options.psm,
+            oem: self.options.oem,
+            cancellation: Some(self.cancel.clone()),
+        };
+        let words = self
+            .backend
+            .recognize(&raster_path, &self.options.language, &recognition_options)
+            .await?;
+        let cached = CachedOcrPage {
+            hocr: words_to_hocr(&words),
+            pixel_width,
+            pixel_height,
+        };
+        if let Err(error) = ocr_cache::put(&self.pool, &key, &cached).await {
+            tracing::warn!(
+                target: "ocr",
+                page_index,
+                "OCR cache write failed: {error:#}"
+            );
+        }
+        Ok(RecognizedOcrPage {
+            page_index,
+            words,
+            pixel_width,
+            pixel_height,
+            cache_hit: false,
+            cache_key: Some(key),
+        })
+    }
 }
 
 pub(crate) fn recognized_pages_to_text(pages: &[RecognizedOcrPage]) -> String {
@@ -619,19 +710,44 @@ pub(crate) fn inject_word_layers(
     // Pre-compute page dimensions so we can register every word with the
     // subsetter before emitting any content stream. write_to_pdf needs the
     // full used_chars set to produce a minimal subset.
-    let page_specs: Vec<PageSpec> = pages
+    let page_specs = collect_page_specs(&doc, &pages_map, pages)?;
+
+    // Pick + load the embedded font once.
+    let mut subsetter = load_ocr_subsetter();
+
+    // Build all content streams first so the subsetter sees every char.
+    let stream_specs = build_overlay_streams(&page_specs, subsetter.as_mut());
+
+    // Emit the font ONCE, then register /F1 on each touched page.
+    let font_id = embed_ocr_font(&mut doc, subsetter.as_ref())?;
+
+    for (spec, (_, stream_bytes)) in page_specs.iter().zip(stream_specs) {
+        append_ocr_overlay(&mut doc, spec, stream_bytes, font_id)?;
+    }
+
+    doc.compress();
+    doc.save(output)?;
+    Ok(())
+}
+
+fn collect_page_specs(
+    doc: &Document,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+    pages: &[RecognizedOcrPage],
+) -> anyhow::Result<Vec<PageSpec>> {
+    pages
         .iter()
         .map(|page| -> anyhow::Result<_> {
             let &page_id = pages_map.get(&(page.page_index + 1)).ok_or_else(|| {
                 anyhow::anyhow!("OCR page {} does not exist", page.page_index + 1)
             })?;
-            if page_has_pipeline_ocr_layer(&doc, page_id)? {
+            if page_has_pipeline_ocr_layer(doc, page_id)? {
                 return Err(anyhow::anyhow!(
                     "page {} already contains a pipeline-owned OCR layer; refusing to append a duplicate",
                     page.page_index + 1
                 ));
             }
-            let geometry = page_geometry(&doc, page_id)?;
+            let geometry = page_geometry(doc, page_id)?;
             Ok((
                 page.page_index,
                 page.words.clone(),
@@ -642,9 +758,10 @@ pub(crate) fn inject_word_layers(
                 page.cache_key.clone(),
             ))
         })
-        .collect::<anyhow::Result<_>>()?;
+        .collect()
+}
 
-    // Pick + load the embedded font once.
+fn load_ocr_subsetter() -> Option<FontSubsetter> {
     let picked = pick_ocr_font();
     let mut subsetter: Option<FontSubsetter> = match picked.as_ref() {
         Some(f) if !f.file_path.is_empty() => {
@@ -668,10 +785,15 @@ pub(crate) fn inject_word_layers(
     if let Some(subsetter) = subsetter.as_mut() {
         subsetter.add_editing_alphabet();
     }
+    subsetter
+}
 
-    // Build all content streams first so the subsetter sees every char.
+fn build_overlay_streams(
+    page_specs: &[PageSpec],
+    mut subsetter: Option<&mut FontSubsetter>,
+) -> Vec<(lopdf::ObjectId, Vec<u8>)> {
     let mut stream_specs: Vec<(lopdf::ObjectId, Vec<u8>)> = Vec::new();
-    for (_, words, pixel_w, pixel_h, page_id, geometry, _) in &page_specs {
+    for (_, words, pixel_w, pixel_h, page_id, geometry, _) in page_specs {
         let (display_width, display_height) = geometry.display_dimensions();
         let bytes = build_invisible_text_stream_with_font(
             words,
@@ -680,79 +802,92 @@ pub(crate) fn inject_word_layers(
             display_width,
             display_height,
             b"AnimusOcrF",
-            subsetter.as_mut(),
+            subsetter.as_deref_mut(),
         );
         stream_specs.push((*page_id, geometry.wrap_display_content(bytes)));
     }
+    stream_specs
+}
 
-    // Emit the font ONCE, then register /F1 on each touched page.
-    let font_obj_id = if let Some(ref s) = subsetter {
-        let (id, _tag) = s.write_to_pdf(&mut doc)?;
-        Some(id)
+fn embed_ocr_font(
+    doc: &mut Document,
+    subsetter: Option<&FontSubsetter>,
+) -> anyhow::Result<lopdf::ObjectId> {
+    if let Some(s) = subsetter {
+        let (id, _tag) = s.write_to_pdf(doc)?;
+        Ok(id)
     } else {
         // Standard 14 Helvetica fallback. Per the user directive ("NO
         // automatic fallback to Standard 14"), this path is reached only
         // when the host machine has no usable system font. The OCR feature
         // still completes, but diacritic editing will surface
         // EncodingMismatch downstream — the expected/documented behaviour.
-        let helv_id = doc.add_object(dictionary! {
+        Ok(doc.add_object(dictionary! {
             "Type" => "Font",
             "Subtype" => "Type1",
             "BaseFont" => "Helvetica",
             "Encoding" => "WinAnsiEncoding",
-        });
-        Some(helv_id)
-    };
-
-    for ((_, words, pixel_w, pixel_h, page_id, _, cache_key), (_, stream_bytes)) in
-        page_specs.iter().zip(stream_specs)
-    {
-        let mut stream_dict = dictionary! {
-            "AnimusOcrLayer" => true,
-            "AnimusOcrVersion" => 1,
-            "AnimusOcrWords" => Object::string_literal(serde_json::to_string(words)?),
-            "AnimusPixelWidth" => i64::from(*pixel_w),
-            "AnimusPixelHeight" => i64::from(*pixel_h),
-        };
-        if let Some(key) = cache_key {
-            stream_dict.set(
-                "AnimusSourceSha256",
-                Object::string_literal(key.file_sha256.clone()),
-            );
-            stream_dict.set("AnimusOcrDpi", i64::from(key.dpi));
-            stream_dict.set(
-                "AnimusOcrLanguage",
-                Object::string_literal(key.language.clone()),
-            );
-            stream_dict.set(
-                "AnimusOcrEngine",
-                Object::string_literal(key.engine.clone()),
-            );
-        }
-        // The page's own content can leave the CTM scaled (a scan's bare
-        // `<w> 0 0 <h> 0 0 cm /Im0 Do` is the common case). The guard pushes
-        // the graphics state in front of that content and hands back the `Q`
-        // this overlay opens with, so the text below is placed in the page's
-        // default space instead of the previous stream's leftovers.
-        let close_state_guard = open_page_state_guard(&mut doc, *page_id)?;
-        let mut content = close_state_guard.to_vec();
-        content.extend(stream_bytes);
-        let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, content)));
-        if let Some(fid) = font_obj_id {
-            add_page_font_resource(&mut doc, *page_id, b"AnimusOcrF", fid)?;
-        }
-        let page = doc.get_object_mut(*page_id)?.as_dict_mut()?;
-        let mut contents: Vec<Object> = match page.get(b"Contents").cloned() {
-            Ok(Object::Array(items)) => items,
-            Ok(existing) => vec![existing],
-            Err(_) => Vec::new(),
-        };
-        contents.push(Object::Reference(stream_id));
-        page.set("Contents", contents);
+        }))
     }
+}
 
-    doc.compress();
-    doc.save(output)?;
+fn ocr_layer_dict(
+    words: &[WordBox],
+    pixel_w: u32,
+    pixel_h: u32,
+    cache_key: &Option<OcrCacheKey>,
+) -> anyhow::Result<lopdf::Dictionary> {
+    let mut stream_dict = dictionary! {
+        "AnimusOcrLayer" => true,
+        "AnimusOcrVersion" => 1,
+        "AnimusOcrWords" => Object::string_literal(serde_json::to_string(words)?),
+        "AnimusPixelWidth" => i64::from(pixel_w),
+        "AnimusPixelHeight" => i64::from(pixel_h),
+    };
+    if let Some(key) = cache_key {
+        stream_dict.set(
+            "AnimusSourceSha256",
+            Object::string_literal(key.file_sha256.clone()),
+        );
+        stream_dict.set("AnimusOcrDpi", i64::from(key.dpi));
+        stream_dict.set(
+            "AnimusOcrLanguage",
+            Object::string_literal(key.language.clone()),
+        );
+        stream_dict.set(
+            "AnimusOcrEngine",
+            Object::string_literal(key.engine.clone()),
+        );
+    }
+    Ok(stream_dict)
+}
+
+fn append_ocr_overlay(
+    doc: &mut Document,
+    spec: &PageSpec,
+    stream_bytes: Vec<u8>,
+    font_id: lopdf::ObjectId,
+) -> anyhow::Result<()> {
+    let (_, words, pixel_w, pixel_h, page_id, _, cache_key) = spec;
+    let stream_dict = ocr_layer_dict(words, *pixel_w, *pixel_h, cache_key)?;
+    // The page's own content can leave the CTM scaled (a scan's bare
+    // `<w> 0 0 <h> 0 0 cm /Im0 Do` is the common case). The guard pushes
+    // the graphics state in front of that content and hands back the `Q`
+    // this overlay opens with, so the text below is placed in the page's
+    // default space instead of the previous stream's leftovers.
+    let close_state_guard = open_page_state_guard(doc, *page_id)?;
+    let mut content = close_state_guard.to_vec();
+    content.extend(stream_bytes);
+    let stream_id = doc.add_object(Object::Stream(Stream::new(stream_dict, content)));
+    add_page_font_resource(doc, *page_id, b"AnimusOcrF", font_id)?;
+    let page = doc.get_object_mut(*page_id)?.as_dict_mut()?;
+    let mut contents: Vec<Object> = match page.get(b"Contents").cloned() {
+        Ok(Object::Array(items)) => items,
+        Ok(existing) => vec![existing],
+        Err(_) => Vec::new(),
+    };
+    contents.push(Object::Reference(stream_id));
+    page.set("Contents", contents);
     Ok(())
 }
 
