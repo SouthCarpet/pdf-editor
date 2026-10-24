@@ -173,7 +173,7 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 | Nástroj | Účel |
 |---|---|
-| `clippy` (Rust) | Lint, CI-enforced `-D warnings` |
+| `clippy` (Rust) | Lint, CI-enforced `-D warnings`. Complexity check: add `-D clippy::cognitive_complexity` (threshold 12 in `src-tauri/.clippy.toml`) |
 | `rustfmt` (Rust) | Format, CI-enforced |
 | `cargo-deny` (Rust) | License + advisory check |
 | `eslint` + `@typescript-eslint` | Lint (TS/React) |

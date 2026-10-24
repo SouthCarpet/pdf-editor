@@ -79,6 +79,10 @@
 
 ### Changed
 
+- Rust code stays under cognitive complexity 12. `src-tauri/.clippy.toml`
+  sets `cognitive-complexity-threshold = 12`. Long functions in the
+  pipeline executor, OCR, optimize, export and sidecar code are split into
+  helpers. Behaviour is the same.
 - The update check compares GitHub releases, not the local git commit. The
   "Update" banner and the local-source updater button are gone; download
   and install of an update come later in plan 119.
