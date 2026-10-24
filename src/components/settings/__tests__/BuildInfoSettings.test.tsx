@@ -186,7 +186,7 @@ describe("BuildInfoSettings (About)", () => {
       error: { key: "io_error", data: { detail: "access denied" } },
     });
     render(<BuildInfoSettings />);
-    const consent = await screen.findByRole("checkbox", { name: "Check GitHub for new versions" });
+    const consent = await screen.findByRole("switch", { name: "Check GitHub for new versions" });
     await waitFor(() => expect(consent).toBeEnabled());
 
     await userEvent.click(consent);
@@ -195,5 +195,52 @@ describe("BuildInfoSettings (About)", () => {
       "The setting was not saved: access denied",
     );
     expect(consent).not.toBeChecked();
+  });
+
+  it("lists the licences of the app, Fira Sans and the OCR parts in About", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: false });
+
+    render(<BuildInfoSettings />);
+
+    const about = await screen.findByRole("region", { name: "About PDF Editor" });
+    expect(about).toHaveTextContent("PDF Editor: AGPL-3.0.");
+    expect(about).toHaveTextContent(
+      "Fira Sans: SIL Open Font License 1.1. Text: resources\\licenses\\FiraSans-OFL.txt in the install folder.",
+    );
+    expect(about).toHaveTextContent("RapidOCR: Apache-2.0. ONNX Runtime: MIT.");
+  });
+
+  it("puts About after Updates, so About is the last section", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: false });
+
+    render(<BuildInfoSettings />);
+
+    const sections = await screen.findAllByRole("region");
+    expect(sections.map((section) => section.querySelector("h3")?.textContent)).toEqual([
+      "Updates",
+      "About PDF Editor",
+    ]);
+  });
+
+  it("shows the checking state as text on the button, with no spinner", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockReturnValue(new Promise(() => {}));
+
+    render(<BuildInfoSettings />);
+
+    const button = await screen.findByRole("button", { name: "Checking…" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button.querySelector("svg")).toBeNull();
+  });
+
+  it("shows the time of the last check next to its result", async () => {
+    getUpdateCheckEnabled.mockResolvedValue({ status: "ok", data: true });
+    checkForUpdate.mockResolvedValue(release("up_to_date", "0.1.0"));
+
+    render(<BuildInfoSettings />);
+
+    const status = await screen.findByTestId("update-status");
+    await waitFor(() => expect(status).toHaveTextContent(/You have the latest version \(0\.1\.0\)\s*Checked /));
   });
 });

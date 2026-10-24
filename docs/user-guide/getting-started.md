@@ -14,7 +14,7 @@ Details: [packaging/INSTALL.md](../../packaging/INSTALL.md).
 
 ## Update
 
-With **Check GitHub for new versions** on (Settings > About), About shows **Update to X.Y.Z** when a newer release exists. Click it: the app asks about unsaved work, downloads and checks the setup, starts it and closes. The setup keeps your data.
+With **Check GitHub for new versions** on (Settings > Updates), Settings > Updates shows **Update to X.Y.Z** when a newer release exists. The header also shows a quiet **Update available** line. Click it: the app asks about unsaved work, downloads and checks the setup, starts it and closes. The setup keeps your data.
 
 ## Uninstall
 
@@ -22,7 +22,9 @@ Settings > Apps > Installed apps > PDF Editor > Uninstall. The uninstaller asks 
 
 ## First run
 
-The app walks you through a short onboarding tour highlighting the dashboard, file picker, and tool tiles. You can replay it from Settings -> General at any time.
+The app walks you through a short onboarding tour highlighting the dashboard, file picker, and tool tiles. You can replay it at any time: press **F1** (or choose **Help** in the footer) and choose **Show tour again**.
+
+The header has four tabs: Tools, Projects, Pipeline and Settings (last). The sun and moon switch changes between Light and Dark; Settings > Appearance also has System. **Ctrl+comma** opens Settings. The help panel (**F1**) has a search field, short topics and the list of all keyboard shortcuts.
 
 ## Where files go
 
@@ -32,4 +34,4 @@ The app walks you through a short onboarding tour highlighting the dashboard, fi
 
 ## Privacy
 
-PDF Editor makes no outbound network request unless you turn on **Check GitHub for new versions** in Settings > About (off by default). This is the only network setting. With it on, the app sends one request to the GitHub releases API at start, when you open About and when you click **Check now**, and downloads a setup only after you click **Update**. It sends no documents and no personal data. The CSP is locked to `'self' ipc: http://ipc.localhost` and there is no telemetry, LLM, or analytics shipped in the binary. `scripts/test-privacy.ps1` checks that the HTTP client is used only by the update check module.
+PDF Editor makes no outbound network request unless you turn on **Check GitHub for new versions** in Settings > Updates (off by default). This is the only network setting. With it on, the app sends one request to the GitHub releases API at start, when you open Settings and when you click **Check now** (in About), and downloads a setup only after you click **Update**. It sends no documents and no personal data. The CSP is locked to `'self' ipc: http://ipc.localhost` and there is no telemetry, LLM, or analytics shipped in the binary. `scripts/test-privacy.ps1` checks that the HTTP client is used only by the update check module.

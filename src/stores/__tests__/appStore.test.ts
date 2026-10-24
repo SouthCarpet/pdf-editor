@@ -7,7 +7,6 @@ const STORE_KEY = "pdf-editor-app";
 function resetAppStore() {
   localStorage.removeItem(STORE_KEY);
   useAppStore.setState({
-    theme: "system",
     language: "en",
     defaultSaveFolder: null,
     defaultZoom: ZOOM_DEFAULT,
@@ -21,9 +20,9 @@ describe("appStore", () => {
     resetAppStore();
   });
 
-  it("toggles theme", () => {
-    useAppStore.getState().setTheme("dark");
-    expect(useAppStore.getState().theme).toBe("dark");
+  it("keeps no theme copy: ThemeProvider owns the theme", () => {
+    expect(useAppStore.getState()).not.toHaveProperty("theme");
+    expect(useAppStore.getState()).not.toHaveProperty("setTheme");
   });
 
   it("changes language", () => {
@@ -52,8 +51,8 @@ describe("appStore", () => {
 
   it("hydrates an old persisted blob without the new fields with the defaults (persist merge, not migrate)", async () => {
     // Oracle: zustand persist default/explicit merge is `{...current, ...persisted}`.
-    // An old blob that only stored theme/language must keep those values and
-    // pick up the new fields from current-state defaults.
+    // An old blob that only stored theme/language keeps language, drops the
+    // retired theme copy and picks up the new fields from current-state defaults.
     localStorage.setItem(
       STORE_KEY,
       JSON.stringify({
@@ -64,7 +63,7 @@ describe("appStore", () => {
 
     await useAppStore.persist.rehydrate();
 
-    expect(useAppStore.getState().theme).toBe("dark");
+    expect(useAppStore.getState()).not.toHaveProperty("theme");
     expect(useAppStore.getState().language).toBe("sk");
     expect(useAppStore.getState().defaultSaveFolder).toBeNull();
     expect(useAppStore.getState().defaultZoom).toBe(ZOOM_DEFAULT);
@@ -82,10 +81,10 @@ describe("appStore", () => {
     useAppStore.getState().setLanguage("sk");
 
     expect(useAppStore.getState()).not.toHaveProperty("privacyStrict");
-    expect(useAppStore.getState().theme).toBe("dark");
-    expect(JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}").state).not.toHaveProperty(
-      "privacyStrict",
-    );
+    expect(useAppStore.getState()).not.toHaveProperty("theme");
+    const stored = JSON.parse(localStorage.getItem(STORE_KEY) ?? "{}").state;
+    expect(stored).not.toHaveProperty("privacyStrict");
+    expect(stored).not.toHaveProperty("theme");
   });
 
   it("defaults autosaveIntervalSec to 10 and the setter writes it", () => {

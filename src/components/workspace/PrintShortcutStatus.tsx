@@ -31,7 +31,7 @@ export function PrintShortcutStatus() {
   return (
     <p
       role="status"
-      className="fixed right-4 bottom-4 z-40 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-xs text-[var(--color-muted)] shadow-sm"
+      className="k-toast fixed right-4 bottom-4 z-40 rounded-[var(--radius-lg)] border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] text-xs text-[var(--color-text-muted)]"
     >
       {t("print.no_document")}
     </p>
