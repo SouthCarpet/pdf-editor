@@ -38,6 +38,37 @@ interface FontPickerProps {
   hideAlign?: boolean;
 }
 
+/** True when a face is a better stand-in for its family row than `current`:
+ * the regular upright face wins over any other. */
+function isBetterFace(candidate: SystemFont, current: SystemFont): boolean {
+  const currentIsPlain = !current.italic && current.weight === 400;
+  return !currentIsPlain && !candidate.italic && candidate.weight === 400;
+}
+
+/** One row per non-standard family, the regular variant when there is one. */
+function pickFamilies(all: SystemFont[], match: (f: SystemFont) => boolean) {
+  const families = new Map<string, SystemFont>();
+  for (const f of all) {
+    if (f.is_standard_14 || !match(f)) continue;
+    const existing = families.get(f.family);
+    if (!existing || isBetterFace(f, existing)) families.set(f.family, f);
+  }
+  return families;
+}
+
+function groupFonts(all: SystemFont[], query: string) {
+  const recents = new Set(getRecentFonts());
+  const q = query.trim().toLowerCase();
+  const match = (f: SystemFont) =>
+    !q || f.family.toLowerCase().includes(q) || f.postscript_name.toLowerCase().includes(q);
+  const std14 = all.filter((f) => f.is_standard_14 && match(f));
+  const recentList = all.filter((f) => !f.is_standard_14 && recents.has(f.family) && match(f));
+  // Filter out recent-list entries from the main system list.
+  const system = [...pickFamilies(all, match).values()].filter((f) => !recents.has(f.family));
+  system.sort((a, b) => a.family.localeCompare(b.family));
+  return { std14, recentList, system };
+}
+
 export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
   const [fonts, setFonts] = useState<SystemFont[] | null>(null);
   const [open, setOpen] = useState(false);
@@ -56,36 +87,7 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
     };
   }, []);
 
-  const grouped = useMemo(() => {
-    const all = fonts ?? [];
-    const recents = new Set(getRecentFonts());
-    const q = query.trim().toLowerCase();
-    const match = (f: SystemFont) =>
-      !q || f.family.toLowerCase().includes(q) || f.postscript_name.toLowerCase().includes(q);
-    const std14 = all.filter((f) => f.is_standard_14 && match(f));
-    const recentList = all.filter(
-      (f) => !f.is_standard_14 && recents.has(f.family) && match(f),
-    );
-    // System fonts (one row per family). Pick the regular variant if available.
-    const families = new Map<string, SystemFont>();
-    for (const f of all) {
-      if (f.is_standard_14) continue;
-      if (!match(f)) continue;
-      const existing = families.get(f.family);
-      if (!existing) {
-        families.set(f.family, f);
-      } else if (existing.italic || existing.weight !== 400) {
-        if (!f.italic && f.weight === 400) families.set(f.family, f);
-      }
-    }
-    // Filter out recent-list entries from the main system list.
-    const system: SystemFont[] = [];
-    for (const [, f] of families) {
-      if (!recents.has(f.family)) system.push(f);
-    }
-    system.sort((a, b) => a.family.localeCompare(b.family));
-    return { std14, recentList, system };
-  }, [fonts, query]);
+  const grouped = useMemo(() => groupFonts(fonts ?? [], query), [fonts, query]);
 
   const choose = (f: SystemFont) => {
     pushRecentFont(f.family);
@@ -117,12 +119,12 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1 text-sm"
+            className="k-select flex w-full items-center justify-between border-[var(--color-border-strong)]"
           >
             <span style={{ fontFamily: `"${value.font_family}", sans-serif` }}>
               {value.font_family}
             </span>
-            <span className="text-xs text-[var(--color-muted)]">{value.font_postscript_name}</span>
+            <span className="text-xs text-[var(--color-text-muted)]">{value.font_postscript_name}</span>
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0">
@@ -131,11 +133,11 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search fonts…"
-            className="w-full border-b border-[var(--color-border)] bg-transparent px-2 py-1 text-sm text-[var(--color-control-foreground)] placeholder:text-[var(--color-placeholder)] outline-none"
+            className="w-full border-b border-[var(--color-border)] bg-transparent px-2 py-1 text-sm text-[var(--color-text)] placeholder:text-[var(--color-text-muted)] outline-none focus-visible:bg-[var(--color-surface-hover)]"
           />
           <div className="max-h-80 overflow-y-auto">
             {fonts === null && (
-              <p className="px-2 py-1 text-xs text-[var(--color-muted)]">Loading…</p>
+              <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">Loading…</p>
             )}
             {grouped.std14.length > 0 && (
               <Group title="Standard 14 (no embedding)">
@@ -193,7 +195,7 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
           max={200}
           step={1}
           onChange={(e) => updateStyle({ size_pt: clamp(Number(e.target.value), 6, 200) })}
-          className="w-16 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1 py-0.5 text-xs"
+          className="k-input w-16 border-[var(--color-border-strong)] px-1 text-xs"
         />
         <Slider
           value={[value.size_pt]}
@@ -224,7 +226,7 @@ export function FontPicker({ value, onChange, hideAlign }: FontPickerProps) {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-b border-[var(--color-border)] py-1">
-      <p className="px-2 pb-0.5 text-[10px] uppercase tracking-wider text-[var(--color-muted)]">{title}</p>
+      <p className="px-2 pb-0.5 text-xs font-semibold text-[var(--color-text-muted)]">{title}</p>
       {children}
     </div>
   );
@@ -236,9 +238,9 @@ function FontRow({ font, active, onClick }: { font: SystemFont; active: boolean;
       type="button"
       onClick={onClick}
       className={cn(
-        "block w-full truncate px-2 py-1 text-left text-sm hover:bg-[var(--color-control-hover)]",
+        "block w-full truncate px-2 py-1 text-left text-sm hover:bg-[var(--color-surface-hover)]",
         active &&
-          "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]",
+          "bg-[var(--color-surface-selected)] font-bold text-[var(--color-text)]",
       )}
       style={{ fontFamily: `"${font.family}", sans-serif` }}
       title={font.postscript_name}

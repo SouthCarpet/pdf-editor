@@ -23,14 +23,14 @@ const ToastViewport = React.forwardRef<
 ToastViewport.displayName = ToastPrimitives.Viewport.displayName;
 
 const toastVariants = cva(
-  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all",
+  "group pointer-events-auto relative flex w-full items-center justify-between space-x-4 overflow-hidden rounded-[var(--radius-lg)] border p-4 pr-8",
   {
     variants: {
       variant: {
         default:
-          "border-[var(--color-border)] bg-[var(--color-card)] text-[var(--color-foreground)]",
+          "border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] text-[var(--color-text)]",
         destructive:
-          "destructive group border-[var(--color-danger)] bg-[var(--color-danger)] text-[var(--color-danger-foreground)]",
+          "destructive group border-[var(--color-danger)] bg-[var(--color-surface-raised)] text-[var(--color-text)]",
       },
     },
     defaultVariants: { variant: "default" },
@@ -58,7 +58,7 @@ const ToastAction = React.forwardRef<
   <ToastPrimitives.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-[var(--color-border)] bg-transparent px-3 text-sm font-medium transition-colors hover:bg-[var(--color-control-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] disabled:pointer-events-none disabled:opacity-50",
+      "k-btn k-btn-secondary k-btn-auto shrink-0 border-[var(--color-border-strong)]",
       className
     )}
     {...props}
@@ -73,7 +73,7 @@ const ToastClose = React.forwardRef<
   <ToastPrimitives.Close
     ref={ref}
     className={cn(
-      "absolute right-2 top-2 rounded-md p-1 text-[var(--color-muted)] opacity-0 transition-opacity hover:text-[var(--color-foreground)] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[var(--color-focus)] group-hover:opacity-100",
+      "absolute right-2 top-2 rounded-[var(--radius-md)] p-1 text-[var(--color-text-muted)] outline-2 outline-offset-2 outline-transparent hover:text-[var(--color-text)] focus-visible:outline-[var(--color-focus)]",
       className
     )}
     toast-close=""

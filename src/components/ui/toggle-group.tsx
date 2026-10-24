@@ -11,7 +11,7 @@ const ToggleGroup = React.forwardRef<
   <ToggleGroupPrimitive.Root
     ref={ref}
     className={cn(
-      "inline-flex items-center gap-0.5 rounded border border-[var(--color-border)] p-0.5",
+      "inline-flex items-center gap-0.5 rounded-[var(--radius-md)] border border-[var(--color-border)] p-0.5",
       className,
     )}
     {...props}
@@ -26,11 +26,11 @@ const ToggleGroupItem = React.forwardRef<
   <ToggleGroupPrimitive.Item
     ref={ref}
     className={cn(
-      "inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs transition-colors",
-      "hover:bg-[var(--color-control-hover)]",
-      "data-[state=on]:bg-[var(--color-accent)] data-[state=on]:text-[var(--color-accent-foreground)]",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]",
-      "disabled:pointer-events-none disabled:opacity-50",
+      "inline-flex h-7 min-w-7 items-center justify-center rounded-[var(--radius-sm)] px-2 text-xs transition-colors",
+      "hover:bg-[var(--color-surface-hover)]",
+      "data-[state=on]:bg-[var(--color-surface-selected)] data-[state=on]:font-bold data-[state=on]:text-[var(--color-text)]",
+      "outline-2 outline-offset-2 outline-transparent focus-visible:outline-[var(--color-focus)]",
+      "disabled:pointer-events-none disabled:text-[var(--color-text-muted)]",
       className,
     )}
     {...props}
