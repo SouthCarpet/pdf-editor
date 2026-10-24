@@ -605,6 +605,75 @@ mod estimate_tests {
         }
     }
 
+    // Contract (brief 119-CC1): metadata-only and forms-only cleanup use
+    // clean.pdf; with neither option, keep the input and create no output.
+    fn cleanup_input(scratch: &Path) -> PathBuf {
+        use lopdf::dictionary;
+        let mut doc = Document::with_version("1.7");
+        let root = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "AcroForm" => dictionary! { "Fields" => Vec::<Object>::new() },
+        });
+        let info = doc.add_object(dictionary! { "Title" => Object::string_literal("Keep source") });
+        doc.trailer.set("Root", root);
+        doc.trailer.set("Info", info);
+        let input = scratch.join("input.pdf");
+        doc.save(&input).unwrap();
+        input
+    }
+
+    #[tokio::test]
+    async fn cleanup_dry_run_metadata_only_uses_clean_pdf_without_info() {
+        let scratch = tempfile::tempdir().unwrap();
+        let input = cleanup_input(scratch.path());
+        let source = std::fs::read(&input).unwrap();
+        let mut selected = options();
+        selected.strip_metadata = true;
+
+        let result = cleanup_optimize_dry_run(&input, scratch.path(), &selected)
+            .await
+            .unwrap();
+
+        assert_eq!(result, scratch.path().join("clean.pdf"));
+        let cleaned = crate::services::pdf_guard::load_guarded(&result).unwrap();
+        assert!(!cleaned.trailer.has(b"Info"));
+        assert!(cleaned.catalog().unwrap().has(b"AcroForm"));
+        assert_eq!(std::fs::read(&input).unwrap(), source);
+    }
+
+    #[tokio::test]
+    async fn cleanup_dry_run_forms_only_uses_clean_pdf_without_form_data() {
+        let scratch = tempfile::tempdir().unwrap();
+        let input = cleanup_input(scratch.path());
+        let source = std::fs::read(&input).unwrap();
+        let mut selected = options();
+        selected.remove_form_data = true;
+
+        let result = cleanup_optimize_dry_run(&input, scratch.path(), &selected)
+            .await
+            .unwrap();
+
+        assert_eq!(result, scratch.path().join("clean.pdf"));
+        let cleaned = crate::services::pdf_guard::load_guarded(&result).unwrap();
+        assert!(!cleaned.catalog().unwrap().has(b"AcroForm"));
+        assert!(cleaned.trailer.has(b"Info"));
+        assert_eq!(std::fs::read(&input).unwrap(), source);
+    }
+
+    #[tokio::test]
+    async fn cleanup_dry_run_without_cleanup_options_keeps_input_and_skips_clean_pdf() {
+        let scratch = tempfile::tempdir().unwrap();
+        let input = cleanup_input(scratch.path());
+        let source = std::fs::read(&input).unwrap();
+
+        let result = cleanup_optimize_dry_run(&input, scratch.path(), &options())
+            .await
+            .unwrap();
+
+        assert_eq!(result, input);
+        assert!(!scratch.path().join("clean.pdf").exists());
+        assert_eq!(std::fs::read(&input).unwrap(), source);
+    }
     #[test]
     fn heuristic_new_object_streams_save_ten_percent_of_non_image_bytes() {
         let inventory = PdfInventory {
