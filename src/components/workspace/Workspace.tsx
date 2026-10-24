@@ -326,12 +326,12 @@ export function Workspace({ pdf, path }: Props) {
 
   const selectOwnField = useCallback(
     (clientId: string) => {
-      const field = pendingAnnotations.find((item) => item.__clientId === clientId);
+      const field = useAnnotations.getState().byDoc[path]?.find((item) => item.__clientId === clientId);
       if (field?.type !== "form_field") return;
       setActivePage(field.page);
       setSelectedPending({ key: `${path}\u0000${field.page}`, clientId });
     },
-    [path, pendingAnnotations, setActivePage]
+    [path, setActivePage]
   );
 
   const applyFieldSelection = useCallback(
@@ -1177,7 +1177,7 @@ function usePageFields({
   const pendingAnnotations = useAnnotations((s) => s.byDoc[path] ?? NO_ANNOTATIONS);
   const selectedPendingId = selectedPending?.key === ocrPageKey ? selectedPending.clientId : null;
   const selectedPendingAnnotation = pendingAnnotations.find(
-    (annotation) => annotation.__clientId === selectedPendingId
+    (annotation) => !annotation.__deleted && annotation.__clientId === selectedPendingId
   );
   const selectedFreeText = pendingAnnotations.find(
     (a): a is ClientAnnotation & FreeTextAnnotation =>
@@ -1220,7 +1220,7 @@ function usePageFields({
 }
 
 function ownFieldsOnPage(annotations: ClientAnnotation[], page: number) {
-  return annotations.filter((item) => item.type === "form_field" && item.page === page);
+  return annotations.filter((item) => item.type === "form_field" && !item.__deleted && item.page === page);
 }
 
 function useSearchResults(

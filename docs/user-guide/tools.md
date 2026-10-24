@@ -44,7 +44,7 @@ The box stays inside the page. Placement ends after one field. Press Escape
 to cancel placement.
 
 Click a pending box or its name in the **Own fields** list to select it.
-The list can also take you to a field on another page. Change its name and,
+The list can also take you to a field on another page. For a new field, change its name and,
 for text, **Multiline** and **Font size** (0 means automatic). Drag the box
 to move it, or drag an edge handle to resize it. Arrow keys move it 1 pt;
 Shift+arrow moves it 10 pt. Delete removes the selected box when focus is
@@ -61,6 +61,15 @@ other tools and on the facing page of a book spread as a read-only preview.
 After saving, it leaves the pending
 layer and appears in the native Forms list. Fill its value there, or open
 the saved PDF in another form reader. Pending fields do not accept values.
+
+To change a saved own field, select **Edit layout: [field name]** in the
+**Own fields** section. It becomes a pending box. Move or resize it with
+the same controls, or select **Delete field**. Ctrl+Z and Ctrl+Y undo and
+redo these changes, including the selection. Save replaces or removes the
+saved field. Source fields and older own fields without the ownership
+marker have no layout action. Their values remain available in Forms.
+Layout edits keep the saved field's name, filled value and text settings.
+The name, multiline and font-size controls apply to new pending fields.
 
 ## Crop
 Set page-box rectangles manually, lock to a preset paper size, or auto-detect content margins. Supports per-page or apply-to-all.

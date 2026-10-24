@@ -9,7 +9,7 @@ Personal use project, not publicly distributed.
 - Merge, Split, Extract pages, Organize (rotate / delete / reorder / insert blank)
 - Compress (3 presets + Custom) and Optimize (modular pipeline)
 - Edit Tier 1+2+3 (forms / annotations / real inline text edit with proper Type0 CIDFont embedding)
-- Draw your own text fields (single line or multiline) and checkboxes in Edit -> Forms. Move, resize, name and delete unsaved fields with undo and redo. Save writes real AcroForm fields, ready to fill in this app or another PDF reader.
+- Draw your own text fields (single line or multiline) and checkboxes in Edit -> Forms. Name new fields. Move, resize and delete pending or marked saved fields with undo and redo. Save writes real AcroForm fields, ready to fill in this app or another PDF reader. Source fields and fields saved before the ownership marker keep their original layout.
 - Fill scanned forms: detects one field per empty table cell or line, keeps typed values visible in every tool on the page in view and on the facing page of a book spread (page thumbnails do not show them), and saves them as FreeText annotations with an appearance stream (not flattened, not AcroForm values). Each save builds on the last saved copy, so earlier values stay. A click on a saved value edits it; the save replaces it, never adds a second value, and an emptied value is deleted. A document with native AcroForm fields on some pages still offers detection for the printed boxes that are not form fields. Typed AcroForm values count as unsaved work: the close guard asks, the toolbar Save writes them ([Tools reference](docs/user-guide/tools.md#edit))
 - Crop (manual + auto-detect content + aspect lock + preset paper sizes)
 - Compare (visual + text diff)

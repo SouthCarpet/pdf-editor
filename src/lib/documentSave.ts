@@ -67,10 +67,16 @@ export interface SaveDocumentOptions {
 
 /** The wire form of a pending annotation: without the client-only keys. */
 function toWireAnnotation(annotation: ClientAnnotation): Annotation {
-  const { __clientId: _id, __replaces: _replaces, ...wire } = annotation;
+  const { __clientId: _id, __replaces: _replaces, __deleted: _deleted, ...wire } = annotation;
   void _id;
-  void _replaces;
-  return wire as Annotation;
+  void _deleted;
+  const annotationWire = wire as Annotation;
+  if (annotationWire.type !== "form_field" || annotationWire.source_field === undefined) {
+    return annotationWire;
+  }
+  const { source_field: _source, ...field } = annotationWire;
+  void _source;
+  return _replaces === undefined ? field : { ...field, source_field: _replaces };
 }
 
 /** Plan 119 p1: the file that holds every value saved so far. Each save
@@ -90,13 +96,15 @@ async function applyAnnotationsCopy(
   const result = await commands.applyAnnotationsCmd({
     input: latestSavedSource(docId),
     output,
-    annotations: pending.map(toWireAnnotation),
+    annotations: pending.filter((annotation) => !annotation.__deleted).map(toWireAnnotation),
     replaced: pending.flatMap((annotation) =>
       annotation.__replaces === undefined ? [] : [annotation.__replaces],
     ),
     job_id: crypto.randomUUID(),
   });
-  return result.status === "ok" ? result.data : null;
+  if (result.status !== "ok") return null;
+  let index = 0;
+  return pending.map((annotation) => annotation.__deleted ? null : result.data[index++]);
 }
 
 /**
@@ -131,7 +139,7 @@ export async function saveDocument(
     const saved = await saveFormDraft(docId, latestSavedSource(docId), output);
     if (!saved.ok) return "failed";
   }
-  if (pending.length > 0 && !(await savePendingAnnotations(docId, output, pending))) {
+  if (!(await savePendingWork(docId, output, pending))) {
     return "failed";
   }
 
@@ -143,6 +151,14 @@ export async function saveDocument(
   // belongs to an in-progress Edit Text draft (`EditTextPanel` sets and
   // clears it) - a save here must not hide that unrelated unsaved work.
   return "saved";
+}
+
+async function savePendingWork(
+  docId: DocId,
+  output: string,
+  pending: readonly ClientAnnotation[],
+): Promise<boolean> {
+  return pending.length === 0 || savePendingAnnotations(docId, output, pending);
 }
 
 /** The file to write: the path of an earlier save, or one the user picks.

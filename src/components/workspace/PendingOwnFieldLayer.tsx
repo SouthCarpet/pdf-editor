@@ -65,7 +65,7 @@ export function PendingOwnFieldLayer({
   const colors = useFieldColors();
   const fields = annotations.filter(
     (item): item is ClientAnnotation & OwnFieldAnnotation =>
-      item.type === "form_field" && item.page === page
+      item.type === "form_field" && !item.__deleted && item.page === page
   );
   return (
     <Group listening={interactive}>

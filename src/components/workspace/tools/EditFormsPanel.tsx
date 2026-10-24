@@ -5,6 +5,7 @@ import { commands, type DetectedFormField, type FormField, type OwnFieldKind } f
 import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
 import type { OwnFieldAnnotation } from "../pendingAnnotationGeometry";
 import { clampToPage } from "../ownFieldGeometry";
+import { selectSavedOwnField } from "../savedOwnFields";
 import { useAutosave } from "@/hooks/useAutosave";
 import { latestSavedSource } from "@/lib/documentSave";
 import { changedFields, saveFormDraft } from "@/lib/formDraftSave";
@@ -90,6 +91,7 @@ export function EditFormsPanel({
         selectedId={selectedOwnFieldId}
         onSelect={onSelectOwnField}
         pageBox={pageBox}
+        savedFields={form.fields}
       />
       {form.fields.length === 0 ? (
         <DetectFieldsSection {...detect} />
@@ -119,6 +121,7 @@ function OwnFieldsSection({
   selectedId,
   onSelect = noop,
   pageBox,
+  savedFields,
 }: {
   docPath: string;
   placement: OwnFieldKind | null;
@@ -126,11 +129,12 @@ function OwnFieldsSection({
   selectedId: string | null;
   onSelect?: (id: string) => void;
   pageBox: readonly number[];
+  savedFields: FormField[];
 }) {
   const { t } = useTranslation("workspace");
   const items = useAnnotations((s) => s.byDoc[docPath] ?? NO_ANNOTATIONS);
   const selected = items.find(
-    (item): item is PendingOwnField => item.type === "form_field" && item.__clientId === selectedId
+    (item): item is PendingOwnField => item.type === "form_field" && !item.__deleted && item.__clientId === selectedId
   );
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -175,6 +179,7 @@ function OwnFieldsSection({
         </p>
       )}
       <PendingOwnFieldList items={items} selectedId={selectedId} onSelect={onSelect} />
+      <SavedOwnFieldList docPath={docPath} fields={savedFields} items={items} onSelect={onSelect} />
       {selected && <OwnFieldEditor docPath={docPath} field={selected} />}
       <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
         {t("forms.own.save_hint")}
@@ -193,7 +198,7 @@ function PendingOwnFieldList({
   onSelect: (id: string) => void;
 }) {
   const { t } = useTranslation("workspace");
-  const fields = items.filter((item): item is PendingOwnField => item.type === "form_field");
+  const fields = items.filter((item): item is PendingOwnField => item.type === "form_field" && !item.__deleted);
   if (fields.length === 0) return null;
   return (
     <ul className="max-h-32 divide-y divide-[var(--color-border)] overflow-auto">
@@ -209,6 +214,37 @@ function PendingOwnFieldList({
             <span className="shrink-0 text-[var(--color-muted)]">
               {t("forms.page", { page: field.page + 1 })}
             </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SavedOwnFieldList({ docPath, fields, items, onSelect }: {
+  docPath: string;
+  fields: FormField[];
+  items: ClientAnnotation[];
+  onSelect: (id: string) => void;
+}) {
+  const { t } = useTranslation("workspace");
+  const replaced = new Set(items.flatMap((item) => item.__replaces
+    ? [`${item.__replaces.object}:${item.__replaces.generation}`]
+    : []));
+  const saved = fields.filter((field) => field.own && !replaced.has(field.id));
+  return (
+    <ul>
+      {saved.map((field) => (
+        <li key={field.id}>
+          <button
+            type="button"
+            className="min-h-8 text-left text-xs"
+            onClick={() => {
+              const id = selectSavedOwnField(docPath, field);
+              if (id !== null) onSelect(id);
+            }}
+          >
+            {t("forms.own.edit_layout", { name: field.name })}
           </button>
         </li>
       ))}
@@ -258,6 +294,7 @@ function OwnFieldEditor({ docPath, field }: { docPath: string; field: PendingOwn
   const id = `own-field-${field.__clientId}`;
   return (
     <div className="space-y-2" data-own-field-editor>
+      {field.__replaces === undefined ? <>
       <label htmlFor={id} className="block text-xs">
         {t("forms.own.name")}
       </label>
@@ -295,6 +332,7 @@ function OwnFieldEditor({ docPath, field }: { docPath: string; field: PendingOwn
           />
         </>
       )}
+      </> : <p className="text-xs font-medium">{field.name}</p>}
       <Button
         size="sm"
         variant="outline"

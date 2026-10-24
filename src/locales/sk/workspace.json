@@ -212,8 +212,9 @@
       "multiline": "Viac riadkov",
       "font_size": "Veľkosť písma (pt, 0 = automaticky)",
       "delete": "Zmazať pole",
+      "edit_layout": "Upraviť rozloženie: {{name}}",
       "place_hint": "Kliknite alebo ťahajte na strane. Escape zruší vkladanie.",
-      "save_hint": "Uložením vznikne formulárové pole. Hodnotu vyplňte po uložení.",
+      "save_hint": "Uložte zmeny polí. Nové polia vyplňte po uložení.",
       "move_hint": "Ťahajte pole alebo jeho okraje. Šípky posúvajú o 1 pt, so Shift o 10 pt."
     }
   },

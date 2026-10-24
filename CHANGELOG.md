@@ -4,6 +4,9 @@
 
 ### Added
 
+- Move, resize and delete saved own fields in Forms, with undo and redo.
+  Only fields carrying the new ownership marker offer layout editing.
+
 - Draw, name, move, resize and delete pending text fields and checkboxes in Forms. Save writes real AcroForm fields; undo, redo and read-only previews are included.
 
 - Own field model: text boxes use 140 x 22 pt, checkboxes use 14 x 14 pt,
@@ -126,6 +129,9 @@
   (`KNOWN_ISSUES.md`).
 
 ### Fixed
+
+- Saving values on pages with indirect resources preserves existing images
+  and font resources.
 
 - Annotations on a page with an indirect /Annots list were dropped when saving or deleting an annotation.
 - Troubleshooting guide: the database is `app.db` (not `state.db`), and the

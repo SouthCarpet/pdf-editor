@@ -196,8 +196,11 @@ export function createAnnotationHistoryActions(
     },
     remove: (docPath, clientId) => {
       const before = adapter.get(docPath);
-      if (!before.some((annotation) => annotation.__clientId === clientId)) return;
-      const after = before.filter((annotation) => annotation.__clientId !== clientId);
+      const target = before.find((annotation) => annotation.__clientId === clientId);
+      if (!target || target.__deleted) return;
+      const after = target.type === "form_field" && target.__replaces !== undefined
+        ? before.map((annotation) => annotation === target ? { ...annotation, __deleted: true } : annotation)
+        : before.filter((annotation) => annotation.__clientId !== clientId);
       apply(docPath, after);
       pushTransition(docPath, "delete", before, after);
       textBursts.delete(docPath);

@@ -209,8 +209,9 @@
       "multiline": "Multiline",
       "font_size": "Font size (pt, 0 = auto)",
       "delete": "Delete field",
+      "edit_layout": "Edit layout: {{name}}",
       "place_hint": "Click or drag on the page. Press Escape to cancel.",
-      "save_hint": "Save writes a form field. Fill its value after saving.",
+      "save_hint": "Save applies field changes. Fill new fields after saving.",
       "move_hint": "Drag the box or its edge handles. Arrow keys move it 1 pt; Shift moves it 10 pt."
     }
   },
