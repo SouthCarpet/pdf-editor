@@ -26,6 +26,7 @@ use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts::{
     find_by_postscript_name, is_standard_14, list_system_fonts, SystemFont,
 };
+use crate::services::own_fields::OwnFieldKind;
 use crate::services::text_style::{textBlockOffset, TextAlign, TextStyle};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -100,6 +101,20 @@ pub enum Annotation {
         width: f32,
         opacity: f32,
         smoothing: bool,
+    },
+    /// Plan 119 O1: a form field the user draws. `own_fields` writes it as
+    /// a real AcroForm field; it has no value when saved.
+    FormField {
+        page: u32,
+        /// PDF points, `[x1, y1, x2, y2]`, unrotated page user space.
+        rect: [f32; 4],
+        /// Requested partial name; the writer sanitizes it and makes it unique.
+        name: String,
+        kind: OwnFieldKind,
+        /// Text only.
+        multiline: bool,
+        /// Points; `0.0` means auto.
+        font_size: f32,
     },
 }
 
@@ -308,7 +323,8 @@ fn annotation_page(ann: &Annotation) -> u32 {
         | Annotation::Line { page, .. }
         | Annotation::FreeText { page, .. }
         | Annotation::Stamp { page, .. }
-        | Annotation::Ink { page, .. } => *page,
+        | Annotation::Ink { page, .. }
+        | Annotation::FormField { page, .. } => *page,
     }
 }
 
@@ -675,6 +691,7 @@ fn build_annot_dict(
             );
             Ok((d, None))
         }
+        Annotation::FormField { .. } => anyhow::bail!("own fields are not written yet"),
     }
 }
 
