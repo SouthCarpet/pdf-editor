@@ -7,7 +7,7 @@ The bundled sidecar (qpdf / Ghostscript / MuPDF / Tesseract / pdfcrack) exceeded
 Make sure the OCR language matches the document language. Slovak, Czech, and German tessdata files are bundled. For other languages, drop the `.traineddata` file into Settings -> OCR -> Languages, then re-run.
 
 ## "Password required"
-The PDF has a user-open password (Type B). Type it in the Unlock tool. For permission-locked (Type A) PDFs the Unlock tool removes the lock without a password. For unknown passwords, switch to Recovery and pick Dictionary or Brute mode.
+The PDF has a user-open password (Type B). Type it in the Unlock tool. For permission-locked (Type A) PDFs the Unlock tool removes the lock without a password. For unknown passwords, switch to Recovery and pick Dictionary or Brute force mode. The Recovery mode control supports the arrow keys. Estimates use a half-filled square; a found password uses a filled square. The Legal warning dialog supports Escape to cancel.
 
 ## Compare reports false positives
 Whitespace-only diffs can appear when fonts re-render slightly differently between source and target. Increase the diff threshold in the Compare panel.
