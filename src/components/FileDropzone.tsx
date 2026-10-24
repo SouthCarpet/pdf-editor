@@ -39,11 +39,7 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
 
   return (
     <div
-      className={`flex min-h-48 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed bg-[var(--color-dropzone)] p-8 text-[var(--color-foreground)] transition-colors ${
-        hover
-          ? "border-[var(--color-dropzone-border-active)] bg-[var(--color-dropzone-active)]"
-          : "border-[var(--color-border)]"
-      }`}
+      className={`k-drop-zone min-h-40 ${hover ? "is-dragover" : ""}`}
       onDragOver={(e) => {
         e.preventDefault();
         setHover(true);
@@ -52,10 +48,7 @@ export function FileDropzone({ multiple = true, accept = ["pdf"], onFiles, child
       onDrop={onDrop}
     >
       {children ?? (
-        <p
-          data-testid="dropzone-placeholder"
-          className="text-sm text-[var(--color-placeholder)]"
-        >
+        <p data-testid="dropzone-placeholder" className="k-drop-hint">
           {t("drop_files")}
         </p>
       )}

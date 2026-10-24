@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFile } from "./SelectedFiles";
 import { useToolJob } from "@/hooks/useToolJob";
 import { parsePageList } from "@/lib/parsePageList";
 import {
@@ -39,7 +40,7 @@ export function ExtractTool() {
   return (
     <ToolPage title={t("tools.extract")} description={t("tools:extract.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
-      {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
+      {file && <SelectedFile path={file} />}
       <ExtractOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !valid || !!activeId} onClick={onRun}>

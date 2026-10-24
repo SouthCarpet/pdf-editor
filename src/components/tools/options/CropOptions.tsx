@@ -10,7 +10,9 @@
 //   "Apply to" radio: Current / All / Odd / Even / Range
 //   auto-detect threshold slider under "Advanced ▾"
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { CheckField, RadioField, SelectField, SliderField, TextField } from "./fields";
 import type {
   AspectRatio,
   CropApplyTo,
@@ -37,238 +39,231 @@ function ptToUnit(pt: number, unit: CropUnit): string {
   return pt.toFixed(0) + " pt";
 }
 
-export function CropOptions({ value, onChange }: Props) {
-  function set<K extends keyof CropOptionsValue>(
-    key: K,
-    next: CropOptionsValue[K],
-  ) {
-    onChange({ ...value, [key]: next });
+type Setter = <K extends keyof CropOptionsValue>(key: K, next: CropOptionsValue[K]) => void;
+
+interface SectionProps {
+  value: CropOptionsValue;
+  set: Setter;
+}
+
+const APPLY_LABELS: Record<CropApplyTo, string> = {
+  current: "Current page",
+  all: "All pages",
+  odd: "Odd pages",
+  even: "Even pages",
+  range: "Range",
+};
+
+function AspectRatioSection({ value, set }: SectionProps) {
+  const { t } = useTranslation("tools");
+  return (
+    <>
+      <SelectField
+        label="Aspect ratio"
+        value={value.aspect_ratio}
+        onChange={(v) => set("aspect_ratio", v as AspectRatio)}
+      >
+        <option value="free">Free</option>
+        <option value="1:1">1:1</option>
+        <option value="4:3">4:3</option>
+        <option value="16:9">16:9</option>
+        <option value="a4-portrait">A4 portrait</option>
+        <option value="a4-landscape">A4 landscape</option>
+        <option value="letter-portrait">{t("crop.letter_portrait")}</option>
+        <option value="letter-landscape">{t("crop.letter_landscape")}</option>
+        <option value="custom">Custom</option>
+      </SelectField>
+      {value.aspect_ratio === "custom" && (
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            type="number"
+            min={1}
+            value={value.aspect_ratio_w}
+            onChange={(e) => set("aspect_ratio_w", Number(e.target.value) || 1)}
+            placeholder="W"
+            aria-label={t("crop.aspect_ratio_width")}
+          />
+          <Input
+            type="number"
+            min={1}
+            value={value.aspect_ratio_h}
+            onChange={(e) => set("aspect_ratio_h", Number(e.target.value) || 1)}
+            placeholder="H"
+            aria-label={t("crop.aspect_ratio_height")}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+function MarginSection({ value, set }: SectionProps) {
+  const { t } = useTranslation("tools");
+  return (
+    <>
+      <SelectField
+        label="Margins"
+        value={value.margin_preset}
+        onChange={(v) => set("margin_preset", v as MarginPreset)}
+      >
+        <option value="none">None</option>
+        <option value="tight">Tight (0.25 in)</option>
+        <option value="standard">Standard (0.5 in)</option>
+        <option value="loose">Loose (1 in)</option>
+        <option value="custom">Custom (mm)</option>
+      </SelectField>
+      {value.margin_preset === "custom" && (
+        <Input
+          type="number"
+          min={0}
+          value={value.margin_custom_mm}
+          onChange={(e) => set("margin_custom_mm", Number(e.target.value) || 0)}
+          placeholder={t("crop.unit_mm")}
+          aria-label={t("crop.margin_custom_aria")}
+        />
+      )}
+    </>
+  );
+}
+
+function ApplyToSection({ value, set }: SectionProps) {
+  const { t } = useTranslation("tools");
+  return (
+    <>
+      <fieldset className="k-radio-group">
+        <legend className="k-label">{t("crop.apply_to")}</legend>
+        {(Object.keys(APPLY_LABELS) as CropApplyTo[]).map((val) => (
+          <RadioField
+            key={val}
+            name="crop-apply-to"
+            label={APPLY_LABELS[val]}
+            checked={value.apply_to === val}
+            onChange={() => {
+              set("apply_to", val);
+              set("apply_to_all_pages", val === "all");
+            }}
+          />
+        ))}
+      </fieldset>
+      {value.apply_to === "range" && (
+        <Input
+          type="text"
+          value={value.apply_range}
+          onChange={(e) => set("apply_range", e.target.value)}
+          placeholder={t("crop.range_placeholder")}
+          aria-label={t("crop.page_range_aria")}
+        />
+      )}
+    </>
+  );
+}
+
+function parseBbox(text: string): CropOptionsValue["bbox"] {
+  const parts = text.split(",").map((s) => Number(s.trim()));
+  if (parts.length === 4 && parts.every(Number.isFinite)) {
+    return parts as [number, number, number, number];
   }
+  return null;
+}
+
+function ManualBboxSection({ value, set }: SectionProps) {
+  const { t } = useTranslation("tools");
+  return (
+    <TextField label="Manual bbox x, y, w, h (PDF points)">
+      <Input
+        type="text"
+        value={value.bbox?.join(", ") ?? ""}
+        onChange={(e) => set("bbox", parseBbox(e.target.value))}
+        placeholder={t("crop.bbox_placeholder")}
+        aria-label={t("crop.bbox_aria")}
+      />
+    </TextField>
+  );
+}
+
+function AdvancedSection({ value, set }: SectionProps) {
+  const { t } = useTranslation("tools");
   const [advanced, setAdvanced] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAdvanced((a) => !a)}
+        className="k-btn k-btn-ghost k-btn-auto"
+        aria-expanded={advanced}
+        aria-label={t("crop.toggle_advanced")}
+      >
+        {advanced ? "Hide advanced" : "Advanced"}
+      </button>
+      {advanced && (
+        <SliderField
+          label="Auto-detect threshold"
+          value={value.auto_detect_threshold}
+          min={0}
+          max={255}
+          onChange={(v) => set("auto_detect_threshold", v)}
+        />
+      )}
+    </>
+  );
+}
+
+export function CropOptions({ value, onChange }: Props) {
+  const { t } = useTranslation("tools");
+  const set: Setter = (key, next) => onChange({ ...value, [key]: next });
   const w = value.bbox?.[2] ?? 0;
   const h = value.bbox?.[3] ?? 0;
 
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={value.auto_detect}
-          onChange={(e) => set("auto_detect", e.target.checked)}
-        />
-        Auto-detect bbox
-      </label>
+    <div className="space-y-4">
+      <CheckField
+        label="Auto-detect bbox"
+        checked={value.auto_detect}
+        onChange={(c) => set("auto_detect", c)}
+      />
 
-      <div className="space-y-1">
-        <label className="text-xs text-[var(--color-muted)]">Aspect ratio</label>
-        <select
-          value={value.aspect_ratio}
-          onChange={(e) => set("aspect_ratio", e.target.value as AspectRatio)}
-          className="h-8 w-full rounded border px-2 text-xs"
-          aria-label="Aspect ratio"
-        >
-          <option value="free">Free</option>
-          <option value="1:1">1:1</option>
-          <option value="4:3">4:3</option>
-          <option value="16:9">16:9</option>
-          <option value="a4-portrait">A4 portrait</option>
-          <option value="a4-landscape">A4 landscape</option>
-          <option value="letter-portrait">Letter portrait</option>
-          <option value="letter-landscape">Letter landscape</option>
-          <option value="custom">Custom</option>
-        </select>
-        {value.aspect_ratio === "custom" && (
-          <div className="mt-1 grid grid-cols-2 gap-1">
-            <Input
-              type="number"
-              min={1}
-              value={value.aspect_ratio_w}
-              onChange={(e) =>
-                set("aspect_ratio_w", Number(e.target.value) || 1)
-              }
-              placeholder="W"
-              aria-label="Aspect ratio width"
-            />
-            <Input
-              type="number"
-              min={1}
-              value={value.aspect_ratio_h}
-              onChange={(e) =>
-                set("aspect_ratio_h", Number(e.target.value) || 1)
-              }
-              placeholder="H"
-              aria-label="Aspect ratio height"
-            />
-          </div>
-        )}
-      </div>
+      <AspectRatioSection value={value} set={set} />
 
-      <div className="space-y-1">
-        <label className="text-xs text-[var(--color-muted)]">Preset size</label>
-        <select
-          value={value.page_size_preset}
-          onChange={(e) =>
-            set("page_size_preset", e.target.value as PageSizePreset)
-          }
-          className="h-8 w-full rounded border px-2 text-xs"
-          aria-label="Page size preset"
-        >
-          <option value="custom">Custom</option>
-          <option value="a3">A3</option>
-          <option value="a4">A4</option>
-          <option value="a5">A5</option>
-          <option value="letter">Letter</option>
-          <option value="legal">Legal</option>
-          <option value="tabloid">Tabloid</option>
-        </select>
-      </div>
+      <SelectField
+        label="Preset size"
+        value={value.page_size_preset}
+        onChange={(v) => set("page_size_preset", v as PageSizePreset)}
+      >
+        <option value="custom">Custom</option>
+        <option value="a3">A3</option>
+        <option value="a4">A4</option>
+        <option value="a5">A5</option>
+        <option value="letter">Letter</option>
+        <option value="legal">Legal</option>
+        <option value="tabloid">Tabloid</option>
+      </SelectField>
 
-      <div className="space-y-1">
-        <label className="text-xs text-[var(--color-muted)]">Margins</label>
-        <select
-          value={value.margin_preset}
-          onChange={(e) =>
-            set("margin_preset", e.target.value as MarginPreset)
-          }
-          className="h-8 w-full rounded border px-2 text-xs"
-          aria-label="Margin preset"
-        >
-          <option value="none">None</option>
-          <option value="tight">Tight (0.25 in)</option>
-          <option value="standard">Standard (0.5 in)</option>
-          <option value="loose">Loose (1 in)</option>
-          <option value="custom">Custom (mm)</option>
-        </select>
-        {value.margin_preset === "custom" && (
-          <Input
-            type="number"
-            min={0}
-            value={value.margin_custom_mm}
-            onChange={(e) =>
-              set("margin_custom_mm", Number(e.target.value) || 0)
-            }
-            placeholder="mm"
-            aria-label="Custom margin mm"
-          />
-        )}
-      </div>
+      <MarginSection value={value} set={set} />
 
-      <div className="space-y-1">
-        <label className="text-xs text-[var(--color-muted)]">Unit</label>
-        <select
-          value={value.unit}
-          onChange={(e) => set("unit", e.target.value as CropUnit)}
-          className="h-8 w-full rounded border px-2 text-xs"
-          aria-label="Unit"
-        >
-          <option value="pt">Points (pt)</option>
-          <option value="mm">Millimeters (mm)</option>
-          <option value="in">Inches (in)</option>
-        </select>
-        <p className="text-xs text-[var(--color-muted)]">
-          Live: {ptToUnit(w, value.unit)} x {ptToUnit(h, value.unit)}
-        </p>
-      </div>
+      <SelectField label="Unit" value={value.unit} onChange={(v) => set("unit", v as CropUnit)}>
+        <option value="pt">Points (pt)</option>
+        <option value="mm">Millimeters (mm)</option>
+        <option value="in">Inches (in)</option>
+      </SelectField>
+      <p className="k-caption k-num">
+        Live: {ptToUnit(w, value.unit)} x {ptToUnit(h, value.unit)}
+      </p>
 
-      <fieldset className="space-y-1">
-        <legend className="text-xs text-[var(--color-muted)]">Apply to</legend>
-        {(["current", "all", "odd", "even", "range"] as CropApplyTo[]).map(
-          (val) => (
-            <label key={val} className="flex items-center gap-2 text-xs">
-              <input
-                type="radio"
-                name="crop-apply-to"
-                value={val}
-                checked={value.apply_to === val}
-                onChange={() => {
-                  set("apply_to", val);
-                  set("apply_to_all_pages", val === "all");
-                }}
-              />
-              {val === "current"
-                ? "Current page"
-                : val === "all"
-                  ? "All pages"
-                  : val === "odd"
-                    ? "Odd pages"
-                    : val === "even"
-                      ? "Even pages"
-                      : "Range"}
-            </label>
-          ),
-        )}
-        {value.apply_to === "range" && (
-          <Input
-            type="text"
-            value={value.apply_range}
-            onChange={(e) => set("apply_range", e.target.value)}
-            placeholder="1-5, 8, 10"
-            aria-label="Page range"
-          />
-        )}
-      </fieldset>
+      <ApplyToSection value={value} set={set} />
 
-      <label className="block">
-        Sample page index (0-based, used for auto-detect):
+      <TextField label="Sample page index (0-based, used for auto-detect)">
         <Input
           type="number"
           min={0}
           value={value.page_index}
           onChange={(e) => set("page_index", Number(e.target.value))}
-          aria-label="Sample page index"
+          aria-label={t("crop.sample_page_aria")}
         />
-      </label>
+      </TextField>
 
-      {!value.auto_detect && (
-        <div className="space-y-1">
-          <p className="text-[var(--color-muted)]">
-            Manual bbox x, y, w, h (PDF points):
-          </p>
-          <Input
-            type="text"
-            value={value.bbox?.join(", ") ?? ""}
-            onChange={(e) => {
-              const parts = e.target.value
-                .split(",")
-                .map((s) => Number(s.trim()));
-              if (parts.length === 4 && parts.every(Number.isFinite)) {
-                set("bbox", parts as [number, number, number, number]);
-              } else {
-                set("bbox", null);
-              }
-            }}
-            placeholder="36, 36, 540, 720"
-            aria-label="Bbox"
-          />
-        </div>
-      )}
+      {!value.auto_detect && <ManualBboxSection value={value} set={set} />}
 
-      <button
-        type="button"
-        onClick={() => setAdvanced((a) => !a)}
-        className="text-xs text-[var(--color-muted)] hover:underline"
-        aria-label="Toggle advanced options"
-      >
-        {advanced ? "Hide advanced" : "Advanced"}
-      </button>
-      {advanced && (
-        <div className="rounded border p-2">
-          <label className="block text-xs">
-            Auto-detect threshold: {value.auto_detect_threshold}
-            <input
-              type="range"
-              min={0}
-              max={255}
-              value={value.auto_detect_threshold}
-              onChange={(e) =>
-                set("auto_detect_threshold", Number(e.target.value))
-              }
-              className="w-full"
-              aria-label="Auto-detect threshold"
-            />
-          </label>
-        </div>
-      )}
+      <AdvancedSection value={value} set={set} />
     </div>
   );
 }

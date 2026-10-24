@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFile } from "./SelectedFiles";
+import { AlertNote, TextField } from "./options/fields";
 import { RecoveryWarningModal } from "@/components/recovery/RecoveryWarningModal";
 import { commands } from "@/bindings";
 import { useJobsStore } from "@/stores/jobsStore";
@@ -19,6 +21,45 @@ type Stage =
   | { kind: "running" }
   | { kind: "done"; outputs: string[] }
   | { kind: "error"; key: string; detail?: string };
+
+interface CommandError {
+  key?: string;
+  data?: { detail?: string };
+}
+
+function errorStage(error: unknown): Extract<Stage, { kind: "error" }> {
+  const err = error as CommandError;
+  return { kind: "error", key: err.key ?? "internal", detail: err.data?.detail };
+}
+
+// password_invalid / password_required → re-prompt; other errors stick.
+function isPasswordError(error: unknown): boolean {
+  const key = (error as CommandError).key;
+  return key === "password_required" || key === "password_invalid";
+}
+
+// The status line under the file: inspecting, not encrypted, error or saved.
+function StageNote({ stage }: { stage: Stage }) {
+  const { t } = useTranslation();
+  switch (stage.kind) {
+    case "detecting":
+      return <p className="k-caption">{t("tools:unlock.inspecting")}</p>;
+    case "ready":
+      return stage.encrypted ? null : (
+        <AlertNote kind="info">{t("tools:unlock.not_encrypted")}</AlertNote>
+      );
+    case "error":
+      return (
+        <AlertNote kind="error">
+          {t(`errors:${stage.key}`, stage.detail ? { detail: stage.detail } : undefined)}
+        </AlertNote>
+      );
+    case "done":
+      return <AlertNote kind="success">{t("tools:unlock.saved_to", { path: stage.outputs[0] })}</AlertNote>;
+    default:
+      return null;
+  }
+}
 
 export function UnlockTool() {
   const { t } = useTranslation();
@@ -37,12 +78,7 @@ export function UnlockTool() {
     if (!f) return;
     setStage({ kind: "detecting" });
     const res = await commands.detectPdfEncryption(f);
-    if (res.status === "ok") {
-      setStage({ kind: "ready", encrypted: res.data });
-    } else {
-      const err = res.error as { key?: string; data?: { detail?: string } };
-      setStage({ kind: "error", key: err.key ?? "internal", detail: err.data?.detail });
-    }
+    setStage(res.status === "ok" ? { kind: "ready", encrypted: res.data } : errorStage(res.error));
   }
 
   async function onRun() {
@@ -68,49 +104,29 @@ export function UnlockTool() {
       } else {
         setStage({ kind: "prompt" });
       }
-    } else {
-      const err = res.error as { key?: string; data?: { detail?: string } };
-      fail(id, err.key ?? "internal", err.data?.detail);
-      // password_invalid / password_required → re-prompt; other errors stick.
-      if (err.key === "password_required" || err.key === "password_invalid") {
-        setStage({ kind: "prompt" });
-      } else {
-        setStage({ kind: "error", key: err.key ?? "internal", detail: err.data?.detail });
-      }
+      return;
     }
+    const failure = errorStage(res.error);
+    fail(id, failure.key, failure.detail);
+    setStage(isPasswordError(res.error) ? { kind: "prompt" } : failure);
   }
 
-  const encrypted = stage.kind === "ready" && stage.encrypted;
-  const showPrompt = stage.kind === "prompt" || encrypted;
+  const showPrompt = stage.kind === "prompt" || (stage.kind === "ready" && stage.encrypted);
 
   return (
     <ToolPage title={t("tools.unlock")} description={t("tools:unlock.description")}>
       <FileDropzone onFiles={onFile} multiple={false} />
-      {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
-      {stage.kind === "detecting" && (
-        <p className="text-sm text-[var(--color-muted)]">Inspecting…</p>
-      )}
-      {stage.kind === "ready" && !stage.encrypted && (
-        <p className="text-sm text-[var(--color-success-text)]">This PDF is not encrypted.</p>
-      )}
+      {file && <SelectedFile path={file} />}
+      <StageNote stage={stage} />
       {showPrompt && (
-        <div className="space-y-2">
-          <label className="text-sm">{t("tools:unlock.password_label")}</label>
+        <TextField label={t("tools:unlock.password_label")}>
           <Input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder={t("tools:unlock.password_label")}
           />
-        </div>
-      )}
-      {stage.kind === "error" && (
-        <p className="text-sm text-[var(--color-danger-text)]">
-          {t(`errors:${stage.key}`, stage.detail ? { detail: stage.detail } : undefined)}
-        </p>
-      )}
-      {stage.kind === "done" && (
-        <p className="text-sm text-[var(--color-success-text)]">Saved to {stage.outputs[0]}</p>
+        </TextField>
       )}
       <div className="flex items-center gap-2">
         <Button
@@ -121,10 +137,11 @@ export function UnlockTool() {
         </Button>
         {stage.kind === "prompt" && (
           <button
-            className="text-xs text-[var(--color-accent)] underline hover:text-[var(--color-accent-hover)]"
+            type="button"
+            className="k-btn k-btn-ghost k-btn-auto"
             onClick={() => setRecoveryWarningOpen(true)}
           >
-            Forgot the password? Try recovery →
+            {t("tools:unlock.forgot_password")}
           </button>
         )}
       </div>

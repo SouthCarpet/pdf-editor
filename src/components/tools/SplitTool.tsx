@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFile } from "./SelectedFiles";
 import { useToolJob } from "@/hooks/useToolJob";
 import {
   DEFAULT_SPLIT_OPTIONS,
@@ -39,7 +40,7 @@ export function SplitTool() {
   return (
     <ToolPage title={t("tools.split")} description={t("tools:split.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
-      {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
+      {file && <SelectedFile path={file} />}
       <SplitOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || !!activeId} onClick={onRun}>

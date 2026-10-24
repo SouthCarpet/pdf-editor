@@ -9,6 +9,7 @@
 // surface: per-class DPI sliders (color / gray / mono), color mode,
 // filter, downsample method, Remove EXIF toggle.
 import { useTranslation } from "react-i18next";
+import { CheckField, SelectField, SliderField } from "./fields";
 import type {
   CompressColorMode,
   CompressDownsample,
@@ -31,132 +32,86 @@ export function CompressOptions({ value, onChange, mode = "standalone" }: Props)
   }
   const showCustom = value.preset === "custom";
   return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <label className="text-sm text-[var(--color-muted)]">{t("compress.preset")}</label>
-        <select
-          value={value.preset}
-          onChange={(e) => set("preset", e.target.value as CompressOptionsValue["preset"])}
-          className="h-10 w-full rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-3 text-sm text-[var(--color-control-foreground)]"
-          aria-label={t("compress.preset")}
-        >
-          <option value="recommended">{t("compress.preset_recommended")}</option>
-          <option value="high">{t("compress.preset_high")}</option>
-          <option value="maximum">{t("compress.preset_maximum")}</option>
-          <option value="custom">{t("compress.preset_custom")}</option>
-        </select>
-      </div>
+    <div className="space-y-4">
+      <SelectField
+        label={t("compress.preset")}
+        value={value.preset}
+        onChange={(v) => set("preset", v as CompressOptionsValue["preset"])}
+      >
+        <option value="recommended">{t("compress.preset_recommended")}</option>
+        <option value="high">{t("compress.preset_high")}</option>
+        <option value="maximum">{t("compress.preset_maximum")}</option>
+        <option value="custom">{t("compress.preset_custom")}</option>
+      </SelectField>
       {showCustom && (
-        <div className="space-y-2 rounded border p-3">
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              {t("compress.jpeg_quality")} (1-100): {value.customQuality}
-            </label>
-            <input
-              type="range"
-              min={1}
-              max={100}
-              value={value.customQuality}
-              onChange={(e) => set("customQuality", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("compress.jpeg_quality")}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              {t("compress.color_dpi")} (36-300): {value.colorDpi}
-            </label>
-            <input
-              type="range"
-              min={36}
-              max={300}
-              value={value.colorDpi}
-              onChange={(e) => set("colorDpi", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("compress.color_dpi")}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              {t("compress.grayscale_dpi")} (36-300): {value.grayDpi}
-            </label>
-            <input
-              type="range"
-              min={36}
-              max={300}
-              value={value.grayDpi}
-              onChange={(e) => set("grayDpi", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("compress.grayscale_dpi")}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">
-              {t("compress.mono_dpi")} (72-600): {value.monoDpi}
-            </label>
-            <input
-              type="range"
-              min={72}
-              max={600}
-              value={value.monoDpi}
-              onChange={(e) => set("monoDpi", Number(e.target.value))}
-              className="w-full"
-              aria-label={t("compress.mono_dpi")}
-            />
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">{t("compress.color_mode")}</label>
-            <select
-              value={value.colorMode}
-              onChange={(e) => set("colorMode", e.target.value as CompressColorMode)}
-              className="h-8 w-full rounded border px-2 text-xs"
-              aria-label={t("compress.color_mode")}
-            >
-              <option value="preserve">{t("compress.color_preserve")}</option>
-              <option value="grayscale">{t("compress.color_grayscale")}</option>
-              <option value="monochrome">{t("compress.color_monochrome")}</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">{t("compress.filter")}</label>
-            <select
-              value={value.filter}
-              onChange={(e) => set("filter", e.target.value as CompressFilter)}
-              className="h-8 w-full rounded border px-2 text-xs"
-              aria-label={t("compress.filter")}
-            >
-              <option value="auto">Auto</option>
-              <option value="jpeg">JPEG</option>
-              <option value="jpeg2000">JPEG 2000</option>
-              <option value="flate">Flate</option>
-            </select>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs text-[var(--color-muted)]">{t("compress.downsample")}</label>
-            <select
-              value={value.downsample}
-              onChange={(e) => set("downsample", e.target.value as CompressDownsample)}
-              className="h-8 w-full rounded border px-2 text-xs"
-              aria-label={t("compress.downsample")}
-            >
-              <option value="bicubic">{t("compress.downsample_bicubic")}</option>
-              <option value="average">{t("compress.downsample_average")}</option>
-              <option value="subsample">{t("compress.downsample_subsample")}</option>
-            </select>
-          </div>
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={value.removeExif}
-              onChange={(e) => set("removeExif", e.target.checked)}
-            />
-            {t("compress.remove_exif")}
-          </label>
+        <div className="space-y-4 border-t border-[var(--color-border)] pt-4">
+          <SliderField
+            label={t("compress.jpeg_quality")}
+            value={value.customQuality}
+            min={1}
+            max={100}
+            onChange={(v) => set("customQuality", v)}
+          />
+          <SliderField
+            label={t("compress.color_dpi")}
+            value={value.colorDpi}
+            min={36}
+            max={300}
+            unit="dpi"
+            onChange={(v) => set("colorDpi", v)}
+          />
+          <SliderField
+            label={t("compress.grayscale_dpi")}
+            value={value.grayDpi}
+            min={36}
+            max={300}
+            unit="dpi"
+            onChange={(v) => set("grayDpi", v)}
+          />
+          <SliderField
+            label={t("compress.mono_dpi")}
+            value={value.monoDpi}
+            min={72}
+            max={600}
+            unit="dpi"
+            onChange={(v) => set("monoDpi", v)}
+          />
+          <SelectField
+            label={t("compress.color_mode")}
+            value={value.colorMode}
+            onChange={(v) => set("colorMode", v as CompressColorMode)}
+          >
+            <option value="preserve">{t("compress.color_preserve")}</option>
+            <option value="grayscale">{t("compress.color_grayscale")}</option>
+            <option value="monochrome">{t("compress.color_monochrome")}</option>
+          </SelectField>
+          <SelectField
+            label={t("compress.filter")}
+            value={value.filter}
+            onChange={(v) => set("filter", v as CompressFilter)}
+          >
+            <option value="auto">Auto</option>
+            <option value="jpeg">JPEG</option>
+            <option value="jpeg2000">JPEG 2000</option>
+            <option value="flate">Flate</option>
+          </SelectField>
+          <SelectField
+            label={t("compress.downsample")}
+            value={value.downsample}
+            onChange={(v) => set("downsample", v as CompressDownsample)}
+          >
+            <option value="bicubic">{t("compress.downsample_bicubic")}</option>
+            <option value="average">{t("compress.downsample_average")}</option>
+            <option value="subsample">{t("compress.downsample_subsample")}</option>
+          </SelectField>
+          <CheckField
+            label={t("compress.remove_exif")}
+            checked={value.removeExif}
+            onChange={(c) => set("removeExif", c)}
+          />
         </div>
       )}
-      {mode === "standalone" && (
-        <p className="text-xs text-[var(--color-muted)]">{t("compress.tip")}</p>
-      )}
+      {mode === "standalone" && <p className="k-caption">{t("compress.tip")}</p>}
     </div>
   );
 }

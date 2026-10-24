@@ -40,7 +40,10 @@
     "downsample_bicubic": "Bicubic",
     "remove_exif": "Remove EXIF from images",
     "tip": "Choose Custom to override the JPEG quality and DPI used during downsampling.",
-    "run": "Compress"
+    "run": "Compress",
+    "before": "Before",
+    "after": "After",
+    "saved": "Saved"
   },
   "optimize": {
     "description": "Linearize, subset fonts, strip metadata, and other one-shot optimizations.",
@@ -88,7 +91,11 @@
     "description": "Decrypt a password-protected PDF or remove permission locks.",
     "password_label": "Password (leave blank if only permission-locked)",
     "detect": "Detect encryption",
-    "run": "Unlock"
+    "run": "Unlock",
+    "inspecting": "Inspecting…",
+    "not_encrypted": "This PDF is not encrypted.",
+    "saved_to": "Saved to {{path}}",
+    "forgot_password": "Forgot the password? Try recovery →"
   },
   "convert_export": {
     "description": "Export a PDF to images, text, office formats, or PDF/A.",
@@ -153,7 +160,8 @@
     "office_bookmarks": "Preserve bookmarks",
     "office_annotations": "Export annotations",
     "office_image_quality": "Image quality",
-    "run": "Convert"
+    "run": "Convert",
+    "one_per_page": "One per page"
   },
   "crop": {
     "description": "Crop pages to a fixed bounding box or detect content margins automatically.",
@@ -191,7 +199,20 @@
     "rotate_before": "Rotate before crop",
     "mirror_h": "Mirror horizontally",
     "mirror_v": "Mirror vertically",
-    "run": "Crop"
+    "run": "Crop",
+    "aspect_ratio_width": "Aspect ratio width",
+    "aspect_ratio_height": "Aspect ratio height",
+    "letter_portrait": "Letter portrait",
+    "letter_landscape": "Letter landscape",
+    "unit_mm": "mm",
+    "margin_custom_aria": "Custom margin in mm",
+    "apply_to": "Apply to",
+    "range_placeholder": "1-5, 8, 10",
+    "page_range_aria": "Page range",
+    "bbox_placeholder": "36, 36, 540, 720",
+    "bbox_aria": "Bounding box",
+    "toggle_advanced": "Toggle advanced options",
+    "sample_page_aria": "Sample page index"
   },
   "organize": {
     "description": "Rotate, delete, reorder, or insert blank pages.",
@@ -219,7 +240,13 @@
     "delete": "Delete page",
     "undo_delete": "Undo delete",
     "insert_blank_after": "Insert blank page after",
-    "drag_count": "{{count}} pages"
+    "drag_count": "{{count}} pages",
+    "rotate_hint": "Rotations as comma-separated page:angle pairs. Angles are 0, 90, 180, 270 (degrees clockwise).",
+    "rotate_placeholder": "1:90, 3:180",
+    "delete_hint": "Page numbers to delete (1-based, comma-separated).",
+    "delete_placeholder": "2, 4, 6",
+    "reorder_hint": "New page order as comma-separated 1-based indices. Must cover every existing page exactly once.",
+    "reorder_placeholder": "3, 1, 2, 4"
   },
   "compare": {
     "description": "Compare two PDFs visually or by extracted text.",
@@ -250,5 +277,37 @@
     "diff_unified": "Unified",
     "run": "Run compare",
     "running": "Comparing..."
+  },
+  "progress": {
+    "pending": "Waiting",
+    "running": "Running",
+    "done": "Done",
+    "error": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "alert": {
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error",
+    "success": "Done"
+  },
+  "annotate": {
+    "free_text": "Free text"
+  },
+  "watermark": {
+    "pipeline_note": "Watermark execution is unimplemented in the pipeline executor (awaits the standalone Watermark tool font picker). The node persists in the graph; running it surfaces a clear error.",
+    "text_placeholder": "DRAFT",
+    "font_placeholder": "Arial",
+    "image_placeholder": "C:\\path\\to\\watermark.png",
+    "pages_placeholder": "all",
+    "position_top_left": "Top left",
+    "position_top_center": "Top center",
+    "position_top_right": "Top right",
+    "position_middle_left": "Middle left",
+    "position_center": "Center",
+    "position_middle_right": "Middle right",
+    "position_bottom_left": "Bottom left",
+    "position_bottom_center": "Bottom center",
+    "position_bottom_right": "Bottom right"
   }
 }
