@@ -640,6 +640,19 @@ pub fn replace_run_via_redaction(
         .get(&(page_index + 1))
         .copied()
         .context("page not found")?;
+    let mut resources = page_resources_copy(&doc, page_id)?;
+    let mut fonts = resources
+        .get(b"Font")
+        .ok()
+        .map(|entry| dictionary_copy(&doc, entry))
+        .transpose()?
+        .unwrap_or_default();
+    let mut font_number = 1;
+    let mut font_name = format!("F{font_number}");
+    while fonts.has(font_name.as_bytes()) {
+        font_number += 1;
+        font_name = format!("F{font_number}");
+    }
     let [x, y, w, h] = rect;
     let ops = vec![
         Operation::new("q", vec![]),
@@ -648,7 +661,13 @@ pub fn replace_run_via_redaction(
         Operation::new("f", vec![]),
         Operation::new("Q", vec![]),
         Operation::new("BT", vec![]),
-        Operation::new("Tf", vec!["F1".into(), font_size.into()]),
+        Operation::new(
+            "Tf",
+            vec![
+                Object::Name(font_name.as_bytes().to_vec()),
+                font_size.into(),
+            ],
+        ),
         Operation::new(
             "Tm",
             vec![
@@ -674,14 +693,7 @@ pub fn replace_run_via_redaction(
         "BaseFont" => "Helvetica",
         "Encoding" => "WinAnsiEncoding"
     });
-    let mut resources = page_resources_copy(&doc, page_id)?;
-    let mut fonts = resources
-        .get(b"Font")
-        .ok()
-        .map(|entry| dictionary_copy(&doc, entry))
-        .transpose()?
-        .unwrap_or_default();
-    fonts.set("F1", Object::Reference(font_id));
+    fonts.set(font_name.as_bytes().to_vec(), Object::Reference(font_id));
     resources.set("Font", fonts);
     if let Some(obj) = doc.objects.get_mut(&page_id) {
         if let Ok(d) = obj.as_dict_mut() {

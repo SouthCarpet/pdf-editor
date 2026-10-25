@@ -16,6 +16,165 @@ const NAME_RECT: [f32; 4] = [100.0, 650.0, 240.0, 672.0];
 const MOVED_RECT: [f32; 4] = [100.0, 600.0, 240.0, 622.0];
 const EXISTING_RECT: [f32; 4] = [36.0, 700.0, 240.0, 724.0];
 
+// Oracle: writer rule 5 stores the unrotated PDF rect exactly and copies
+// /Rotate into /MK /R, including the 180 and 270 degree cases from V2 D.
+#[test]
+fn edge_rotations_180_and_270_keep_the_exact_rect() {
+    for rotation in [180, 270] {
+        let fixture = fixture(Some(rotation), Form::Missing);
+        let output = fixture.path("rotated.pdf");
+        let written = save(
+            &fixture.input,
+            &output,
+            &[text_field("Own", NAME_RECT)],
+            &[],
+        );
+        let doc = Document::load(&output).unwrap();
+        let field = widget(&doc, written_id(&written, 0));
+        assert_eq!(rect_values(field, b"Rect"), NAME_RECT);
+        assert_eq!(
+            field
+                .get(b"MK")
+                .unwrap()
+                .as_dict()
+                .unwrap()
+                .get(b"R")
+                .unwrap(),
+            &Object::Integer(rotation)
+        );
+        assert_eq!(fields(&output)[0].rect, NAME_RECT);
+    }
+}
+
+// Oracle: PDF rects use unrotated user space. A non-zero MediaBox origin
+// and a smaller CropBox must not translate the rect or change either box.
+#[test]
+fn edge_media_origin_and_crop_box_do_not_change_the_field_rect() {
+    let fixture = fixture(None, Form::Missing);
+    let media = rect_object(&[20.0, 30.0, 632.0, 822.0]);
+    let crop = rect_object(&[50.0, 60.0, 580.0, 750.0]);
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let page = doc.get_dictionary_mut(fixture.page_id).unwrap();
+    page.set("MediaBox", media.clone());
+    page.set("CropBox", crop.clone());
+    doc.save(&fixture.input).unwrap();
+    let output = fixture.path("cropped.pdf");
+    let written = save(
+        &fixture.input,
+        &output,
+        &[text_field("Own", NAME_RECT)],
+        &[],
+    );
+    let doc = Document::load(&output).unwrap();
+    let page = doc.get_dictionary(fixture.page_id).unwrap();
+    assert_eq!(rect_values(page, b"MediaBox"), [20.0, 30.0, 632.0, 822.0]);
+    assert_eq!(rect_values(page, b"CropBox"), [50.0, 60.0, 580.0, 750.0]);
+    assert_eq!(
+        rect_values(widget(&doc, written_id(&written, 0)), b"Rect"),
+        NAME_RECT
+    );
+    assert_eq!(fields(&output)[0].rect, NAME_RECT);
+}
+
+// Oracle: writer rule 2 creates a missing /Fields array in an existing
+// AcroForm, keeps unrelated entries, and registers the resolving widget.
+#[test]
+fn edge_acroform_without_fields_registers_the_new_widget() {
+    let fixture = fixture(None, Form::Missing);
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+    doc.get_dictionary_mut(root)
+        .unwrap()
+        .set("AcroForm", dictionary! { "SigFlags" => 3 });
+    doc.save(&fixture.input).unwrap();
+    let output = fixture.path("missing-fields.pdf");
+    let written = save(
+        &fixture.input,
+        &output,
+        &[text_field("Own", NAME_RECT)],
+        &[],
+    );
+    let doc = Document::load(&output).unwrap();
+    assert_eq!(field_ids(&doc), vec![written_id(&written, 0)]);
+    assert_eq!(page_annot_ids(&doc), field_ids(&doc));
+    assert_eq!(
+        acroform(&doc).get(b"SigFlags").unwrap(),
+        &Object::Integer(3)
+    );
+    assert_eq!(fields(&output)[0].name, "Own");
+}
+
+// Oracle: rule 2 adds a missing /Helv to direct resources. The documented
+// indirect /DR /Font limit leaves those objects intact and the PDF readable.
+#[test]
+fn edge_missing_helv_preserves_direct_and_indirect_default_resources() {
+    for indirect in [false, true] {
+        let fixture = fixture(None, Form::Missing);
+        let mut doc = Document::load(&fixture.input).unwrap();
+        let original = dictionary! { "Original" => dictionary! {
+            "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Courier",
+        }};
+        let fonts_id = doc.add_object(original.clone());
+        let resources = dictionary! { "Font" => if indirect {
+            Object::Reference(fonts_id)
+        } else { Object::Dictionary(original.clone()) } };
+        let resources_id = doc.add_object(resources.clone());
+        let root = doc.trailer.get(b"Root").unwrap().as_reference().unwrap();
+        doc.get_dictionary_mut(root).unwrap().set("AcroForm", dictionary! {
+            "Fields" => Vec::<Object>::new(),
+            "DR" => if indirect { Object::Reference(resources_id) } else { Object::Dictionary(resources) },
+        });
+        doc.save(&fixture.input).unwrap();
+        let output = fixture.path("default-resources.pdf");
+        save(
+            &fixture.input,
+            &output,
+            &[text_field("Own", NAME_RECT)],
+            &[],
+        );
+        let doc = Document::load(&output).unwrap();
+        assert_default_fonts(&doc, indirect, fonts_id, resources_id, &original);
+        assert_eq!(fields(&output)[0].name, "Own");
+        assert_eq!(page_annot_ids(&doc), field_ids(&doc));
+    }
+}
+
+fn assert_default_fonts(
+    doc: &Document,
+    indirect: bool,
+    fonts_id: ObjectId,
+    resources_id: ObjectId,
+    original: &Dictionary,
+) {
+    let entry = acroform(doc).get(b"DR").unwrap();
+    let resources = resolve(doc, entry).as_dict().unwrap();
+    let font_entry = resources.get(b"Font").unwrap();
+    let fonts = resolve(doc, font_entry).as_dict().unwrap();
+    assert_eq!(
+        fonts.get(b"Original").unwrap(),
+        original.get(b"Original").unwrap()
+    );
+    if indirect {
+        assert_eq!(entry.as_reference().unwrap(), resources_id);
+        assert_eq!(font_entry.as_reference().unwrap(), fonts_id);
+        assert_eq!(fonts, original);
+    } else {
+        let helv = fonts.get(b"Helv").unwrap().as_dict().unwrap();
+        assert_eq!(name_of(helv, b"BaseFont"), "Helvetica");
+        assert_eq!(name_of(helv, b"Encoding"), "WinAnsiEncoding");
+    }
+}
+
+fn rect_values(dict: &Dictionary, key: &[u8]) -> Vec<f32> {
+    dict.get(key)
+        .unwrap()
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|number| number.as_float().unwrap())
+        .collect()
+}
+
 // Oracle: O4 protects every source field. A terminal field can inherit
 // /FT from an ancestor and have a separate widget, without its own /FT.
 #[test]

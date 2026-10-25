@@ -18,6 +18,25 @@ as source fields. Their values can still be filled, but they cannot be
 moved, resized or deleted in this app. Draw a new field to replace their
 layout in a separate copy if needed.
 
+## Slovak text in own fields varies between PDF readers
+
+The saved value `Čučoriedka ľťžš` is read exactly by pdf.js. In the V2
+cross-reader check, mutool drew no value, and Ghostscript drew garbled bytes
+(for example, `bÿ u oriedka ...`). A valid saved value does not guarantee
+that another reader will draw it correctly.
+
+Our fill path writes `/V` as UTF-16, removes the text appearance `/AP`, and
+sets `NeedAppearances`. The field's default font is Helvetica with
+WinAnsiEncoding, which cannot cover all Slovak letters. Readers must build
+the appearance themselves, and their results differ. Check filled text in
+the reader you will use before you share or print the PDF.
+
+## Saving a signed PDF invalidates its digital signature
+
+Saving changes to a digitally signed PDF invalidates its signature. The app
+does not warn you yet. Keep the signed original. Save changes to a separate
+copy, and sign that copy again if a valid signature is needed.
+
 ## Update check and download fail behind a corporate proxy
 
 **What happens.** With the update consent on (Settings -> About), the

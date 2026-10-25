@@ -6,15 +6,27 @@ use tempfile::TempDir;
 // direct Resources with indirect Font preserves the same three resources.
 #[test]
 fn fallback_with_indirect_resources_preserves_image_and_existing_font() {
-    assert_fallback_preserves_resources(true);
+    assert_fallback_preserves_resources(true, "Original", "F1");
 }
 
 #[test]
 fn fallback_with_indirect_fonts_preserves_image_and_existing_font() {
-    assert_fallback_preserves_resources(false);
+    assert_fallback_preserves_resources(false, "Original", "F1");
 }
 
-fn assert_fallback_preserves_resources(indirect_resources: bool) {
+// Oracle: V2 finding A. Existing /F1 and /F2 bindings must remain unchanged;
+// the fallback text must use the first free name, /F3, in its Tf operation.
+#[test]
+fn fallback_preserves_existing_f1_and_uses_a_free_font_name() {
+    assert_fallback_preserves_resources(true, "F1", "F3");
+    assert_fallback_preserves_resources(false, "F1", "F3");
+}
+
+fn assert_fallback_preserves_resources(
+    indirect_resources: bool,
+    original_alias: &str,
+    fallback_alias: &str,
+) {
     let temp = TempDir::new().unwrap();
     let input = temp.path().join("input.pdf");
     let output = temp.path().join("output.pdf");
@@ -30,7 +42,10 @@ fn assert_fallback_preserves_resources(indirect_resources: bool) {
         },
         vec![128],
     ));
-    let fonts = dictionary! { "Original" => original_font };
+    let mut fonts = dictionary! { original_alias => original_font };
+    if original_alias == "F1" {
+        fonts.set("F2", original_font);
+    }
     let font_entry = if indirect_resources {
         Object::Dictionary(fonts)
     } else {
@@ -46,7 +61,8 @@ fn assert_fallback_preserves_resources(indirect_resources: bool) {
     };
     let contents = doc.add_object(Stream::new(
         dictionary! {},
-        b"q 1 0 0 1 50 50 cm /Image Do Q BT /Original 12 Tf 10 20 Td (old) Tj ET".to_vec(),
+        format!("q 1 0 0 1 50 50 cm /Image Do Q BT /{original_alias} 12 Tf 10 20 Td (old) Tj ET")
+            .into_bytes(),
     ));
     let page_id = doc.add_object(dictionary! {
         "Type" => "Page", "Parent" => pages_id,
@@ -66,6 +82,24 @@ fn assert_fallback_preserves_resources(indirect_resources: bool) {
     replace_run_via_redaction(&input, &output, 0, [10., 20., 30., 14.], "new", 12.).unwrap();
 
     let saved = Document::load(output).unwrap();
+    assert_saved_resources(
+        &saved,
+        page_id,
+        image,
+        original_font,
+        original_alias,
+        fallback_alias,
+    );
+}
+
+fn assert_saved_resources(
+    saved: &Document,
+    page_id: lopdf::ObjectId,
+    image: lopdf::ObjectId,
+    original_font: lopdf::ObjectId,
+    original_alias: &str,
+    fallback_alias: &str,
+) {
     let page = saved.get_dictionary(page_id).unwrap();
     let resources = saved
         .dereference(page.get(b"Resources").unwrap())
@@ -106,24 +140,21 @@ fn assert_fallback_preserves_resources(indirect_resources: bool) {
         .unwrap();
     assert_eq!(
         fonts
-            .get(b"Original")
+            .get(original_alias.as_bytes())
             .expect("original font preserved")
             .as_reference()
             .unwrap(),
         original_font
     );
     assert_eq!(
-        saved
-            .get_dictionary(original_font)
-            .unwrap()
-            .get(b"BaseFont")
-            .unwrap()
-            .as_name()
-            .unwrap(),
-        b"Courier"
+        saved.get_dictionary(original_font).unwrap(),
+        &dictionary! {
+            "Type" => "Font", "Subtype" => "Type1", "BaseFont" => "Courier",
+        },
+        "original font object preserved"
     );
     let added_font = fonts
-        .get(b"F1")
+        .get(fallback_alias.as_bytes())
         .expect("fallback font added")
         .as_reference()
         .unwrap();
@@ -138,6 +169,24 @@ fn assert_fallback_preserves_resources(indirect_resources: bool) {
         b"Helvetica"
     );
     let content = saved.get_and_decode_page_content(page_id).unwrap();
+    if original_alias == "F1" {
+        assert_eq!(
+            fonts.get(b"F2").unwrap().as_reference().unwrap(),
+            original_font
+        );
+    }
+    assert_eq!(
+        content
+            .operations
+            .iter()
+            .rfind(|op| op.operator == "Tf")
+            .unwrap()
+            .operands,
+        vec![
+            Object::Name(fallback_alias.as_bytes().to_vec()),
+            Object::Integer(12)
+        ]
+    );
     assert_eq!(content.operations.last().unwrap().operator, "ET");
     assert!(content
         .operations
