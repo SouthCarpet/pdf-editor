@@ -11,6 +11,8 @@
   frames cannot block the page change. Skip the carry after a 200 ms wait.
 - Split autosave validation and page overlay decisions to meet the
   complexity limit without changing their behaviour.
+- Keep Save as the close dialog's single solid action; outline Discard
+  with the danger colour.
 
 ### Added
 
