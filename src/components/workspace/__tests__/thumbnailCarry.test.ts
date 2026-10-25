@@ -81,6 +81,7 @@ it("uses an already rendered facing page without waiting for a new render", asyn
   const { source, host, target } = surfaces();
   target.dataset.renderedPage = "2";
   carryThumbnail(source, host, 2, () => { });
+  await Promise.resolve();
   await api.update();
   expect(target.style.viewTransitionName).toBe("pdf-page-carry");
   api.finish();
@@ -92,14 +93,18 @@ it("carries the thumbnail into the rendered page image, leaving the shell still"
   const { source, host, target } = surfaces();
   const select = vi.fn();
   carryThumbnail(source, host, 2, select);
+  expect(select).toHaveBeenCalledOnce();
+  expect(source.style.viewTransitionName).toBe("");
+  target.dataset.renderedPage = "2";
+  target.dispatchEvent(new Event(PAGE_IMAGE_READY, { bubbles: true }));
+  await Promise.resolve();
   expect(source.style.viewTransitionName).toBe("pdf-page-carry");
   expect(document.documentElement.style.viewTransitionName).toBe("none");
   const updating = api.update();
   expect(select).toHaveBeenCalledOnce();
   expect(source.style.viewTransitionName).toBe("");
-  expect(target.style.viewTransitionName).toBe("");
-  target.dataset.renderedPage = "2";
-  target.dispatchEvent(new Event(PAGE_IMAGE_READY, { bubbles: true }));
+  // K5: the new snapshot needs the name before the callback resolves.
+  expect(target.style.viewTransitionName).toBe("pdf-page-carry");
   await updating;
   expect(target.style.viewTransitionName).toBe("pdf-page-carry");
   expect(host.style.viewTransitionName).toBe("");
@@ -109,7 +114,7 @@ it("carries the thumbnail into the rendered page image, leaving the shell still"
   expect(document.documentElement.style.viewTransitionName).toBe("");
 });
 
-it("a second click cancels a queued carry before it can select a stale page", async () => {
+it("a second click cancels a preparing carry without selecting the old page again", async () => {
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
   const api = transitionApi();
   const { source, host } = surfaces();
@@ -117,17 +122,20 @@ it("a second click cancels a queued carry before it can select a stale page", as
   const cancel = carryThumbnail(source, host, 2, select);
   cancel();
   await api.update();
-  expect(select).not.toHaveBeenCalled();
-  expect(api.skipTransition).toHaveBeenCalledOnce();
+  expect(select).toHaveBeenCalledOnce();
+  expect(document.startViewTransition).not.toHaveBeenCalled();
+  expect(api.skipTransition).not.toHaveBeenCalled();
   api.finish();
 });
 
-it("falls back to selection if the transition API rejects the start", () => {
+it("keeps selection if the transition API rejects the start", async () => {
   vi.stubGlobal("matchMedia", () => ({ matches: false }));
   document.startViewTransition = vi.fn(() => { throw new Error("unavailable"); });
-  const { source, host } = surfaces();
+  const { source, host, target } = surfaces();
+  target.dataset.renderedPage = "2";
   const select = vi.fn();
   carryThumbnail(source, host, 2, select);
+  await Promise.resolve();
   expect(select).toHaveBeenCalledOnce();
   expect(source.style.viewTransitionName).toBe("");
 });

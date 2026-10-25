@@ -7,6 +7,8 @@
 - Restore the gap between the workspace page and the top of its well.
 - Restore unchecked switch edges in both themes and keep settings labels
   beside their switches.
+- Render the clicked page before taking carry snapshots, so PDF animation
+  frames cannot block the page change. Skip the carry after a 200 ms wait.
 
 ### Added
 
