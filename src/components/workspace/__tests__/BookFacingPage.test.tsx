@@ -116,6 +116,19 @@ describe("BookFacingPage", () => {
     expect(captured.stageStyles.map((style) => style.pointerEvents)).toEqual(["none"]);
   });
 
+  // Oracle: E1 edges 6 and 9. Workspace owns the separate own-field preview
+  // on a facing page. Mixing it with a typed value must not draw it here too.
+  it("leaves own fields to their dedicated preview when a facing page also has typed values", () => {
+    renderPage({
+      pendingAnnotations: [freeText(3, "Facing value"), {
+        type: "form_field", page: 3, rect: [100, 650, 240, 672], name: "Employee",
+        kind: "text", multiline: false, font_size: 12, __clientId: "own-facing",
+      }],
+      formValues: [FORM_VALUE],
+    });
+    expect(captured.texts).toEqual(["Facing value", "Bob"]);
+  });
+
   it("mounts no overlay when the page has no pending value", () => {
     renderPage({ pendingAnnotations: [freeText(2, "Focused value")] });
 

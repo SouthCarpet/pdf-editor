@@ -352,6 +352,14 @@ mod tests {
         );
     }
 
+    // Oracle: E1 item 16, a running 1.0.0 must be offered release 1.1.0.
+    #[test]
+    fn version_1_1_0_is_newer_than_running_1_0_0() {
+        let result = evaluate("1.0.0", 200, &release("v1.1.0"));
+        assert_eq!(result.status, UpdateStatus::Available);
+        assert_eq!(result.latest_version.as_deref(), Some("1.1.0"));
+    }
+
     #[test]
     fn available_release_carries_its_tag_for_the_update() {
         let result = evaluate("0.1.0", 200, &release("v1.1.0"));

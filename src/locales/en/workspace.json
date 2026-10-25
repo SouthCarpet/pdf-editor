@@ -4,6 +4,7 @@
   "save_status_dirty": "Unsaved changes",
   "save_status_saving": "Saving...",
   "save_toast": {
+    "signature_warning": "Saving changes invalidates digital signatures. Keep the signed original.",
     "saved": "PDF saved.",
     "reveal": "Show in Explorer"
   },

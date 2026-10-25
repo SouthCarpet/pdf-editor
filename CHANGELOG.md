@@ -105,6 +105,10 @@ The app uses Fira Sans and the Kaliber r4 design language.
   A rect smaller than 4 x 4 pt fails the save with "own field rect must be
   finite and at least 4 x 4 pt".
 
+- Before saving annotations or form values in a PDF with signature fields,
+  show a warning that saving invalidates digital signatures. The warning
+  also covers empty signature fields and does not stop the save.
+
 ### Changed
 
 - Workspace tool bar, tool panels, form controls and Konva selection layers
@@ -220,3 +224,8 @@ The app uses Fira Sans and the Kaliber r4 design language.
 - Marks drawn on the PDF page (detected fields, filled values, own fields and
   their handles, search and OCR marks) use the light colours in the dark theme
   too, because the page is paper in both themes. App chrome keeps the theme.
+- Focused and facing page frames both use the light paper border in dark
+  book mode.
+- FreeText annotations carry the PDF Print flag, so saved text is included
+  in print renders.
+- Facing pages draw pending own fields once when the page also has typed values.

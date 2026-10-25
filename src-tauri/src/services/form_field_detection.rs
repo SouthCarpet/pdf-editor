@@ -1332,6 +1332,35 @@ mod tests {
         );
     }
 
+    // Oracle: E1 items 9 and 13. Two native widgets in one synthetic cell
+    // (including a saved own field) must not produce another detected overlay.
+    #[test]
+    fn two_native_widgets_in_one_cell_do_not_add_a_detected_overlay() {
+        use lopdf::{dictionary, Object};
+        let (mut doc, pages) = hybrid_fixture();
+        let own = doc.add_object(dictionary! {
+            "Type" => "Annot", "Subtype" => "Widget", "FT" => "Tx",
+            "T" => Object::string_literal("own-over-native"), "PdfEditorOwn" => true,
+            "Rect" => WIDGET_RECT.into_iter().map(Object::Real).collect::<Vec<_>>(),
+        });
+        doc.get_dictionary_mut(pages[0])
+            .unwrap()
+            .get_mut(b"Annots")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+            .push(Object::Reference(own));
+        let widgets = native_widget_rects(&doc, pages[0]);
+        assert_eq!(widgets, vec![WIDGET_RECT, WIDGET_RECT]);
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_box(&mut image, 200, 700, 600, 780);
+        let geometry = page_geometry(&doc, pages[0]).unwrap();
+        let fields = analyze_form_page(&image, geometry, 0, &widgets).fields;
+        assert_eq!(fields.len(), 1, "only the lower cell has no native widget");
+        assert!(fields[0].rect[3] < 1100.0);
+    }
+
     #[test]
     fn the_page_without_widgets_keeps_every_detected_box() {
         let fields = detect_on_hybrid_page(1);

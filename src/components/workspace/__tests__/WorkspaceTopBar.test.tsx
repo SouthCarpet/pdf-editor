@@ -41,6 +41,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
   autosaveDelete: vi.fn(),
+  readFormFieldsCmd: vi.fn().mockResolvedValue({ status: "ok", data: [] }),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 

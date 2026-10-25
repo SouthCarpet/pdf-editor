@@ -32,6 +32,8 @@ const RUNNER = `
     rects = [
       toPdfRect(screen, page.getViewport({ scale: 1, rotation: 0 })),
       toPdfRect(screen, page.getViewport({ scale: 1, rotation: 90 })),
+      toPdfRect({ x: 25, y: 12.5, width: 35, height: 5.5 }, page.getViewport({ scale: 0.25, rotation: 0 })),
+      toPdfRect({ x: 400, y: 200, width: 560, height: 88 }, page.getViewport({ scale: 4, rotation: 0 })),
     ];
   } finally {
     await task.destroy();
@@ -65,9 +67,11 @@ async function viewportRects(): Promise<unknown> {
   }
 }
 
-it("T3 converts the screen box through real rotation 0 and 90 viewports", async () => {
+it("T3 converts the screen box through real rotation 0 and 90 viewports and 25/400 percent zoom", async () => {
   expect(await viewportRects()).toEqual([
     [100, 720, 240, 742],
     [50, 100, 72, 240],
+    [100, 720, 240, 742],
+    [100, 720, 240, 742],
   ]);
 });

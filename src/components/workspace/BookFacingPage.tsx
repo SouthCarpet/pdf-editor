@@ -66,7 +66,8 @@ export function BookFacingPage({
           height={size.height}
           page={pageIndex}
           viewport={overlayViewport}
-          pendingAnnotations={pendingAnnotations}
+          // Workspace renders own fields in a separate facing-page layer.
+          pendingAnnotations={pendingAnnotations.filter((annotation) => annotation.type !== "form_field")}
           formValues={formValues}
           pageWidth={baseSize.width}
           pageHeight={baseSize.height}

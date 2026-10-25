@@ -10,6 +10,19 @@ radio and signature fields are not available as own fields. A pending box
 defines the field only. Save it first, then fill its value in the Forms
 list or another PDF reader. The field name is a label, not a filled value.
 
+## Dynamic XFA forms need an XFA reader
+
+Own fields use AcroForm. The app does not edit XFA layouts or XFA values,
+and its page viewer does not enable XFA rendering. Saving an own field keeps
+the existing XFA packet, but does not add that field to the XFA layout.
+Check the saved copy in the XFA reader you intend to use.
+
+## Indirect form font resources can lack `/Helv`
+
+An indirect `/AcroForm /DR` dictionary, or an indirect `/DR /Font`, is kept
+unchanged. The own-field writer does not add a missing `/Helv` font to these
+dictionaries. Check the saved fields in the reader you will use.
+
 ## Older own fields have no ownership marker
 
 Only fields saved with the `/PdfEditorOwn true` marker offer layout editing
@@ -33,9 +46,12 @@ the reader you will use before you share or print the PDF.
 
 ## Saving a signed PDF invalidates its digital signature
 
-Saving changes to a digitally signed PDF invalidates its signature. The app
-does not warn you yet. Keep the signed original. Save changes to a separate
-copy, and sign that copy again if a valid signature is needed.
+Saving changes to a digitally signed PDF invalidates its signature. Before
+saving annotations or form values, the app shows a non-blocking warning if
+the form reader finds a signature field. Empty signature fields also trigger
+the warning; the app does not validate signatures. Keep the signed original.
+Save changes to a separate copy, and sign that copy again if a valid
+signature is needed.
 
 ## Update check and download fail behind a corporate proxy
 

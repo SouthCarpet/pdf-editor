@@ -12,6 +12,14 @@ The PDF has a user-open password (Type B). Type it in the Unlock tool. For permi
 ## Compare reports false positives
 Whitespace-only diffs can appear when fonts re-render slightly differently between source and target. Increase the diff threshold in the Compare panel.
 
+## Saving changes invalidates digital signatures
+
+Saving annotations or form values rewrites the PDF and invalidates its
+digital signatures. The app shows this warning before the write when it
+finds a signature field. Saving continues without a confirmation dialog.
+Empty signature fields also trigger the warning. Keep the signed original,
+save changes to a separate copy, and sign that copy again if needed.
+
 ## "Office conversion needs LibreOffice"
 PDF Editor does not bundle LibreOffice. Install it from <https://www.libreoffice.org/download/download-libreoffice/> (or `winget install --id TheDocumentFoundation.LibreOffice -e`), then try again. The app finds LibreOffice through the registry: the default value of `SOFTWARE\LibreOffice\UNO\InstallPath` (HKLM, its 32-bit `WOW6432Node` copy, or HKCU) must name a folder with `soffice.exe`. A developer build also accepts a portable tree at `<app folder>\resources\libreoffice\App\libreoffice\program\soffice.exe`. PDF/A export falls back to Ghostscript without LibreOffice.
 
