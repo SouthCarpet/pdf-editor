@@ -4,9 +4,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/** The control edge: until the alias block in globals.css is gone, the old
- * control colour name still means a field background, so the secondary
- * button names its edge role. */
+/** The secondary button uses the strong border role. */
 const EDGE = "border-[var(--color-border-strong)]";
 
 const buttonVariants = cva(

@@ -2,37 +2,37 @@
 
 Ratios use the WCAG relative-luminance formula. The automated source of truth
 is `src/test/themeContrast.spec.ts`. Since Kaliber r4 (plan 119 K1) it reads
-`src/styles/tokens.css` (oklch) and the alias block of `src/styles/globals.css`,
+`src/styles/tokens.css` (oklch) and the app roles in `src/styles/globals.css`,
 converts to sRGB and fails below 4.5:1. The ratios below are the K1 state, with the dark column recomputed on 2026-10-24 for the darker neutrals; the
 older table (hex values of the pre-r4 theme) is gone.
 Toolbar selected and hover rows were measured for K5 on 2026-10-25.
 
 | Token pair | Light | Dark |
 | --- | ---: | ---: |
-| foreground / background | 16.75:1 | 17.11:1 |
-| muted / background | 8.20:1 | 11.34:1 |
-| muted / selected surface (toolbar) | 5.33:1 | 4.78:1 |
-| muted / hover surface (toolbar) | 8.08:1 | 9.80:1 |
-| foreground / card | 18.46:1 | 16.11:1 |
-| muted / card | 9.04:1 | 10.68:1 |
-| control foreground / field surface | 18.46:1 | 16.11:1 |
-| placeholder / field surface | 9.04:1 | 10.68:1 |
-| accent foreground / accent | 7.75:1 | 9.31:1 |
-| accent-soft foreground / accent-soft | 9.93:1 | 10.54:1 |
-| danger foreground / danger | 6.29:1 | 6.95:1 |
-| danger text / background | 5.77:1 | 7.01:1 |
-| danger-soft foreground / danger-soft | 5.36:1 | 5.89:1 |
+| text / background | 16.75:1 | 17.11:1 |
+| text-muted / background | 8.20:1 | 11.34:1 |
+| text-muted / selected surface (toolbar) | 5.33:1 | 4.78:1 |
+| text-muted / hover surface (toolbar) | 8.08:1 | 9.80:1 |
+| text / surface-raised | 18.46:1 | 16.11:1 |
+| text-muted / surface-raised | 9.04:1 | 10.68:1 |
+| text / field-surface | 18.46:1 | 16.11:1 |
+| text-muted / field-surface | 9.04:1 | 10.68:1 |
+| on-accent / accent | 7.75:1 | 9.31:1 |
+| accent-soft-foreground / accent-soft | 9.93:1 | 10.54:1 |
+| on-accent / danger | 6.29:1 | 6.95:1 |
+| danger / background | 5.77:1 | 7.01:1 |
+| danger / danger-soft | 5.36:1 | 5.89:1 |
 | warning text / background | 5.48:1 | 8.73:1 |
-| warning text / card | 6.04:1 | 8.22:1 |
-| warning foreground / warning | 4.84:1 | 8.67:1 |
-| warning-soft foreground / warning-soft | 16.19:1 | 14.28:1 |
-| success text / background | 5.07:1 | 8.31:1 |
-| success-soft foreground / success-soft | 16.44:1 | 14.09:1 |
-| foreground / drop zone | 18.46:1 | 16.11:1 |
-| placeholder / drop zone | 9.04:1 | 10.68:1 |
+| warning text / surface-raised | 6.04:1 | 8.22:1 |
+| on-accent / warning | 4.84:1 | 8.67:1 |
+| text / warning-soft | 16.19:1 | 14.28:1 |
+| success / background | 5.07:1 | 8.31:1 |
+| text / success-soft | 16.44:1 | 14.09:1 |
+| text / surface-raised | 18.46:1 | 16.11:1 |
+| text-muted / surface-raised | 9.04:1 | 10.68:1 |
 
-`warning text` is an app-level role (`--color-warning-text` in the alias
-block of `globals.css`). Light is `oklch(0.5 0.12 70)`; dark is the Kaliber
+`warning text` is an app-level role (`--color-warning-text` in
+`globals.css`). Light is `oklch(0.5 0.12 70)`; dark is the Kaliber
 `warning` token itself, so dark keeps its ratio. Warning text (a short line or
 a heading) uses this role. The Kaliber `warning` token (4.44:1 on the light
 paper, 8.73:1 on the dark paper) stays for icons, borders and fills, which
@@ -40,6 +40,9 @@ need 3:1 only. The test pins the role at 4.5:1 or more on the paper and on a
 card, in both themes.
 
 ## Worst offenders
+
+Styles use Kaliber role names directly. The native select chevron keeps its
+light and dark SVG values as `--app-select-chevron`.
 
 The app-local `--color-field-surface` names the native field and autofill
 background. `--color-control` keeps the shared Kaliber control edge. This

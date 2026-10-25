@@ -2,9 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// WCAG AA for the semantic colour pairs the screens still read by their
-// pre-r4 names. The values come from the files the browser loads:
-// `tokens.css` (Kaliber, oklch) and the alias block of `globals.css`.
+// WCAG AA for the semantic colour pairs the screens read. Values come from
+// `tokens.css` (Kaliber, oklch) and app roles in `globals.css`.
 // Each theme resolves like the cascade does: root first, then the dark block.
 
 const read = (file: string) => readFileSync(join(process.cwd(), "src/styles", file), "utf8");
@@ -24,10 +23,10 @@ function block(css: string, selector: string): Vars {
 }
 
 function themeVars(theme: "light" | "dark"): Vars {
-  // File order is the cascade order: tokens root, tokens dark, then the aliases.
+  // File order is the cascade order: tokens root, tokens dark, then app roles.
   const dark = theme === "dark" ? block(tokensCss, '[data-theme="dark"]') : {};
-  const aliasDark = theme === "dark" ? block(globalsCss, '[data-theme="dark"]') : {};
-  return { ...block(tokensCss, ":root"), ...dark, ...block(globalsCss, ":root"), ...aliasDark };
+  const appDark = theme === "dark" ? block(globalsCss, '[data-theme="dark"]') : {};
+  return { ...block(tokensCss, ":root"), ...dark, ...block(globalsCss, ":root"), ...appDark };
 }
 
 function resolve(vars: Vars, name: string): string {
@@ -67,28 +66,28 @@ function contrast(foreground: string, background: string): number {
 }
 
 const requiredPairs = [
-  ["foreground", "background"],
-  ["muted", "background"],
+  ["text", "background"],
+  ["text-muted", "background"],
   // K5 toolbar labels use the muted role in normal, selected and hover states.
-  ["muted", "surface-selected"],
-  ["muted", "surface-hover"],
-  ["foreground", "card"],
-  ["muted", "card"],
-  ["control-foreground", "field-surface"],
-  ["placeholder", "field-surface"],
-  ["accent-foreground", "accent"],
+  ["text-muted", "surface-selected"],
+  ["text-muted", "surface-hover"],
+  ["text", "surface-raised"],
+  ["text-muted", "surface-raised"],
+  ["text", "field-surface"],
+  ["text-muted", "field-surface"],
+  ["on-accent", "accent"],
   ["accent-soft-foreground", "accent-soft"],
-  ["danger-foreground", "danger"],
-  ["danger-text", "background"],
-  ["danger-soft-foreground", "danger-soft"],
+  ["on-accent", "danger"],
+  ["danger", "background"],
+  ["danger", "danger-soft"],
   ["warning-text", "background"],
-  ["warning-text", "card"],
-  ["warning-foreground", "warning"],
-  ["warning-soft-foreground", "warning-soft"],
-  ["success-text", "background"],
-  ["success-soft-foreground", "success-soft"],
-  ["foreground", "dropzone"],
-  ["placeholder", "dropzone"],
+  ["warning-text", "surface-raised"],
+  ["on-accent", "warning"],
+  ["text", "warning-soft"],
+  ["success", "background"],
+  ["text", "success-soft"],
+  ["text", "surface-raised"],
+  ["text-muted", "surface-raised"],
 ] as const;
 
 describe.each(["light", "dark"] as const)("%s theme contrast", (theme) => {

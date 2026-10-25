@@ -12,6 +12,46 @@ afterEach(() => {
 });
 
 describe("dark theme token coverage", () => {
+  // Oracle: plan 119 K6 removes all 24 pre-r4 names from app styles.
+  // Build names from suffixes so the src-wide grep gate can check this test too.
+  it("has no pre-r4 token declarations or uses in any app stylesheet", () => {
+    const oldNames = [
+      "foreground",
+      "muted",
+      "card",
+      "control-hover",
+      "control-active",
+      "control-foreground",
+      "placeholder",
+      "accent-foreground",
+      "danger-foreground",
+      "danger-text",
+      "danger-soft-foreground",
+      "warning-foreground",
+      "warning-soft-foreground",
+      "success-text",
+      "success-soft-foreground",
+      "dropzone",
+      "dropzone-active",
+      "dropzone-border-active",
+      "overlay",
+      "overlay-soft",
+      "selection",
+      "selection-foreground",
+      "warning-hover",
+    ].map((name) => `--color-${name}`);
+    oldNames.push(["--select", "chevron"].join("-"));
+    const directory = join(process.cwd(), "src/styles");
+    const violations = readdirSync(directory)
+      .filter((file) => file.endsWith(".css"))
+      .flatMap((file) => {
+        const css = readFileSync(join(directory, file), "utf8");
+        return oldNames.filter((name) => css.includes(name))
+          .map((name) => `${file}: ${name}`);
+      });
+    expect(violations).toEqual([]);
+  });
+
   // Oracle: 119-K5 finding 2. App field fills must not replace Kaliber's
   // mid-grey control edge, or unchecked switches disappear in both themes.
   it("preserves the shared control edge instead of aliasing it to a field fill", () => {
@@ -64,8 +104,8 @@ describe("dark theme token coverage", () => {
     );
 
     expect(css).toMatch(/select\s*\{[\s\S]*appearance:\s*none/);
-    expect(css).toMatch(/background-image:\s*var\(--select-chevron\)/);
-    expect(css).toMatch(/input::placeholder[\s\S]*--color-placeholder/);
+    expect(css).toMatch(/background-image:\s*var\(--app-select-chevron\)/);
+    expect(css).toMatch(/input::placeholder[\s\S]*--color-text-muted/);
     expect(css).toMatch(/input:-webkit-autofill[\s\S]*var\(--color-field-surface\) inset/);
     expect(css).toMatch(/html\.dark\s*\{[\s\S]*color-scheme:\s*dark/);
   });
