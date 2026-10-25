@@ -1,14 +1,11 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentProps,
-  type RefObject,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { commands, type DetectedFormField, type FormField } from "@/bindings";
+import { commands, type DetectedFormField, type FormField, type OwnFieldKind } from "@/bindings";
+import { NO_ANNOTATIONS, useAnnotations, type ClientAnnotation } from "@/stores/annotationsStore";
+import type { OwnFieldAnnotation } from "../pendingAnnotationGeometry";
+import { clampToPage } from "../ownFieldGeometry";
+import { selectSavedOwnField } from "../savedOwnFields";
 import { useAutosave } from "@/hooks/useAutosave";
 import { latestSavedSource } from "@/lib/documentSave";
 import { changedFields, saveFormDraft } from "@/lib/formDraftSave";
@@ -34,6 +31,11 @@ interface Props {
   // — it just will not survive ITS OWN remounts, which matches the
   // pre-R7a behaviour for that caller.
   autoDetectHandledRef?: RefObject<number>;
+  fieldPlacement?: OwnFieldKind | null;
+  onFieldPlacementChange?: (kind: OwnFieldKind | null) => void;
+  selectedOwnFieldId?: string | null;
+  onSelectOwnField?: (id: string) => void;
+  pageBox?: readonly number[];
 }
 
 type DraftValues = Record<string, string | null>;
@@ -51,6 +53,11 @@ export function EditFormsPanel({
   onDetectedFields,
   autoDetectHandledRef,
   pageSize,
+  fieldPlacement = null,
+  onFieldPlacementChange = noop,
+  selectedOwnFieldId = null,
+  onSelectOwnField,
+  pageBox = [0, 0, 612, 792],
 }: Props) {
   const fallbackAutoDetectHandledRef = useRef(0);
   const { t } = useTranslation("workspace");
@@ -77,6 +84,15 @@ export function EditFormsPanel({
   return (
     <section aria-labelledby="forms-title" className="space-y-3">
       <PanelTitle />
+      <OwnFieldsSection
+        docPath={docPath}
+        placement={fieldPlacement}
+        onPlacementChange={onFieldPlacementChange}
+        selectedId={selectedOwnFieldId}
+        onSelect={onSelectOwnField}
+        pageBox={pageBox}
+        savedFields={form.fields}
+      />
       {form.fields.length === 0 ? (
         <DetectFieldsSection {...detect} />
       ) : (
@@ -96,6 +112,239 @@ export function EditFormsPanel({
   );
 }
 
+type PendingOwnField = ClientAnnotation & OwnFieldAnnotation;
+
+function OwnFieldsSection({
+  docPath,
+  placement,
+  onPlacementChange,
+  selectedId,
+  onSelect = noop,
+  pageBox,
+  savedFields,
+}: {
+  docPath: string;
+  placement: OwnFieldKind | null;
+  onPlacementChange: (kind: OwnFieldKind | null) => void;
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
+  pageBox: readonly number[];
+  savedFields: FormField[];
+}) {
+  const { t } = useTranslation("workspace");
+  const items = useAnnotations((s) => s.byDoc[docPath] ?? NO_ANNOTATIONS);
+  const selected = items.find(
+    (item): item is PendingOwnField => item.type === "form_field" && !item.__deleted && item.__clientId === selectedId
+  );
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onPlacementChange(null);
+        return;
+      }
+      if (!selected || event.defaultPrevented || isTyping(event.target)) return;
+      if (ownFieldKey(event, docPath, selected, pageBox)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [docPath, onPlacementChange, pageBox, selected]);
+  useEffect(() => () => onPlacementChange(null), [onPlacementChange]);
+  return (
+    <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+      <h4 className="text-xs font-semibold">{t("forms.own.title")}</h4>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          aria-pressed={placement === "text"}
+          onClick={() => onPlacementChange("text")}
+        >
+          {t("forms.own.text")}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-pressed={placement === "checkbox"}
+          onClick={() => onPlacementChange("checkbox")}
+        >
+          {t("forms.own.checkbox")}
+        </Button>
+      </div>
+      {placement && (
+        <p role="status" className="text-xs text-[var(--color-muted)]">
+          {t("forms.own.place_hint")}
+        </p>
+      )}
+      <PendingOwnFieldList items={items} selectedId={selectedId} onSelect={onSelect} />
+      <SavedOwnFieldList docPath={docPath} fields={savedFields} items={items} onSelect={onSelect} />
+      {selected && <OwnFieldEditor docPath={docPath} field={selected} />}
+      <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+        {t("forms.own.save_hint")}
+      </p>
+    </div>
+  );
+}
+
+function PendingOwnFieldList({
+  items,
+  selectedId,
+  onSelect,
+}: {
+  items: ClientAnnotation[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const { t } = useTranslation("workspace");
+  const fields = items.filter((item): item is PendingOwnField => item.type === "form_field" && !item.__deleted);
+  if (fields.length === 0) return null;
+  return (
+    <ul className="max-h-32 divide-y divide-[var(--color-border)] overflow-auto">
+      {fields.map((field) => (
+        <li key={field.__clientId}>
+          <button
+            type="button"
+            aria-pressed={field.__clientId === selectedId}
+            onClick={() => onSelect(field.__clientId)}
+            className="flex min-h-8 w-full items-center justify-between gap-2 text-left text-xs"
+          >
+              <span className="truncate">{field.name || t("forms.unnamed")}</span>{" "}
+            <span className="shrink-0 text-[var(--color-muted)]">
+              {t("forms.page", { page: field.page + 1 })}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SavedOwnFieldList({ docPath, fields, items, onSelect }: {
+  docPath: string;
+  fields: FormField[];
+  items: ClientAnnotation[];
+  onSelect: (id: string) => void;
+}) {
+  const { t } = useTranslation("workspace");
+  const replaced = new Set(items.flatMap((item) => item.__replaces
+    ? [`${item.__replaces.object}:${item.__replaces.generation}`]
+    : []));
+  const saved = fields.filter((field) => field.own && !replaced.has(field.id));
+  return (
+    <ul>
+      {saved.map((field) => (
+        <li key={field.id}>
+          <button
+            type="button"
+            className="min-h-8 text-left text-xs"
+            onClick={() => {
+              const id = selectSavedOwnField(docPath, field);
+              if (id !== null) onSelect(id);
+            }}
+          >
+            {t("forms.own.edit_layout", { name: field.name })}
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function isTyping(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.matches("input, textarea, select") || target.isContentEditable)
+  );
+}
+
+function ownFieldKey(
+  event: KeyboardEvent,
+  docPath: string,
+  field: PendingOwnField,
+  pageBox: readonly number[]
+): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  if (event.key === "Delete" || event.key === "Backspace") {
+    useAnnotations.getState().remove(docPath, field.__clientId);
+    return true;
+  }
+  const delta: Record<string, [number, number]> = {
+    ArrowLeft: [-1, 0],
+    ArrowRight: [1, 0],
+    ArrowUp: [0, 1],
+    ArrowDown: [0, -1],
+  };
+  const direction = delta[event.key];
+  if (!direction) return false;
+  const step = event.shiftKey ? 10 : 1;
+  const [x1, y1, x2, y2] = field.rect.map((value) => value ?? 0);
+  const [dx, dy] = direction.map((value) => value * step);
+  useAnnotations.getState().update(docPath, field.__clientId, {
+    rect: clampToPage([x1 + dx, y1 + dy, x2 + dx, y2 + dy], pageBox),
+  });
+  return true;
+}
+
+function OwnFieldEditor({ docPath, field }: { docPath: string; field: PendingOwnField }) {
+  const { t } = useTranslation("workspace");
+  const update = (patch: Partial<OwnFieldAnnotation>) =>
+    useAnnotations.getState().update(docPath, field.__clientId, patch);
+  const id = `own-field-${field.__clientId}`;
+  return (
+    <div className="space-y-2" data-own-field-editor>
+      {field.__replaces === undefined ? <>
+      <label htmlFor={id} className="block text-xs">
+        {t("forms.own.name")}
+      </label>
+      <input
+        id={id}
+        value={field.name}
+        onChange={(event) => update({ name: event.target.value })}
+        className="h-8 w-full border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs"
+      />
+      <p className="text-xs text-[var(--color-muted)]">{t(`forms.kind.${field.kind}`)}</p>
+      {field.kind === "text" && (
+        <>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={field.multiline}
+              onChange={(event) => update({ multiline: event.target.checked })}
+            />
+            {t("forms.own.multiline")}
+          </label>
+          <label htmlFor={`${id}-size`} className="block text-xs">
+            {t("forms.own.font_size")}
+          </label>
+          <input
+            id={`${id}-size`}
+            type="number"
+            min={0}
+            step={1}
+            value={field.font_size ?? 0}
+            onChange={(event) => {
+              const value = event.target.value === "" ? 0 : event.target.valueAsNumber;
+              if (Number.isFinite(value) && value >= 0) update({ font_size: value });
+            }}
+            className="h-8 w-full border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs"
+          />
+        </>
+      )}
+      </> : <p className="text-xs font-medium">{field.name}</p>}
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => useAnnotations.getState().remove(docPath, field.__clientId)}
+      >
+        {t("forms.own.delete")}
+      </Button>
+      <p className="text-[11px] text-[var(--color-muted)]">{t("forms.own.move_hint")}</p>
+    </div>
+  );
+}
+
 /** Reads the fields of the latest saved copy and owns the draft, save and
  * status state of the panel. */
 function useFormPanelState(docPath: string) {
@@ -109,9 +358,7 @@ function useFormPanelState(docPath: string) {
   // Plan 119 p1b: "the file" is the latest saved copy, the same file the
   // page view shows. It is read again after every save.
   const [fileValues, setFileValues] = useState<DraftValues>({});
-  const savedRevision = useDocuments(
-    (state) => state.documents.get(docPath)?.savedRevision ?? 0,
-  );
+  const savedRevision = useDocuments((state) => state.documents.get(docPath)?.savedRevision ?? 0);
   const draft = useFormDrafts((state) => state.byDoc[docPath] ?? NO_FORM_DRAFT);
   const setDraftValue = useFormDrafts((state) => state.setValue);
   const values = useMemo(() => ({ ...fileValues, ...draft.values }), [fileValues, draft]);
@@ -149,7 +396,7 @@ function useFormPanelState(docPath: string) {
   // that differ from the file the save starts from (the latest saved copy).
   const dirtyCount = useMemo(
     () => changedFields(fields, values, savedValues).length,
-    [fields, savedValues, values],
+    [fields, savedValues, values]
   );
 
   function updateValue(field: FormField, value: string | null) {
@@ -311,7 +558,10 @@ function FormFieldRow({
         >
           {label}
           {field.required && (
-            <span className="ml-0.5 text-[var(--color-danger-text)]" aria-label={t("forms.required")}>
+            <span
+              className="ml-0.5 text-[var(--color-danger-text)]"
+              aria-label={t("forms.required")}
+            >
               *
             </span>
           )}

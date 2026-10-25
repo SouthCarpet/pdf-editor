@@ -23,7 +23,11 @@ export type AnnotationMode =
 /** Plan 119 p1b: a pending value that edits a value already saved in the
  * file names the saved annotation in `__replaces`. The save removes that
  * annotation before it writes the new one. Stripped like `__clientId`. */
-export type NewAnnotation = Annotation & { __replaces?: AnnotationRef };
+export type NewAnnotation = Annotation & {
+  __replaces?: AnnotationRef;
+  /** Keep a deleted saved field until Save can remove its old object. */
+  __deleted?: boolean;
+};
 
 export type ClientAnnotation = NewAnnotation & { __clientId: string };
 

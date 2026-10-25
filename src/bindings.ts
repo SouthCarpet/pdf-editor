@@ -148,7 +148,7 @@ export const commands = {
 	 *  Returns the object of each written annotation, in the order of
 	 *  `annotations`, so the frontend can replace one of them later.
 	 */
-	applyAnnotationsCmd: (args: ApplyAnnotsArgs) => typedError<(AnnotationRef | null)[], {
+	applyAnnotationsCmd: (args: ApplyAnnotsArgs_Deserialize) => typedError<(AnnotationRef | null)[], {
 	key: string,
 	data: unknown,
 }>(__TAURI_INVOKE("apply_annotations_cmd", { args })),
@@ -339,14 +339,7 @@ export const commands = {
 };
 
 /* Types */
-export type Annotation = { type: "highlight"; page: number; quads: ([(number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null)])[]; color: [(number | null), (number | null), (number | null)]; opacity: number | null } | { type: "note"; page: number; x: number | null; y: number | null; contents: string; icon: NoteIcon; color: [(number | null), (number | null), (number | null)] } | { type: "square"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; 
-/**  `None` = transparent fill. Alpha is in `[3]`. */
-fill_color: [(number | null), (number | null), (number | null), (number | null)] | null; corner_radius: number | null } | { type: "circle"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; fill_color: [(number | null), (number | null), (number | null), (number | null)] | null } | { type: "line"; page: number; from: [(number | null), (number | null)]; to: [(number | null), (number | null)]; color: [(number | null), (number | null), (number | null)]; width: number | null; style: BorderStyle; arrow_start: LineEnd; arrow_end: LineEnd } | { type: "free_text"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; contents: string; 
-/**
- *  Delta U: full TextStyle replaces the old enum-based font.
- *  Non-Standard-14 fonts are embedded via Type0 CIDFont.
- */
-style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean } | { type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null } | { type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean };
+export type Annotation = Annotation_Serialize | Annotation_Deserialize;
 
 /**
  *  Plan 119 p1b: an annotation object already in a saved file, by its PDF
@@ -358,10 +351,73 @@ export type AnnotationRef = {
 	generation: number,
 };
 
-export type ApplyAnnotsArgs = {
+export type Annotation_Deserialize = ({ type: "highlight"; page: number; quads: ([(number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null)])[]; color: [(number | null), (number | null), (number | null)]; opacity: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "note"; page: number; x: number | null; y: number | null; contents: string; icon: NoteIcon; color: [(number | null), (number | null), (number | null)] }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never } | ({ type: "square"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; 
+/**  `None` = transparent fill. Alpha is in `[3]`. */
+fill_color: [(number | null), (number | null), (number | null), (number | null)] | null; corner_radius: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; color?: never; contents?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "circle"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; fill_color: [(number | null), (number | null), (number | null), (number | null)] | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; color?: never; contents?: never; corner_radius?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "line"; page: number; from: [(number | null), (number | null)]; to: [(number | null), (number | null)]; color: [(number | null), (number | null), (number | null)]; width: number | null; style: BorderStyle; arrow_start: LineEnd; arrow_end: LineEnd }) & { auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; x?: never; y?: never } | ({ type: "free_text"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; contents: string; 
+/**
+ *  Delta U: full TextStyle replaces the old enum-based font.
+ *  Non-Standard-14 fonts are embedded via Type0 CIDFont.
+ */
+style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean }) & { arrow_end?: never; arrow_start?: never; border_style?: never; color?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; color?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; kind?: never; lines?: never; multiline?: never; name?: never; quads?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; multiline?: never; name?: never; quads?: never; rect?: never; rotation?: never; scale?: never; source_field?: never; style?: never; to?: never; x?: never; y?: never } | 
+/**
+ *  Plan 119 O1: a form field the user draws. `own_fields` writes it as
+ *  a real AcroForm field; it has no value when saved.
+ */
+({ type: "form_field"; page: number; 
+/**  PDF points, `[x1, y1, x2, y2]`, unrotated page user space. */
+rect: [(number | null), (number | null), (number | null), (number | null)]; 
+/**  Requested partial name; the writer sanitizes it and makes it unique. */
+name: string; kind: OwnFieldKind; 
+/**  Text only. */
+multiline: boolean; 
+/**  Points; `0.0` means auto. */
+font_size: number | null; 
+/**  Saved own field whose value and settings this layout edit keeps. */
+source_field?: AnnotationRef | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; color?: never; contents?: never; corner_radius?: never; fill_color?: never; from?: never; icon?: never; image_path?: never; lines?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; style?: never; to?: never; width?: never; x?: never; y?: never };
+
+export type Annotation_Serialize = ({ type: "highlight"; page: number; quads: ([(number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null), (number | null)])[]; color: [(number | null), (number | null), (number | null)]; opacity: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "note"; page: number; x: number | null; y: number | null; contents: string; icon: NoteIcon; color: [(number | null), (number | null), (number | null)] }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never } | ({ type: "square"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; 
+/**  `None` = transparent fill. Alpha is in `[3]`. */
+fill_color: [(number | null), (number | null), (number | null), (number | null)] | null; corner_radius: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; color?: never; contents?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "circle"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; border_style: BorderStyle; fill_color: [(number | null), (number | null), (number | null), (number | null)] | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; color?: never; contents?: never; corner_radius?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "line"; page: number; from: [(number | null), (number | null)]; to: [(number | null), (number | null)]; color: [(number | null), (number | null), (number | null)]; width: number | null; style: BorderStyle; arrow_start: LineEnd; arrow_end: LineEnd }) & { auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rect?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; x?: never; y?: never } | ({ type: "free_text"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; contents: string; 
+/**
+ *  Delta U: full TextStyle replaces the old enum-based font.
+ *  Non-Standard-14 fonts are embedded via Type0 CIDFont.
+ */
+style: TextStyle; background_fill: [(number | null), (number | null), (number | null), (number | null)] | null; border_color: [(number | null), (number | null), (number | null)]; border_width: number | null; auto_resize: boolean }) & { arrow_end?: never; arrow_start?: never; border_style?: never; color?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; lines?: never; multiline?: never; name?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; source_field?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "stamp"; page: number; rect: [(number | null), (number | null), (number | null), (number | null)]; image_path: string; scale: number | null; rotation: number | null; opacity: number | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; color?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; kind?: never; lines?: never; multiline?: never; name?: never; quads?: never; smoothing?: never; source_field?: never; style?: never; to?: never; width?: never; x?: never; y?: never } | ({ type: "ink"; page: number; lines: (([(number | null), (number | null)])[])[]; color: [(number | null), (number | null), (number | null)]; width: number | null; opacity: number | null; smoothing: boolean }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; contents?: never; corner_radius?: never; fill_color?: never; font_size?: never; from?: never; icon?: never; image_path?: never; kind?: never; multiline?: never; name?: never; quads?: never; rect?: never; rotation?: never; scale?: never; source_field?: never; style?: never; to?: never; x?: never; y?: never } | 
+/**
+ *  Plan 119 O1: a form field the user draws. `own_fields` writes it as
+ *  a real AcroForm field; it has no value when saved.
+ */
+({ type: "form_field"; page: number; 
+/**  PDF points, `[x1, y1, x2, y2]`, unrotated page user space. */
+rect: [(number | null), (number | null), (number | null), (number | null)]; 
+/**  Requested partial name; the writer sanitizes it and makes it unique. */
+name: string; kind: OwnFieldKind; 
+/**  Text only. */
+multiline: boolean; 
+/**  Points; `0.0` means auto. */
+font_size: number | null; 
+/**  Saved own field whose value and settings this layout edit keeps. */
+source_field?: AnnotationRef | null }) & { arrow_end?: never; arrow_start?: never; auto_resize?: never; background_fill?: never; border_color?: never; border_style?: never; border_width?: never; color?: never; contents?: never; corner_radius?: never; fill_color?: never; from?: never; icon?: never; image_path?: never; lines?: never; opacity?: never; quads?: never; rotation?: never; scale?: never; smoothing?: never; style?: never; to?: never; width?: never; x?: never; y?: never };
+
+export type ApplyAnnotsArgs = ApplyAnnotsArgs_Serialize | ApplyAnnotsArgs_Deserialize;
+
+export type ApplyAnnotsArgs_Deserialize = {
 	input: string,
 	output: string,
-	annotations: Annotation[],
+	annotations: Annotation_Deserialize[],
+	/**
+	 *  Plan 119 p1b: saved annotations in `input` that the new ones replace
+	 *  (an edited saved value). They are removed before the new ones are
+	 *  written.
+	 */
+	replaced: AnnotationRef[],
+	job_id: string,
+};
+
+export type ApplyAnnotsArgs_Serialize = {
+	input: string,
+	output: string,
+	annotations: Annotation_Serialize[],
 	/**
 	 *  Plan 119 p1b: saved annotations in `input` that the new ones replace
 	 *  (an edited saved value). They are removed before the new ones are
@@ -549,6 +605,8 @@ export type FormField = {
 	options: string[],
 	read_only: boolean,
 	required: boolean,
+	/**  The merged field/widget carries the app's private ownership marker. */
+	own: boolean,
 };
 
 export type FormFieldKind = "text" | "checkbox" | "radio" | "choice" | "signature" | "button";
@@ -902,6 +960,8 @@ export type OptimizeResult = {
 export type OrganizeResult = {
 	output_paths: string[],
 };
+
+export type OwnFieldKind = "text" | "checkbox";
 
 export type PdfMetadata = {
 	title: string | null,

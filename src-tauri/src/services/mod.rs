@@ -10,6 +10,7 @@ pub mod lopdf_ext;
 pub mod ocr_edit;
 pub mod ocr_engine;
 pub(crate) mod ocr_geometry;
+pub mod own_fields;
 pub mod pdf_editor;
 pub mod pdf_guard;
 pub mod pdf_reader;

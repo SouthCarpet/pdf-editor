@@ -11,6 +11,7 @@ import type { Annotation } from "@/bindings";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
 
 export type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
+export type OwnFieldAnnotation = Extract<Annotation, { type: "form_field" }>;
 
 export interface FreeTextRenderProps {
   screen: ScreenRect;

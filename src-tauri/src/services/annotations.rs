@@ -18,7 +18,7 @@ use lopdf::content::{Content, Operation};
 use lopdf::{dictionary, Document, Object, ObjectId, Stream, StringFormat};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use tracing::warn;
 
@@ -26,6 +26,7 @@ use crate::services::font_embed::FontSubsetter;
 use crate::services::fonts::{
     find_by_postscript_name, is_standard_14, list_system_fonts, SystemFont,
 };
+use crate::services::own_fields::{self, FieldNames, OwnField, OwnFieldKind};
 use crate::services::text_style::{textBlockOffset, TextAlign, TextStyle};
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
@@ -101,6 +102,24 @@ pub enum Annotation {
         opacity: f32,
         smoothing: bool,
     },
+    /// Plan 119 O1: a form field the user draws. `own_fields` writes it as
+    /// a real AcroForm field; it has no value when saved.
+    FormField {
+        page: u32,
+        /// PDF points, `[x1, y1, x2, y2]`, unrotated page user space.
+        rect: [f32; 4],
+        /// Requested partial name; the writer sanitizes it and makes it unique.
+        name: String,
+        kind: OwnFieldKind,
+        /// Text only.
+        multiline: bool,
+        /// Points; `0.0` means auto.
+        font_size: f32,
+        /// Saved own field whose value and settings this layout edit keeps.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[specta(optional)]
+        source_field: Option<AnnotationRef>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type)]
@@ -164,37 +183,24 @@ pub fn save_annotations(
     replaced: &[AnnotationRef],
 ) -> Result<Vec<Option<AnnotationRef>>> {
     let mut doc = crate::services::pdf_guard::load_guarded(input)?;
+    validate_removals(&doc, replaced)?;
+    let mut saved_fields = saved_own_fields(&doc, annotations, replaced)?;
     remove_annotations(&mut doc, replaced);
+    // After the removal, so a replaced own field can keep its name.
+    let mut names = FieldNames::of(&doc);
     let pages = doc.get_pages();
     let mut written = Vec::with_capacity(annotations.len());
     for ann in annotations {
-        if is_empty_fill(ann) {
-            written.push(None);
-            continue;
-        }
-        let page_num = annotation_page(ann);
-        let Some(&page_id) = pages.get(&(page_num + 1)) else {
+        let target = pages.get(&(annotation_page(ann) + 1));
+        let Some(&page_id) = target.filter(|_| !is_empty_fill(ann)) else {
             written.push(None);
             continue;
         };
-        let (dict, font_binding) = build_annot_dict(ann, &mut doc)?;
-        let annot_id = doc.add_object(Object::Dictionary(dict));
+        let annot_id = write_annotation(&mut doc, page_id, ann, &mut names, &mut saved_fields)?;
         written.push(Some(AnnotationRef::from(annot_id)));
-        if let Some(obj) = doc.objects.get_mut(&page_id) {
-            if let Ok(p) = obj.as_dict_mut() {
-                let mut annots: Vec<Object> = match p.get(b"Annots").cloned() {
-                    Ok(Object::Array(a)) => a,
-                    _ => Vec::new(),
-                };
-                annots.push(Object::Reference(annot_id));
-                p.set("Annots", annots);
-
-                // Bind any embedded font to the page's /Resources /Font.
-                if let Some((alias, font_id)) = font_binding {
-                    ensure_page_font(p, &alias, font_id);
-                }
-            }
-        }
+        with_page_annots(&mut doc, page_id, |annots| {
+            annots.push(Object::Reference(annot_id));
+        });
     }
     doc.compress();
     replace_file_atomically(output, |file| {
@@ -204,6 +210,86 @@ pub fn save_annotations(
         Ok(())
     })?;
     Ok(written)
+}
+
+/// Adds the object of one annotation and returns its id. An own field goes
+/// to `own_fields` (plan 119 O1), because it also changes the catalog.
+fn write_annotation(
+    doc: &mut Document,
+    page_id: ObjectId,
+    ann: &Annotation,
+    names: &mut FieldNames,
+    saved_fields: &mut HashMap<AnnotationRef, SavedOwnField>,
+) -> Result<ObjectId> {
+    if let Annotation::FormField {
+        rect,
+        name,
+        kind,
+        multiline,
+        font_size,
+        source_field,
+        ..
+    } = ann
+    {
+        let field = OwnField {
+            rect: *rect,
+            name,
+            kind: *kind,
+            multiline: *multiline,
+            font_size: *font_size,
+        };
+        let saved = source_field
+            .as_ref()
+            .and_then(|source| saved_fields.remove(source))
+            .map(|saved| {
+                for (id, appearance) in saved.appearances {
+                    doc.set_object(id, appearance);
+                }
+                saved.widget
+            });
+        return own_fields::write_own_field(doc, page_id, &field, names, saved);
+    }
+    let page_fonts = match ann {
+        Annotation::FreeText { .. } => {
+            font_resources_copy(doc, &page_resources_copy(doc, page_id)?)?
+        }
+        _ => lopdf::Dictionary::new(),
+    };
+    let (dict, font_binding) = build_annot_dict(ann, doc, &page_fonts)?;
+    let annot_id = doc.add_object(Object::Dictionary(dict));
+    // Bind any embedded font to the page's /Resources /Font.
+    if let Some((alias, font_id)) = font_binding {
+        ensure_page_font(doc, page_id, &alias, font_id)?;
+    }
+    Ok(annot_id)
+}
+
+/// Runs `edit` on the page's `/Annots` array. A direct array is edited in the
+/// page. An indirect reference keeps pointing at its array object, which is
+/// edited in place. A missing or unusable `/Annots` starts an empty direct
+/// array. Plan 119 O0: the add path once replaced an indirect list with a
+/// one-item list, and the remove path skipped it.
+fn with_page_annots(doc: &mut Document, page_id: ObjectId, edit: impl FnOnce(&mut Vec<Object>)) {
+    let indirect = doc
+        .get_dictionary(page_id)
+        .ok()
+        .and_then(|page| page.get(b"Annots").ok())
+        .and_then(|entry| entry.as_reference().ok());
+    if let Some(Object::Array(annots)) = indirect.and_then(|id| doc.objects.get_mut(&id)) {
+        edit(annots);
+        return;
+    }
+    let Ok(page) = doc.get_object_mut(page_id).and_then(Object::as_dict_mut) else {
+        return;
+    };
+    let mut annots = match page.get_mut(b"Annots") {
+        Ok(Object::Array(annots)) => std::mem::take(annots),
+        _ => Vec::new(),
+    };
+    edit(&mut annots);
+    if !annots.is_empty() {
+        page.set("Annots", annots);
+    }
 }
 
 /// Plan 119 p1c: a FreeText with no text, no border and no background draws
@@ -218,8 +304,84 @@ fn is_empty_fill(ann: &Annotation) -> bool {
     )
 }
 
-/// Drops each referenced annotation from every page's `/Annots` and deletes
-/// its object and its normal appearance stream.
+fn validate_removals(doc: &Document, replaced: &[AnnotationRef]) -> Result<()> {
+    if replaced.is_empty() {
+        return Ok(());
+    }
+    let field_ids = own_fields::field_tree_ids(doc);
+    for reference in replaced {
+        let id = (reference.object, reference.generation);
+        let Ok(field) = doc.get_dictionary(id) else {
+            continue;
+        };
+        let is_field = field_ids.contains(&id)
+            || field.has(b"FT")
+            || field
+                .get(b"Subtype")
+                .and_then(Object::as_name)
+                .is_ok_and(|kind| kind == b"Widget");
+        if is_field && !own_fields::is_own_field(field) {
+            anyhow::bail!("cannot remove a source form field");
+        }
+    }
+    Ok(())
+}
+
+struct SavedOwnField {
+    widget: lopdf::Dictionary,
+    appearances: Vec<(ObjectId, Object)>,
+}
+
+fn saved_own_fields(
+    doc: &Document,
+    annotations: &[Annotation],
+    replaced: &[AnnotationRef],
+) -> Result<HashMap<AnnotationRef, SavedOwnField>> {
+    let removals: HashSet<_> = replaced.iter().copied().collect();
+    let mut saved = HashMap::new();
+    for annotation in annotations {
+        let Annotation::FormField {
+            source_field: Some(source),
+            ..
+        } = annotation
+        else {
+            continue;
+        };
+        if !removals.contains(source) {
+            anyhow::bail!("saved own field source must be replaced");
+        }
+        if saved.contains_key(source) {
+            anyhow::bail!("duplicate saved own field source");
+        }
+        saved.insert(*source, saved_own_field(doc, source)?);
+    }
+    Ok(saved)
+}
+
+fn saved_own_field(doc: &Document, reference: &AnnotationRef) -> Result<SavedOwnField> {
+    let widget = doc
+        .get_dictionary((reference.object, reference.generation))
+        .context("saved own field source not found")?;
+    if !own_fields::is_own_field(widget) {
+        anyhow::bail!("cannot remove a source form field");
+    }
+    let appearances = normal_appearance_ids(widget)
+        .into_iter()
+        .filter_map(|id| {
+            doc.get_object(id)
+                .ok()
+                .map(|appearance| (id, appearance.clone()))
+        })
+        .collect();
+    Ok(SavedOwnField {
+        widget: widget.clone(),
+        appearances,
+    })
+}
+
+/// Drops each referenced annotation from every page's `/Annots` and from
+/// the top level of `/AcroForm /Fields` (plan 119 O1 rule 9), then deletes
+/// its object and its normal appearance streams.
 fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
     if replaced.is_empty() {
         return;
@@ -229,30 +391,35 @@ fn remove_annotations(doc: &mut Document, replaced: &[AnnotationRef]) {
         .map(|reference| (reference.object, reference.generation))
         .collect();
     for page_id in doc.get_pages().into_values() {
-        let annots = doc
-            .get_object_mut(page_id)
-            .and_then(Object::as_dict_mut)
-            .and_then(|page| page.get_mut(b"Annots"));
-        if let Ok(Object::Array(annots)) = annots {
+        with_page_annots(doc, page_id, |annots| {
             annots.retain(|annot| !matches!(annot, Object::Reference(id) if ids.contains(id)));
-        }
+        });
     }
+    own_fields::remove_from_fields(doc, &ids);
     for id in ids {
         if let Some(Object::Dictionary(annot)) = doc.objects.remove(&id) {
-            if let Some(appearance) = normal_appearance_id(&annot) {
+            for appearance in normal_appearance_ids(&annot) {
                 doc.objects.remove(&appearance);
             }
         }
     }
 }
 
-fn normal_appearance_id(annot: &lopdf::Dictionary) -> Option<ObjectId> {
-    annot
+/// The normal appearance stream, or one stream per state (a checkbox has
+/// `/Off` and `/Yes`).
+fn normal_appearance_ids(annot: &lopdf::Dictionary) -> Vec<ObjectId> {
+    let normal = annot
         .get(b"AP")
         .and_then(Object::as_dict)
-        .and_then(|appearance| appearance.get(b"N"))
-        .and_then(Object::as_reference)
-        .ok()
+        .and_then(|appearance| appearance.get(b"N"));
+    match normal {
+        Ok(Object::Reference(id)) => vec![*id],
+        Ok(Object::Dictionary(states)) => states
+            .iter()
+            .filter_map(|(_, state)| state.as_reference().ok())
+            .collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// Plan 119 p1: a save may write over the copy it started from (the second
@@ -288,7 +455,8 @@ fn annotation_page(ann: &Annotation) -> u32 {
         | Annotation::Line { page, .. }
         | Annotation::FreeText { page, .. }
         | Annotation::Stamp { page, .. }
-        | Annotation::Ink { page, .. } => *page,
+        | Annotation::Ink { page, .. }
+        | Annotation::FormField { page, .. } => *page,
     }
 }
 
@@ -369,6 +537,7 @@ fn align_value(align: TextAlign) -> i64 {
 fn build_annot_dict(
     ann: &Annotation,
     doc: &mut Document,
+    page_fonts: &lopdf::Dictionary,
 ) -> Result<(lopdf::Dictionary, Option<(String, ObjectId)>)> {
     match ann {
         Annotation::Highlight {
@@ -539,7 +708,7 @@ fn build_annot_dict(
             }
 
             let resolved_font = resolve_free_text_font(doc, contents, style)?;
-            let alias = resolved_font.alias;
+            let alias = first_free_font_name(page_fonts, &resolved_font.alias, 0);
             let font_id = resolved_font.font_id;
 
             // /DA "default appearance" — names the font, size, and color.
@@ -655,6 +824,7 @@ fn build_annot_dict(
             );
             Ok((d, None))
         }
+        Annotation::FormField { .. } => anyhow::bail!("an own field is written by own_fields"),
     }
 }
 
@@ -967,28 +1137,76 @@ fn resolve_free_text_font(
 
 /// Insert (alias -> font_id) into page.Resources.Font, creating
 /// intermediate dictionaries as needed.
-fn ensure_page_font(page: &mut lopdf::Dictionary, alias: &str, font_id: ObjectId) {
-    let res = match page.get_mut(b"Resources") {
-        Ok(Object::Dictionary(r)) => r,
-        _ => {
-            page.set("Resources", Object::Dictionary(lopdf::Dictionary::new()));
-            match page.get_mut(b"Resources") {
-                Ok(Object::Dictionary(r)) => r,
-                _ => return,
-            }
-        }
-    };
-    let fonts = match res.get_mut(b"Font") {
-        Ok(Object::Dictionary(f)) => f,
-        _ => {
-            res.set("Font", Object::Dictionary(lopdf::Dictionary::new()));
-            match res.get_mut(b"Font") {
-                Ok(Object::Dictionary(f)) => f,
-                _ => return,
-            }
-        }
-    };
+fn ensure_page_font(
+    doc: &mut Document,
+    page_id: ObjectId,
+    alias: &str,
+    font_id: ObjectId,
+) -> Result<()> {
+    let mut resources = page_resources_copy(doc, page_id)?;
+    let mut fonts = font_resources_copy(doc, &resources)?;
+    anyhow::ensure!(
+        !fonts.has(alias.as_bytes()),
+        "page font resource name is already in use"
+    );
     fonts.set(alias.as_bytes().to_vec(), Object::Reference(font_id));
+    resources.set("Font", fonts);
+    doc.get_dictionary_mut(page_id)?.set("Resources", resources);
+    Ok(())
+}
+
+/// Keep the bare prefix when `first_suffix` is zero, otherwise number it.
+/// Both text writers select from the page's resolved, existing font names.
+pub(crate) fn first_free_font_name(
+    fonts: &lopdf::Dictionary,
+    prefix: &str,
+    first_suffix: u32,
+) -> String {
+    let mut suffix = first_suffix;
+    let mut name = if suffix == 0 {
+        prefix.to_string()
+    } else {
+        format!("{prefix}{suffix}")
+    };
+    while fonts.has(name.as_bytes()) {
+        suffix += 1;
+        name = format!("{prefix}{suffix}");
+    }
+    name
+}
+
+pub(crate) fn font_resources_copy(
+    doc: &Document,
+    resources: &lopdf::Dictionary,
+) -> Result<lopdf::Dictionary> {
+    resources
+        .get(b"Font")
+        .ok()
+        .map(|entry| dictionary_copy(doc, entry))
+        .transpose()
+        .map(Option::unwrap_or_default)
+}
+
+pub(crate) fn dictionary_copy(doc: &Document, entry: &Object) -> Result<lopdf::Dictionary> {
+    Ok(doc.dereference(entry)?.1.as_dict()?.clone())
+}
+
+/// Resources may be shared or inherited. Copy them onto this page before
+/// binding a value font, so another page keeps its original resources.
+pub(crate) fn page_resources_copy(doc: &Document, page_id: ObjectId) -> Result<lopdf::Dictionary> {
+    let mut current = page_id;
+    let mut visited = HashSet::new();
+    while visited.insert(current) {
+        let page = doc.get_dictionary(current)?;
+        if let Ok(resources) = page.get(b"Resources") {
+            return dictionary_copy(doc, resources);
+        }
+        let Ok(parent) = page.get(b"Parent").and_then(Object::as_reference) else {
+            return Ok(lopdf::Dictionary::new());
+        };
+        current = parent;
+    }
+    anyhow::bail!("cycle in page resource inheritance")
 }
 
 const FREE_TEXT_HORIZONTAL_INSET_PT: f32 = 2.0;
@@ -1378,8 +1596,12 @@ mod tests {
 
     fn build_free_text(style: TextStyle, contents: &str) -> (lopdf::Dictionary, Document) {
         let mut doc = Document::with_version("1.7");
-        let (dict, _) = build_annot_dict(&free_text(style, contents), &mut doc)
-            .expect("build FreeText annotation");
+        let (dict, _) = build_annot_dict(
+            &free_text(style, contents),
+            &mut doc,
+            &lopdf::Dictionary::new(),
+        )
+        .expect("build FreeText annotation");
         (dict, doc)
     }
 
@@ -1581,7 +1803,8 @@ mod tests {
     fn a_long_value_is_clipped_to_its_cell() {
         let mut doc = Document::with_version("1.7");
         let long = "Hlavna ulica 5, 943 01 Sturovo, Slovenska republika";
-        let (dict, _) = build_annot_dict(&cell_value(long), &mut doc).expect("build FreeText");
+        let (dict, _) = build_annot_dict(&cell_value(long), &mut doc, &lopdf::Dictionary::new())
+            .expect("build FreeText");
         let ap = dict.get(b"AP").and_then(Object::as_dict).expect("/AP");
         let stream = doc
             .get_object(ap.get(b"N").and_then(Object::as_reference).expect("/N"))
@@ -2034,7 +2257,8 @@ mod tests {
             opacity: 1.0,
         };
 
-        let error = build_annot_dict(&annotation, &mut doc).expect_err("missing image must fail");
+        let error = build_annot_dict(&annotation, &mut doc, &lopdf::Dictionary::new())
+            .expect_err("missing image must fail");
         assert!(
             error.to_string().contains("read stamp image"),
             "failure should identify the unreadable stamp: {error:#}"

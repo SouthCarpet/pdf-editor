@@ -5,7 +5,17 @@
 ### Added
 
 - Full AGPL-3.0 licence text and third-party component notices.
+- Move, resize and delete saved own fields in Forms, with undo and redo.
+  Only fields carrying the new ownership marker offer layout editing.
 
+- Draw, name, move, resize and delete pending text fields and checkboxes in Forms. Save writes real AcroForm fields; undo, redo and read-only previews are included.
+
+- Own field model: text boxes use 140 x 22 pt, checkboxes use 14 x 14 pt,
+  and drawn boxes have a 12 pt minimum on each side. Boxes stay on the page.
+  Pending own fields support undo and redo, the shared save path, the close
+  guard and autosave. A move made during save stays pending and replaces
+  the written field on the next save. Empty own fields do not enter prefill
+  history.
 - Per-user Windows setup (Inno Setup 6): `packaging/pdf-editor.iss` and
   `packaging/build-installer.ps1`. Installs into
   `%LOCALAPPDATA%\Programs\PDF Editor` without administrator rights,
@@ -78,6 +88,11 @@
   on a draft.
 - `docs/release-checklist.md` (manual acceptance steps) and
   `KNOWN_ISSUES.md`.
+- Own form fields, save side: the annotation type `form_field` (text or
+  checkbox) is saved as a real AcroForm field with a unique name. A
+  replaced or deleted own field is also removed from `/AcroForm /Fields`.
+  A rect smaller than 4 x 4 pt fails the save with "own field rect must be
+  finite and at least 4 x 4 pt".
 
 ### Changed
 
@@ -154,5 +169,16 @@
 
 ### Fixed
 
+- FreeText annotations select a free page font name and keep existing font
+  bindings. Their default and normal appearances use the same new name.
+
+- Last-resort text replacement keeps images and existing fonts, including
+  indirect resources and font dictionaries. It now selects a free font
+  resource name instead of replacing an existing `/F1` binding.
+
+- Saving values on pages with indirect resources preserves existing images
+  and font resources.
+
+- Annotations on a page with an indirect /Annots list were dropped when saving or deleting an annotation.
 - Troubleshooting guide: the database is `app.db` (not `state.db`), and the
   data and log folders are under `%APPDATA%\PdfEditor\PdfEditor\data`.

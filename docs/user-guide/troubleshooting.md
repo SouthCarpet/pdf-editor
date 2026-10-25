@@ -43,6 +43,13 @@ A typed AcroForm text, choice or checkbox value shows at its form field on the p
 Save after you clear the text. The save deletes the saved value. If the cell still shows as filled, the clear is still unsaved: the toolbar Save button is active.
 
 
+## A new field has no value input
+
+A box in **Own fields** defines a form field. Save the document with the
+toolbar Save or Ctrl+S first. The field then appears in the native Forms
+list, where you can fill its value. If the box is still pending, check the
+save result. Escape cancels placement; it does not delete an existing box.
+
 ## Update check says "Cannot reach GitHub"
 The update check (Settings -> About, off by default) could not connect: no internet, a proxy, or a firewall. This is not "latest version". Try again later with **Check now**. "GitHub did not send a usable release" means GitHub answered, but not with a stable `vX.Y.Z` release (for example HTTP 403 when the hourly GitHub API limit is used up).
 
