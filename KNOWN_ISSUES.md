@@ -22,7 +22,7 @@ layout in a separate copy if needed.
 
 The saved value `Čučoriedka ľťžš` is read exactly by pdf.js. In the V2
 cross-reader check, mutool drew no value, and Ghostscript drew garbled bytes
-(for example, `bÿ u oriedka ...`). A valid saved value does not guarantee
+(for example, `þÿ u o r i e d k a ...`). A valid saved value does not guarantee
 that another reader will draw it correctly.
 
 Our fill path writes `/V` as UTF-16, removes the text appearance `/AP`, and
