@@ -8,6 +8,7 @@ import type { PageViewport } from "pdfjs-dist";
 import { Group, Rect, Text } from "react-konva";
 import { toScreenRect } from "./detectedFieldGeometry";
 import type { PendingFormValue } from "./pendingFormValues";
+import { useCanvasColors } from "./useCanvasColors";
 
 interface Props {
   page: number;
@@ -39,6 +40,7 @@ function PendingFormValueItem({
   value: PendingFormValue;
   viewport: PageViewport;
 }) {
+  const colors = useCanvasColors();
   const screen = toScreenRect(value.rect, viewport);
   if (screen === null) return null;
   const heightPt = screen.height / viewport.scale;
@@ -53,8 +55,8 @@ function PendingFormValueItem({
         y={screen.y}
         width={screen.width}
         height={screen.height}
-        fill="#ffffff"
-        stroke="rgba(17, 24, 39, 0.35)"
+        fill={colors.soft}
+        stroke={colors.accent}
         strokeWidth={1}
         dash={[3, 3]}
         listening={false}
@@ -74,8 +76,8 @@ function PendingFormValueItem({
           verticalAlign="middle"
           text={value.text}
           fontSize={fontPx}
-          fontFamily="Helvetica, Arial, sans-serif"
-          fill="#000000"
+          fontFamily="Fira Sans"
+          fill={colors.text}
           wrap="none"
           listening={false}
         />

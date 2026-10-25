@@ -84,50 +84,50 @@ export function PendingAnnotationControls({
     label: string;
     tooltip: string;
   }> = [
-    {
-      value: "left",
-      abbreviation: "L",
-      label: t("pending_annotation.align_left"),
-      tooltip: t("pending_annotation.align_left_tooltip"),
-    },
-    {
-      value: "center",
-      abbreviation: "C",
-      label: t("pending_annotation.align_center"),
-      tooltip: t("pending_annotation.align_center_tooltip"),
-    },
-    {
-      value: "right",
-      abbreviation: "R",
-      label: t("pending_annotation.align_right"),
-      tooltip: t("pending_annotation.align_right_tooltip"),
-    },
-  ];
+      {
+        value: "left",
+        abbreviation: "L",
+        label: t("pending_annotation.align_left"),
+        tooltip: t("pending_annotation.align_left_tooltip"),
+      },
+      {
+        value: "center",
+        abbreviation: "C",
+        label: t("pending_annotation.align_center"),
+        tooltip: t("pending_annotation.align_center_tooltip"),
+      },
+      {
+        value: "right",
+        abbreviation: "R",
+        label: t("pending_annotation.align_right"),
+        tooltip: t("pending_annotation.align_right_tooltip"),
+      },
+    ];
   const verticalAlignments: Array<{
     value: VerticalAlign;
     abbreviation: string;
     label: string;
     tooltip: string;
   }> = [
-    {
-      value: "top",
-      abbreviation: "T",
-      label: t("pending_annotation.align_top"),
-      tooltip: t("pending_annotation.align_top_tooltip"),
-    },
-    {
-      value: "middle",
-      abbreviation: "M",
-      label: t("pending_annotation.align_middle"),
-      tooltip: t("pending_annotation.align_middle_tooltip"),
-    },
-    {
-      value: "bottom",
-      abbreviation: "B",
-      label: t("pending_annotation.align_bottom"),
-      tooltip: t("pending_annotation.align_bottom_tooltip"),
-    },
-  ];
+      {
+        value: "top",
+        abbreviation: "T",
+        label: t("pending_annotation.align_top"),
+        tooltip: t("pending_annotation.align_top_tooltip"),
+      },
+      {
+        value: "middle",
+        abbreviation: "M",
+        label: t("pending_annotation.align_middle"),
+        tooltip: t("pending_annotation.align_middle_tooltip"),
+      },
+      {
+        value: "bottom",
+        abbreviation: "B",
+        label: t("pending_annotation.align_bottom"),
+        tooltip: t("pending_annotation.align_bottom_tooltip"),
+      },
+    ];
 
   function changeStyle(patch: Partial<TextStyle>) {
     styleEditing?.onChange({ ...style, ...patch });
@@ -167,12 +167,12 @@ export function PendingAnnotationControls({
     <div
       role="group"
       aria-label={t("pending_annotation.title")}
-      className="absolute z-20 w-[44rem] max-w-[calc(100vw-1rem)] space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-card)] p-2 text-xs shadow-lg"
+      className="absolute z-20 w-[44rem] max-w-[calc(100vw-1rem)] space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-2 text-xs"
       style={{ left: screenRect.x, top: screenRect.y + screenRect.height + 6 }}
     >
       <div className="flex flex-wrap items-end gap-2">
         <label className="min-w-48 flex-1">
-          <span className="text-[var(--color-muted)]">{t("pending_annotation.text_label")}</span>
+          <span className="text-[var(--color-text-muted)]">{t("pending_annotation.text_label")}</span>
           <input
             type="text"
             value={text}
@@ -180,15 +180,14 @@ export function PendingAnnotationControls({
             onKeyDown={(event) => {
               if (event.key === "Enter") onConfirm();
             }}
-            className="mt-1 block w-full rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1"
+            className="k-input min-w-0 w-full"
           />
         </label>
 
         <div className="flex items-center gap-2">
-          <span className="text-[var(--color-muted)]">{t("pending_annotation.size_label")}</span>
+          <span className="text-[var(--color-text-muted)]">{t("pending_annotation.size_label")}</span>
           <div className="flex items-center gap-1">
             <Button
-              size="sm"
               variant="outline"
               aria-label={t("pending_annotation.size_decrease")}
               onClick={() => step(-SIZE_STEP_PT)}
@@ -197,7 +196,6 @@ export function PendingAnnotationControls({
             </Button>
             <span className="w-8 text-center tabular-nums">{Math.round(sizePt)}</span>
             <Button
-              size="sm"
               variant="outline"
               aria-label={t("pending_annotation.size_increase")}
               onClick={() => step(SIZE_STEP_PT)}
@@ -208,7 +206,7 @@ export function PendingAnnotationControls({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-[var(--color-muted)]">{t("pending_annotation.color_label")}</span>
+          <span className="text-[var(--color-text-muted)]">{t("pending_annotation.color_label")}</span>
           <div className="flex gap-1">
             {palette.map((hex) => (
               <button
@@ -233,22 +231,24 @@ export function PendingAnnotationControls({
 
       <div className="flex flex-wrap items-center gap-1">
         <label className="flex items-center gap-1">
-          <span className="text-[var(--color-muted)]">{t("pending_annotation.font_family")}</span>
-          <select
-            aria-label={t("pending_annotation.font_family")}
-            title={t("pending_annotation.font_family_tooltip")}
-            value={selectedFamily}
-            onChange={(event) =>
-              changeFace(event.target.value as StandardTextFamily, style.bold, style.italic)
-            }
-            className="h-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2"
-          >
-            {STANDARD_TEXT_FAMILIES.map((family) => (
-              <option key={family} value={family}>
-                {family}
-              </option>
-            ))}
-          </select>
+          <span className="text-[var(--color-text-muted)]">{t("pending_annotation.font_family")}</span>
+          <span className="k-select-wrap min-w-0 flex-1">
+            <select
+              aria-label={t("pending_annotation.font_family")}
+              title={t("pending_annotation.font_family_tooltip")}
+              value={selectedFamily}
+              onChange={(event) =>
+                changeFace(event.target.value as StandardTextFamily, style.bold, style.italic)
+              }
+              className="k-select min-w-0 w-full"
+            >
+              {STANDARD_TEXT_FAMILIES.map((family) => (
+                <option key={family} value={family}>
+                  {family}
+                </option>
+              ))}
+            </select>
+          </span>
         </label>
 
         <button
@@ -257,7 +257,7 @@ export function PendingAnnotationControls({
           title={t("pending_annotation.bold_tooltip")}
           aria-pressed={style.bold}
           onClick={() => changeFace(selectedFamily, !style.bold, style.italic)}
-          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] font-bold aria-pressed:bg-[var(--color-accent)]"
+          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] font-bold aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
         >
           B
         </button>
@@ -267,7 +267,7 @@ export function PendingAnnotationControls({
           title={t("pending_annotation.italic_tooltip")}
           aria-pressed={style.italic}
           onClick={() => changeFace(selectedFamily, style.bold, !style.italic)}
-          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] italic aria-pressed:bg-[var(--color-accent)]"
+          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] italic aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
         >
           I
         </button>
@@ -277,7 +277,7 @@ export function PendingAnnotationControls({
           title={t("pending_annotation.underline_tooltip")}
           aria-pressed={style.underline}
           onClick={() => changeStyle({ underline: !style.underline })}
-          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] underline aria-pressed:bg-[var(--color-accent)]"
+          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] underline aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
         >
           U
         </button>
@@ -287,7 +287,7 @@ export function PendingAnnotationControls({
           title={t("pending_annotation.strikethrough_tooltip")}
           aria-pressed={style.strikethrough}
           onClick={() => changeStyle({ strikethrough: !style.strikethrough })}
-          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] line-through aria-pressed:bg-[var(--color-accent)]"
+          className="h-8 w-8 rounded border border-[var(--color-border)] bg-[var(--color-background)] line-through aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
         >
           S
         </button>
@@ -305,7 +305,7 @@ export function PendingAnnotationControls({
               title={tooltip}
               aria-pressed={style.align === value}
               onClick={() => changeStyle({ align: value })}
-              className="h-8 min-w-8 border border-[var(--color-border)] bg-[var(--color-background)] px-1 first:rounded-l last:rounded-r aria-pressed:bg-[var(--color-accent)]"
+              className="h-8 min-w-8 border border-[var(--color-border)] bg-[var(--color-background)] px-1 first:rounded-l last:rounded-r aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
             >
               {abbreviation}
             </button>
@@ -321,17 +321,17 @@ export function PendingAnnotationControls({
               title={tooltip}
               aria-pressed={style.vertical_align === value}
               onClick={() => changeStyle({ vertical_align: value })}
-              className="h-8 min-w-8 border border-[var(--color-border)] bg-[var(--color-background)] px-1 first:rounded-l last:rounded-r aria-pressed:bg-[var(--color-accent)]"
+              className="h-8 min-w-8 border border-[var(--color-border)] bg-[var(--color-background)] px-1 first:rounded-l last:rounded-r aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold"
             >
               {abbreviation}
             </button>
           ))}
         </div>
 
-        <Button size="sm" className="ml-auto" onClick={onConfirm}>
+        <Button className="ml-auto" onClick={onConfirm}>
           {t("pending_annotation.confirm")}
         </Button>
-        <Button size="sm" variant="outline" onClick={onDelete}>
+        <Button variant="outline" onClick={onDelete}>
           {t("pending_annotation.delete")}
         </Button>
       </div>

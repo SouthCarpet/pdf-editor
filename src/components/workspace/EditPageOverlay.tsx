@@ -16,6 +16,7 @@ import { PendingFreeTextLayer } from "./PendingFreeTextLayer";
 import type { PendingFormValue } from "./pendingFormValues";
 import { PendingStampLayer } from "./PendingStampLayer";
 import { PendingOwnFieldLayer } from "./PendingOwnFieldLayer";
+import { OwnFieldHandles } from "./OwnFieldHandles";
 import type { OwnFieldKind } from "@/bindings";
 
 interface Props {
@@ -52,7 +53,7 @@ interface PreviewProps {
   pageHeight: number;
 }
 
-const ignore = () => {};
+const ignore = () => { };
 
 /** Plan 119 p1: the pending values of this page (plan 119 p1c: and the
  * typed AcroForm values), drawn but not editable,
@@ -126,48 +127,55 @@ export function EditPageOverlay({
   onPlaceField,
   ownFieldsEditable = true,
 }: Props) {
+  const selectedOwnField = pendingAnnotations.find((field) =>
+    field.type === "form_field" && !field.__deleted && field.page === page && field.__clientId === selectedPendingId);
   return (
-    <OverlayCanvas width={width} height={height}>
-      <PendingStampLayer
-        page={page}
-        pageWidth={pageWidth}
-        pageHeight={pageHeight}
-        viewport={viewport}
-        annotations={pendingAnnotations}
-        selectedId={selectedPendingId}
-        placement={stampPlacement}
-        onSelect={onSelectPending}
-        onRectChange={onPendingRectChange}
-        onPlace={onPlaceStamp}
-      />
-      {detectedFields !== null && detectedFields.length > 0 && (
-        <DetectedFieldsGroup
-          fields={detectedFields}
+    <>
+      <OverlayCanvas width={width} height={height}>
+        <PendingStampLayer
+          page={page}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
           viewport={viewport}
-          filledIds={filledIds}
-          onPick={onPickField}
+          annotations={pendingAnnotations}
+          selectedId={selectedPendingId}
+          placement={stampPlacement}
+          onSelect={onSelectPending}
+          onRectChange={onPendingRectChange}
+          onPlace={onPlaceStamp}
         />
+        {detectedFields !== null && detectedFields.length > 0 && (
+          <DetectedFieldsGroup
+            fields={detectedFields}
+            viewport={viewport}
+            filledIds={filledIds}
+            onPick={onPickField}
+          />
+        )}
+        <PendingFreeTextLayer
+          page={page}
+          viewport={viewport}
+          annotations={pendingAnnotations}
+          selectedId={selectedPendingId}
+          onSelect={onSelectPending}
+          onRectChange={onPendingRectChange}
+        />
+        <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
+        <PendingOwnFieldLayer
+          interactive={ownFieldsEditable}
+          page={page}
+          viewport={viewport}
+          annotations={pendingAnnotations}
+          selectedId={selectedPendingId}
+          onSelect={onSelectPending}
+          onRectChange={onPendingRectChange}
+          placement={fieldPlacement}
+          onPlace={onPlaceField}
+        />
+      </OverlayCanvas>
+      {ownFieldsEditable && selectedOwnField && (
+        <OwnFieldHandles viewport={viewport} field={selectedOwnField} onRectChange={onPendingRectChange} />
       )}
-      <PendingFreeTextLayer
-        page={page}
-        viewport={viewport}
-        annotations={pendingAnnotations}
-        selectedId={selectedPendingId}
-        onSelect={onSelectPending}
-        onRectChange={onPendingRectChange}
-      />
-      <PendingFormValueLayer page={page} viewport={viewport} values={formValues} />
-      <PendingOwnFieldLayer
-        interactive={ownFieldsEditable}
-        page={page}
-        viewport={viewport}
-        annotations={pendingAnnotations}
-        selectedId={selectedPendingId}
-        onSelect={onSelectPending}
-        onRectChange={onPendingRectChange}
-        placement={fieldPlacement}
-        onPlace={onPlaceField}
-      />
-    </OverlayCanvas>
+    </>
   );
 }

@@ -212,7 +212,11 @@
       "edit_layout": "Edit layout: {{name}}",
       "place_hint": "Click or drag on the page. Press Escape to cancel.",
       "save_hint": "Save applies field changes. Fill new fields after saving.",
-      "move_hint": "Drag the box or its edge handles. Arrow keys move it 1 pt; Shift moves it 10 pt."
+      "move_hint": "Drag the box or its edge handles. Arrow keys move it 1 pt; Shift moves it 10 pt. Tab to a handle to resize with arrow keys.",
+      "resize_left": "Resize left edge of {{name}}",
+      "resize_right": "Resize right edge of {{name}}",
+      "resize_top": "Resize top edge of {{name}}",
+      "resize_bottom": "Resize bottom edge of {{name}}"
     }
   },
   "ocr_edit": {
@@ -266,7 +270,7 @@
     "empty": "No signatures saved yet.",
     "place_named": "Place {{name}}",
     "delete_named": "Delete {{name}}",
-    "delete_confirm": "Delete signature {{name}}?",
+    "delete_confirm": "Delete saved signature “{{name}}”?",
     "error": "The signature could not be processed: {{error}}",
     "stamps": {
       "title": "Stamps",

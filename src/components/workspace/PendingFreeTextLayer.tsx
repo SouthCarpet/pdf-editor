@@ -1,3 +1,4 @@
+import { useCanvasColors, canvasOutline } from "./useCanvasColors";
 // Plan 050 task D2-UX (R1): the live preview for every accumulated (not
 // yet saved) FreeText annotation on the current page - at its rectangle,
 // with the font size and colour that will be written to the PDF, through
@@ -113,29 +114,13 @@ function PendingFreeTextItem({
   // same fix the crop overlay already applies to its own drag. Declared
   // before the early return below so hook order stays stable.
   const [previewScreen, setPreviewScreen] = useState<ScreenRect | null>(null);
+  const colors = useCanvasColors();
   const rendered = freeTextRenderProps(item, viewport);
   if (rendered === null) return null;
   const { screen: baseScreen, fontSizePx, colorCss, backgroundCss } = rendered;
   const screen = previewScreen ?? baseScreen;
-  const lines = item.contents.split(/\r?\n/);
-  const lineHeight = item.style.line_height_multiplier ?? 1.2;
-  const verticalOffsetPx = textBlockOffset(
-    [0, 0, screen.width, screen.height],
-    lines,
-    fontSizePx,
-    lineHeight,
-    item.style.vertical_align ?? "top"
-  );
   const horizontalInsetPx = 2 * viewport.scale;
-  const fontStyle = [item.style.bold ? "bold" : "", item.style.italic ? "italic" : ""]
-    .filter(Boolean)
-    .join(" ");
-  const textDecoration = [
-    item.style.underline ? "underline" : "",
-    item.style.strikethrough ? "line-through" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const { verticalOffsetPx, lineHeight, fontStyle, textDecoration } = previewTypography(item, screen, fontSizePx);
 
   function onDragEnd(e: KonvaEventObject<DragEvent>) {
     const next: ScreenRect = {
@@ -192,9 +177,7 @@ function PendingFreeTextItem({
         width={screen.width}
         height={screen.height}
         fill={backgroundCss ?? undefined}
-        stroke={selected ? "#111827" : "rgba(17, 24, 39, 0.35)"}
-        strokeWidth={selected ? 1.5 : 1}
-        dash={selected ? undefined : [3, 3]}
+        {...canvasOutline(selected, colors.accent)}
         draggable={selected}
         onClick={onSelect}
         onTap={onSelect}
@@ -217,8 +200,8 @@ function PendingFreeTextItem({
           text={item.contents}
           fontSize={fontSizePx}
           fontFamily={standardFontPreviewFamily(item.style.font_family)}
-          fontStyle={fontStyle || "normal"}
-          textDecoration={textDecoration || undefined}
+          fontStyle={fontStyle}
+          textDecoration={textDecoration}
           lineHeight={lineHeight}
           fill={colorCss}
           align={item.style.align}
@@ -235,7 +218,7 @@ function PendingFreeTextItem({
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
             height={HANDLE_SIZE}
-            fill="#111827"
+            fill={colors.accent}
             draggable
             dragBoundFunc={(pos: Vector2d): Vector2d =>
               axis === "x"
@@ -248,4 +231,27 @@ function PendingFreeTextItem({
         ))}
     </Group>
   );
+}
+
+
+function previewTypography(item: PendingFreeText, screen: ScreenRect, fontSizePx: number) {
+  const lines = item.contents.split(/\r?\n/);
+  const lineHeight = item.style.line_height_multiplier ?? 1.2;
+  const verticalOffsetPx = textBlockOffset(
+    [0, 0, screen.width, screen.height],
+    lines,
+    fontSizePx,
+    lineHeight,
+    item.style.vertical_align ?? "top"
+  );
+  const fontStyle = [item.style.bold ? "bold" : "", item.style.italic ? "italic" : ""]
+    .filter(Boolean)
+    .join(" ");
+  const textDecoration = [
+    item.style.underline ? "underline" : "",
+    item.style.strikethrough ? "line-through" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verticalOffsetPx, lineHeight, fontStyle: fontStyle || "normal", textDecoration: textDecoration || undefined };
 }

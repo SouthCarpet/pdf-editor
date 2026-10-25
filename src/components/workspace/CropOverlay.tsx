@@ -4,7 +4,8 @@
 import { useEffect, useRef } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { Group, Rect } from "react-konva";
-import { readToken, withAlpha } from "@/lib/tokens";
+import { withAlpha } from "@/lib/tokens";
+import { useCanvasColors } from "./useCanvasColors";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { commitCropDragEnd } from "./tools/cropHistory";
 import {
@@ -39,8 +40,9 @@ export function CropOverlay({ width, height, rect, onRectChange, docPath }: Prop
   const handleOriginRef = useRef({ x: 0, y: 0 });
   const page = { width, height };
   // Read live tokens each render (Konva cannot resolve CSS variables). Hex is jsdom fallback.
-  const accent = readToken("--color-accent", "#1d4ed8");
-  const dimFill = withAlpha(readToken("--color-background", "#fafafa"), 0.4);
+  const colors = useCanvasColors();
+  const accent = colors.accent;
+  const dimFill = withAlpha(colors.well, 0.4);
 
   useEffect(() => {
     applyRef.current = (next) => {

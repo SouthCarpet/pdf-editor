@@ -4,6 +4,10 @@
 
 ### Added
 
+- Thumbnail image carry into the workspace page (about 200 ms), with
+  instant reduced-motion and unsupported-browser paths.
+- Keyboard focus and arrow-key resizing on own-field edge handles.
+
 - Full AGPL-3.0 licence text and third-party component notices.
 - Move, resize and delete saved own fields in Forms, with undo and redo.
   Only fields carrying the new ownership marker offer layout editing.
@@ -96,6 +100,12 @@
 
 ### Changed
 
+- Workspace tool bar, tool panels, form controls and Konva selection layers
+  now use Kaliber roles. Controls use flat surfaces without press scales.
+
+- Workspace pages now sit on a well-coloured canvas with a flat sheet and a
+  hairline border. The thumbnail rail uses quiet surfaces and visible keyboard focus.
+
 - The dark theme background and surfaces are darker, from the shared Kaliber tokens.
 
 - Password recovery uses Kaliber choices, inputs, estimate and result marks, and a flat form layout. The legal warning uses the shared keyboard-accessible dialog.
@@ -168,6 +178,11 @@
   (`KNOWN_ISSUES.md`).
 
 ### Fixed
+
+- Own-field preview labels now use the foreground paired with the accent-soft
+  fill in both themes, including saved fields opened for layout editing.
+- Saved signature deletion now uses the shared confirmation dialog with the
+  signature name. Drawing uses the shared dialog focus and keyboard pattern.
 
 - FreeText annotations select a free page font name and keep existing font
   bindings. Their default and normal appearances use the same new name.

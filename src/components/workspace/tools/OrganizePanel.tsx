@@ -109,7 +109,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
       ghost.style.position = "absolute";
       ghost.style.top = "-1000px";
       ghost.style.padding = "4px 8px";
-      ghost.style.background = "var(--color-card)";
+      ghost.style.background = "var(--color-surface-raised)";
       ghost.style.border = "1px solid var(--color-border)";
       document.body.appendChild(ghost);
       event.dataTransfer.setDragImage(ghost, 16, 16);
@@ -222,7 +222,65 @@ export function OrganizePanel({ pdf, docPath }: Props) {
         return false;
       };
 
-      for (const stage of plan.stages) {
+      async function applyMerge(afterPageIndex: number): Promise<boolean> {
+        const extracted = pendingExtract;
+        if (!extracted) return true;
+        if (!hasCurrent || pageCount === 0) {
+          current = extracted.path;
+          pageCount = extracted.count;
+          hasCurrent = true;
+          pendingExtract = null;
+          return true;
+        }
+        const dest = nextStage("merge");
+        const split = mergeImportSplit(afterPageIndex, pageCount);
+        let inputs: string[];
+        if (split.mode === "prepend") {
+          inputs = [extracted.path, current];
+        } else if (split.mode === "append") {
+          inputs = [current, extracted.path];
+        } else {
+          const prefixPath = nextStage("prefix");
+          const suffixPath = nextStage("suffix");
+          const prefix = await commands.extractPagesCmd({
+            input: current,
+            pages: split.prefix,
+            output: prefixPath,
+            job_id: crypto.randomUUID(),
+          });
+          if (prefix.status === "error") {
+            fail(prefix);
+            return false;
+          }
+          const suffix = await commands.extractPagesCmd({
+            input: current,
+            pages: split.suffix,
+            output: suffixPath,
+            job_id: crypto.randomUUID(),
+          });
+          if (suffix.status === "error") {
+            fail(suffix);
+            return false;
+          }
+          inputs = [prefixPath, extracted.path, suffixPath];
+        }
+        const merged = await commands.mergePdfsCmd({
+          inputs,
+          output: dest,
+          job_id: crypto.randomUUID(),
+        });
+        if (merged.status === "error") {
+          fail(merged);
+          return false;
+        }
+        current = dest;
+        pageCount += extracted.count;
+        pendingExtract = null;
+
+        return true;
+      }
+
+      async function applyStage(stage: (typeof plan.stages)[number]): Promise<boolean> {
         if (stage.type === "reorder") {
           const dest = nextStage("reorder");
           const result = await commands.reorderPagesCmd({
@@ -233,7 +291,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           });
           if (result.status === "error") {
             fail(result);
-            return;
+            return false;
           }
           current = dest;
           pageCount = stage.new_order.length;
@@ -248,62 +306,11 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           });
           if (result.status === "error") {
             fail(result);
-            return;
+            return false;
           }
           pendingExtract = { path: dest, count: stage.pages.length };
         } else if (stage.type === "merge_import") {
-          if (!pendingExtract) continue;
-          if (!hasCurrent || pageCount === 0) {
-            current = pendingExtract.path;
-            pageCount = pendingExtract.count;
-            hasCurrent = true;
-            pendingExtract = null;
-            continue;
-          }
-          const dest = nextStage("merge");
-          const split = mergeImportSplit(stage.after_page_index, pageCount);
-          let inputs: string[];
-          if (split.mode === "prepend") {
-            inputs = [pendingExtract.path, current];
-          } else if (split.mode === "append") {
-            inputs = [current, pendingExtract.path];
-          } else {
-            const prefixPath = nextStage("prefix");
-            const suffixPath = nextStage("suffix");
-            const prefix = await commands.extractPagesCmd({
-              input: current,
-              pages: split.prefix,
-              output: prefixPath,
-              job_id: crypto.randomUUID(),
-            });
-            if (prefix.status === "error") {
-              fail(prefix);
-              return;
-            }
-            const suffix = await commands.extractPagesCmd({
-              input: current,
-              pages: split.suffix,
-              output: suffixPath,
-              job_id: crypto.randomUUID(),
-            });
-            if (suffix.status === "error") {
-              fail(suffix);
-              return;
-            }
-            inputs = [prefixPath, pendingExtract.path, suffixPath];
-          }
-          const merged = await commands.mergePdfsCmd({
-            inputs,
-            output: dest,
-            job_id: crypto.randomUUID(),
-          });
-          if (merged.status === "error") {
-            fail(merged);
-            return;
-          }
-          current = dest;
-          pageCount += pendingExtract.count;
-          pendingExtract = null;
+          return applyMerge(stage.after_page_index);
         } else if (stage.type === "insert_blank") {
           const dest = nextStage("blank");
           const result = await commands.insertBlankPageCmd({
@@ -316,7 +323,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           });
           if (result.status === "error") {
             fail(result);
-            return;
+            return false;
           }
           current = dest;
           pageCount += 1;
@@ -331,10 +338,16 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           });
           if (result.status === "error") {
             fail(result);
-            return;
+            return false;
           }
           current = dest;
         }
+
+        return true;
+      }
+
+      for (const stage of plan.stages) {
+        if (!await applyStage(stage)) return;
       }
 
       const saved = await commands.saveDocument(current, out);
@@ -356,12 +369,11 @@ export function OrganizePanel({ pdf, docPath }: Props) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium">{t("tools.organize")}</h3>
-      <p className="text-xs text-[var(--color-muted)]">
+      <p className="text-xs text-[var(--color-text-muted)]">
         {t("organize.hint", { ns: "tools" })}
       </p>
       <div className="flex flex-wrap gap-1">
         <Button
-          size="sm"
           variant="outline"
           onClick={() => commit(reverse(org))}
           disabled={org.pages.length < 2}
@@ -369,18 +381,16 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           {t("organize.reverse", { ns: "tools" })}
         </Button>
         <Button
-          size="sm"
           variant="outline"
           onClick={duplicateSelected}
           disabled={org.selectedIds.length === 0}
         >
           {t("organize.duplicate", { ns: "tools" })}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => void pickImport()}>
+        <Button variant="outline" onClick={() => void pickImport()}>
           {t("organize.insert_from_pdf", { ns: "tools" })}
         </Button>
         <Button
-          size="sm"
           variant="outline"
           onClick={() => commit(deleteSelected(org))}
           disabled={org.selectedIds.length === 0}
@@ -396,10 +406,10 @@ export function OrganizePanel({ pdf, docPath }: Props) {
               value={rangeText}
               onChange={(event) => setRangeText(event.target.value)}
               placeholder={t("organize.range_placeholder", { ns: "tools" })}
-              className="mt-1 h-8 rounded border border-[var(--color-border)] bg-[var(--color-control)] px-2"
+              className="k-input min-w-0 w-full"
             />
           </label>
-          <Button size="sm" onClick={confirmImport}>
+          <Button onClick={confirmImport}>
             {t("organize.insert_confirm", { ns: "tools" })}
           </Button>
         </div>
@@ -423,18 +433,18 @@ export function OrganizePanel({ pdf, docPath }: Props) {
               onDrop={() => onDrop(page.id)}
               onDragEnd={() => setDragIds(null)}
               className={cn(
-                "relative flex flex-col items-center rounded border bg-[var(--color-card)] p-1 text-xs shadow-sm",
+                "relative flex flex-col items-center border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-1 text-xs",
                 page.deleted && "opacity-30 line-through",
-                selected && "border-[var(--color-accent)] bg-[var(--color-accent-soft)]",
-                dragIds?.includes(page.id) && "ring-2 ring-blue-500",
+                selected && "bg-[var(--color-accent-soft)] font-bold text-[var(--color-accent-soft-foreground)]",
+                dragIds?.includes(page.id) && "outline-2 outline-[var(--color-focus)]",
               )}
             >
               {page.blank ? (
-                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-muted)]">
+                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-text-muted)]">
                   {t("organize.blank", { ns: "tools" })}
                 </div>
               ) : page.imported ? (
-                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-muted)]">
+                <div className="flex h-24 w-16 items-center justify-center border border-dashed text-[10px] text-[var(--color-text-muted)]">
                   {t("organize.imported", { ns: "tools" })}
                 </div>
               ) : (
@@ -455,7 +465,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.move_up", { ns: "tools" })}
                   aria-label={t("organize.move_up", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => moveUp(index)}
                   disabled={index === 0}
                 >
@@ -465,7 +475,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.move_down", { ns: "tools" })}
                   aria-label={t("organize.move_down", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => moveDown(index)}
                   disabled={index === org.pages.length - 1}
                 >
@@ -475,7 +485,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.rotate_left", { ns: "tools" })}
                   aria-label={t("organize.rotate_left", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => commit(rotatePage(org, page.id, 270))}
                 >
                   ⟲
@@ -484,7 +494,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.rotate_right", { ns: "tools" })}
                   aria-label={t("organize.rotate_right", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => commit(rotatePage(org, page.id, 90))}
                 >
                   ⟳
@@ -493,7 +503,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.rotate_180", { ns: "tools" })}
                   aria-label={t("organize.rotate_180", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => commit(rotatePage(org, page.id, 180))}
                 >
                   ⇅
@@ -510,7 +520,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                       ? t("organize.undo_delete", { ns: "tools" })
                       : t("organize.delete", { ns: "tools" })
                   }
-                  className="rounded px-1 text-xs hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
                   onClick={() => commit(toggleDeleted(org, page.id))}
                 >
                   ✕
@@ -519,7 +529,7 @@ export function OrganizePanel({ pdf, docPath }: Props) {
                   type="button"
                   title={t("organize.insert_blank_after", { ns: "tools" })}
                   aria-label={t("organize.insert_blank_after", { ns: "tools" })}
-                  className="rounded px-1 text-xs hover:bg-[var(--color-control-active)]"
+                  className="rounded px-1 text-xs hover:bg-[var(--color-surface-active)]"
                   onClick={() => commit(insertBlankAfter(org, page.id))}
                 >
                   +
@@ -529,12 +539,12 @@ export function OrganizePanel({ pdf, docPath }: Props) {
           );
         })}
       </div>
-      <Button size="sm" onClick={() => void apply()} disabled={!dirty || busy}>
+      <Button onClick={() => void apply()} disabled={!dirty || busy}>
         {busy
           ? t("organize.working", { ns: "tools" })
           : t("organize.apply", { ns: "tools" })}
       </Button>
-      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}
     </div>
   );
 }

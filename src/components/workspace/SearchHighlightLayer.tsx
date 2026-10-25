@@ -1,6 +1,6 @@
 import type { PageViewport } from "pdfjs-dist";
 import { Rect } from "react-konva";
-import { readToken } from "@/lib/tokens";
+import { useCanvasColors } from "./useCanvasColors";
 import type { TextMatch } from "./textSearch";
 import { OverlayCanvas } from "./OverlayCanvas";
 import { toScreenRect } from "./detectedFieldGeometry";
@@ -20,7 +20,7 @@ export function SearchHighlightLayer({ width, height, viewport, matches, current
   // is also exactly `toScreenRect`'s job once `TextRect`'s tuple is passed
   // as `detectedFieldGeometry`'s wider `(number | null)[]` - a real
   // duplicate, so this calls it instead of keeping its own copy.
-  const accent = readToken("--color-accent", "#1d4ed8");
+  const { accent } = useCanvasColors();
 
   return (
     <OverlayCanvas width={width} height={height} interactive={false}>

@@ -181,37 +181,88 @@ export function EditTextPanel({ docPath }: Props) {
     }
   }
 
-  return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium">
-        {t("tools.edit")}: {t("workspace:tools.edit_text")}
-      </h3>
-      <p className="text-xs text-[var(--color-muted)]">
-        {t("workspace:edit_text.description")}
-      </p>
+  return renderPanel();
 
+  function renderPanel() {
+    return (
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium">
+          {t("tools.edit")}: {t("workspace:tools.edit_text")}
+        </h3>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {t("workspace:edit_text.description")}
+        </p>
+
+        {renderRuns()}
+
+        {renderSelected()}
+        {/* Delta W §4: click-on-empty-area workflow.
+          When no run is selected (either none picked yet, or user wants to
+          add new text), offer to switch to annotations + FreeText. */}
+        {selected === null && !loading && (
+          <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+            <p className="text-[11px] text-[var(--color-text-muted)]">
+              {t("workspace:edit_text.empty_area_hint")}
+            </p>
+            {!showEmptyAreaPrompt ? (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowEmptyAreaPrompt(true)}
+              >
+                {t("workspace:edit_text.add_new_text")}
+              </Button>
+            ) : (
+              <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">
+                <p className="font-medium">{t("workspace:edit_text.empty_area_title")}</p>
+                <p className="mb-2">{t("workspace:edit_text.empty_area_switch")}</p>
+                <div className="flex gap-1">
+                  <Button
+                    onClick={() => {
+                      setShowEmptyAreaPrompt(false);
+                      setEditSubTool("annotations");
+                    }}
+                  >
+                    {t("workspace:edit_text.add_freetext")}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setShowEmptyAreaPrompt(false)}>
+                    {t("common:cancel")}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}
+      </div>
+    );
+  }
+
+  function renderRuns() {
+    return (
       <div className="max-h-[200px] overflow-auto rounded border border-[var(--color-border)]">
         {loading && (
-          <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
+          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
             {t("workspace:edit_text.loading_runs")}
           </p>
         )}
         {!loading && runs.length === 0 && !isScanned && (
-          <p className="px-2 py-1 text-xs text-[var(--color-muted)]">
+          <p className="px-2 py-1 text-xs text-[var(--color-text-muted)]">
             {t("workspace:edit_text.no_runs")}
           </p>
         )}
         {!loading && runs.length === 0 && isScanned && (
           <div className="space-y-2 p-2">
             <p className="text-xs font-medium">{t("workspace:edit_text.scanned_title")}</p>
-            <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+            <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
               {t("workspace:edit_text.scanned_explanation")}
             </p>
             <div className="flex gap-1">
-              <Button size="sm" onClick={onFindFields}>
+              <Button onClick={onFindFields}>
                 {t("workspace:edit_text.find_fields")}
               </Button>
-              <Button size="sm" variant="outline" onClick={openOcrPrompt}>
+              <Button variant="outline" onClick={openOcrPrompt}>
                 {t("workspace:edit_text.run_ocr")}
               </Button>
             </div>
@@ -221,92 +272,53 @@ export function EditTextPanel({ docPath }: Props) {
           <button
             key={`${r.page}-${r.operator_index}`}
             onClick={() => setSelectedIndex(i)}
-            className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-[var(--color-control-hover)] ${
-              selectedIndex === i
+            className={`block w-full truncate px-2 py-1 text-left text-xs hover:bg-[var(--color-surface-hover)] ${selectedIndex === i
                 ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
                 : ""
-            }`}
+              }`}
             title={r.font}
           >
-            <span className="text-[var(--color-muted)]">p{r.page + 1}</span> {r.text.slice(0, 60)}
+            <span className="text-[var(--color-text-muted)]">p{r.page + 1}</span> {r.text.slice(0, 60)}
           </button>
         ))}
       </div>
+    );
+  }
 
-      {selected && (
-        <>
-          <label className="block text-xs">
-            <span className="text-[var(--color-muted)]">
-              {t("workspace:edit_text.new_text")}
-            </span>
-            <input
-              type="text"
-              value={edit.newText}
-              onChange={(e) => {
-                setEdit({ newText: e.target.value });
-                setTextDraftDirty(true);
-              }}
-              className="mt-1 block w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
-            />
-          </label>
-          <p className="text-[10px] text-[var(--color-muted)]">
-            Font: {selected.font} ({(selected.font_size ?? 12).toFixed(1)}pt)
-          </p>
-          <Button size="sm" disabled={busy || !edit.newText} onClick={onApply} className="w-full">
-            {busy ? "Applying…" : "Apply (preserve styling)"}
-          </Button>
-          {showRedactionFallback && (
-            <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-[11px] text-[var(--color-warning-soft-foreground)]">
-              <p className="font-medium">{t("workspace:edit_text.encoding_error_title")}</p>
-              <p>{t("workspace:edit_text.encoding_error_explanation")}</p>
-              <Button size="sm" variant="outline" onClick={onApplyRedaction} className="mt-1">
-                {t("workspace:edit_text.use_redaction")}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-      {/* Delta W §4: click-on-empty-area workflow.
-          When no run is selected (either none picked yet, or user wants to
-          add new text), offer to switch to annotations + FreeText. */}
-      {selected === null && !loading && (
-        <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-          <p className="text-[11px] text-[var(--color-muted)]">
-            {t("workspace:edit_text.empty_area_hint")}
-          </p>
-          {!showEmptyAreaPrompt ? (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full"
-              onClick={() => setShowEmptyAreaPrompt(true)}
-            >
-              {t("workspace:edit_text.add_new_text")}
+  function renderSelected() {
+    if (!selected) return null;
+    return (
+      <>
+        <label className="block text-xs">
+          <span className="text-[var(--color-text-muted)]">
+            {t("workspace:edit_text.new_text")}
+          </span>
+          <input
+            type="text"
+            value={edit.newText}
+            onChange={(e) => {
+              setEdit({ newText: e.target.value });
+              setTextDraftDirty(true);
+            }}
+            className="k-input min-w-0 w-full"
+          />
+        </label>
+        <p className="text-[10px] text-[var(--color-text-muted)]">
+          Font: {selected.font} ({(selected.font_size ?? 12).toFixed(1)}pt)
+        </p>
+        <Button disabled={busy || !edit.newText} onClick={onApply} className="w-full">
+          {busy ? "Applying…" : "Apply (preserve styling)"}
+        </Button>
+        {showRedactionFallback && (
+          <div className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] p-2 text-[11px] text-[var(--color-text)]">
+            <p className="font-medium">{t("workspace:edit_text.encoding_error_title")}</p>
+            <p>{t("workspace:edit_text.encoding_error_explanation")}</p>
+            <Button variant="outline" onClick={onApplyRedaction} className="mt-1">
+              {t("workspace:edit_text.use_redaction")}
             </Button>
-          ) : (
-            <div className="rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] p-2 text-[11px] text-[var(--color-accent-soft-foreground)]">
-              <p className="font-medium">{t("workspace:edit_text.empty_area_title")}</p>
-              <p className="mb-2">{t("workspace:edit_text.empty_area_switch")}</p>
-              <div className="flex gap-1">
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setShowEmptyAreaPrompt(false);
-                    setEditSubTool("annotations");
-                  }}
-                >
-                  {t("workspace:edit_text.add_freetext")}
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setShowEmptyAreaPrompt(false)}>
-                  {t("common:cancel")}
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
-    </div>
-  );
+          </div>
+        )}
+      </>
+    );
+  }
 }

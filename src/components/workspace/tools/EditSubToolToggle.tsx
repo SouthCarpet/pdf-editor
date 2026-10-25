@@ -21,16 +21,18 @@ const OPTIONS: { id: EditSubTool; labelKey: string }[] = [
 export function EditSubToolToggle({ value, onChange }: Props) {
   const { t } = useTranslation("workspace");
   return (
-    <div className="grid grid-cols-2 gap-1 rounded-md border border-[var(--color-border)] p-1">
+    <div className="grid grid-cols-2 gap-1 border-b border-[var(--color-border)] pb-[var(--space-2)]">
       {OPTIONS.map((o) => (
         <button
           key={o.id}
+          type="button"
+          aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "min-h-10 rounded px-2 py-1 text-xs transition-[scale,background-color,color] duration-150 ease-out active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2",
+            "k-btn k-btn-ghost px-2 text-[length:var(--text-sm)]",
             value === o.id
-              ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
-              : "hover:bg-[var(--color-control-hover)]"
+              ? "bg-[var(--color-surface-selected)] font-bold text-[var(--color-text)]"
+              : "hover:bg-[var(--color-surface-hover)]"
           )}
         >
           {t(o.labelKey)}

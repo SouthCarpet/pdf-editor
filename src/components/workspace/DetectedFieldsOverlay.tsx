@@ -20,6 +20,7 @@ import type { PageViewport } from "pdfjs-dist";
 import { Group, Rect } from "react-konva";
 import type { DetectedFormField } from "@/bindings";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
+import { useCanvasColors } from "./useCanvasColors";
 
 interface Props {
   fields: DetectedFormField[];
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export function DetectedFieldsGroup({ fields, viewport, filledIds, onPick }: Props) {
+  const colors = useCanvasColors();
   return (
     <Group>
       {fields.map((field) => {
@@ -42,8 +44,9 @@ export function DetectedFieldsGroup({ fields, viewport, filledIds, onPick }: Pro
             y={screen.y}
             width={screen.width}
             height={screen.height}
-            fill={filled ? "rgba(22, 163, 74, 0.16)" : "rgba(37, 99, 235, 0.08)"}
-            stroke={filled ? "#16a34a" : "#2563eb"}
+            fill={colors.soft}
+            opacity={filled ? 0.5 : 1}
+            stroke={colors.accent}
             strokeWidth={1}
             dash={field.kind === "underline" ? [4, 3] : undefined}
             onClick={() => onPick(field, screen)}

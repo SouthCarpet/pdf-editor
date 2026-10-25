@@ -215,7 +215,11 @@
       "edit_layout": "Upraviť rozloženie: {{name}}",
       "place_hint": "Kliknite alebo ťahajte na strane. Escape zruší vkladanie.",
       "save_hint": "Uložte zmeny polí. Nové polia vyplňte po uložení.",
-      "move_hint": "Ťahajte pole alebo jeho okraje. Šípky posúvajú o 1 pt, so Shift o 10 pt."
+      "move_hint": "Ťahajte pole alebo jeho okraje. Šípky posúvajú o 1 pt, so Shift o 10 pt. Klávesom Tab vyberte úchyt a šípkami zmeňte veľkosť.",
+      "resize_left": "Zmeniť ľavý okraj poľa {{name}}",
+      "resize_right": "Zmeniť pravý okraj poľa {{name}}",
+      "resize_top": "Zmeniť horný okraj poľa {{name}}",
+      "resize_bottom": "Zmeniť dolný okraj poľa {{name}}"
     }
   },
   "ocr_edit": {
@@ -270,7 +274,7 @@
     "empty": "Zatiaľ tu nie je žiadny podpis.",
     "place_named": "Vložiť {{name}}",
     "delete_named": "Odstrániť {{name}}",
-    "delete_confirm": "Odstrániť podpis {{name}}?",
+    "delete_confirm": "Odstrániť uložený podpis „{{name}}“?",
     "error": "Podpis sa nepodarilo spracovať: {{error}}",
     "stamps": {
       "title": "Pečiatky",

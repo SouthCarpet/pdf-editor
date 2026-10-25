@@ -44,6 +44,8 @@ import { pagePairs, spreadFor, spreadIndexOf, type PagePair } from "./pagePairs"
 import { SearchHighlightLayer } from "./SearchHighlightLayer";
 import { ShortcutOverlay } from "./ShortcutOverlay";
 import { ThumbnailStrip } from "./ThumbnailStrip";
+import { carryThumbnail } from "./thumbnailCarry";
+import "./workspace.css";
 import { buildPageIndex, findMatches, type PageTextIndex } from "./textSearch";
 import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 import { WorkspaceSearchBar } from "./WorkspaceSearchBar";
@@ -127,6 +129,8 @@ export function Workspace({ pdf, path }: Props) {
   const updateAnnotation = useAnnotations((s) => s.update);
   const removeAnnotation = useAnnotations((s) => s.remove);
   const mainRef = useRef<HTMLElement>(null);
+  const cancelCarry = useRef<(() => void) | null>(null);
+  useEffect(() => () => cancelCarry.current?.(), []);
   const pendingAnnotationHostRef = useRef<HTMLDivElement>(null);
   const wheelAnchorRef = useRef<WheelAnchor | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -671,15 +675,15 @@ export function Workspace({ pdf, path }: Props) {
         viewports,
         baseSize: bookMode
           ? {
-              width: left.base.width + right.base.width,
-              height: Math.max(left.base.height, right.base.height),
-            }
+            width: left.base.width + right.base.width,
+            height: Math.max(left.base.height, right.base.height),
+          }
           : active.base,
         renderedSize: bookMode
           ? {
-              width: left.rendered.width + BOOK_GAP + right.rendered.width,
-              height: Math.max(left.rendered.height, right.rendered.height),
-            }
+            width: left.rendered.width + BOOK_GAP + right.rendered.width,
+            height: Math.max(left.rendered.height, right.rendered.height),
+          }
           : active.rendered,
         pageSizes,
       });
@@ -814,9 +818,9 @@ export function Workspace({ pdf, path }: Props) {
               stampPlacement === null
                 ? null
                 : {
-                    imagePath: stampPlacement.file_path,
-                    aspectRatio: stampPlacement.width / Math.max(stampPlacement.height, 1),
-                  }
+                  imagePath: stampPlacement.file_path,
+                  aspectRatio: stampPlacement.width / Math.max(stampPlacement.height, 1),
+                }
             }
             pageWidth={basePageSize.width}
             pageHeight={basePageSize.height}
@@ -971,7 +975,7 @@ export function Workspace({ pdf, path }: Props) {
           pdf={pdf}
           pageIndex={activePage}
           zoom={zoom}
-          className={bookMode ? "block border border-[var(--color-border)]" : "shadow-lg"}
+          className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           hiddenAnnotationIds={replacedAnnotationIds}
         />
         {renderSearchHighlights()}
@@ -1000,7 +1004,7 @@ export function Workspace({ pdf, path }: Props) {
       return (
         <div
           aria-hidden="true"
-          className="shrink-0 border border-[var(--color-border)] bg-[var(--color-background)]"
+          className="shrink-0 border border-[var(--color-border)] bg-[var(--color-well)]"
           style={{ width: size.width, height: size.height }}
         />
       );
@@ -1049,7 +1053,7 @@ export function Workspace({ pdf, path }: Props) {
 
   function renderWorkspaceShell() {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="k-compact flex h-full min-h-0 flex-col text-[length:var(--text-md)] text-[var(--color-text)]">
         <WorkspaceTopBar
           path={path}
           pageCount={pdf.numPages}
@@ -1073,12 +1077,16 @@ export function Workspace({ pdf, path }: Props) {
           />
         )}
         <div className="flex flex-1 overflow-hidden">
-          <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]">
+          <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-background)]">
             <ThumbnailStrip
               pdf={pdf}
               active={activePage}
               bookMode={bookMode}
-              onSelect={selectPage}
+              onSelect={(page, image) => {
+                if (page === activePage) return;
+                cancelCarry.current?.();
+                cancelCarry.current = carryThumbnail(image ?? null, mainRef.current, page, () => selectPage(page));
+              }}
               height={
                 typeof window !== "undefined" ? window.innerHeight - (searchOpen ? 144 : 96) : 600
               }
@@ -1088,7 +1096,7 @@ export function Workspace({ pdf, path }: Props) {
           </aside>
           <main
             ref={mainRef}
-            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6"
+            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-well)] p-[var(--space-5)]"
           >
             {bookMode ? (
               <div
@@ -1107,7 +1115,7 @@ export function Workspace({ pdf, path }: Props) {
               focusedPageSurface
             )}
           </main>
-          <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+          <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-background)] p-[var(--space-3)]">
             {renderToolPanels()}{" "}
             {/* Compare uses a separate workspace shell (see WorkspaceRoute). */}
           </aside>
@@ -1160,12 +1168,12 @@ function usePageFields({
       detectedFields === null || pageSavedValues.length === 0
         ? filledIds
         : new Set([
-            ...filledIds,
-            ...fieldsWithSavedValues(
-              detectedFields,
-              pageSavedValues.map((value) => value.rect)
-            ),
-          ]),
+          ...filledIds,
+          ...fieldsWithSavedValues(
+            detectedFields,
+            pageSavedValues.map((value) => value.rect)
+          ),
+        ]),
     [detectedFields, filledIds, pageSavedValues]
   );
   const { ocrWords, ocrLayerNotice, ocrWordsLoading, selectedOcrWordIds } = pageOcrState(
