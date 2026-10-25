@@ -5,6 +5,7 @@ is `src/test/themeContrast.spec.ts`. Since Kaliber r4 (plan 119 K1) it reads
 `src/styles/tokens.css` (oklch) and the alias block of `src/styles/globals.css`,
 converts to sRGB and fails below 4.5:1. The ratios below are the K1 state, with the dark column recomputed on 2026-10-24 for the darker neutrals; the
 older table (hex values of the pre-r4 theme) is gone.
+Toolbar selected and hover rows were measured for K5 on 2026-10-25.
 
 | Token pair | Light | Dark |
 | --- | ---: | ---: |
@@ -47,11 +48,13 @@ keeps unchecked switches visible without changing the field text ratios.
 Workspace toolbar labels use the muted text role at regular weight. The
 normal, selected and hover backgrounds all keep at least 4.5:1 contrast.
 
-Measured on the K1 fix head (2026-10-24), lowest ratio over both themes:
+Measured on the K1 fix head (2026-10-24), with the K5 toolbar pair added
+on 2026-10-25. Lowest ratios over both themes:
 
 | Surface | Ratio |
 | --- | ---: |
 | warning (token) as a border or icon on the light paper, 3:1 rule, not text | 4.44:1 |
+| muted toolbar text on the selected surface, dark | 4.78:1 |
 | warning foreground on a warning fill, light | 4.84:1 |
 | success text on the light paper | 5.07:1 |
 | focus ring on the light paper, 3:1 rule, not text | 5.24:1 |

@@ -15,6 +15,7 @@
   with the danger colour.
 - Use muted, regular-weight workspace toolbar labels. Selected and hover
   states keep WCAG AA text contrast.
+- Use a 1 px danger edge without a shadow for file-opening alerts.
 
 ### Added
 

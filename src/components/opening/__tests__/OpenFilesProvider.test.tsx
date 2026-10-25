@@ -118,6 +118,17 @@ describe("OpenFilesProvider", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Non-PDF files were ignored.");
   });
 
+  // Oracle: 119-K5 finding 7 / R25. Error feedback uses one hairline,
+  // without a floating shadow.
+  it("shows an opening error with a hairline and no shadow utility", async () => {
+    render(<OpenFilesProvider><div>home</div></OpenFilesProvider>);
+    await waitFor(() => expect(fakeBridge.onFileDrop).toHaveBeenCalledOnce());
+    await act(async () => emitFileDrop({ kind: "drop", paths: ["C:/notes.txt"] }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveClass("border", "border-[var(--color-danger)]");
+    expect(alert.className).not.toMatch(/\bshadow-\S+/);
+  });
+
   it("opens startup paths returned by the mocked Tauri bridge", async () => {
     fakeBridge.startupPaths.mockResolvedValue(["C:/startup.pdf"]);
     mocks.openDocument.mockImplementation(async (path: string) => opened(path));
@@ -180,6 +191,32 @@ describe("OpenFilesProvider", () => {
     );
 
     await waitFor(() => expect(fakeBridge.pathExists).toHaveBeenCalledWith("C:/missing.pdf"));
+    expect(mocks.openDocument).not.toHaveBeenCalled();
+    expect(useAppStore.getState().openLastDocumentAtStart).toBe(true);
+  });
+
+  // Oracle: the existing startup error fallbacks keep the app open and the
+  // stored preference unchanged. These branches moved in the K5 lint split.
+  it("still restores the recent file when startup arguments cannot be read", async () => {
+    fakeBridge.startupPaths.mockRejectedValue(new Error("no arguments"));
+    useAppStore.setState({ openLastDocumentAtStart: true });
+    fakeBridge.invokeCommand.mockResolvedValue([
+      { path: "C:/last.pdf", display_name: "last.pdf", last_opened_at: "x" },
+    ]);
+    fakeBridge.pathExists.mockResolvedValue(true);
+    mocks.openDocument.mockImplementation(async (path: string) => opened(path));
+    render(<OpenFilesProvider><div>home</div></OpenFilesProvider>);
+    await waitFor(() => expect(useDocuments.getState().activeDocId).toBe("C:/last.pdf"));
+  });
+
+  it("keeps the setting on without opening a recent file when its disk check fails", async () => {
+    useAppStore.setState({ openLastDocumentAtStart: true });
+    fakeBridge.invokeCommand.mockResolvedValue([
+      { path: "C:/last.pdf", display_name: "last.pdf", last_opened_at: "x" },
+    ]);
+    fakeBridge.pathExists.mockRejectedValue(new Error("disk unavailable"));
+    render(<OpenFilesProvider><div>home</div></OpenFilesProvider>);
+    await waitFor(() => expect(fakeBridge.pathExists).toHaveBeenCalledWith("C:/last.pdf"));
     expect(mocks.openDocument).not.toHaveBeenCalled();
     expect(useAppStore.getState().openLastDocumentAtStart).toBe(true);
   });
