@@ -1077,7 +1077,7 @@ export function Workspace({ pdf, path }: Props) {
           />
         )}
         <div className="flex flex-1 overflow-hidden">
-          <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-background)]">
+          <aside className="flex min-h-0 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-background)]">
             <ThumbnailStrip
               pdf={pdf}
               active={activePage}
@@ -1087,9 +1087,6 @@ export function Workspace({ pdf, path }: Props) {
                 cancelCarry.current?.();
                 cancelCarry.current = carryThumbnail(image ?? null, mainRef.current, page, () => selectPage(page));
               }}
-              height={
-                typeof window !== "undefined" ? window.innerHeight - (searchOpen ? 144 : 96) : 600
-              }
               collapsed={thumbnailStripCollapsed}
               onToggleCollapsed={() => setThumbnailStripCollapsed(!thumbnailStripCollapsed)}
             />
