@@ -5,6 +5,8 @@
 ### Fixed
 
 - Restore the gap between the workspace page and the top of its well.
+- Restore unchecked switch edges in both themes and keep settings labels
+  beside their switches.
 
 ### Added
 

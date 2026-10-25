@@ -12,8 +12,8 @@ older table (hex values of the pre-r4 theme) is gone.
 | muted / background | 8.20:1 | 11.34:1 |
 | foreground / card | 18.46:1 | 16.11:1 |
 | muted / card | 9.04:1 | 10.68:1 |
-| control foreground / control | 18.46:1 | 16.11:1 |
-| placeholder / control | 9.04:1 | 10.68:1 |
+| control foreground / field surface | 18.46:1 | 16.11:1 |
+| placeholder / field surface | 9.04:1 | 10.68:1 |
 | accent foreground / accent | 7.75:1 | 9.31:1 |
 | accent-soft foreground / accent-soft | 9.93:1 | 10.54:1 |
 | danger foreground / danger | 6.29:1 | 6.95:1 |
@@ -37,6 +37,10 @@ need 3:1 only. The test pins the role at 4.5:1 or more on the paper and on a
 card, in both themes.
 
 ## Worst offenders
+
+The app-local `--color-field-surface` names the native field and autofill
+background. `--color-control` keeps the shared Kaliber control edge. This
+keeps unchecked switches visible without changing the field text ratios.
 
 Measured on the K1 fix head (2026-10-24), lowest ratio over both themes:
 

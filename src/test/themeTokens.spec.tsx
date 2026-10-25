@@ -12,6 +12,13 @@ afterEach(() => {
 });
 
 describe("dark theme token coverage", () => {
+  // Oracle: 119-K5 finding 2. App field fills must not replace Kaliber's
+  // mid-grey control edge, or unchecked switches disappear in both themes.
+  it("preserves the shared control edge instead of aliasing it to a field fill", () => {
+    const css = readFileSync(join(process.cwd(), "src/styles/globals.css"), "utf8");
+    expect(css).not.toMatch(/--color-control\s*:/);
+  });
+
   it("renders shared controls and the drop surface with semantic token classes", () => {
     document.documentElement.classList.add("dark");
     render(
@@ -59,7 +66,7 @@ describe("dark theme token coverage", () => {
     expect(css).toMatch(/select\s*\{[\s\S]*appearance:\s*none/);
     expect(css).toMatch(/background-image:\s*var\(--select-chevron\)/);
     expect(css).toMatch(/input::placeholder[\s\S]*--color-placeholder/);
-    expect(css).toMatch(/input:-webkit-autofill[\s\S]*--color-control/);
+    expect(css).toMatch(/input:-webkit-autofill[\s\S]*var\(--color-field-surface\) inset/);
     expect(css).toMatch(/html\.dark\s*\{[\s\S]*color-scheme:\s*dark/);
   });
 

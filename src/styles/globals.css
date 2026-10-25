@@ -9,14 +9,13 @@
 /* Aliases: the pre-r4 token names, mapped to Kaliber roles so the screens
    look as before until each owner task moves them. Each task deletes the
    aliases its files no longer use; K6 deletes this block.
-   --color-control kept its old meaning here (a field background). Kaliber
-   uses the same name for a mid-grey control edge, so no .k-* control class
-   may be used in a file until that file stops reading --color-control. */
+   --color-field-surface is the old field background. --color-control
+   keeps Kaliber's mid-grey control edge, including unchecked switches. */
 :root {
   --color-foreground: var(--color-text);
   --color-muted: var(--color-text-muted);
   --color-card: var(--color-surface-raised);
-  --color-control: var(--color-surface-raised);
+  --color-field-surface: var(--color-surface-raised);
   --color-control-hover: var(--color-surface-hover);
   --color-control-active: var(--color-surface-active);
   --color-control-foreground: var(--color-text);
@@ -94,7 +93,7 @@ body {
 select {
   appearance: none;
   border-color: var(--color-border);
-  background-color: var(--color-control);
+  background-color: var(--color-field-surface);
   background-image: var(--select-chevron);
   background-position: right 0.625rem center;
   background-repeat: no-repeat;
@@ -138,6 +137,6 @@ input:-webkit-autofill:focus,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
   -webkit-text-fill-color: var(--color-control-foreground);
-  box-shadow: 0 0 0 1000px var(--color-control) inset;
+  box-shadow: 0 0 0 1000px var(--color-field-surface) inset;
   caret-color: var(--color-control-foreground);
 }
