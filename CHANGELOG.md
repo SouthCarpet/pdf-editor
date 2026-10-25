@@ -228,3 +228,4 @@ The app uses Fira Sans and the Kaliber r4 design language.
   book mode.
 - FreeText annotations carry the PDF Print flag, so saved text is included
   in print renders.
+- Facing pages draw pending own fields once when the page also has typed values.
