@@ -96,6 +96,9 @@
 
 ### Changed
 
+- Workspace pages now sit on a well-coloured canvas with a flat sheet and a
+  hairline border. The thumbnail rail uses quiet surfaces and visible keyboard focus.
+
 - The dark theme background and surfaces are darker, from the shared Kaliber tokens.
 
 - Password recovery uses Kaliber choices, inputs, estimate and result marks, and a flat form layout. The legal warning uses the shared keyboard-accessible dialog.

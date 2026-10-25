@@ -971,7 +971,7 @@ export function Workspace({ pdf, path }: Props) {
           pdf={pdf}
           pageIndex={activePage}
           zoom={zoom}
-          className={bookMode ? "block border border-[var(--color-border)]" : "shadow-lg"}
+          className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           hiddenAnnotationIds={replacedAnnotationIds}
         />
         {renderSearchHighlights()}
@@ -1000,7 +1000,7 @@ export function Workspace({ pdf, path }: Props) {
       return (
         <div
           aria-hidden="true"
-          className="shrink-0 border border-[var(--color-border)] bg-[var(--color-background)]"
+          className="shrink-0 border border-[var(--color-border)] bg-[var(--color-well)]"
           style={{ width: size.width, height: size.height }}
         />
       );
@@ -1049,7 +1049,7 @@ export function Workspace({ pdf, path }: Props) {
 
   function renderWorkspaceShell() {
     return (
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="k-compact flex h-full min-h-0 flex-col text-[length:var(--text-md)] text-[var(--color-text)]">
         <WorkspaceTopBar
           path={path}
           pageCount={pdf.numPages}
@@ -1073,7 +1073,7 @@ export function Workspace({ pdf, path }: Props) {
           />
         )}
         <div className="flex flex-1 overflow-hidden">
-          <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-card)]">
+          <aside className="shrink-0 border-r border-[var(--color-border)] bg-[var(--color-background)]">
             <ThumbnailStrip
               pdf={pdf}
               active={activePage}
@@ -1088,7 +1088,7 @@ export function Workspace({ pdf, path }: Props) {
           </aside>
           <main
             ref={mainRef}
-            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-background)] p-6"
+            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-well)] p-[var(--space-5)]"
           >
             {bookMode ? (
               <div
@@ -1107,7 +1107,7 @@ export function Workspace({ pdf, path }: Props) {
               focusedPageSurface
             )}
           </main>
-          <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+          <aside className="w-72 shrink-0 overflow-auto border-l border-[var(--color-border)] bg-[var(--color-background)] p-[var(--space-3)]">
             {renderToolPanels()}{" "}
             {/* Compare uses a separate workspace shell (see WorkspaceRoute). */}
           </aside>

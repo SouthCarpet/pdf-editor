@@ -62,13 +62,13 @@ function Row({
         title={label}
         onClick={() => onSelect(index)}
         className={cn(
-          "flex h-full w-full cursor-pointer flex-col items-center rounded border border-transparent",
+          "flex h-full w-full cursor-pointer flex-col items-center rounded-[var(--radius-sm)] border border-transparent hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-focus)]",
           selection.highlighted && "bg-[var(--color-accent-soft)]",
-          selection.focused && "border-[var(--color-accent)]",
+          selection.focused && "font-bold",
         )}
       >
         <div
-          className="flex items-center justify-center overflow-hidden bg-[var(--color-background)]"
+          className="flex items-center justify-center overflow-hidden bg-[var(--color-well)]"
           style={{ width: THUMBNAIL_BOX_WIDTH, height: THUMBNAIL_BOX_HEIGHT }}
         >
           <PdfViewer
@@ -76,10 +76,10 @@ function Row({
             pageIndex={index}
             zoom={1}
             fitBox={THUMB_FIT_BOX}
-            className="shadow"
+            className="border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           />
         </div>
-        <span className="mt-1 text-xs tabular-nums text-[var(--color-muted)]">{index + 1}</span>
+        <span className="mt-1 text-xs tabular-nums text-[var(--color-text-muted)]">{index + 1}</span>
       </button>
     </div>
   );
@@ -114,7 +114,7 @@ export function ThumbnailStrip({
   return (
     <nav
       aria-label={t("thumbnails")}
-      className="flex h-full flex-col bg-[var(--color-card)]"
+      className="flex h-full flex-col bg-[var(--color-background)]"
       style={{ width, height }}
     >
       <div
@@ -122,7 +122,7 @@ export function ThumbnailStrip({
         style={{ height: THUMBNAIL_HEADER_HEIGHT }}
       >
         {!collapsed && (
-          <span className="min-w-0 flex-1 truncate px-1 text-xs text-[var(--color-muted)]">
+          <span className="min-w-0 flex-1 truncate px-1 text-xs text-[var(--color-text-muted)]">
             {t("page_panel.pages", { count: pageCount })}
           </span>
         )}

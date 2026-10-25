@@ -57,7 +57,7 @@ export function BookFacingPage({
         pdf={pdf}
         pageIndex={pageIndex}
         zoom={zoom}
-        className="block border border-[var(--color-border)]"
+        className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
         hiddenAnnotationIds={hiddenAnnotationIds}
       />
       {overlayViewport !== null && (
