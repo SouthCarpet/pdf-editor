@@ -3,7 +3,7 @@
 PDF Editor source is licensed under AGPL-3.0-or-later (see [LICENSE](LICENSE)).
 Third-party components keep their own licences. This inventory describes the
 per-user setup payload in [packaging/payload.json](packaging/payload.json).
-It does not add files to the installer. Unknown entries need review before
+It does not add files to the installer. Unresolved entries need review before
 binary distribution; this document is not a completed source or notice bundle.
 
 ## Programs and OCR resources
@@ -14,84 +14,214 @@ binary distribution; this document is not a completed source or notice bundle.
 | Ghostscript 10.07.0 | Installer: gswin64c.exe, gsdll64.dll | [AGPL-3.0](LICENSE) | [Source and releases](https://www.ghostscript.com/releases/) |
 | MuPDF 1.27.0 | Installer: mutool.exe | [AGPL-3.0](https://github.com/ArtifexSoftware/mupdf/blob/1.27.0/COPYING) | [Source](https://github.com/ArtifexSoftware/mupdf/tree/1.27.0), including its third-party library notices |
 | Tesseract 5.4.0.20240606 | Installer: tesseract.exe, libtesseract-5.dll | [Apache-2.0](https://github.com/tesseract-ocr/tesseract/blob/5.4.0/LICENSE) | [Windows build](https://github.com/UB-Mannheim/tesseract/releases/tag/v5.4.0.20240606) |
-| PDFCrack 0.19 | Installer: pdfcrack.exe | [GPL-2.0 text](https://github.com/alitrack/PDFCrack/blob/master/COPYING); later-version grant unknown, to check | [Windows source](https://github.com/alitrack/PDFCrack) |
+| PDFCrack 0.19 | Installer: pdfcrack.exe | [GPL-2.0-or-later](https://github.com/alitrack/PDFCrack/blob/0.19/COPYING) | [Windows source 0.19 and grant](https://github.com/alitrack/PDFCrack/blob/0.19/pdfcrack.c#L7-L8) |
 | Tesseract tessdata_best: ces, deu, eng, pol, slk | Installer: five .traineddata files | [Apache-2.0](https://github.com/tesseract-ocr/tessdata_best/blob/main/LICENSE) | [Model source](https://github.com/tesseract-ocr/tessdata_best), [Polish model provenance](src-tauri/resources/ocr/PROVENANCE.md#tesseract-polish-language-data) |
 | RapidAI PP-OCRv5 detection and Latin recognition models, dictionary | Installer: two ONNX files and ppocrv5_latin_dict.txt | [Apache-2.0](src-tauri/resources/ocr/LICENSE-RapidOCR-APACHE-2.0.txt) | [Pinned provenance and hashes](src-tauri/resources/ocr/PROVENANCE.md#rapidocr-pp-ocrv5-models) |
 | ONNX Runtime 1.22.1 | Installer: resources/ocr/onnxruntime.dll; header used at build time | [MIT](src-tauri/resources/ocr/LICENSE-ONNXRUNTIME-MIT.txt) | [Provenance](src-tauri/resources/ocr/PROVENANCE.md#onnx-runtime) |
 | LibreOffice | User installs it; not in payload | [MPL-2.0, with other component licences](https://www.libreoffice.org/licenses/) | Installed LibreOffice LICENSE files and Help > License Information; [source](https://www.libreoffice.org/download/download-libreoffice/) |
-| Microsoft WebView2 | System prerequisite; setup offers the Microsoft bootstrapper after consent | [Microsoft WebView2 terms](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#the-evergreen-runtime-distribution-mode) (proprietary) | Not embedded in the 79-file payload |
+| Microsoft WebView2 | System prerequisite; setup offers the Microsoft bootstrapper after consent | [Microsoft WebView2 terms](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution#the-evergreen-runtime-distribution-mode) (proprietary) | Not embedded in the 80-file payload |
+
+PDFCrack 0.19's [pdfcrack.c, lines 7 to 8](https://github.com/alitrack/PDFCrack/blob/0.19/pdfcrack.c#L7-L8) grants:
+> as published by the Free Software Foundation; either version 2
+> of the License, or (at your option) any later version.
 
 ## Sidecar DLL inventory
 
-All 61 entries below ship in the installer under sidecars/. Filenames are
-copied from the payload, not inferred from a development machine. For entries
-without a verified licence text for this exact binary distribution, the licence
-is explicitly unknown. Upstream component names alone do not establish terms
-for their bundled dependencies.
+All 61 entries below ship under `sidecars/`. Licence identities are resolved
+for 57 DLLs. Four rows remain unresolved and block public binary distribution.
+These rows must be resolved before the first public installer is published.
+This inventory does not claim that a complete corresponding-source or notice
+bundle has been delivered.
 
-| Installed DLL | Licence / licence text |
-|---|---|
-| concrt140.dll | unknown, to check |
-| gsdll64.dll | [AGPL-3.0](LICENSE) |
-| libLerc.dll | unknown, to check |
-| libarchive-13.dll | unknown, to check |
-| libb2-1.dll | unknown, to check |
-| libbrotlicommon.dll | unknown, to check |
-| libbrotlidec.dll | unknown, to check |
-| libbz2-1.dll | unknown, to check |
-| libcairo-2.dll | unknown, to check |
-| libcrypto-3-x64.dll | unknown, to check |
-| libdatrie-1.dll | unknown, to check |
-| libdeflate.dll | unknown, to check |
-| libexpat-1.dll | unknown, to check |
-| libffi-8.dll | unknown, to check |
-| libfontconfig-1.dll | unknown, to check |
-| libfreetype-6.dll | unknown, to check |
-| libfribidi-0.dll | unknown, to check |
-| libgcc_s_seh-1.dll | unknown, to check |
-| libgif-7.dll | unknown, to check |
-| libgio-2.0-0.dll | unknown, to check |
-| libglib-2.0-0.dll | unknown, to check |
-| libgmodule-2.0-0.dll | unknown, to check |
-| libgobject-2.0-0.dll | unknown, to check |
-| libgraphite2.dll | unknown, to check |
-| libharfbuzz-0.dll | unknown, to check |
-| libiconv-2.dll | unknown, to check |
-| libicudt75.dll | unknown, to check |
-| libicuin75.dll | unknown, to check |
-| libicuuc75.dll | unknown, to check |
-| libintl-8.dll | unknown, to check |
-| libjbig-0.dll | unknown, to check |
-| libjpeg-8.dll | unknown, to check |
-| libleptonica-6.dll | unknown, to check |
-| liblz4.dll | unknown, to check |
-| liblzma-5.dll | unknown, to check |
-| libopenjp2-7.dll | unknown, to check |
-| libpango-1.0-0.dll | unknown, to check |
-| libpangocairo-1.0-0.dll | unknown, to check |
-| libpangoft2-1.0-0.dll | unknown, to check |
-| libpangowin32-1.0-0.dll | unknown, to check |
-| libpcre2-8-0.dll | unknown, to check |
-| libpixman-1-0.dll | unknown, to check |
-| libpng16-16.dll | unknown, to check |
-| libsharpyuv-0.dll | unknown, to check |
-| libstdc++-6.dll | unknown, to check |
-| libtesseract-5.dll | [Apache-2.0](https://github.com/tesseract-ocr/tesseract/blob/5.4.0/LICENSE) |
-| libthai-0.dll | unknown, to check |
-| libtiff-6.dll | unknown, to check |
-| libwebp-7.dll | unknown, to check |
-| libwebpmux-3.dll | unknown, to check |
-| libwinpthread-1.dll | unknown, to check |
-| libzstd.dll | unknown, to check |
-| msvcp140.dll | unknown, to check |
-| msvcp140_1.dll | unknown, to check |
-| msvcp140_2.dll | unknown, to check |
-| msvcp140_atomic_wait.dll | unknown, to check |
-| msvcp140_codecvt_ids.dll | unknown, to check |
-| qpdf30.dll | [Apache-2.0](https://github.com/qpdf/qpdf/blob/v12.3.2/LICENSE.txt) |
-| vcruntime140.dll | unknown, to check |
-| vcruntime140_1.dll | unknown, to check |
-| zlib1.dll | unknown, to check |
+### Identification and licence evidence
+
+The version resources below were read from each payload DLL on 2026-10-26
+with `(Get-Item src-tauri/sidecars/<DLL>).VersionInfo`. An absent field is
+recorded as `absent`; it is not replaced with a guessed version.
+For DLLs without a resource, the table states the extra evidence used:
+embedded strings, static version-return instructions, or an exact SHA-256
+match with a named MSYS2 package. No DLL or installer was executed for this check.
+
+All 51 Tesseract DLLs match byte for byte the files extracted from its
+[5.4.0.20240606 upstream Windows archive](https://github.com/UB-Mannheim/tesseract/releases/tag/v5.4.0.20240606).
+That archive has only Tesseract's licence in `doc/LICENSE`; it does not
+supply a licence inventory for its dependencies. The seven exact MSYS2
+matches use the packages named in the table from the
+[MSYS2 package archive](https://repo.msys2.org/mingw/mingw64/).
+Their `.PKGINFO` records the version and upstream, and their DLL hashes
+match the installed rows below. Licence links target that upstream version.
+Archive links identify `LICENSE` or `COPYING` inside that exact source
+archive (bzip2: `LICENSE`; giflib: `COPYING`; libiconv: `COPYING.LIB`;
+gettext: `gettext-runtime/intl/COPYING.LIB`; JBIG-KIT: `COPYING`).
+
+The Brotli decoder returns `0x01001000` (1.1.0). Its common DLL has no
+version export and the available newer package does not match, so the common
+DLL stays unresolved. WebP decoder, encoder and mux version functions return
+`0x010400` (1.4.0); SharpYUV returns `0x000400` (0.4.0).
+Leptonica's static `getLeptonicaVersion` call passes 1, 84 and 1.
+ICU's data and i18n DLLs are paired with the 75.1 common DLL in the same
+upstream archive; their exact build revision is not separately encoded.
+FreeType is used under its FTL option: this software is based in part on
+the work of the FreeType Team. Portions are copyright 2000-2023 The FreeType
+Project. GCC's runtime exception text accompanies the GPL text linked in
+[the same 14.1.0 source](https://github.com/gcc-mirror/gcc/blob/releases/gcc-14.1.0/COPYING3).
+
+Microsoft's eight DLLs identify Visual C++ 14.44.35211.0. Their runtime terms
+are proprietary. Those end-user terms do not grant redistribution rights;
+redistribution requires the applicable Visual Studio licence and its
+[Distributable Code list](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution).
+The licence identity in this table does not establish that entitlement.
+
+| Installed DLL | Upstream and version evidence | Licence / licence text |
+|---|---|---|
+| concrt140.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| gsdll64.dll | Ghostscript 10.07.0 (version resource) | [AGPL-3.0](https://github.com/ArtifexSoftware/ghostpdl/blob/ghostpdl-10.07.0/doc/COPYING) |
+| libLerc.dll | Lerc 4.0.0-1 (exact MSYS2 package hash) | [Apache-2.0](https://github.com/Esri/lerc/blob/v4.0.0/LICENSE) |
+| libarchive-13.dll | libarchive 3.7.4 (embedded software string) | [BSD-2-Clause and component terms](https://github.com/libarchive/libarchive/blob/v3.7.4/COPYING) |
+| libb2-1.dll | libb2 0.98.1-2 (exact MSYS2 package hash) | [CC0-1.0](https://github.com/BLAKE2/libb2/blob/v0.98.1/COPYING) |
+| libbrotlicommon.dll | Brotli common library; no version resource or version export; available 1.1.0-4 package hash differs | [Unresolved: exact source version not established](https://github.com/google/brotli) |
+| libbrotlidec.dll | Brotli 1.1.0 (BrotliDecoderVersion returns 0x01001000) | [MIT](https://github.com/google/brotli/blob/v1.1.0/LICENSE) |
+| libbz2-1.dll | bzip2 1.0.8 (embedded version string) | [bzip2-1.0.6 (unchanged licence in 1.0.8)](https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz) |
+| libcairo-2.dll | Cairo 1.18.0 (embedded source paths and version string) | [LGPL-2.1 OR MPL-1.1](https://gitlab.freedesktop.org/cairo/cairo/-/blob/1.18.0/COPYING) |
+| libcrypto-3-x64.dll | OpenSSL 3.3.1 (version resource) | [Apache-2.0](https://github.com/openssl/openssl/blob/openssl-3.3.1/LICENSE.txt) |
+| libdatrie-1.dll | libdatrie 0.2.13-3 (exact MSYS2 package hash) | [LGPL-2.1-or-later](https://github.com/tlwg/libdatrie/blob/v0.2.13/COPYING) |
+| libdeflate.dll | libdeflate; no version resource or identifying version string; 1.20-1 archive no longer available | [Unresolved: exact source version not established](https://github.com/ebiggers/libdeflate) |
+| libexpat-1.dll | Expat 2.6.2 (embedded source paths) | [MIT](https://github.com/libexpat/libexpat/blob/R_2_6_2/expat/COPYING) |
+| libffi-8.dll | libffi 3.4.6-1 (exact MSYS2 package hash) | [MIT](https://github.com/libffi/libffi/blob/v3.4.6/LICENSE) |
+| libfontconfig-1.dll | Fontconfig 2.15.0 (embedded source paths) | [MIT and listed component terms](https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/2.15.0/COPYING) |
+| libfreetype-6.dll | FreeType 2.13.2 (version resource) | [FTL (selected option)](https://github.com/freetype/freetype/blob/VER-2-13-2/docs/FTL.TXT) |
+| libfribidi-0.dll | FriBidi 1.0.14 (embedded version string) | [LGPL-2.1-or-later](https://github.com/fribidi/fribidi/blob/v1.0.14/COPYING) |
+| libgcc_s_seh-1.dll | GCC runtime; compiler markers 13.2.0 and 14.1.0; 14.1.0-3 package no longer available | [Unresolved: exact runtime source package not established](https://gcc.gnu.org/) |
+| libgif-7.dll | giflib 5.2.2-1 (exact MSYS2 package hash) | [MIT](https://repo.msys2.org/mingw/sources/mingw-w64-giflib-5.2.2-1.src.tar.zst) |
+| libgio-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
+| libglib-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
+| libgmodule-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
+| libgobject-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
+| libgraphite2.dll | Graphite2 1.3.14-3 (exact MSYS2 package hash) | [LGPL-2.1-or-later (selected option)](https://github.com/silnrsi/graphite/blob/1.3.14/LICENSE) |
+| libharfbuzz-0.dll | HarfBuzz 8.5.0 (embedded source paths and version string) | [MIT-Modern-Variant](https://github.com/harfbuzz/harfbuzz/blob/8.5.0/COPYING) |
+| libiconv-2.dll | GNU libiconv 1.17 (version resource) | [LGPL-2.1-or-later](https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.17.tar.gz) |
+| libicudt75.dll | ICU 75 data; paired with ICU 75.1 in the same Tesseract archive | [Unicode-3.0 and listed data notices](https://github.com/unicode-org/icu/blob/release-75-1/LICENSE) |
+| libicuin75.dll | ICU 75 i18n; paired with ICU 75.1 in the same Tesseract archive | [Unicode-3.0 and listed data notices](https://github.com/unicode-org/icu/blob/release-75-1/LICENSE) |
+| libicuuc75.dll | ICU 75.1 (embedded version string) | [Unicode-3.0 and listed data notices](https://github.com/unicode-org/icu/blob/release-75-1/LICENSE) |
+| libintl-8.dll | GNU gettext libintl 0.22.5 (version resource) | [LGPL-2.1-or-later](https://ftp.gnu.org/pub/gnu/gettext/gettext-0.22.5.tar.xz) |
+| libjbig-0.dll | JBIG-KIT 2.1 (embedded version/copyright string) | [GPL-2.0-or-later](https://www.cl.cam.ac.uk/~mgk25/jbigkit/download/jbigkit-2.1.tar.gz) |
+| libjpeg-8.dll | libjpeg-turbo 3.0.3 (embedded version string) | [IJG with subsumed Zlib terms](https://github.com/libjpeg-turbo/libjpeg-turbo/blob/3.0.3/README.ijg) |
+| libleptonica-6.dll | Leptonica 1.84.1 (static getLeptonicaVersion arguments: 1, 84, 1) | [BSD-2-Clause](https://github.com/DanBloomberg/leptonica/blob/1.84.1/leptonica-license.txt) |
+| liblz4.dll | LZ4 1.9.4 (version resource) | [BSD-2-Clause](https://github.com/lz4/lz4/blob/v1.9.4/lib/LICENSE) |
+| liblzma-5.dll | XZ Utils liblzma 5.6.2 (version resource) | [0BSD](https://github.com/tukaani-project/xz/blob/v5.6.2/COPYING.0BSD) |
+| libopenjp2-7.dll | OpenJPEG 2.5.2 (embedded version string) | [BSD-2-Clause](https://github.com/uclouvain/openjpeg/blob/v2.5.2/LICENSE) |
+| libpango-1.0-0.dll | Pango 1.52.2 (version resource) | [LGPL-2.0-or-later](https://github.com/GNOME/pango/blob/1.52.2/COPYING) |
+| libpangocairo-1.0-0.dll | PangoCairo 1.52.2 (version resource) | [LGPL-2.0-or-later](https://github.com/GNOME/pango/blob/1.52.2/COPYING) |
+| libpangoft2-1.0-0.dll | PangoFT2 1.52.2 (version resource) | [LGPL-2.0-or-later](https://github.com/GNOME/pango/blob/1.52.2/COPYING) |
+| libpangowin32-1.0-0.dll | PangoWin32 1.52.2 (version resource) | [LGPL-2.0-or-later](https://github.com/GNOME/pango/blob/1.52.2/COPYING) |
+| libpcre2-8-0.dll | PCRE2 10.43 (embedded version/date string) | [BSD-3-Clause with PCRE2 binary exception](https://github.com/PCRE2Project/pcre2/blob/pcre2-10.43/LICENCE) |
+| libpixman-1-0.dll | Pixman 0.43.4 (embedded source paths and version string) | [MIT](https://gitlab.freedesktop.org/pixman/pixman/-/blob/pixman-0.43.4/COPYING) |
+| libpng16-16.dll | libpng 1.6.43 (embedded version/copyright string) | [libpng-2.0](https://github.com/pnggroup/libpng/blob/v1.6.43/LICENSE) |
+| libsharpyuv-0.dll | SharpYUV 0.4.0 (SharpYuvGetVersion returns 0x000400) | [BSD-3-Clause](https://github.com/webmproject/libwebp/blob/v1.4.0/COPYING) |
+| libstdc++-6.dll | GCC libstdc++ 14.1.0 (embedded source paths) | [GPL-3.0-or-later WITH GCC-exception-3.1](https://github.com/gcc-mirror/gcc/blob/releases/gcc-14.1.0/COPYING.RUNTIME) |
+| libtesseract-5.dll | Tesseract 5.4.0.20240606 (embedded version string and exact upstream installer hash) | [Apache-2.0](https://github.com/UB-Mannheim/tesseract/blob/v5.4.0.20240606/LICENSE) |
+| libthai-0.dll | libthai 0.1.29-3 (exact MSYS2 package hash) | [LGPL-2.1-or-later](https://github.com/tlwg/libthai/blob/v0.1.29/COPYING) |
+| libtiff-6.dll | LibTIFF 4.6.0 (embedded version/copyright string) | [libtiff](https://gitlab.com/libtiff/libtiff/-/blob/v4.6.0/LICENSE.md) |
+| libwebp-7.dll | libwebp 1.4.0 (WebPGetDecoderVersion and WebPGetEncoderVersion return 0x010400) | [BSD-3-Clause](https://github.com/webmproject/libwebp/blob/v1.4.0/COPYING) |
+| libwebpmux-3.dll | libwebp 1.4.0 (WebPGetMuxVersion returns 0x010400) | [BSD-3-Clause](https://github.com/webmproject/libwebp/blob/v1.4.0/COPYING) |
+| libwinpthread-1.dll | MinGW-w64 winpthreads; generic resource version 1, 0, 0, 0 does not identify its source revision | [Unresolved: exact source revision not established](https://www.mingw-w64.org/) |
+| libzstd.dll | Zstandard 1.5.6 (embedded version string) | [BSD-3-Clause (selected option)](https://github.com/facebook/zstd/blob/v1.5.6/LICENSE) |
+| msvcp140.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| msvcp140_1.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| msvcp140_2.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| msvcp140_atomic_wait.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| msvcp140_codecvt_ids.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| qpdf30.dll | qpdf 12.3.2 (embedded version and licence strings) | [Apache-2.0](https://github.com/qpdf/qpdf/blob/v12.3.2/LICENSE.txt) |
+| vcruntime140.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| vcruntime140_1.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
+| zlib1.dll | zlib 1.3.1 (embedded version/copyright strings) | [Zlib](https://github.com/madler/zlib/blob/v1.3.1/LICENSE) |
+
+### Version resources and binary identities
+
+The four resource columns quote ProductName, FileVersion, CompanyName and
+LegalCopyright respectively. Empty resource values are shown as `absent`.
+SHA-256 identifies the payload binary checked for each row.
+
+| DLL | ProductName | FileVersion | CompanyName | LegalCopyright | SHA-256 |
+|---|---|---|---|---|---|
+| concrt140.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `2405355f0a58067b258f8df33c327e3a3d716eaac5a3a5aebb757842d85bd376` |
+| gsdll64.dll | GPL Ghostscript | 10.07.0 | absent | Copyright (C) 2025 Artifex Software, Inc.  All rights reserved. | `1dce67538777ab2f312890f9a2f0ffcff6a4c58ef1149dc6a44f8bd97b31030d` |
+| libLerc.dll | absent | absent | absent | absent | `4ab688c7c5c4afdfee0f519f942759137067a7876a1c1bb825ee575b0a5760b1` |
+| libarchive-13.dll | absent | absent | absent | absent | `98b9b7e9259f23eab6749ee25cca2c0643f09df6b23c58229fd43bf6249195e9` |
+| libb2-1.dll | absent | absent | absent | absent | `7fb8418a1172042dab5227fcd466b1bf293737f5b5cf35359e851516227f109c` |
+| libbrotlicommon.dll | absent | absent | absent | absent | `62f363f6aac0d54ce7b115c0412b19e0fe5480f4e6fc1254f663b0ab6868e46f` |
+| libbrotlidec.dll | absent | absent | absent | absent | `7d6c0f954b6f2db1c1c5fd5904886ae055859a02ca31b6dde5f96f6b0259d23f` |
+| libbz2-1.dll | absent | absent | absent | absent | `b79cd3a7102e359ef6324e98966a67939e58ec2b651ae2847cae84a4dfa453f7` |
+| libcairo-2.dll | absent | absent | absent | absent | `c531e50be733f641e39419bf62cb799698b20086afb958d73f56677ea0c3f9da` |
+| libcrypto-3-x64.dll | The OpenSSL Toolkit | 3.3.1 | The OpenSSL Project, https://www.openssl.org/ | Copyright 1998-2024 The OpenSSL Authors. All rights reserved. | `c0674a225d30f1642ca1da45ac040a9c1885d8f23883532b42987bae458edc4d` |
+| libdatrie-1.dll | absent | absent | absent | absent | `f760aef8a31b7c3670484ca4eabab1ab8e95c14052167e191463f6371c3f0850` |
+| libdeflate.dll | absent | absent | absent | absent | `b6ee7b31a23605d8e8b9be5eae782a3ddf7adf2b7ca2c8e0041bdfd4fe4659ee` |
+| libexpat-1.dll | absent | absent | absent | absent | `d9ea333175b1e995bbe6a062567f38ff362f1b2f369fa8ebdb0eeed21813bdc6` |
+| libffi-8.dll | absent | absent | absent | absent | `f1ed51652b3746c1b4bce497b7041e677e5d80c5ab8198efebb8fc6f75329ae8` |
+| libfontconfig-1.dll | absent | absent | absent | absent | `d6c70b7e205f24ff96b29a80849b59c84f8701b311434f64f2bf93bd36bdb163` |
+| libfreetype-6.dll | FreeType | 2.13.2 | The FreeType Project | © 2000-2023 The FreeType Project www.freetype.org. All rights reserved. | `5297f754dfca04abdb0d21705d5afc3c4122aa25c7afbdd87900313cb780c868` |
+| libfribidi-0.dll | absent | absent | absent | absent | `449085380e54089871ccc9f32b715f65a2e53eb9f5125793fed900461d29a420` |
+| libgcc_s_seh-1.dll | absent | absent | absent | absent | `b22b954397a52703579d92db64b57812af70f2afcafe2e742a009c1640b9ec1a` |
+| libgif-7.dll | absent | absent | absent | absent | `a1a179853ae6fad8eb045b8e9f12c55e6fc99929446b02fa345512354cf5e582` |
+| libgio-2.0-0.dll | GLib | 2.80.2.0 | The GLib developer community | Copyright 2006-2011 Red Hat, Inc. and others. | `07bda2471ca0490598d1e6fbdfc8958cd91926d68effc90d9eda0ea2f9279c7c` |
+| libglib-2.0-0.dll | GLib | 2.80.2.0 | The GLib developer community | Copyright 1995-2011 Peter Mattis, Spencer Kimball, Josh MacDonald and others. | `12b2f4d609a5d3cf714a8c502074409d32f21082a682373f4e1bca36821f08bc` |
+| libgmodule-2.0-0.dll | GLib | 2.80.2.0 | The GLib developer community | Copyright 1998-2011 Tim Janik and others. | `8cf9bb9be24c88a66ad478214a55357a9d44702636789dfa436ca509457d781c` |
+| libgobject-2.0-0.dll | GLib | 2.80.2.0 | The GLib developer community | Copyright 1998-2011 Tim Janik, Red Hat, Inc. and others | `4fcf4fb2d5ef234e717b389f3b637f05ee6ff111b698ef59664394f10622aef6` |
+| libgraphite2.dll | absent | absent | absent | absent | `f927efecd958f0e54a24ae297f86cd6aed05e7fc20e5da0882050ab9ec464395` |
+| libharfbuzz-0.dll | absent | absent | absent | absent | `c1fa05f089041e348c9fcf18ae115942c989ac5259069d0ae83aa63e9a7c66ea` |
+| libiconv-2.dll | libiconv: character set conversion library | 1.17 | Free Software Foundation | Copyright (C) 1999-2022 | `967189adfbc889fde89aafc867f7a1f02731f8592cf6fd5a4ace1929213e2e13` |
+| libicudt75.dll | absent | absent | absent | absent | `6a60829e1c13fd73043af6f475f85971a42eb5553e88c92f26b8802bde92c2f4` |
+| libicuin75.dll | absent | absent | absent | absent | `9fad2353a168134305e67a62fedff21cd43293055b7f4b9c39ff30cc78f30be0` |
+| libicuuc75.dll | absent | absent | absent | absent | `60e6f91536efd0a8e408b060edb76a2148a7a397399b76ee39e4ed61de0774b0` |
+| libintl-8.dll | GNU libintl: accessing NLS message catalogs | 0.22.5 | Free Software Foundation | Copyright (C) 1995-2019 | `42a63cb4c3c28a683d9f6c3510de5ec17849eb18c097fa02cd78aeb800bff202` |
+| libjbig-0.dll | absent | absent | absent | absent | `275a827ba6839d47cfdbe059db1b1b403a92ff26e2b76a29362915487868bef2` |
+| libjpeg-8.dll | absent | absent | absent | absent | `e44514c4e7753635e79bdb668f1e10315c1a93287f8d044ae74594ed57de619d` |
+| libleptonica-6.dll | absent | absent | absent | absent | `26861baff4d25446a03ed1f6064d2eae7435eddf51bb36af4e634c0eb4eb3af0` |
+| liblz4.dll | LZ4 | 1.9.4.0 | Yann Collet | Copyright (C) 2013-2020, Yann Collet | `1b64d6429ae4aacf9eb35b8158d98556859a5c5e8ee817e155da343e194dd8e3` |
+| liblzma-5.dll | XZ Utils <https://tukaani.org/xz/> | 5.6.2 | The Tukaani Project <https://tukaani.org/> | absent | `3a599d97ea4dd002166ee7ffdc527c129d2cf8b05e9152ca7cae006c4187977e` |
+| libopenjp2-7.dll | absent | absent | absent | absent | `5ff762ff6d672a06ee502819daf1494aa3aa3acf408805f0429303e026705011` |
+| libpango-1.0-0.dll | Pango | 1.52.2.0 | Red Hat Software | Copyright 1999 Red Hat Software. | `834caf40403a447634b0e80ff4ea290f1ee361364cf24ffc8bb55b048f9254a9` |
+| libpangocairo-1.0-0.dll | PangoCairo | 1.52.2.0 | Red Hat Software | Copyright 2010 Red Hat Software. | `ee706c4561af24de6cbe7ad10b46852fc8b0f328534ea2beb5f1147696e87b55` |
+| libpangoft2-1.0-0.dll | PangoFT2 | 1.52.2.0 | Red Hat Software | Copyright 1999 Red Hat Software. Copyright 2000 Tor Lillqvist | `7c80bc1949255a8bc62fe05ab003b777aa844ac8f6c5da1ebc4c49ee35f3b9b8` |
+| libpangowin32-1.0-0.dll | PangoWin32 | 1.52.2.0 | Red Hat Software | Copyright 1999 Red Hat Software. Copyright 2000 Tor Lillqvist | `d940a831f2a9be33dd36ff3d8b97488a068b1699fb6b2e874633d4d5564f301c` |
+| libpcre2-8-0.dll | absent | absent | absent | absent | `5ffa31709c275120a745f9f714974db1e86c8fd54f8ca6889617530dffbff95b` |
+| libpixman-1-0.dll | absent | absent | absent | absent | `8f8b8f09ec8fe9945ba76fadf8a04183056afd2c35aa7be1808e1a1301d87757` |
+| libpng16-16.dll | absent | absent | absent | absent | `f1b0a9d6cf3b8809c22fa0e27b5b82d9357e5bca43ab0ce8762f55fb303ed23f` |
+| libsharpyuv-0.dll | absent | absent | absent | absent | `60bcc87ac64a834e967e9ec9461be37395dbc090c579f3e23497ef69a5d8323e` |
+| libstdc++-6.dll | absent | absent | absent | absent | `0d9c01ab1771df439c75f144b2d855b4ac400243f006d14d9a043493de628f0d` |
+| libtesseract-5.dll | absent | absent | absent | absent | `279488c41bd341edaa03dcd097faa33604ba330e6254ac97bcaf2229d8d7ac1a` |
+| libthai-0.dll | absent | absent | absent | absent | `420e08cedaf9daaabcf8f6c92349d9dadb7b5ad9e4e79d1126bb2a55a7cdbe09` |
+| libtiff-6.dll | absent | absent | absent | absent | `e000306d3de299b05ebef443e48c1486d9fa291b0244f6ca6225843b75fdf581` |
+| libwebp-7.dll | absent | absent | absent | absent | `687b8859e1f739dad5800fdc293a6ee1fd0dd4b33380ab283681a5a12eb3d4fa` |
+| libwebpmux-3.dll | absent | absent | absent | absent | `ad10bacecd37b44c7c2c813da098a8bf6a42a3bf0152f7f33726d216815558f9` |
+| libwinpthread-1.dll | absent | 1, 0, 0, 0 | MinGW-W64 Project. All rights reserved. | Copyright (C) MinGW-W64 Project Members 2010-2023 | `bbcbe5eb8e806f3537585d4c9832b4ee15f86617328a566695d7d3728aa370ee` |
+| libzstd.dll | absent | absent | absent | absent | `f216ea8efb5b3bb9ad3d938fb9ac07e3b8f78c2c92faab03d2c468d0b6798a5a` |
+| msvcp140.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `0f885b509a685d2bbfa652fed26b5fb31d88fbdab0a978c641d1c7b8aa460aa9` |
+| msvcp140_1.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `bfad5aef4c63a669e3c140655cdfdf395b6c979b400a447bd5dcb65ed8826c3d` |
+| msvcp140_2.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `3ea06f0ee098b4823cb79599df3780e7f23cce52c19aac31d2a0d47efe33a5e9` |
+| msvcp140_atomic_wait.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `640b2aefced484d0368eea5bdd06addd0658a3a70a49256e560d6923b404a479` |
+| msvcp140_codecvt_ids.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `f2069a52880ec885ee7f0511186100eb7fada0411a2b4948fafea7735b878a18` |
+| qpdf30.dll | absent | absent | absent | absent | `623338ff5a9caab476f9e80ccc40c28c194208f4bc5d8e51eac7fca792e2e969` |
+| vcruntime140.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `d5e4d9a3e835fa679450145d6a7d94e36573a509317111904d9b3712c30d9066` |
+| vcruntime140_1.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f` |
+| zlib1.dll | absent | absent | absent | absent | `cb7ab3788d10940df874acd97b1821bbb5ee4a91f3eec11982bb5bf7a3c96443` |
+
+### Remaining distribution blockers
+
+- `libbrotlicommon.dll`: no version resource or version export. Both Brotli
+  DLLs match the Tesseract archive, but the available MSYS2 1.1.0-4 DLLs do
+  not match. Obtain the matching older package and its source licence.
+- `libdeflate.dll`: no version resource or identifying version string. The
+  candidate 1.20-1 package URL returns 404 and is absent from the current
+  MSYS2 index. Obtain the exact build package or its provenance.
+- `libgcc_s_seh-1.dll`: no version resource; compiler markers include both
+  13.2.0 and 14.1.0. The candidate 14.1.0-3 package URL returns 404.
+  Obtain the matching runtime package before selecting its grant.
+- `libwinpthread-1.dll`: its resource version `1, 0, 0, 0` is generic.
+  The available winpthreads development archive has no runtime DLL to compare.
+  Obtain the matching libwinpthread runtime package and source revision.
+- The applicable Microsoft redistribution entitlement for the eight CRT
+  DLLs is not recorded here. Confirm it before public binary distribution.
 
 ## Application dependency inventory
 

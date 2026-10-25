@@ -1,7 +1,7 @@
 # PDF Editor — Stack
 
 Konkrétny zoznam jazykov, knižníc a nástrojov, ktoré táto aplikácia používa.
-Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bumpy vyžadujú spec update.
+Verzie knižníc uvádzajú požadované minimum. Časť 4 uvádza verzie zabalených bináriek podľa manifestu.
 
 ## 1. Programovacie jazyky
 
@@ -156,23 +156,23 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 | Binárka | Verzia | Licencia | Veľkosť | Použitie |
 |---|---|---|---|---|
-| **qpdf** (`qpdf.exe`) | 12.3.2+ | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
-| **Ghostscript** (`gswin64c.exe` + libs) | 10.x | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
-| **MuPDF tools** (`mutool.exe` + `libmupdf.dll`) | 1.24+ | AGPL-3.0 | ~15 MB | Companion k `mupdf-rs`. `mutool clean -gggg` = full GC + xref kompakcia + object/stream dedup (object-level cleanup). `-S` = font subsetting (EXPERIMENTAL — používať s opatrnosťou) |
+| **qpdf** (`qpdf.exe`) | 12.3.2 | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
+| **Ghostscript** (`gswin64c.exe` + `gsdll64.dll`) | 10.07.0 | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
+| **MuPDF tools** (`mutool.exe`) | 1.27.0 | AGPL-3.0 | ~15 MB | `mutool clean -gggg`: odstránenie nepoužitých objektov, kompakcia xref a deduplikácia. `-S`: experimentálne zmenšenie fontov. |
 | **LibreOffice** (`soffice.exe`), nie je zabalený (plán 119) | 24.x | MPL 2.0 | ~350 MB, inštaluje používateľ | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export. Aplikácia ho nájde v registri; inštalátor ponúkne inštaláciu cez winget (`docs/install-contract.md`) |
-| **Tesseract OCR** (`tesseract.exe` + `tesseract.dll`) | 5.x | Apache 2.0 | ~30 MB | OCR (alternatíva k Rust `tesseract` crate; zabalené pre robustnosť) |
-| **tessdata_best** (eng, slk, ces, deu) | latest | Apache 2.0 | ~200 MB | OCR jazykové modely (4 jazyky pre offline; user môže drag-drop ďalšie do `%AppData%\PdfEditor\tessdata-extra\`) |
-| **pdfcrack** (`pdfcrack.exe`) | 0.20+ | GPL-2.0+ | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
-| **WiX Toolset** | 4.x (build-only) | MS-RL | — | MSI installer creation (nezahrnuté do produktu, len v build chain) |
+| **Tesseract OCR** (`tesseract.exe` + `libtesseract-5.dll`) | 5.4.0.20240606 | Apache 2.0 | ~30 MB | OCR cez sidecar. |
+| **tessdata_best** (eng, slk, ces, deu, pol) | podľa manifestu | Apache 2.0 | podľa súborov | Päť jazykov pre offline OCR. Ďalšie modely sa ukladajú do `%APPDATA%\PdfEditor\PdfEditor\data\tessdata-extra\`. |
+| **pdfcrack** (`pdfcrack.exe`) | 0.19 | GPL-2.0-or-later | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
+| **WiX Toolset** | 3.14 (iba build) | MS-RL | — | Staré MSI, bez vydania v novom release. |
 
-**Spolu sidecary: ~430 MB** (pred kompresiou MSI).
+Presný zoznam súborov určuje `packaging/payload.json`. Veľkosť payloadu sa meria pred kompresiou Inno Setup. Licencie a otvorené blokery sú v [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## 5. Build tooling
 
 | Nástroj | Verzia | Účel |
 |---|---|---|
 | `cargo` | 1.85+ | Rust build |
-| `pnpm` | 9.x | Node deps |
+| `pnpm` | 11.0.3 | Node deps |
 | `rustup` | latest | Rust toolchain manager |
 | `node` | 20.19+ LTS | TypeScript / Vite runtime (Vite 6 minimum) |
 | `tauri-cli` | 2.x | `tauri dev`, `tauri build` |

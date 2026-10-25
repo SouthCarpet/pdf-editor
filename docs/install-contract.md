@@ -97,7 +97,8 @@ blob.
 Third-party licence inventory: [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 The inventory is repository documentation; it adds no installer payload files.
 The payload already includes the two OCR licence texts listed above. DLL
-entries marked "unknown, to check" still need review before binary distribution.
+entries marked "Unresolved" and the Microsoft redistribution entitlement
+still need review before public binary distribution.
 
 ## Per-user setup (`packaging/pdf-editor.iss`)
 
