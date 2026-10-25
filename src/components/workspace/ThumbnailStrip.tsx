@@ -27,7 +27,7 @@ interface Props {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
   bookMode: boolean;
-  onSelect: (i: number) => void;
+  onSelect: (i: number, image?: HTMLCanvasElement) => void;
   height: number;
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -37,7 +37,7 @@ interface RowExtras {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
   bookMode: boolean;
-  onSelect: (i: number) => void;
+  onSelect: (i: number, image?: HTMLCanvasElement) => void;
   pageCount: number;
 }
 
@@ -60,7 +60,7 @@ function Row({
         aria-label={label}
         aria-current={selection.focused ? "page" : undefined}
         title={label}
-        onClick={() => onSelect(index)}
+        onClick={(event) => onSelect(index, event.currentTarget.querySelector("canvas") ?? undefined)}
         className={cn(
           "flex h-full w-full cursor-pointer flex-col items-center rounded-[var(--radius-sm)] border border-transparent hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-focus)]",
           selection.highlighted && "bg-[var(--color-accent-soft)]",
@@ -128,7 +128,7 @@ export function ThumbnailStrip({
         )}
         <Button
           type="button"
-          size="sm"
+
           variant="ghost"
           className="h-7 w-7 shrink-0 p-0"
           aria-label={collapsed ? t("page_panel.expand") : t("page_panel.collapse")}

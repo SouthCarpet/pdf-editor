@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import type * as pdfjs from "pdfjs-dist";
 import { cn } from "@/lib/utils";
 import { fitThumbnailSize } from "./thumbnailLayout";
+import { PAGE_IMAGE_READY } from "./thumbnailCarry";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
@@ -82,6 +83,10 @@ export function PdfViewer({
         annotationMode: ANNOTATION_MODE_ENABLE_STORAGE,
       });
       await renderTask.promise;
+      if (!cancelled) {
+        canvas.dataset.renderedPage = String(pageIndex);
+        canvas.dispatchEvent(new Event(PAGE_IMAGE_READY, { bubbles: true }));
+      }
     })().catch((err) => {
       // RenderingCancelledException is fine; the next effect already kicked
       // off a fresh render. Anything else is worth logging.
@@ -98,6 +103,7 @@ export function PdfViewer({
   return (
     <canvas
       ref={canvasRef}
+      data-page-image={pageIndex}
       className={cn(fitBox && "max-h-full max-w-full object-contain", className)}
     />
   );

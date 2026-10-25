@@ -1,0 +1,16 @@
+/* R32: one real image carries; every other surface stays still. */
+::view-transition-group(pdf-page-carry) {
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease-standard);
+}
+::view-transition-old(pdf-page-carry),
+::view-transition-new(pdf-page-carry) {
+  animation-duration: var(--motion-slow);
+  animation-timing-function: var(--ease-standard);
+  mix-blend-mode: normal;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(pdf-page-carry),
+  ::view-transition-old(pdf-page-carry),
+  ::view-transition-new(pdf-page-carry) { animation: none; }
+}
