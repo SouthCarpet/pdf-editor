@@ -217,3 +217,6 @@ The app uses Fira Sans and the Kaliber r4 design language.
 - Annotations on a page with an indirect /Annots list were dropped when saving or deleting an annotation.
 - Troubleshooting guide: the database is `app.db` (not `state.db`), and the
   data and log folders are under `%APPDATA%\PdfEditor\PdfEditor\data`.
+- Marks drawn on the PDF page (detected fields, filled values, own fields and
+  their handles, search and OCR marks) use the light colours in the dark theme
+  too, because the page is paper in both themes. App chrome keeps the theme.

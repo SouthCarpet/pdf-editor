@@ -14,3 +14,19 @@
   ::view-transition-old(pdf-page-carry),
   ::view-transition-new(pdf-page-carry) { animation: none; }
 }
+
+/* K8: the page is paper in both themes, so every mark drawn on it uses the
+   light values of the roles it reads. Keep these equal to the :root block of
+   tokens.css; paperScope.test.tsx fails when one drifts. */
+.paper-light {
+  color-scheme: light;
+  --color-well: oklch(0.935 0.012 260);
+  --color-surface-raised: oklch(0.995 0.012 260);
+  --color-border: oklch(0.82 0.012 260);
+  --color-text: oklch(0.18 0.012 260);
+  --color-accent: oklch(0.43 0.09 235);
+  --color-accent-soft: oklch(0.92 0.03 235);
+  --color-accent-soft-foreground: oklch(0.32 0.07 235);
+  --color-focus: oklch(0.5 0.1 235);
+  --color-on-accent: oklch(0.99 0 0);
+}
