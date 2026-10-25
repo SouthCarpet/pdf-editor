@@ -127,88 +127,96 @@ export function ComparePanel({
     }
   }
 
-  return (
-    <section aria-label={t("compare.panel_label")} className="space-y-4">
-      <h2 className="text-sm font-semibold text-balance">{t("compare.title")}</h2>
+  return renderPanel();
 
-      <DocumentSelection
-        label={t("compare.left_document")}
-        path={leftPath}
-        emptyLabel={t("compare.select_first")}
-        actionLabel={leftPath ? t("compare.change") : t("compare.pick_file")}
-        onAction={() => void pick("left")}
-      />
+  function renderPanel() {
+    return (
+      <section aria-label={t("compare.panel_label")} className="space-y-4">
+        <h2 className="text-sm font-semibold text-balance">{t("compare.title")}</h2>
 
-      {leftPath && !rightPath ? (
-        <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
-          <p className="text-pretty text-sm font-medium">{t("compare.select_second")}</p>
-          <Button className="min-h-10 w-full" size="sm" onClick={() => void pick("right")}>
-            {t("compare.pick_file")}
-          </Button>
-          <Button
-            className="min-h-10 w-full"
-            size="sm"
-            variant="outline"
-            disabled={otherOpenDocuments.length === 0}
-            onClick={() => setShowOpenTabs((visible) => !visible)}
-          >
-            {t("compare.pick_open_tab")}
-          </Button>
-          {showOpenTabs ? (
-            <div className="space-y-1" aria-label={t("compare.open_tabs_label")}>
-              {otherOpenDocuments.map((document) => (
-                <Button
-                  key={document.id}
-                  className="min-h-10 w-full justify-start px-3"
-                  size="sm"
-                  variant="ghost"
-                  title={document.path}
-                  onClick={() => chooseRight(document.path)}
-                >
-                  <span className="truncate">{fileName(document.path)}</span>
-                </Button>
-              ))}
-            </div>
-          ) : null}
-          {otherOpenDocuments.length === 0 ? (
-            <p className="text-pretty text-xs text-[var(--color-muted)]">
-              {t("compare.no_open_tabs")}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {rightPath ? (
         <DocumentSelection
-          label={t("compare.right_document")}
-          path={rightPath}
-          emptyLabel={t("compare.select_second")}
-          actionLabel={t("compare.change")}
-          onAction={() => {
-            clearResults();
-            setRightPath(null);
-          }}
+          label={t("compare.left_document")}
+          path={leftPath}
+          emptyLabel={t("compare.select_first")}
+          actionLabel={leftPath ? t("compare.change") : t("compare.pick_file")}
+          onAction={() => void pick("left")}
         />
-      ) : null}
 
-      {leftPath && rightPath ? (
-        <>
-          <CompareOptions value={options} onChange={setOptionsAndMode} mode="standalone" />
-          <Button className="min-h-10 w-full" size="sm" disabled={busy} onClick={runCompare}>
-            {busy ? t("compare.running") : t("compare.run")}
-          </Button>
-        </>
-      ) : null}
+        {renderSecondDocumentPicker()}
 
-      {error ? (
-        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
-          {error}
-        </p>
-      ) : null}
+        {rightPath ? (
+          <DocumentSelection
+            label={t("compare.right_document")}
+            path={rightPath}
+            emptyLabel={t("compare.select_second")}
+            actionLabel={t("compare.change")}
+            onAction={() => {
+              clearResults();
+              setRightPath(null);
+            }}
+          />
+        ) : null}
 
-      <CompareResults mode={mode} visualResult={visualResult} textResult={textResult} />
-    </section>
-  );
+        {leftPath && rightPath ? (
+          <>
+            <CompareOptions value={options} onChange={setOptionsAndMode} mode="standalone" />
+            <Button className="min-h-[var(--control-h)] w-full" disabled={busy} onClick={runCompare}>
+              {busy ? t("compare.running") : t("compare.run")}
+            </Button>
+          </>
+        ) : null}
+
+        {error ? (
+          <p role="alert" className="text-xs text-[var(--color-danger)]">
+            {error}
+          </p>
+        ) : null}
+
+        <CompareResults mode={mode} visualResult={visualResult} textResult={textResult} />
+      </section>
+    );
+  }
+  function renderSecondDocumentPicker() {
+    if (!leftPath || rightPath) return null;
+    return (
+      <div className="space-y-3 border-t border-[var(--color-border)] pt-4">
+        <p className="text-pretty text-sm font-medium">{t("compare.select_second")}</p>
+        <Button className="min-h-[var(--control-h)] w-full" onClick={() => void pick("right")}>
+          {t("compare.pick_file")}
+        </Button>
+        <Button
+          className="min-h-[var(--control-h)] w-full"
+
+          variant="outline"
+          disabled={otherOpenDocuments.length === 0}
+          onClick={() => setShowOpenTabs((visible) => !visible)}
+        >
+          {t("compare.pick_open_tab")}
+        </Button>
+        {showOpenTabs ? (
+          <div className="space-y-1" aria-label={t("compare.open_tabs_label")}>
+            {otherOpenDocuments.map((document) => (
+              <Button
+                key={document.id}
+                className="min-h-[var(--control-h)] w-full justify-start px-3"
+
+                variant="ghost"
+                title={document.path}
+                onClick={() => chooseRight(document.path)}
+              >
+                <span className="truncate">{fileName(document.path)}</span>
+              </Button>
+            ))}
+          </div>
+        ) : null}
+        {otherOpenDocuments.length === 0 ? (
+          <p className="text-pretty text-xs text-[var(--color-text-muted)]">
+            {t("compare.no_open_tabs")}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 }
 
 function DocumentSelection({
@@ -226,12 +234,12 @@ function DocumentSelection({
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="text-xs font-medium text-[var(--color-muted)]">{label}</div>
+      <div className="text-xs font-medium text-[var(--color-text-muted)]">{label}</div>
       <div className="flex items-center gap-2">
         <span className="min-w-0 flex-1 truncate text-xs" title={path ?? undefined}>
           {path ? fileName(path) : emptyLabel}
         </span>
-        <Button className="min-h-10 shrink-0" size="sm" variant="outline" onClick={onAction}>
+        <Button className="min-h-[var(--control-h)] shrink-0" variant="outline" onClick={onAction}>
           {actionLabel}
         </Button>
       </div>
@@ -257,7 +265,7 @@ function CompareResults({
       <div className="space-y-2 border-t border-[var(--color-border)] pt-4 text-xs">
         <h3 className="font-medium">{t("compare.results")}</h3>
         {changedPages.length === 0 ? (
-          <p className="text-pretty text-[var(--color-muted)]">
+          <p className="text-pretty text-[var(--color-text-muted)]">
             {t("compare.no_visual_differences")}
           </p>
         ) : (
@@ -265,7 +273,7 @@ function CompareResults({
             {changedPages.map((page) => (
               <li
                 key={page.page_index}
-                className="rounded-md bg-[var(--color-warning-soft)] px-2 py-1.5 text-[var(--color-warning-soft-foreground)] tabular-nums"
+                className="rounded-md bg-[var(--color-warning-soft)] px-2 py-1.5 text-[var(--color-text)] tabular-nums"
               >
                 {t("compare.visual_page_change", {
                   page: page.page_index + 1,
@@ -284,7 +292,7 @@ function CompareResults({
       <div className="space-y-2 border-t border-[var(--color-border)] pt-4 text-xs">
         <h3 className="font-medium">{t("compare.text_differences")}</h3>
         {textResult.changes.length === 0 ? (
-          <p className="text-pretty text-[var(--color-muted)]">
+          <p className="text-pretty text-[var(--color-text-muted)]">
             {t("compare.no_text_differences")}
           </p>
         ) : (
@@ -292,12 +300,12 @@ function CompareResults({
             {textResult.changes.map((change, index) => (
               <li key={`${change.kind}-${index}`} className="text-pretty">
                 {change.kind === "delete" ? (
-                  <span className="bg-[var(--color-danger-soft)] px-1 text-[var(--color-danger-soft-foreground)] line-through">
+                  <span className="bg-[var(--color-danger-soft)] px-1 text-[var(--color-danger)] line-through">
                     {change.left}
                   </span>
                 ) : null}
                 {change.kind === "insert" ? (
-                  <span className="bg-[var(--color-success-soft)] px-1 text-[var(--color-success-soft-foreground)]">
+                  <span className="bg-[var(--color-success-soft)] px-1 text-[var(--color-text)]">
                     {change.right}
                   </span>
                 ) : null}

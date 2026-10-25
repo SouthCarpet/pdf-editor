@@ -65,21 +65,24 @@ export function ExtractPageCard({ pdf, index, pageCount, selected, onToggle }: P
         "cursor-pointer overflow-hidden rounded border p-2 transition-colors",
         selected
           ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]"
-          : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]"
+          : "border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]"
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-2 border-b border-[var(--color-border)] pb-2">
         <span className="text-xs font-medium tabular-nums" aria-hidden="true">
           {index + 1} / {pageCount}
         </span>
-        <input
-          type="checkbox"
-          checked={selected}
-          aria-label={accessibleLabel}
-          onClick={(event) => event.stopPropagation()}
-          onChange={() => onToggle(index)}
-          className="h-4 w-4 accent-[var(--color-accent)]"
-        />
+        <span className="k-check">
+          <input
+            type="checkbox"
+            checked={selected}
+            aria-label={accessibleLabel}
+            onClick={(event) => event.stopPropagation()}
+            onChange={() => onToggle(index)}
+            className="k-check-input"
+          />
+          <svg className="k-check-mark" viewBox="0 0 12 12" aria-hidden="true"><path className="k-check-tick" pathLength="1" d="M2 6 5 9 10 3" /></svg>
+        </span>
       </div>
       <div
         className="flex items-center justify-center overflow-hidden bg-[var(--color-background)]"
@@ -91,11 +94,11 @@ export function ExtractPageCard({ pdf, index, pageCount, selected, onToggle }: P
             pageIndex={index}
             zoom={1}
             fitBox={THUMBNAIL_BOX}
-            className="shadow"
+            className="border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           />
         ) : (
           <div
-            className="h-full w-full animate-pulse bg-[var(--color-control-hover)]"
+            className="h-full w-full animate-pulse bg-[var(--color-surface-hover)]"
             aria-hidden="true"
           />
         )}
@@ -171,15 +174,15 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium">{t("common:tools.extract")}</h3>
-      <p className="text-xs text-[var(--color-muted)]">{t("common:extract_panel.description")}</p>
+      <p className="text-xs text-[var(--color-text-muted)]">{t("common:extract_panel.description")}</p>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" variant="outline" onClick={selectAll}>
+        <Button variant="outline" onClick={selectAll}>
           {t("common:extract_panel.select_all")}
         </Button>
-        <Button size="sm" variant="outline" onClick={clear}>
+        <Button variant="outline" onClick={clear}>
           {t("common:extract_panel.clear")}
         </Button>
-        <Button size="sm" variant="outline" onClick={invert}>
+        <Button variant="outline" onClick={invert}>
           {t("common:extract_panel.invert")}
         </Button>
       </div>
@@ -195,9 +198,9 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
           onChange={(event) => setRangeText(event.target.value)}
           aria-label={t("common:extract_panel.range_label")}
           placeholder={t("common:extract_panel.range_placeholder")}
-          className="min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[var(--color-background)] px-2 text-xs"
+          className="k-input min-w-0 w-full"
         />
-        <Button size="sm" variant="outline" type="submit">
+        <Button variant="outline" type="submit">
           {t("common:extract_panel.apply_range")}
         </Button>
       </form>
@@ -213,12 +216,12 @@ export function ExtractPanel({ docPath, pageCount }: Props) {
           />
         ))}
       </div>
-      <Button size="sm" disabled={selected.size === 0 || busy} onClick={extract}>
+      <Button disabled={selected.size === 0 || busy} onClick={extract}>
         {busy
           ? t("common:extract_panel.extracting")
           : t("common:extract_panel.extract_count", { count: selected.size })}
       </Button>
-      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}
     </div>
   );
 }

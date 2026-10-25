@@ -144,7 +144,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
 
   function buildAnnotation(): Annotation | null {
     const c3 = hexToRgb(cfg.color);
-    const fc4 = cfg.fillColor === "transparent" ? null : hexToRgba(cfg.fillColor);
+    const fc4 = annotationFill(cfg.fillColor);
     switch (mode) {
       case "highlight": {
         const r = defaultRect;
@@ -222,19 +222,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
           auto_resize: true,
         };
       case "stamp":
-        if (!cfg.stampImagePath) {
-          setErr("Pick an image first");
-          return null;
-        }
-        return {
-          type: "stamp",
-          page: activePage,
-          rect: defaultRect,
-          image_path: cfg.stampImagePath,
-          scale: cfg.stampScale,
-          rotation: cfg.stampRotation,
-          opacity: cfg.opacity,
-        };
+        return buildStamp();
       case "ink": {
         const r = defaultRect;
         // Default ink stroke: a straight diagonal across the bbox so users
@@ -255,6 +243,19 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
         };
       }
     }
+  }
+
+  function buildStamp(): Annotation | null {
+    if (!cfg.stampImagePath) { setErr("Pick an image first"); return null; }
+    return {
+      type: "stamp",
+      page: activePage,
+      rect: defaultRect,
+      image_path: cfg.stampImagePath,
+      scale: cfg.stampScale,
+      rotation: cfg.stampRotation,
+      opacity: cfg.opacity,
+    };
   }
 
   function onAdd() {
@@ -294,7 +295,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
       <h3 className="text-sm font-medium">
         {t("tools.edit")}: {t("workspace:tools.edit_annotations")}
       </h3>
-      <p className="text-xs text-[var(--color-muted)]">
+      <p className="text-xs text-[var(--color-text-muted)]">
         Pick a tool, tune its options, then add it to the current page.
       </p>
       <div className="flex flex-wrap gap-1">
@@ -306,7 +307,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
               "rounded border px-2 py-1 text-xs",
               mode === m.id
                 ? "border-[var(--color-focus)] bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
-                : "border-[var(--color-border)] hover:bg-[var(--color-control-hover)]"
+                : "border-[var(--color-border)] hover:bg-[var(--color-surface-hover)]"
             )}
           >
             {m.label}
@@ -316,13 +317,13 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
 
       <ModeOptions mode={mode} cfg={cfg} setCfg={setCfg} onPickStampImage={onPickStampImage} />
 
-      <Button size="sm" onClick={onAdd} className="w-full">
+      <Button onClick={onAdd} className="w-full">
         Add to page {activePage + 1}
       </Button>
 
       <div className="max-h-[200px] space-y-1 overflow-auto text-xs">
         {annotations.length === 0 ? (
-          <p className="text-[var(--color-muted)]">No annotations yet.</p>
+          <p className="text-[var(--color-text-muted)]">No annotations yet.</p>
         ) : (
           annotations.map((a) => (
             <div
@@ -334,7 +335,7 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
               </span>
               <button
                 onClick={() => removeAnnotation(docPath, a.__clientId)}
-                className="text-[var(--color-danger-text)] hover:underline"
+                className="text-[var(--color-danger)] hover:underline"
                 aria-label="Remove"
               >
                 ×
@@ -344,14 +345,14 @@ export function EditAnnotationsPanel({ docPath, pageWidth, pageHeight }: Props) 
         )}
       </div>
       <div className="flex gap-2">
-        <Button size="sm" variant="outline" onClick={() => clearAll(docPath)}>
+        <Button variant="outline" onClick={() => clearAll(docPath)}>
           Clear
         </Button>
-        <Button size="sm" disabled={busy || annotations.length === 0} onClick={onSave}>
+        <Button disabled={busy || annotations.length === 0} onClick={onSave}>
           {busy ? "Saving…" : `Apply ${annotations.length}`}
         </Button>
       </div>
-      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}
     </div>
   );
 }
@@ -369,7 +370,7 @@ function ModeOptions({
 }) {
   const toolKey = `annotation.${mode}`;
   return (
-    <div className="space-y-2 rounded border border-[var(--color-border)] p-2">
+    <div className="space-y-2 border-t border-[var(--color-border)] py-[var(--space-2)]">
       {mode === "highlight" && (
         <>
           <ColorPicker
@@ -410,7 +411,7 @@ function ModeOptions({
           />
         </>
       )}
-      {(mode === "square" || mode === "circle") && (
+      {isBoxMode(mode) && (
         <>
           <ColorPicker
             label="Border"
@@ -522,10 +523,10 @@ function ModeOptions({
       {mode === "stamp" && (
         <>
           <div className="flex items-center justify-between gap-2 text-xs">
-            <span className="truncate text-[var(--color-muted)]">
+            <span className="truncate text-[var(--color-text-muted)]">
               {cfg.stampImagePath ?? "No image picked"}
             </span>
-            <Button size="sm" variant="outline" onClick={onPickStampImage}>
+            <Button variant="outline" onClick={onPickStampImage}>
               Pick…
             </Button>
           </div>
@@ -609,7 +610,7 @@ function SliderRow({
 }) {
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-20 shrink-0 text-[var(--color-muted)]">{label}</span>
+      <span className="w-20 shrink-0 text-[var(--color-text-muted)]">{label}</span>
       <Slider
         value={[value]}
         min={min}
@@ -636,18 +637,20 @@ function SelectRow({
 }) {
   return (
     <label className="flex items-center gap-2 text-xs">
-      <span className="w-20 shrink-0 text-[var(--color-muted)]">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1 py-0.5"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o.replace(/_/g, " ")}
-          </option>
-        ))}
-      </select>
+      <span className="w-20 shrink-0 text-[var(--color-text-muted)]">{label}</span>
+      <span className="k-select-wrap min-w-0 flex-1">
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="k-select min-w-0 w-full"
+        >
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o.replace(/_/g, " ")}
+            </option>
+          ))}
+        </select>
+      </span>
     </label>
   );
 }
@@ -663,12 +666,12 @@ function TextRow({
 }) {
   return (
     <label className="flex items-center gap-2 text-xs">
-      <span className="w-20 shrink-0 text-[var(--color-muted)]">{label}</span>
+      <span className="w-20 shrink-0 text-[var(--color-text-muted)]">{label}</span>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="flex-1 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1 py-0.5"
+        className="k-input min-w-0 w-full"
       />
     </label>
   );
@@ -689,4 +692,13 @@ function hexToRgba(hex: string): [number, number, number, number] {
   const b = parseInt(clean.slice(4, 6), 16) / 255;
   const a = clean.length >= 8 ? parseInt(clean.slice(6, 8), 16) / 255 : 1;
   return [r, g, b, a];
+}
+
+
+function annotationFill(color: string) {
+  return color === "transparent" ? null : hexToRgba(color);
+}
+
+function isBoxMode(mode: AnnotationMode): boolean {
+  return mode === "square" || mode === "circle";
 }

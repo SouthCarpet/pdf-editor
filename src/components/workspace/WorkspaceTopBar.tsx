@@ -72,6 +72,14 @@ function historyEntryText(t: ReturnType<typeof useTranslation>["t"], label: stri
   }
 }
 
+function historyTitle(t: ReturnType<typeof useTranslation>["t"], action: "undo" | "redo", entry?: { label: string }) {
+  if (!entry) return action === "undo" ? t("workspace:history.undo") : t("workspace:history.redo");
+  const label = historyEntryText(t, entry.label);
+  return action === "undo"
+    ? t("workspace:history.undo_with_label", { label })
+    : t("workspace:history.redo_with_label", { label });
+}
+
 interface Props {
   /** Absolute path of the document currently open in the workspace. */
   path: string;
@@ -103,7 +111,7 @@ function PageBox({ activePage, pageCount, onSelectPage }: PageBoxProps) {
   }
 
   return (
-    <div className="mr-2 flex h-10 items-center rounded-md border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs tabular-nums text-[var(--color-muted)]">
+    <div className="mr-2 flex h-[var(--control-h)] items-center rounded-md border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 text-xs tabular-nums text-[var(--color-text-muted)]">
       <input
         type="text"
         inputMode="numeric"
@@ -115,7 +123,7 @@ function PageBox({ activePage, pageCount, onSelectPage }: PageBoxProps) {
         onKeyDown={(event) => {
           if (event.key === "Enter") event.currentTarget.blur();
         }}
-        className="w-8 bg-transparent text-right tabular-nums text-[var(--color-foreground)] focus-visible:outline-none"
+        className="w-8 bg-transparent text-right tabular-nums text-[var(--color-text)] focus-visible:outline-none"
       />
       <span aria-hidden="true" className="px-1">/</span>
       <span>{pageCount}</span>
@@ -165,16 +173,8 @@ export function WorkspaceTopBar({
     ocr: t("common:tools.ocr"),
     compare: t("common:tools.compare"),
   };
-  const undoTitle = undoEntry
-    ? t("workspace:history.undo_with_label", {
-        label: historyEntryText(t, undoEntry.label),
-      })
-    : t("workspace:history.undo");
-  const redoTitle = redoEntry
-    ? t("workspace:history.redo_with_label", {
-        label: historyEntryText(t, redoEntry.label),
-      })
-    : t("workspace:history.redo");
+  const undoTitle = historyTitle(t, "undo", undoEntry);
+  const redoTitle = historyTitle(t, "redo", redoEntry);
 
   async function onSave() {
     setBusy(true);
@@ -238,198 +238,205 @@ export function WorkspaceTopBar({
     return () => window.removeEventListener(WORKSPACE_PRINT_REQUEST_EVENT, onPrintRequest);
   }, [hasDocument, path]);
 
-  return (
-    <div className="flex items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1">
-      {TOOLS.map((id) => (
+  return renderToolbar();
+
+  function renderToolbar() {
+    return (
+      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+        {TOOLS.map((id) => (
+          <Button
+            key={id}
+            variant="ghost"
+            aria-pressed={id === tool}
+            className="text-[var(--color-text-muted)] aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold aria-pressed:text-[var(--color-text)]"
+
+            onClick={() => selectTool(id)}
+          >
+            {toolLabels[id]}
+          </Button>
+        ))}
+
+        <div aria-hidden="true" className="mx-1 h-6 w-px bg-[var(--color-border)]" />
+
         <Button
-          key={id}
-          variant={id === tool ? "default" : "ghost"}
-          size="sm"
-          onClick={() => selectTool(id)}
+          variant="ghost"
+          className="h-[var(--control-h)]"
+          title={undoTitle}
+          disabled={undoEntry === undefined}
+          onClick={() => historyStore.getState().undo(path)}
         >
-          {toolLabels[id]}
+          <Undo2 className="mr-1 size-4" aria-hidden="true" />
+          {t("workspace:history.undo")}
         </Button>
-      ))}
+        <Button
+          variant="ghost"
+          className="h-[var(--control-h)]"
+          title={redoTitle}
+          disabled={redoEntry === undefined}
+          onClick={() => historyStore.getState().redo(path)}
+        >
+          <Redo2 className="mr-1 size-4" aria-hidden="true" />
+          {t("workspace:history.redo")}
+        </Button>
 
-      <div aria-hidden="true" className="mx-1 h-6 w-px bg-[var(--color-border)]" />
+        <Button variant="ghost" disabled={!canSave || busy} onClick={() => void onSave()}>
+          {t("save")}
+        </Button>
+        <Button variant="ghost" disabled={!canSave || busy} onClick={() => void onSaveAs()}>
+          {t("save_as")}
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={!hasDocument || busy}
+          onClick={() => {
+            setPrintHint(false);
+            setPrintOpen(true);
+          }}
+        >
+          {t("workspace:print.action")}
+        </Button>
+        <PrintDialog
+          open={printOpen}
+          path={path}
+          pageCount={pageCount}
+          disabled={!hasDocument}
+          onOpenChange={setPrintOpen}
+        />
+        {renderNotices()}
 
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-10"
-        title={undoTitle}
-        disabled={undoEntry === undefined}
-        onClick={() => historyStore.getState().undo(path)}
-      >
-        <Undo2 className="mr-1 size-4" aria-hidden="true" />
-        {t("workspace:history.undo")}
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-10"
-        title={redoTitle}
-        disabled={redoEntry === undefined}
-        onClick={() => historyStore.getState().redo(path)}
-      >
-        <Redo2 className="mr-1 size-4" aria-hidden="true" />
-        {t("workspace:history.redo")}
-      </Button>
+        <Link
+          to="/tools/convert/export"
+          search={{ file: path }}
+          className="inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)]"
+        >
+          {t("workspace:toolbar.convert")}
+        </Link>
 
-      <Button size="sm" variant="ghost" disabled={!canSave || busy} onClick={() => void onSave()}>
-        {t("save")}
-      </Button>
-      <Button size="sm" variant="ghost" disabled={!canSave || busy} onClick={() => void onSaveAs()}>
-        {t("save_as")}
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        disabled={!hasDocument || busy}
-        onClick={() => {
-          setPrintHint(false);
-          setPrintOpen(true);
-        }}
-      >
-        {t("workspace:print.action")}
-      </Button>
-      <PrintDialog
-        open={printOpen}
-        path={path}
-        pageCount={pageCount}
-        disabled={!hasDocument}
-        onOpenChange={setPrintOpen}
-      />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost">
+              {t("workspace:toolbar.more_tools")}
+              <ChevronDown className="ml-1 size-3.5" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            {OVERFLOW_TOOLS.map(({ key, to }) => (
+              <DropdownMenuItem key={key} asChild>
+                {/* `to` iterates a plain string array; see `ToolTile.tsx`
+                  for the same cast against the generated route union. */}
+                <Link to={to as never}>{t(`tools.${key}`)}</Link>
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onOpenShortcuts}>
+              {t("workspace:shortcuts.open_shortcuts")}
+              <DropdownMenuShortcut>?</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="ml-auto flex items-center gap-1">
+          {onOpenSearch && (
+            <Button
+              type="button"
+
+              variant="ghost"
+              className="h-[var(--control-h)] w-[var(--control-h)] p-0 transition-transform"
+              aria-label={t("workspace:search.open")}
+              onClick={onOpenSearch}
+            >
+              <Search className="size-4" aria-hidden="true" />
+            </Button>
+          )}
+          <PageBox
+            key={activePage}
+            activePage={activePage}
+            pageCount={pageCount}
+            onSelectPage={onSelectPage ?? setStoredActivePage}
+          />
+          <Button
+            type="button"
+
+            variant="ghost"
+            className={bookMode ? "h-[var(--control-h)] w-[var(--control-h)] bg-[var(--color-accent-soft)] p-0" : "h-[var(--control-h)] w-[var(--control-h)] p-0"}
+            aria-label={t("workspace:toolbar.book_mode")}
+            aria-pressed={bookMode}
+            title={t("workspace:toolbar.book_mode")}
+            disabled={pageCount <= 1}
+            onClick={() => setBookMode(path, !bookMode)}
+          >
+            <BookOpen className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-8 px-0"
+            aria-label={t("workspace:zoom_out")}
+            onClick={() => zoomOut(path)}
+          >
+            <Minus className="size-4" aria-hidden="true" />
+          </Button>
+          <button
+            type="button"
+            className="min-w-12 rounded-md px-1 text-center text-xs tabular-nums text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text)]"
+            title={t("workspace:toolbar.zoom_reset")}
+            onClick={() => resetZoom(path)}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+
+                variant="ghost"
+                className="h-[var(--control-h)] w-8 p-0"
+                aria-label={t("workspace:toolbar.zoom_modes")}
+              >
+                <ChevronDown className="size-3.5" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-width")}>
+                <Check
+                  className={zoomMode === "fit-width" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
+                  aria-hidden="true"
+                />
+                {t("workspace:toolbar.fit_width")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-page")}>
+                <Check
+                  className={zoomMode === "fit-page" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
+                  aria-hidden="true"
+                />
+                {t("workspace:toolbar.fit_page")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button
+            variant="ghost"
+            className="w-8 px-0"
+            aria-label={t("workspace:zoom_in")}
+            onClick={() => zoomIn(path)}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  function renderNotices() {
+    return <>
       {hint && (
-        <span role="status" className="text-xs text-[var(--color-muted)]">
+        <span role="status" className="text-xs text-[var(--color-text-muted)]">
           {t("workspace:close_guard.text_draft_hint")}
         </span>
       )}
       {printHint && (
-        <span role="status" className="text-xs text-[var(--color-muted)]">
+        <span role="status" className="text-xs text-[var(--color-text-muted)]">
           {t("workspace:print.no_document")}
         </span>
       )}
+    </>;
+  }
 
-      <Link
-        to="/tools/convert/export"
-        search={{ file: path }}
-        className="inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-control-hover)]"
-      >
-        {t("workspace:toolbar.convert")}
-      </Link>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="ghost">
-            {t("workspace:toolbar.more_tools")}
-            <ChevronDown className="ml-1 size-3.5" aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {OVERFLOW_TOOLS.map(({ key, to }) => (
-            <DropdownMenuItem key={key} asChild>
-              {/* `to` iterates a plain string array; see `ToolTile.tsx`
-                  for the same cast against the generated route union. */}
-              <Link to={to as never}>{t(`tools.${key}`)}</Link>
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onOpenShortcuts}>
-            {t("workspace:shortcuts.open_shortcuts")}
-            <DropdownMenuShortcut>?</DropdownMenuShortcut>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <div className="ml-auto flex items-center gap-1">
-        {onOpenSearch && (
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-10 w-10 p-0 active:scale-[0.96] transition-transform"
-            aria-label={t("workspace:search.open")}
-            onClick={onOpenSearch}
-          >
-            <Search className="size-4" aria-hidden="true" />
-          </Button>
-        )}
-        <PageBox
-          key={activePage}
-          activePage={activePage}
-          pageCount={pageCount}
-          onSelectPage={onSelectPage ?? setStoredActivePage}
-        />
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className={bookMode ? "h-10 w-10 bg-[var(--color-accent-soft)] p-0" : "h-10 w-10 p-0"}
-          aria-label={t("workspace:toolbar.book_mode")}
-          aria-pressed={bookMode}
-          title={t("workspace:toolbar.book_mode")}
-          disabled={pageCount <= 1}
-          onClick={() => setBookMode(path, !bookMode)}
-        >
-          <BookOpen className="size-4" aria-hidden="true" />
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="w-8 px-0"
-          aria-label={t("workspace:zoom_out")}
-          onClick={() => zoomOut(path)}
-        >
-          <Minus className="size-4" aria-hidden="true" />
-        </Button>
-        <button
-          type="button"
-          className="min-w-12 rounded-md px-1 text-center text-xs tabular-nums text-[var(--color-muted)] transition-colors hover:text-[var(--color-foreground)]"
-          title={t("workspace:toolbar.zoom_reset")}
-          onClick={() => resetZoom(path)}
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-10 w-8 p-0"
-              aria-label={t("workspace:toolbar.zoom_modes")}
-            >
-              <ChevronDown className="size-3.5" aria-hidden="true" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-width")}>
-              <Check
-                className={zoomMode === "fit-width" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
-                aria-hidden="true"
-              />
-              {t("workspace:toolbar.fit_width")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setZoomMode(path, "fit-page")}>
-              <Check
-                className={zoomMode === "fit-page" ? "mr-2 size-4" : "mr-2 size-4 opacity-0"}
-                aria-hidden="true"
-              />
-              {t("workspace:toolbar.fit_page")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="w-8 px-0"
-          aria-label={t("workspace:zoom_in")}
-          onClick={() => zoomIn(path)}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-        </Button>
-      </div>
-    </div>
-  );
 }

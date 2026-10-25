@@ -44,7 +44,7 @@ interface FieldState {
   fields: FormField[] | null;
 }
 
-const noop = () => {};
+const noop = () => { };
 
 export function EditFormsPanel({
   docPath,
@@ -76,7 +76,7 @@ export function EditFormsPanel({
     return (
       <section aria-labelledby="forms-title" className="space-y-2">
         <PanelTitle />
-        <p className="text-xs text-[var(--color-muted)]">{t("forms.loading")}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">{t("forms.loading")}</p>
       </section>
     );
   }
@@ -157,7 +157,6 @@ function OwnFieldsSection({
       <h4 className="text-xs font-semibold">{t("forms.own.title")}</h4>
       <div className="flex gap-2">
         <Button
-          size="sm"
           variant="outline"
           aria-pressed={placement === "text"}
           onClick={() => onPlacementChange("text")}
@@ -165,7 +164,6 @@ function OwnFieldsSection({
           {t("forms.own.text")}
         </Button>
         <Button
-          size="sm"
           variant="outline"
           aria-pressed={placement === "checkbox"}
           onClick={() => onPlacementChange("checkbox")}
@@ -174,14 +172,14 @@ function OwnFieldsSection({
         </Button>
       </div>
       {placement && (
-        <p role="status" className="text-xs text-[var(--color-muted)]">
+        <p role="status" className="text-xs text-[var(--color-text-muted)]">
           {t("forms.own.place_hint")}
         </p>
       )}
       <PendingOwnFieldList items={items} selectedId={selectedId} onSelect={onSelect} />
       <SavedOwnFieldList docPath={docPath} fields={savedFields} items={items} onSelect={onSelect} />
       {selected && <OwnFieldEditor docPath={docPath} field={selected} />}
-      <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+      <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
         {t("forms.own.save_hint")}
       </p>
     </div>
@@ -210,8 +208,8 @@ function PendingOwnFieldList({
             onClick={() => onSelect(field.__clientId)}
             className="flex min-h-8 w-full items-center justify-between gap-2 text-left text-xs"
           >
-              <span className="truncate">{field.name || t("forms.unnamed")}</span>{" "}
-            <span className="shrink-0 text-[var(--color-muted)]">
+            <span className="truncate">{field.name || t("forms.unnamed")}</span>{" "}
+            <span className="shrink-0 text-[var(--color-text-muted)]">
               {t("forms.page", { page: field.page + 1 })}
             </span>
           </button>
@@ -295,52 +293,54 @@ function OwnFieldEditor({ docPath, field }: { docPath: string; field: PendingOwn
   return (
     <div className="space-y-2" data-own-field-editor>
       {field.__replaces === undefined ? <>
-      <label htmlFor={id} className="block text-xs">
-        {t("forms.own.name")}
-      </label>
-      <input
-        id={id}
-        value={field.name}
-        onChange={(event) => update({ name: event.target.value })}
-        className="h-8 w-full border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs"
-      />
-      <p className="text-xs text-[var(--color-muted)]">{t(`forms.kind.${field.kind}`)}</p>
-      {field.kind === "text" && (
-        <>
-          <label className="flex items-center gap-2 text-xs">
+        <label htmlFor={id} className="block text-xs">
+          {t("forms.own.name")}
+        </label>
+        <input
+          id={id}
+          value={field.name}
+          onChange={(event) => update({ name: event.target.value })}
+          className="k-input min-w-0 w-full"
+        />
+        <p className="text-xs text-[var(--color-text-muted)]">{t(`forms.kind.${field.kind}`)}</p>
+        {field.kind === "text" && (
+          <>
+            <label className="flex items-center gap-2 text-xs">
+              <span className="k-check">
+                <input className="k-check-input"
+                  type="checkbox"
+                  checked={field.multiline}
+                  onChange={(event) => update({ multiline: event.target.checked })}
+                />
+                <svg className="k-check-mark" viewBox="0 0 12 12" aria-hidden="true"><path className="k-check-tick" pathLength="1" d="M2 6 5 9 10 3" /></svg>
+              </span>
+              {t("forms.own.multiline")}
+            </label>
+            <label htmlFor={`${id}-size`} className="block text-xs">
+              {t("forms.own.font_size")}
+            </label>
             <input
-              type="checkbox"
-              checked={field.multiline}
-              onChange={(event) => update({ multiline: event.target.checked })}
+              id={`${id}-size`}
+              type="number"
+              min={0}
+              step={1}
+              value={field.font_size ?? 0}
+              onChange={(event) => {
+                const value = event.target.value === "" ? 0 : event.target.valueAsNumber;
+                if (Number.isFinite(value) && value >= 0) update({ font_size: value });
+              }}
+              className="k-input min-w-0 w-full"
             />
-            {t("forms.own.multiline")}
-          </label>
-          <label htmlFor={`${id}-size`} className="block text-xs">
-            {t("forms.own.font_size")}
-          </label>
-          <input
-            id={`${id}-size`}
-            type="number"
-            min={0}
-            step={1}
-            value={field.font_size ?? 0}
-            onChange={(event) => {
-              const value = event.target.value === "" ? 0 : event.target.valueAsNumber;
-              if (Number.isFinite(value) && value >= 0) update({ font_size: value });
-            }}
-            className="h-8 w-full border border-[var(--color-border)] bg-[var(--color-control)] px-2 text-xs"
-          />
-        </>
-      )}
+          </>
+        )}
       </> : <p className="text-xs font-medium">{field.name}</p>}
       <Button
-        size="sm"
         variant="outline"
         onClick={() => useAnnotations.getState().remove(docPath, field.__clientId)}
       >
         {t("forms.own.delete")}
       </Button>
-      <p className="text-[11px] text-[var(--color-muted)]">{t("forms.own.move_hint")}</p>
+      <p className="text-[11px] text-[var(--color-text-muted)]">{t("forms.own.move_hint")}</p>
     </div>
   );
 }
@@ -455,7 +455,7 @@ function FieldsBody({
   return (
     <>
       <div className="flex items-center justify-between text-xs">
-        <span className="text-[var(--color-muted)]">
+        <span className="text-[var(--color-text-muted)]">
           {t("forms.field_count", { count: fields.length })}
         </span>
         {dirtyCount > 0 && (
@@ -477,10 +477,10 @@ function FieldsBody({
         ))}
       </div>
 
-      <Button size="sm" className="w-full" disabled={busy || dirtyCount === 0} onClick={onSave}>
+      <Button className="w-full" disabled={busy || dirtyCount === 0} onClick={onSave}>
         {busy ? t("forms.saving") : t("forms.save_copy")}
       </Button>
-      <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
+      <p className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">
         {t("forms.live_form_note")}
       </p>
       {/* Plan 119 p1c: a page of this document may hold printed boxes
@@ -495,12 +495,12 @@ function SaveStatus({ saved, err }: { saved: boolean; err: string | null }) {
   return (
     <>
       {saved && (
-        <p role="status" className="text-xs text-[var(--color-success-text)]">
+        <p role="status" className="text-xs text-[var(--color-success)]">
           {t("forms.saved")}
         </p>
       )}
       {err && (
-        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
+        <p role="alert" className="text-xs text-[var(--color-danger)]">
           {err}
         </p>
       )}
@@ -526,7 +526,7 @@ function PanelTitle() {
       <h3 id="forms-title" className="text-sm font-semibold">
         {t("forms.title")}
       </h3>
-      <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-muted)]">
+      <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
         {t("forms.description")}
       </p>
     </div>
@@ -559,7 +559,7 @@ function FormFieldRow({
           {label}
           {field.required && (
             <span
-              className="ml-0.5 text-[var(--color-danger-text)]"
+              className="ml-0.5 text-[var(--color-danger)]"
               aria-label={t("forms.required")}
             >
               *
@@ -570,7 +570,7 @@ function FormFieldRow({
           <button
             type="button"
             onClick={() => onSelectPage?.(field.page_index!)}
-            className="shrink-0 text-[10px] text-[var(--color-muted)] underline-offset-2 hover:underline"
+            className="shrink-0 text-[10px] text-[var(--color-text-muted)] underline-offset-2 hover:underline"
           >
             {t("forms.page", { page: field.page_index + 1 })}
           </button>
@@ -586,7 +586,7 @@ function FormFieldRow({
       />
 
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[10px] text-[var(--color-muted)] capitalize">
+        <span className="text-[10px] text-[var(--color-text-muted)] capitalize">
           {t(`forms.kind.${field.kind}`)}
           {field.read_only ? ` · ${t("forms.read_only")}` : ""}
         </span>
@@ -594,7 +594,7 @@ function FormFieldRow({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="text-[10px] font-medium text-[var(--color-danger-text)] underline-offset-2 hover:underline"
+            className="text-[10px] font-medium text-[var(--color-danger)] underline-offset-2 hover:underline"
           >
             {t("forms.clear")}
           </button>
@@ -633,14 +633,17 @@ function CheckboxControl({ id, field, value, editable, onChange }: ControlProps)
   const onValue = field.options[0] ?? "Yes";
   const checked = isChecked(value);
   return (
-    <label htmlFor={id} className="flex items-center gap-2 text-xs text-[var(--color-muted)]">
-      <input
-        id={id}
-        type="checkbox"
-        disabled={!editable}
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked ? onValue : null)}
-      />
+    <label htmlFor={id} className="flex items-center gap-2 text-xs text-[var(--color-text-muted)]">
+      <span className="k-check">
+        <input className="k-check-input"
+          id={id}
+          type="checkbox"
+          disabled={!editable}
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked ? onValue : null)}
+        />
+        <svg className="k-check-mark" viewBox="0 0 12 12" aria-hidden="true"><path className="k-check-tick" pathLength="1" d="M2 6 5 9 10 3" /></svg>
+      </span>
       {checked ? t("forms.checked") : t("forms.not_checked")}
     </label>
   );
@@ -651,20 +654,22 @@ function ChoiceControl({ id, field, value, editable, onChange }: ControlProps) {
   const options =
     value !== null && !field.options.includes(value) ? [value, ...field.options] : field.options;
   return (
-    <select
-      id={id}
-      disabled={!editable}
-      value={value ?? ""}
-      onChange={(event) => onChange(event.target.value || null)}
-      className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs"
-    >
-      <option value="">{t("forms.no_value")}</option>
-      {options.map((option) => (
-        <option key={option} value={option}>
-          {option}
-        </option>
-      ))}
-    </select>
+    <span className="k-select-wrap min-w-0 flex-1">
+      <select
+        id={id}
+        disabled={!editable}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value || null)}
+        className="k-select min-w-0 w-full"
+      >
+        <option value="">{t("forms.no_value")}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 
@@ -678,7 +683,7 @@ function TextControl({ id, value, editable, onChange }: ControlProps) {
       value={value ?? ""}
       placeholder={value === null ? t("forms.no_value") : undefined}
       onChange={(event) => onChange(event.target.value)}
-      className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs disabled:opacity-60"
+      className="k-input min-w-0 w-full"
     />
   );
 }

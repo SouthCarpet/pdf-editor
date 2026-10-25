@@ -152,78 +152,86 @@ export function DetectFieldsSection({
 
   const filledCount = annotations?.length ?? 0;
 
-  return (
-    <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
-      <p className="text-xs font-medium">
-        {t(hasNativeFields ? "forms.detect_hybrid_title" : "forms.no_fields")}
-      </p>
-      <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
-        {t(hasNativeFields ? "forms.detect_hybrid_explanation" : "forms.detect_explanation")}
-      </p>
-      <Button size="sm" className="w-full" disabled={busy !== null} onClick={onDetect}>
-        {busy === "detect" ? t("forms.detecting") : t("forms.detect_fields")}
-      </Button>
+  return renderDetection();
 
-      {fields !== null && fields.length === 0 && busy !== "detect" && (
-        <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
-          {t("forms.detect_empty")}
+  function renderDetection() {
+    return (
+      <div className="space-y-2 border-t border-[var(--color-border)] pt-3">
+        <p className="text-xs font-medium">
+          {t(hasNativeFields ? "forms.detect_hybrid_title" : "forms.no_fields")}
         </p>
-      )}
+        <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+          {t(hasNativeFields ? "forms.detect_hybrid_explanation" : "forms.detect_explanation")}
+        </p>
+        <Button className="w-full" disabled={busy !== null} onClick={onDetect}>
+          {busy === "detect" ? t("forms.detecting") : t("forms.detect_fields")}
+        </Button>
 
-      {fields !== null && fields.length > 0 && (
-        <>
-          <p className="text-xs text-[var(--color-muted)]">
-            {t("forms.detected_field_count", { count: fields.length })}
+        {fields !== null && fields.length === 0 && busy !== "detect" && (
+          <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+            {t("forms.detect_empty")}
           </p>
-          {showPrefill && matchingRecord !== undefined && (
-            <div
-              role="region"
-              aria-label={t("forms.prefill_apply")}
-              className="space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-accent-soft)] px-2 py-2"
-            >
-              <p className="text-[11px] leading-relaxed text-[var(--color-accent-soft-foreground)]">
-                {t("forms.prefill_banner", {
-                  date: formatPrefillDate(matchingRecord.savedAt, i18n.language),
-                })}
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={onPrefill}>
-                  {t("forms.prefill_apply")}
-                </Button>
-                <Button size="sm" variant="outline" onClick={onDismissPrefill}>
-                  {t("forms.prefill_dismiss")}
-                </Button>
-              </div>
-            </div>
-          )}
-          <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
-            {t("forms.detect_hint")}
+        )}
+
+        {renderDetectedFields()}
+
+        {saved && (
+          <p role="status" className="text-xs text-[var(--color-success)]">
+            {t("forms.detect_saved")}
           </p>
-          <Button
-            size="sm"
-            className="w-full"
-            disabled={busy !== null || filledCount === 0}
-            onClick={onSaveFilled}
+        )}
+        {err && (
+          <p role="alert" className="text-xs text-[var(--color-danger)]">
+            {err}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  function renderDetectedFields() {
+    if (fields === null || fields.length === 0) return null;
+    return (
+      <>
+        <p className="text-xs text-[var(--color-text-muted)]">
+          {t("forms.detected_field_count", { count: fields.length })}
+        </p>
+        {showPrefill && matchingRecord !== undefined && (
+          <div
+            role="region"
+            aria-label={t("forms.prefill_apply")}
+            className="space-y-2 rounded border border-[var(--color-border)] bg-[var(--color-accent-soft)] px-2 py-2"
           >
-            {busy === "save"
-              ? t("forms.saving")
-              : t(hasNativeFields ? "forms.detect_save_all" : "forms.detect_save")}
-          </Button>
-        </>
-      )}
-
-      {saved && (
-        <p role="status" className="text-xs text-[var(--color-success-text)]">
-          {t("forms.detect_saved")}
+            <p className="text-[11px] leading-relaxed text-[var(--color-accent-soft-foreground)]">
+              {t("forms.prefill_banner", {
+                date: formatPrefillDate(matchingRecord.savedAt, i18n.language),
+              })}
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={onPrefill}>
+                {t("forms.prefill_apply")}
+              </Button>
+              <Button variant="outline" onClick={onDismissPrefill}>
+                {t("forms.prefill_dismiss")}
+              </Button>
+            </div>
+          </div>
+        )}
+        <p className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">
+          {t("forms.detect_hint")}
         </p>
-      )}
-      {err && (
-        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
-          {err}
-        </p>
-      )}
-    </div>
-  );
+        <Button
+          className="w-full"
+          disabled={busy !== null || filledCount === 0}
+          onClick={onSaveFilled}
+        >
+          {busy === "save"
+            ? t("forms.saving")
+            : t(hasNativeFields ? "forms.detect_save_all" : "forms.detect_save")}
+        </Button>
+      </>
+    );
+  }
 }
 
 function formatCommandError(error: unknown): string {

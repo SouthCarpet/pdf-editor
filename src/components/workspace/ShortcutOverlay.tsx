@@ -59,7 +59,7 @@ export function ShortcutOverlay({ open, onOpenChange }: ShortcutOverlayProps) {
               <section key={group} aria-labelledby={`shortcut-group-${group}`}>
                 <h3
                   id={`shortcut-group-${group}`}
-                  className="mb-2 text-sm font-semibold text-[var(--color-foreground)]"
+                  className="mb-2 text-sm font-semibold text-[var(--color-text)]"
                 >
                   {groupTitle(t, group)}
                 </h3>
@@ -68,21 +68,21 @@ export function ShortcutOverlay({ open, onOpenChange }: ShortcutOverlayProps) {
                     <div
                       key={row.id}
                       data-shortcut-id={row.id}
-                      className="flex min-h-10 items-center justify-between gap-4 py-2 text-sm"
+                      className="flex min-h-[var(--control-h)] items-center justify-between gap-4 py-2 text-sm"
                     >
-                      <span className="text-pretty text-[var(--color-foreground)]">
+                      <span className="text-pretty text-[var(--color-text)]">
                         {t(shortcutTranslationKey(row))}
                       </span>
                       <span className="flex shrink-0 items-center gap-1" aria-hidden="true">
                         {formatKeys(row).map((token, index) =>
                           token === "+" || token === "/" ? (
-                            <span key={`${token}-${index}`} className="text-xs text-[var(--color-muted)]">
+                            <span key={`${token}-${index}`} className="text-xs text-[var(--color-text-muted)]">
                               {token}
                             </span>
                           ) : (
                             <kbd
                               key={`${token}-${index}`}
-                              className="min-w-6 rounded-sm border border-[var(--color-border)] bg-[var(--color-control)] px-1.5 py-0.5 text-center text-xs font-medium text-[var(--color-foreground)]"
+                              className="min-w-6 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-1.5 py-0.5 text-center text-xs font-medium text-[var(--color-text)]"
                             >
                               {token}
                             </kbd>

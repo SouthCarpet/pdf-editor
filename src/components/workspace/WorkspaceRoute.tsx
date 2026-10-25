@@ -92,7 +92,7 @@ export function WorkspaceRoute() {
         scroll_y: 0,
         zoom: 1.0,
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       // On unmount keep the slot (so a relaunch restores it). The
       // "Discard" button in SessionRestorePrompt clears explicitly.
@@ -114,7 +114,7 @@ export function WorkspaceRoute() {
     return <CompareWorkspace initialLeftPath={docId === "new" ? null : decodeDocId(docId)} />;
   }
   if (!path || !pdfDoc) {
-    return <div className="p-6 text-[var(--color-muted)]">{t("loading")}</div>;
+    return <div className="p-6 text-[var(--color-text-muted)]">{t("loading")}</div>;
   }
   return (
     <>
@@ -138,7 +138,7 @@ function OpenFailed({ error, docId }: { error: OpenError; docId: string }) {
   const navigate = useNavigate();
   return (
     <div className="space-y-3 p-6">
-      <p className="text-[var(--color-danger-text)]">
+      <p className="text-[var(--color-danger)]">
         {t("opening.failed_document", {
           // Every AppError key has an entry in errors.json, so translate it
           // rather than stringifying the payload. The raw fallback only runs
@@ -152,7 +152,7 @@ function OpenFailed({ error, docId }: { error: OpenError; docId: string }) {
           it was previously discarded. Shown small rather than hidden, because
           "it will not open" with no path is unactionable for the user and for
           anyone they report it to. */}
-      <p className="break-all font-mono text-xs text-[var(--color-muted)]">{decodeDocId(docId)}</p>
+      <p className="break-all font-mono text-xs text-[var(--color-text-muted)]">{decodeDocId(docId)}</p>
       <Button onClick={() => navigate({ to: "/projects" })}>
         {t("projects.back_to_projects")}
       </Button>
@@ -366,7 +366,7 @@ function OcrResultToast({
     <div
       role={error ? "alert" : "status"}
       aria-live={error ? "assertive" : "polite"}
-      className="fixed right-5 bottom-5 z-50 w-[min(420px,calc(100vw-2.5rem))] rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] p-4 shadow-xl"
+      className="fixed right-5 bottom-5 z-50 w-[min(420px,calc(100vw-2.5rem))] rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-4"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -374,7 +374,7 @@ function OcrResultToast({
             {t(error ? "ocr_result.failed_title" : "ocr_result.title")}
           </h2>
           {result && (
-            <p className="mt-1 text-xs text-[var(--color-muted)] tabular-nums">
+            <p className="mt-1 text-xs text-[var(--color-text-muted)] tabular-nums">
               {t("ocr_result.summary", {
                 pages: result.pages_processed,
                 characters: result.characters_recognized,
@@ -382,7 +382,7 @@ function OcrResultToast({
             </p>
           )}
           {result && outputPath && (
-            <p className="mt-1 truncate text-xs text-[var(--color-muted)]" title={outputPath}>
+            <p className="mt-1 truncate text-xs text-[var(--color-text-muted)]" title={outputPath}>
               {t("ocr_result.output_file", { name: fileName(outputPath) })}
             </p>
           )}
@@ -391,13 +391,13 @@ function OcrResultToast({
           type="button"
           aria-label={t("ocr_result.close")}
           onClick={onClose}
-          className="-m-2 inline-flex size-10 items-center justify-center rounded-md text-[var(--color-muted)] transition-transform duration-150 ease-out hover:text-[var(--color-foreground)] active:scale-[0.96]"
+          className="-m-2 inline-flex size-10 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-transform duration-150 ease-out hover:text-[var(--color-text)]"
         >
           <X className="size-4" aria-hidden="true" />
         </button>
       </div>
       {error && (
-        <p className="mt-3 text-xs text-[var(--color-danger-text)]">
+        <p className="mt-3 text-xs text-[var(--color-danger)]">
           {t("ocr_result.failed", { error })}
         </p>
       )}
@@ -414,7 +414,7 @@ function OcrResultDetails({ result }: { result: OcrResult }) {
       {result.backend_notice && (
         <p
           title={result.backend_notice}
-          className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-2 py-1.5 text-[var(--color-warning-soft-foreground)]"
+          className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-2 py-1.5 text-[var(--color-text)]"
         >
           {t("ocr_result.fallback")}
         </p>
@@ -423,12 +423,12 @@ function OcrResultDetails({ result }: { result: OcrResult }) {
         {result.average_confidence == null
           ? t("ocr_result.confidence_unavailable")
           : t("ocr_result.confidence", {
-              value: result.average_confidence.toFixed(1),
-            })}
+            value: result.average_confidence.toFixed(1),
+          })}
       </p>
       {result.low_confidence_pages.length > 0 && <LowConfidencePages result={result} />}
       {result.cache_hits > 0 && (
-        <p className="text-[var(--color-muted)]">
+        <p className="text-[var(--color-text-muted)]">
           {t("ocr_result.cache_hits", { count: result.cache_hits })}
         </p>
       )}
@@ -449,7 +449,7 @@ function LowConfidencePages({ result }: { result: OcrResult }) {
           .map((page) => (
             <span
               key={page.page_number}
-              className="rounded-full bg-[var(--color-warning-soft)] px-2 py-0.5 text-[var(--color-warning-soft-foreground)] tabular-nums"
+              className="bg-[var(--color-warning-soft)] px-2 py-0.5 text-[var(--color-text)] tabular-nums"
             >
               {t("ocr_result.page_badge", {
                 page: page.page_number,
@@ -485,12 +485,12 @@ function CompareWorkspace({ initialLeftPath }: { initialLeftPath: string | null 
             visualResult={visualResult}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-[var(--color-muted)]">
+          <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
             {t("compare.viewer_empty")}
           </div>
         )}
       </main>
-      <aside className="w-72 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-card)] p-3">
+      <aside className="w-72 shrink-0 border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] p-3">
         <ComparePanel
           leftPath={leftPath}
           rightPath={rightPath}

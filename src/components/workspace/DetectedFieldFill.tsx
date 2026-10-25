@@ -53,9 +53,9 @@ export function DetectedFieldFill({ field, screenRect, onSubmit, onCancel }: Pro
           if (event.key === "Enter") submit();
           if (event.key === "Escape") onCancel();
         }}
-        className="h-full min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[var(--color-card)] px-1 text-xs"
+        className="k-input min-w-0 w-full"
       />
-      <Button size="sm" className="h-full shrink-0" onClick={submit}>
+      <Button className="h-full shrink-0" onClick={submit}>
         {t("forms.detect_submit")}
       </Button>
     </div>
