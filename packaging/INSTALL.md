@@ -53,7 +53,7 @@ The setup EXE is not signed. Windows SmartScreen can warn on first run.
 Check the file before you run it:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 .\pdf-editor-setup-0.1.0.exe
+Get-FileHash -Algorithm SHA256 .\pdf-editor-setup-X.Y.Z.exe
 ```
 
 The hash must equal the line in `SHA256SUMS.txt` of the same release.

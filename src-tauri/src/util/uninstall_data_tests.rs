@@ -340,7 +340,7 @@ fn a_root_outside_its_base_is_refused() {
 
 #[test]
 fn profile_with_spaces_and_slovak_letters_works() {
-    let tree = Tree::new_in("Michal Šťastný Ľubovníkový");
+    let tree = Tree::new_in("Peter Šťastný Ľubovníkový");
 
     let report = remove_user_data(&tree.roots, choice(true, true));
 

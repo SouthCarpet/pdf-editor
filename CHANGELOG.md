@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 - 2026-10-26
 
 The app uses Fira Sans and the Kaliber r4 design language.
 

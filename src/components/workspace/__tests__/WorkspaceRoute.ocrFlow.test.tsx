@@ -1,4 +1,4 @@
-// Plan 062 T1.2 + T1.4: two defects Michal reported against the built app.
+// Plan 062 T1.2 + T1.4: two defects the owner reported against the built app.
 //
 //   1. The OCR-detected scan prompt opened automatically on every document
 //      open, scanned or not, with no way to make it stop. Fixed by removing
@@ -181,7 +181,7 @@ describe("workspace route OCR flow (plan 062 T1.2/T1.4)", () => {
     // The Text panel's own scan detection still runs (it drives the
     // scanned-page empty state) - what must NOT happen is the dialog
     // opening on its own. Wait for that detection to resolve, then assert
-    // the store never flipped - this is the exact defect Michal reported
+    // the store never flipped - this is the exact defect the owner reported
     // (the prompt appeared every time, unconditionally).
     await screen.findAllByText(/timesheet-scan\.pdf/);
     await waitFor(() => expect(commandFakes.detectScannedPdf).toHaveBeenCalledWith(DOC_PATH));

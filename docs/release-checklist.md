@@ -72,3 +72,17 @@ Use a test Windows user or a virtual machine. Keep the setup log:
    and not while the release workflow runs: the job reads the draft state
    once, just before it uploads.
    Only then does the update check of installed apps see it.
+
+## 3. Forms and display checks (owner)
+
+Use synthetic documents on the test user or virtual machine from section 2.
+Complete these checks before publishing the draft release.
+
+1. **Reader round trip.** Create and save a text field and a checkbox. Open
+   the PDF in Edge, type into the text field, check the checkbox and save.
+   Reopen it in PDF Editor and verify both values. Repeat in Acrobat Reader
+   if it is installed.
+2. **Display and keyboard.** Check light and dark themes at 960 x 600,
+   1280 x 800 and 1440 x 900. Verify visible keyboard focus and the longest
+   English and Slovak button labels. Check Settings at 200% text zoom:
+   text and controls must not be clipped.

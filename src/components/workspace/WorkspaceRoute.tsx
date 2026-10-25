@@ -241,7 +241,7 @@ function useDocumentLoader(docId: string, search: WorkspaceSearch, isCompareMode
       }
       // Phase 13 Task 71 used to kick off scan detection here and
       // auto-open the OCR dialog on every open (defect, plan 062 T1.2:
-      // Michal reported the prompt appearing on every document, scanned
+      // The owner reported the prompt appearing on every document, scanned
       // or not, with no way to dismiss it for good). Scan detection
       // itself still runs - `EditTextPanel` calls `detectScannedPdf`
       // itself to drive its own scanned-page empty state - so removing

@@ -27,7 +27,7 @@ PDF Editor installs per user, without administrator rights, into
 `%LOCALAPPDATA%\Programs\PDF Editor`.
 
 1. Download `pdf-editor-setup-X.Y.Z.exe` and `SHA256SUMS.txt` from the
-   GitHub release.
+   GitHub release. See the Releases page for the current version.
 2. The setup EXE is not signed (Windows SmartScreen can warn). Compare its
    SHA-256 with the line in `SHA256SUMS.txt`:
 

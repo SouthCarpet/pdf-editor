@@ -2,7 +2,7 @@
 // same layout the built app ships (`target/{debug,release}`: unsuffixed exe,
 // no DLLs colocated), with a scrubbed PATH so the developer machine's PATH
 // cannot mask a delivery defect. See
-// `A:/projects-vault/apps/pdf-editor/.vault/process/plans/plan_v1_sidecar_dlls.md`
+// `.vault/process/plans/plan_v1_sidecar_dlls.md`
 // (gate-phase verification contract) for the requirements this encodes.
 //
 // `resolve_binary`'s first branch resolves `current_exe().parent().join("{name}.exe")`.

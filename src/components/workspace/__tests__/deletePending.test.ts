@@ -1,6 +1,6 @@
 // Plan 062 T1.1: the workspace Delete path. Removing a pending FreeText
 // that filled a detected field must (1) drop the annotation and (2) clear
-// the filled mark so the detected box can be filled again. Oracle: Michal
+// the filled mark so the detected box can be filled again. Oracle: the owner
 // 2026-08-29, item 1.
 import { describe, expect, it, beforeEach } from "vitest";
 import type { Annotation } from "@/bindings";
