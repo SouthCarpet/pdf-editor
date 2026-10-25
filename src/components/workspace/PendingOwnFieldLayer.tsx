@@ -1,15 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { PageViewport } from "pdfjs-dist";
 import type { KonvaEventObject } from "konva/lib/Node";
 import type { Vector2d } from "konva/lib/types";
 import { Group, Rect, Text } from "react-konva";
 import type { OwnFieldKind } from "@/bindings";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
-import { readToken } from "@/lib/tokens";
+import { useCanvasColors } from "./useCanvasColors";
 import { clampToPage, defaultOwnFieldRect, drawnOwnFieldRect } from "./ownFieldGeometry";
 import { toScreenRect, type ScreenRect } from "./detectedFieldGeometry";
+import { resizeOwnFieldEdge } from "./ownFieldResize";
 import {
-  resizeScreenEdge,
   toPdfRect,
   type OwnFieldAnnotation,
   type ResizeEdge,
@@ -29,27 +29,7 @@ interface Props {
   interactive?: boolean;
 }
 
-function fieldColors() {
-  return {
-    accent: readToken("--color-accent", "#555"),
-    soft: readToken("--color-accent-soft", "#eee"),
-    text: readToken("--color-text", "#111"),
-  };
-}
-type FieldColors = ReturnType<typeof fieldColors>;
-
-function useFieldColors() {
-  const [colors, setColors] = useState(fieldColors);
-  useEffect(() => {
-    const observer = new MutationObserver(() => setColors(fieldColors()));
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme", "class"],
-    });
-    return () => observer.disconnect();
-  }, []);
-  return colors;
-}
+type FieldColors = ReturnType<typeof useCanvasColors>;
 
 export function PendingOwnFieldLayer({
   page,
@@ -62,7 +42,7 @@ export function PendingOwnFieldLayer({
   onPlace,
   interactive = true,
 }: Props) {
-  const colors = useFieldColors();
+  const colors = useCanvasColors();
   const fields = annotations.filter(
     (item): item is ClientAnnotation & OwnFieldAnnotation =>
       item.type === "form_field" && !item.__deleted && item.page === page
@@ -100,11 +80,6 @@ function pointer(event: PointerEvent): [number, number] | null {
 
 function square(rect: PdfRect, pageBox: readonly number[]): PdfRect {
   const side = Math.max(rect[2] - rect[0], rect[3] - rect[1], 12);
-  return fittedSquare(rect, side, pageBox);
-}
-
-function squareFromEdge(rect: PdfRect, edge: ResizeEdge, pageBox: readonly number[]): PdfRect {
-  const side = edge === "left" || edge === "right" ? rect[2] - rect[0] : rect[3] - rect[1];
   return fittedSquare(rect, side, pageBox);
 }
 
@@ -211,12 +186,7 @@ function OwnFieldBox({
   const accent = colors.accent;
   function resize(edge: ResizeEdge, event: KonvaEventObject<DragEvent>): PdfRect {
     const coordinate = edge === "left" || edge === "right" ? event.target.x() : event.target.y();
-    const resized = resizeScreenEdge(base!, edge, coordinate + 4.5, 12 * viewport.scale);
-    const rect = toPdfRect(resized, viewport);
-    return clampToPage(
-      field.kind === "checkbox" ? squareFromEdge(rect, edge, viewport.viewBox) : rect,
-      viewport.viewBox
-    );
+    return resizeOwnFieldEdge(base!, field.kind, viewport, edge, coordinate + 4.5);
   }
   return (
     <Group>
@@ -247,6 +217,7 @@ function OwnFieldBox({
         height={Math.max(0, screen.height - 6)}
         text={field.name}
         fontSize={Math.min(12, screen.height - 4)}
+        fontFamily="Fira Sans"
         fill={colors.text}
         listening={false}
         wrap="none"

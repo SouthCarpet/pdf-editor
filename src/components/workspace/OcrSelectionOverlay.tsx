@@ -1,3 +1,5 @@
+import { withAlpha } from "@/lib/tokens";
+import { useCanvasColors } from "./useCanvasColors";
 import { useState } from "react";
 import { Group, Rect } from "react-konva";
 import type { KonvaEventObject } from "konva/lib/Node";
@@ -28,6 +30,7 @@ export function OcrSelectionOverlay({
   selectedIds,
   onSelectionChange,
 }: Props) {
+  const colors = useCanvasColors();
   const [drag, setDrag] = useState<DragRect | null>(null);
 
   function startDrag(event: KonvaEventObject<MouseEvent>) {
@@ -62,16 +65,7 @@ export function OcrSelectionOverlay({
     if (drag.width >= 3 || drag.height >= 3) {
       const next = new Set(selectedIds);
       for (const word of words) {
-        const [x0, y0, x1, y1] = word.bbox;
-        if (x0 === null || y0 === null || x1 === null || y1 === null) continue;
-        if (
-          x0 * width <= drag.x + drag.width &&
-          x1 * width >= drag.x &&
-          y0 * height <= drag.y + drag.height &&
-          y1 * height >= drag.y
-        ) {
-          next.add(word.id);
-        }
+        if (wordIntersects(word, drag, width, height)) next.add(word.id);
       }
       onSelectionChange(next);
     } else {
@@ -96,7 +90,7 @@ export function OcrSelectionOverlay({
           y={0}
           width={width}
           height={height}
-          fill="rgba(0,0,0,0.001)"
+          fill={withAlpha(colors.accent, 0.001)}
           listening
         />
         {words.map((word) => {
@@ -110,8 +104,9 @@ export function OcrSelectionOverlay({
               y={y0 * height}
               width={(x1 - x0) * width}
               height={(y1 - y0) * height}
-              fill={selected ? "rgba(37, 99, 235, 0.24)" : "rgba(37, 99, 235, 0.05)"}
-              stroke={selected ? "#2563eb" : "rgba(37, 99, 235, 0.45)"}
+              fill={colors.soft}
+              opacity={selected ? 1 : 0.5}
+              stroke={colors.accent}
               strokeWidth={selected ? 1.5 : 0.75}
               onClick={() => toggle(word.id)}
               onTap={() => toggle(word.id)}
@@ -124,8 +119,8 @@ export function OcrSelectionOverlay({
             y={drag.y}
             width={drag.width}
             height={drag.height}
-            fill="rgba(37, 99, 235, 0.10)"
-            stroke="#2563eb"
+            fill={colors.soft}
+            stroke={colors.accent}
             dash={[4, 3]}
             listening={false}
           />
@@ -133,4 +128,12 @@ export function OcrSelectionOverlay({
       </Group>
     </OverlayCanvas>
   );
+}
+
+
+function wordIntersects(word: OcrSelectableWord, drag: DragRect, width: number, height: number): boolean {
+  const [x0, y0, x1, y1] = word.bbox;
+  if (x0 === null || y0 === null || x1 === null || y1 === null) return false;
+  return x0 * width <= drag.x + drag.width && x1 * width >= drag.x &&
+    y0 * height <= drag.y + drag.height && y1 * height >= drag.y;
 }
