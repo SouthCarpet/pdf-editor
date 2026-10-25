@@ -16,6 +16,201 @@ const NAME_RECT: [f32; 4] = [100.0, 650.0, 240.0, 672.0];
 const MOVED_RECT: [f32; 4] = [100.0, 600.0, 240.0, 622.0];
 const EXISTING_RECT: [f32; 4] = [36.0, 700.0, 240.0, 724.0];
 
+// Oracle: E1 item 8. Adding an AcroForm field to an XFA hybrid must keep
+// its existing XFA packet. This is preservation, not dynamic XFA editing.
+#[test]
+fn edge_xfa_packet_survives_an_own_field_save() {
+    let fixture = fixture(None, Form::Missing);
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let packet = b"<template xmlns=\"http://www.xfa.org/schema/xfa-template/3.3/\"/>";
+    let xfa = doc.add_object(lopdf::Stream::new(dictionary! {}, packet.to_vec()));
+    doc.catalog_mut().unwrap().set(
+        "AcroForm",
+        dictionary! {
+            "Fields" => Vec::<Object>::new(), "XFA" => xfa,
+        },
+    );
+    doc.save(&fixture.input).unwrap();
+    let output = fixture.path("xfa.pdf");
+    let result = save_annotations(
+        &fixture.input,
+        &output,
+        &[text_field("Own", NAME_RECT)],
+        &[],
+    );
+    if let Err(error) = result {
+        let kept = fixture._dir.keep();
+        panic!(
+            "XFA save failed: {error:#}; generated files kept at {}",
+            kept.display()
+        );
+    }
+    let saved = match Document::load(&output) {
+        Ok(saved) => saved,
+        Err(error) => {
+            let kept = fixture._dir.keep();
+            panic!(
+                "XFA reopen failed: {error}; generated files kept at {}",
+                kept.display()
+            );
+        }
+    };
+    assert_eq!(
+        acroform(&saved).get(b"XFA").unwrap(),
+        &Object::Reference(xfa)
+    );
+    assert_eq!(
+        saved
+            .get_object(xfa)
+            .unwrap()
+            .as_stream()
+            .unwrap()
+            .get_plain_content()
+            .unwrap(),
+        packet
+    );
+    assert_eq!(fields(&output)[0].name, "Own");
+}
+
+// Oracle: E1 item 8. The existing form reader must expose a signature field
+// carrying a signature dictionary, so the frontend can warn before writing.
+// The dummy bytes model signature structure, not a cryptographic signature.
+#[test]
+fn edge_signature_field_is_reported_before_and_after_an_own_field_save() {
+    let fixture = fixture(
+        None,
+        Form::Direct {
+            existing: "Approval",
+        },
+    );
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let signature = doc.add_object(dictionary! {
+        "Type" => "Sig", "Filter" => "Adobe.PPKLite", "SubFilter" => "adbe.pkcs7.detached",
+        "ByteRange" => vec![0.into(), 100.into(), 200.into(), 10.into()],
+        "Contents" => Object::String(vec![0; 32], lopdf::StringFormat::Hexadecimal),
+    });
+    let widget = doc
+        .get_dictionary_mut(fixture.existing_id.unwrap())
+        .unwrap();
+    widget.set("FT", "Sig");
+    widget.set("V", signature);
+    doc.save(&fixture.input).unwrap();
+    assert_eq!(fields(&fixture.input)[0].kind, FormFieldKind::Signature);
+    let output = fixture.path("signed-structure.pdf");
+    save(
+        &fixture.input,
+        &output,
+        &[text_field("Own", NAME_RECT)],
+        &[],
+    );
+    assert_eq!(fields(&output)[0].kind, FormFieldKind::Signature);
+    assert_eq!(fields(&output).len(), 2);
+}
+
+// Oracle: E1 item 8 asks for a measurement, with no pass/fail time limit.
+// One field on the last of 500 blank synthetic pages must survive a reopen.
+#[test]
+fn edge_500_pages_save_one_own_field_and_report_elapsed_time() {
+    let fixture = fixture(None, Form::Missing);
+    let mut doc = Document::load(&fixture.input).unwrap();
+    let page = doc.get_dictionary(fixture.page_id).unwrap().clone();
+    let parent = page.get(b"Parent").unwrap().as_reference().unwrap();
+    let mut kids = vec![Object::Reference(fixture.page_id)];
+    for _ in 1..500 {
+        kids.push(Object::Reference(doc.add_object(page.clone())));
+    }
+    let pages = doc.get_dictionary_mut(parent).unwrap();
+    pages.set("Kids", kids);
+    pages.set("Count", 500);
+    doc.save(&fixture.input).unwrap();
+    let output = fixture.path("500-pages.pdf");
+    let mut field = text_field("Last page", NAME_RECT);
+    if let Annotation::FormField { page, .. } = &mut field {
+        *page = 499;
+    }
+    let start = std::time::Instant::now();
+    save(&fixture.input, &output, &[field], &[]);
+    eprintln!(
+        "E1 500-page own-field save: {:.3} ms",
+        start.elapsed().as_secs_f64() * 1000.0
+    );
+    assert_eq!(Document::load(&output).unwrap().get_pages().len(), 500);
+    assert_eq!(fields(&output)[0].page_index, Some(499));
+    assert_eq!(fields(&output)[0].rect, NAME_RECT);
+}
+
+// Oracle: E1 item 8. Password unlock uses the production qpdf wrapper;
+// the unlocked copy accepts a field and preserves it through a reopen.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real qpdf; --features sidecar-tests"
+)]
+async fn edge_password_unlocked_pdf_accepts_an_own_field() {
+    use pdf_editor_lib::sidecars::{manager::SidecarManager, qpdf::QpdfWrapper};
+    let fixture = fixture(None, Form::Missing);
+    let encrypted = fixture.path("encrypted.pdf");
+    let unlocked = fixture.path("unlocked.pdf");
+    let output = fixture.path("filled-unlocked.pdf");
+    run_sidecar(
+        "qpdf",
+        &[
+            "--encrypt".into(),
+            "test-user".into(),
+            "test-owner".into(),
+            "256".into(),
+            "--".into(),
+            fixture.input.display().to_string(),
+            encrypted.display().to_string(),
+        ],
+    )
+    .await;
+    QpdfWrapper::new(SidecarManager::new(1))
+        .decrypt(&encrypted, &unlocked, Some("test-user"))
+        .await
+        .unwrap();
+    save(&unlocked, &output, &[text_field("Own", NAME_RECT)], &[]);
+    assert_eq!(fields(&output)[0].name, "Own");
+}
+
+// Oracle: E1 item 8. Both qpdf storage forms must be readable before editing.
+// A full save need not preserve linearization or compressed object storage.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "requires real qpdf; --features sidecar-tests"
+)]
+async fn edge_linearized_and_object_stream_pdfs_accept_an_own_field() {
+    use pdf_editor_lib::sidecars::{manager::SidecarManager, qpdf::QpdfWrapper};
+    let fixture = fixture(None, Form::Missing);
+    let linear = fixture.path("linear.pdf");
+    let objects = fixture.path("objects.pdf");
+    let qpdf = QpdfWrapper::new(SidecarManager::new(1));
+    qpdf.linearize(&fixture.input, &linear, None).await.unwrap();
+    qpdf.object_streams_generate(&fixture.input, &objects, None)
+        .await
+        .unwrap();
+    assert!(std::fs::read(&linear)
+        .unwrap()
+        .windows(11)
+        .any(|bytes| bytes == b"/Linearized"));
+    assert!(std::fs::read(&objects)
+        .unwrap()
+        .windows(7)
+        .any(|bytes| bytes == b"/ObjStm"));
+    for input in [linear, objects] {
+        let output = fixture.path("edited.pdf");
+        save(&input, &output, &[text_field("Own", NAME_RECT)], &[]);
+        assert_eq!(fields(&output)[0].rect, NAME_RECT);
+        let (stdout, _) =
+            run_sidecar("qpdf", &["--check".into(), output.display().to_string()]).await;
+        assert!(
+            stdout.contains("No syntax or stream encoding errors found"),
+            "{stdout}"
+        );
+    }
+}
+
 // Oracle: writer rule 5 stores the unrotated PDF rect exactly and copies
 // /Rotate into /MK /R, including the 180 and 270 degree cases from V2 D.
 #[test]
@@ -1117,4 +1312,103 @@ async fn r9_qpdf_and_mutool_accept_the_saved_fields() {
     let show = ["show", &file, "trailer/Root"].map(String::from);
     let (stdout, _) = run_sidecar("mutool", &show).await;
     assert!(stdout.contains("/AcroForm"), "{stdout}");
+
+    let png = fixture.path("ghostscript-page1.png");
+    run_sidecar(
+        "gswin64c",
+        &[
+            "-dSAFER".into(),
+            "-dBATCH".into(),
+            "-dNOPAUSE".into(),
+            "-dPrinted=true".into(),
+            "-sDEVICE=png16m".into(),
+            "-r72".into(),
+            format!("-sOutputFile={}", png.display()),
+            file.clone(),
+        ],
+    )
+    .await;
+    assert!(image::open(png).unwrap().width() > 0);
+
+    // Real pdf.js runs in a separate Node process: its optional native canvas
+    // must not load into a Vitest worker (the same boundary as viewport tests).
+    let script = r#"
+        const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const { readFileSync } = await import('node:fs');
+        const task = getDocument({ data: new Uint8Array(readFileSync(process.argv[1])) });
+        try {
+            const pdf = await task.promise;
+            const page = await pdf.getPage(1);
+            const fields = (await page.getAnnotations()).map(a => ({ name: a.fieldName, type: a.fieldType, rect: a.rect }));
+            fields.sort((a, b) => a.name.localeCompare(b.name));
+            console.log(JSON.stringify(fields));
+        } finally { await task.destroy(); }
+    "#;
+    let result = std::process::Command::new("node")
+        .args(["--input-type=module", "--eval", script, &file])
+        .current_dir(env!("CARGO_MANIFEST_DIR"))
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let read: serde_json::Value = serde_json::from_str(stdout.lines().last().unwrap()).unwrap();
+    assert_eq!(
+        read,
+        serde_json::json!([
+            { "name": "Meno", "type": "Tx", "rect": [100, 650, 240, 672] },
+            { "name": "Suhlas", "type": "Btn", "rect": [100, 600, 114, 614] },
+        ])
+    );
+}
+
+// Oracle: E1 item 10 and the own-field contract: a pending empty field is
+// saved through the print-copy writer with a 0.5 pt edge and no label or fill.
+#[test]
+fn edge_empty_own_field_prints_only_a_half_point_border() {
+    use lopdf::content::Content;
+    let fixture = fixture(None, Form::Missing);
+    let output = fixture.path("print-copy.pdf");
+    let written = save(
+        &fixture.input,
+        &output,
+        &[text_field("Do not print this name", NAME_RECT)],
+        &[],
+    );
+    let doc = Document::load(output).unwrap();
+    let widget = widget(&doc, written_id(&written, 0));
+    assert_eq!(widget.get(b"F").unwrap(), &Object::Integer(4));
+    let ap = widget
+        .get(b"AP")
+        .unwrap()
+        .as_dict()
+        .unwrap()
+        .get(b"N")
+        .unwrap()
+        .as_reference()
+        .unwrap();
+    let content = Content::decode(
+        &doc.get_object(ap)
+            .unwrap()
+            .as_stream()
+            .unwrap()
+            .get_plain_content()
+            .unwrap(),
+    )
+    .unwrap();
+    let width = content
+        .operations
+        .iter()
+        .find(|op| op.operator == "w")
+        .unwrap();
+    assert_eq!(width.operands, vec![Object::Real(0.5)]);
+    let operators: Vec<_> = content
+        .operations
+        .iter()
+        .map(|op| op.operator.as_str())
+        .collect();
+    assert_eq!(operators, ["q", "RG", "w", "re", "S", "Q", "BMC", "EMC"]);
 }

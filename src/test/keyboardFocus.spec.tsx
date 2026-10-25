@@ -22,14 +22,15 @@ afterAll(() => vi.unstubAllGlobals());
 
 // Oracle: E1 item 18. Each shipped control family must be reachable by Tab.
 // These are real controls, not DOM stand-ins for their vendor primitives.
+const actionLabel = "Action";
 const cases: [string, ReactElement, string][] = [
   ["button", <Button>Action</Button>, "button"],
-  ["text input", <Input aria-label="Action" />, "textbox"],
-  ["number input", <Input type="number" aria-label="Action" />, "spinbutton"],
-  ["text area", <textarea aria-label="Action" />, "textbox"],
-  ["native select", <select className="k-select" aria-label="Action"><option>One</option></select>, "combobox"],
-  ["custom select", <Select><SelectTrigger aria-label="Action" /></Select>, "combobox"],
-  ["checkbox", <Checkbox aria-label="Action" />, "checkbox"],
+  ["text input", <Input aria-label={actionLabel} />, "textbox"],
+  ["number input", <Input type="number" aria-label={actionLabel} />, "spinbutton"],
+  ["text area", <textarea aria-label={actionLabel} />, "textbox"],
+  ["native select", <select className="k-select" aria-label={actionLabel}><option>One</option></select>, "combobox"],
+  ["custom select", <Select><SelectTrigger aria-label={actionLabel} /></Select>, "combobox"],
+  ["checkbox", <Checkbox aria-label={actionLabel} />, "checkbox"],
   ["switch", <SettingSwitch checked={false} onChange={() => {}}>Action</SettingSwitch>, "switch"],
   ["radio", <label className="k-segmented-item"><input className="k-segmented-input" type="radio" name="choice" />Action</label>, "radio"],
   ["slider", <Slider defaultValue={[50]} />, "slider"],
