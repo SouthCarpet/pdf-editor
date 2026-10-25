@@ -33,9 +33,12 @@ the reader you will use before you share or print the PDF.
 
 ## Saving a signed PDF invalidates its digital signature
 
-Saving changes to a digitally signed PDF invalidates its signature. The app
-does not warn you yet. Keep the signed original. Save changes to a separate
-copy, and sign that copy again if a valid signature is needed.
+Saving changes to a digitally signed PDF invalidates its signature. Before
+saving annotations or form values, the app shows a non-blocking warning if
+the form reader finds a signature field. Empty signature fields also trigger
+the warning; the app does not validate signatures. Keep the signed original.
+Save changes to a separate copy, and sign that copy again if a valid
+signature is needed.
 
 ## Update check and download fail behind a corporate proxy
 

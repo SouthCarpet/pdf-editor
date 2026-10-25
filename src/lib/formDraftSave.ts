@@ -5,6 +5,8 @@
 import { commands, type FormField, type FormValueUpdate } from "@/bindings";
 import { useDocuments, type DocId } from "@/stores/documentStore";
 import { NO_FORM_DRAFT, useFormDrafts, type FormValues } from "@/stores/formDraftStore";
+import i18n from "@/i18n";
+import { toast } from "@/components/ui/toast";
 
 export type FormDraftSaveResult = { ok: true } | { ok: false; error: unknown };
 
@@ -24,6 +26,14 @@ export function fieldValues(fields: readonly FormField[]): FormValues {
   return Object.fromEntries(fields.map((field) => [field.id, field.value]));
 }
 
+/** The form reader identifies signature fields but does not validate signatures.
+ * Warn for empty signature fields too, before any PDF bytes are replaced. */
+export function warnSignatureFields(fields: readonly FormField[]): void {
+  if (fields.some((field) => field.kind === "signature")) {
+    toast({ title: i18n.t("workspace:save_toast.signature_warning") });
+  }
+}
+
 /**
  * Writes the typed values of `docId` into `output`, starting from `input`
  * (the latest saved copy). The values written are the ones typed when the
@@ -39,6 +49,7 @@ export async function saveFormDraft(
   const draft = useFormDrafts.getState().byDoc[docId] ?? NO_FORM_DRAFT;
   const read = await commands.readFormFieldsCmd(input);
   if (read.status === "error") return { ok: false, error: read.error };
+  warnSignatureFields(read.data);
 
   const inFile = fieldValues(read.data);
   const written = { ...inFile, ...draft.values };

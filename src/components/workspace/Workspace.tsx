@@ -971,14 +971,14 @@ export function Workspace({ pdf, path }: Props) {
         className="relative shrink-0"
         style={{ width: pageSize.width, height: pageSize.height }}
       >
-        <PdfViewer
-          pdf={pdf}
-          pageIndex={activePage}
-          zoom={zoom}
-          className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
-          hiddenAnnotationIds={replacedAnnotationIds}
-        />
         <div className="paper-light contents">
+          <PdfViewer
+            pdf={pdf}
+            pageIndex={activePage}
+            zoom={zoom}
+            className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
+            hiddenAnnotationIds={replacedAnnotationIds}
+          />
           {renderSearchHighlights()}
           {activeTool === "crop" && pageSize.width > 0 && (
             <CropOverlay

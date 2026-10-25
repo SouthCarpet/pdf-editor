@@ -31,6 +31,8 @@ Toolbar selected and hover rows were measured for K5 on 2026-10-25.
 | text / surface-raised | 18.46:1 | 16.11:1 |
 | text-muted / surface-raised | 9.04:1 | 10.68:1 |
 
+On-page marks always use the light values through `.paper-light`, guarded by the drift test in `paperScope.test.tsx`.
+
 `warning text` is an app-level role (`--color-warning-text` in
 `globals.css`). Light is `oklch(0.5 0.12 70)`; dark is the Kaliber
 `warning` token itself, so dark keeps its ratio. Warning text (a short line or

@@ -22,7 +22,7 @@ import { useFilledFields } from "@/stores/filledFieldsStore";
 import { keepFilledMarks } from "@/components/workspace/filledFieldsState";
 import { historyStore } from "@/stores/historyStore";
 import { usePrefillStore } from "@/stores/prefillStore";
-import { saveFormDraft } from "@/lib/formDraftSave";
+import { saveFormDraft, warnSignatureFields } from "@/lib/formDraftSave";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { hasDirtyFormDraft } from "@/stores/formDraftStore";
 
@@ -138,6 +138,8 @@ export async function saveDocument(
   if (formValuesTyped) {
     const saved = await saveFormDraft(docId, latestSavedSource(docId), output);
     if (!saved.ok) return "failed";
+  } else {
+    await warnBeforeAnnotationSave(docId);
   }
   if (!(await savePendingWork(docId, output, pending))) {
     return "failed";
@@ -151,6 +153,11 @@ export async function saveDocument(
   // belongs to an in-progress Edit Text draft (`EditTextPanel` sets and
   // clears it) - a save here must not hide that unrelated unsaved work.
   return "saved";
+}
+
+async function warnBeforeAnnotationSave(docId: DocId): Promise<void> {
+  const fields = await commands.readFormFieldsCmd(latestSavedSource(docId));
+  if (fields.status === "ok") warnSignatureFields(fields.data);
 }
 
 async function savePendingWork(

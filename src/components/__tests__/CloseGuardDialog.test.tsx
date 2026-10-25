@@ -126,6 +126,20 @@ describe("CloseGuardDialog - window scope", () => {
     expect(screen.queryByText("Neuložené zmeny")).toBeNull();
   });
 
+  // Oracle: E1 item 7. An empty own field is unsaved work, even without a
+  // typed value or a document dirty flag. Window close must ask first.
+  it("asks before closing a document with only a pending own field", async () => {
+    useAnnotations.getState().add(DOC_A, {
+      type: "form_field", page: 0, rect: [100, 650, 240, 672], name: "Own",
+      kind: "text", multiline: false, font_size: 0,
+    });
+    render(<CloseGuardDialog />);
+    const prevented = await triggerClose();
+    expect(prevented).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Neuložené zmeny")).toBeInTheDocument();
+    expect(tauriWindow.close).not.toHaveBeenCalled();
+  });
+
   it("shows the dialog, naming the dirty document, instead of closing", async () => {
     useAnnotations.getState().add(DOC_A, NOTE);
     render(<CloseGuardDialog />);

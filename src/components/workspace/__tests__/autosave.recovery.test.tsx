@@ -112,6 +112,21 @@ describe("autosave recovery dialog", () => {
     expect(useDocuments.getState().documents.get(DOC)?.dirty).toBe(false);
   });
 
+  // Oracle: E1 item 7. Recovery must keep an own field's type, geometry,
+  // name and client id so layout edits remain possible after a restart.
+  it("restores a pending own field after the user chooses Obnoviť", async () => {
+    const own: ClientAnnotation = {
+      type: "form_field", page: 0, rect: [100, 650, 240, 672], name: "Meno",
+      kind: "text", multiline: true, font_size: 12, __clientId: "own-keep",
+    };
+    const saved = serializePendingState([own], { key: "", ids: [], fieldIdByClientId: {} }, 1_700_000_000_000);
+    commandFakes.autosaveGet.mockResolvedValue({ status: "ok", data: JSON.stringify(saved) });
+    render(<DocumentAutosave path={DOC} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Obnoviť" }));
+    expect(useAnnotations.getState().byDoc[DOC]).toEqual([own]);
+    expect(useDocuments.getState().documents.get(DOC)?.dirty).toBe(true);
+  });
+
   it("does not offer a record older than the file mtime", async () => {
     fakeBridge.fileMtimeMs.mockResolvedValue(1_800_000_000_000);
     render(<DocumentAutosave path={DOC} />);

@@ -4,6 +4,7 @@
   "save_status_dirty": "Neuložené zmeny",
   "save_status_saving": "Ukladá sa...",
   "save_toast": {
+    "signature_warning": "Uloženie zmien zneplatní digitálne podpisy. Podpísaný originál si ponechajte.",
     "saved": "PDF bolo uložené.",
     "reveal": "Zobraziť v Prieskumníku"
   },
