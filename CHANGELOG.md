@@ -226,3 +226,5 @@ The app uses Fira Sans and the Kaliber r4 design language.
   too, because the page is paper in both themes. App chrome keeps the theme.
 - Focused and facing page frames both use the light paper border in dark
   book mode.
+- FreeText annotations carry the PDF Print flag, so saved text is included
+  in print renders.

@@ -689,7 +689,7 @@ fn build_annot_dict(
             border_width,
             ..
         } => {
-            let mut d = dictionary! { "Type" => "Annot", "Subtype" => "FreeText" };
+            let mut d = dictionary! { "Type" => "Annot", "Subtype" => "FreeText", "F" => 4 };
             d.set("Rect", rect_array(rect));
             d.set("Contents", pdf_text_string(contents));
             d.set("Q", Object::Integer(align_value(style.align)));
