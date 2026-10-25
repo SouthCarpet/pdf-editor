@@ -35,7 +35,7 @@
   "discard": "Discard",
   "open_logs": "Open logs folder",
   "about": "About PDF Editor",
-  "about_description": "Version of this build and the opt-in check for a newer release on GitHub.",
+  "about_description": "Version of this build and the opt-in check for a newer release on GitHub. The app uses Fira Sans and the Kaliber r4 design language.",
   "last_check": "Last check",
   "dirty": "Local changes",
   "unknown": "Unknown",
