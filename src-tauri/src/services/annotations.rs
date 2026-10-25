@@ -249,7 +249,13 @@ fn write_annotation(
             });
         return own_fields::write_own_field(doc, page_id, &field, names, saved);
     }
-    let (dict, font_binding) = build_annot_dict(ann, doc)?;
+    let page_fonts = match ann {
+        Annotation::FreeText { .. } => {
+            font_resources_copy(doc, &page_resources_copy(doc, page_id)?)?
+        }
+        _ => lopdf::Dictionary::new(),
+    };
+    let (dict, font_binding) = build_annot_dict(ann, doc, &page_fonts)?;
     let annot_id = doc.add_object(Object::Dictionary(dict));
     // Bind any embedded font to the page's /Resources /Font.
     if let Some((alias, font_id)) = font_binding {
@@ -531,6 +537,7 @@ fn align_value(align: TextAlign) -> i64 {
 fn build_annot_dict(
     ann: &Annotation,
     doc: &mut Document,
+    page_fonts: &lopdf::Dictionary,
 ) -> Result<(lopdf::Dictionary, Option<(String, ObjectId)>)> {
     match ann {
         Annotation::Highlight {
@@ -701,7 +708,7 @@ fn build_annot_dict(
             }
 
             let resolved_font = resolve_free_text_font(doc, contents, style)?;
-            let alias = resolved_font.alias;
+            let alias = first_free_font_name(page_fonts, &resolved_font.alias, 0);
             let font_id = resolved_font.font_id;
 
             // /DA "default appearance" — names the font, size, and color.
@@ -1137,16 +1144,47 @@ fn ensure_page_font(
     font_id: ObjectId,
 ) -> Result<()> {
     let mut resources = page_resources_copy(doc, page_id)?;
-    let mut fonts = resources
-        .get(b"Font")
-        .ok()
-        .map(|entry| dictionary_copy(doc, entry))
-        .transpose()?
-        .unwrap_or_default();
+    let mut fonts = font_resources_copy(doc, &resources)?;
+    anyhow::ensure!(
+        !fonts.has(alias.as_bytes()),
+        "page font resource name is already in use"
+    );
     fonts.set(alias.as_bytes().to_vec(), Object::Reference(font_id));
     resources.set("Font", fonts);
     doc.get_dictionary_mut(page_id)?.set("Resources", resources);
     Ok(())
+}
+
+/// Keep the bare prefix when `first_suffix` is zero, otherwise number it.
+/// Both text writers select from the page's resolved, existing font names.
+pub(crate) fn first_free_font_name(
+    fonts: &lopdf::Dictionary,
+    prefix: &str,
+    first_suffix: u32,
+) -> String {
+    let mut suffix = first_suffix;
+    let mut name = if suffix == 0 {
+        prefix.to_string()
+    } else {
+        format!("{prefix}{suffix}")
+    };
+    while fonts.has(name.as_bytes()) {
+        suffix += 1;
+        name = format!("{prefix}{suffix}");
+    }
+    name
+}
+
+pub(crate) fn font_resources_copy(
+    doc: &Document,
+    resources: &lopdf::Dictionary,
+) -> Result<lopdf::Dictionary> {
+    resources
+        .get(b"Font")
+        .ok()
+        .map(|entry| dictionary_copy(doc, entry))
+        .transpose()
+        .map(Option::unwrap_or_default)
 }
 
 pub(crate) fn dictionary_copy(doc: &Document, entry: &Object) -> Result<lopdf::Dictionary> {
@@ -1558,8 +1596,12 @@ mod tests {
 
     fn build_free_text(style: TextStyle, contents: &str) -> (lopdf::Dictionary, Document) {
         let mut doc = Document::with_version("1.7");
-        let (dict, _) = build_annot_dict(&free_text(style, contents), &mut doc)
-            .expect("build FreeText annotation");
+        let (dict, _) = build_annot_dict(
+            &free_text(style, contents),
+            &mut doc,
+            &lopdf::Dictionary::new(),
+        )
+        .expect("build FreeText annotation");
         (dict, doc)
     }
 
@@ -1761,7 +1803,8 @@ mod tests {
     fn a_long_value_is_clipped_to_its_cell() {
         let mut doc = Document::with_version("1.7");
         let long = "Hlavna ulica 5, 943 01 Sturovo, Slovenska republika";
-        let (dict, _) = build_annot_dict(&cell_value(long), &mut doc).expect("build FreeText");
+        let (dict, _) = build_annot_dict(&cell_value(long), &mut doc, &lopdf::Dictionary::new())
+            .expect("build FreeText");
         let ap = dict.get(b"AP").and_then(Object::as_dict).expect("/AP");
         let stream = doc
             .get_object(ap.get(b"N").and_then(Object::as_reference).expect("/N"))
@@ -2214,7 +2257,8 @@ mod tests {
             opacity: 1.0,
         };
 
-        let error = build_annot_dict(&annotation, &mut doc).expect_err("missing image must fail");
+        let error = build_annot_dict(&annotation, &mut doc, &lopdf::Dictionary::new())
+            .expect_err("missing image must fail");
         assert!(
             error.to_string().contains("read stamp image"),
             "failure should identify the unreadable stamp: {error:#}"

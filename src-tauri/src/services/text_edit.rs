@@ -30,7 +30,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::{AppError, AppResult};
-use crate::services::annotations::{dictionary_copy, page_resources_copy};
+use crate::services::annotations::{
+    first_free_font_name, font_resources_copy, page_resources_copy,
+};
 use crate::services::lopdf_ext::ObjectExt;
 
 /// Discovered glyph run that the frontend lists as a candidate edit
@@ -641,18 +643,8 @@ pub fn replace_run_via_redaction(
         .copied()
         .context("page not found")?;
     let mut resources = page_resources_copy(&doc, page_id)?;
-    let mut fonts = resources
-        .get(b"Font")
-        .ok()
-        .map(|entry| dictionary_copy(&doc, entry))
-        .transpose()?
-        .unwrap_or_default();
-    let mut font_number = 1;
-    let mut font_name = format!("F{font_number}");
-    while fonts.has(font_name.as_bytes()) {
-        font_number += 1;
-        font_name = format!("F{font_number}");
-    }
+    let mut fonts = font_resources_copy(&doc, &resources)?;
+    let font_name = first_free_font_name(&fonts, "F", 1);
     let [x, y, w, h] = rect;
     let ops = vec![
         Operation::new("q", vec![]),

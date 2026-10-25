@@ -130,6 +130,9 @@
 
 ### Fixed
 
+- FreeText annotations select a free page font name and keep existing font
+  bindings. Their default and normal appearances use the same new name.
+
 - Last-resort text replacement keeps images and existing fonts, including
   indirect resources and font dictionaries. It now selects a free font
   resource name instead of replacing an existing `/F1` binding.
