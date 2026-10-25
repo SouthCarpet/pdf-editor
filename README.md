@@ -111,6 +111,8 @@ Windows does not separate programs of one user.
 
 ## Design
 
+The app uses Fira Sans and the Kaliber r4 design language.
+
 The face is Fira Sans (SIL Open Font License 1.1, text in
 `src/assets/fonts/fira-sans/OFL.txt`; the setup installs it to
 `resources\licenses\FiraSans-OFL.txt`). Colours and type come from the shared

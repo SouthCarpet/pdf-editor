@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+The app uses Fira Sans and the Kaliber r4 design language.
+
+- App styles now read Kaliber roles directly; the old token aliases are removed.
+  Field fills, warning text, native select arrows, type sizes and radii keep
+  their previous values.
+
 ### Added
 
 - Thumbnail image carry into the workspace page (about 200 ms), with
@@ -127,11 +133,11 @@
 - The app now uses the Kaliber r4 design language, step one: the face is
   Fira Sans, the colours come from the shared Kaliber tokens (accent hue 235,
   light and dark), and the theme choice is saved under `kaliber-theme`
-  (a choice saved under the old `theme` key moves over once). Screens keep
-  their layout; later steps change them. The licence of Fira Sans (SIL OFL
+  (a choice saved under the old `theme` key moves over once). Screen changes
+  are listed below. The licence of Fira Sans (SIL OFL
   1.1) is installed to `resources\licenses\FiraSans-OFL.txt`.
   Warning text uses a new role that meets 4.5:1, and the type sizes, the page
-  text size and the corner radii stay as before until the screen steps.
+  text size and the corner radii keep their previous values.
 - Kaliber r4, step two (Home and tool pages): the tools on Home are a plain
   list of link rows, not a grid of cards, and the **Tools** heading leads the
   page. Tool pages use the Kaliber controls (select with a permanent label,
