@@ -25,12 +25,15 @@ export function pageOverlayMode({
   hasPendingOnPage,
   placingStamp,
 }: PageOverlayInput): PageOverlayMode {
-  const editsPending =
-    activeTool === "edit" &&
-    (editSubTool === "forms" || editSubTool === "annotations" || editSubTool === "signature");
+  const editsPending = editsPendingValues(activeTool, editSubTool);
   const showsDetected = editSubTool === "forms" || editSubTool === "signature";
   if (editsPending && ((showsDetected && hasDetectedFields) || hasPendingOnPage || placingStamp)) {
     return "edit";
   }
   return hasPendingOnPage ? "preview" : "none";
+}
+
+function editsPendingValues(activeTool: WorkspaceTool, editSubTool: EditSubTool): boolean {
+  return activeTool === "edit" &&
+    (editSubTool === "forms" || editSubTool === "annotations" || editSubTool === "signature");
 }

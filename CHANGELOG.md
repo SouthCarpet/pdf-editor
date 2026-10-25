@@ -9,6 +9,8 @@
   beside their switches.
 - Render the clicked page before taking carry snapshots, so PDF animation
   frames cannot block the page change. Skip the carry after a 200 ms wait.
+- Split autosave validation and page overlay decisions to meet the
+  complexity limit without changing their behaviour.
 
 ### Added
 
