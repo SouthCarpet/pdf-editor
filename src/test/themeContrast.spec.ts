@@ -69,6 +69,9 @@ function contrast(foreground: string, background: string): number {
 const requiredPairs = [
   ["foreground", "background"],
   ["muted", "background"],
+  // K5 toolbar labels use the muted role in normal, selected and hover states.
+  ["muted", "surface-selected"],
+  ["muted", "surface-hover"],
   ["foreground", "card"],
   ["muted", "card"],
   ["control-foreground", "field-surface"],

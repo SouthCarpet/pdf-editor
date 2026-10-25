@@ -13,6 +13,8 @@
   complexity limit without changing their behaviour.
 - Keep Save as the close dialog's single solid action; outline Discard
   with the danger colour.
+- Use muted, regular-weight workspace toolbar labels. Selected and hover
+  states keep WCAG AA text contrast.
 
 ### Added
 

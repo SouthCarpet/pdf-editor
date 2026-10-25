@@ -10,6 +10,8 @@ older table (hex values of the pre-r4 theme) is gone.
 | --- | ---: | ---: |
 | foreground / background | 16.75:1 | 17.11:1 |
 | muted / background | 8.20:1 | 11.34:1 |
+| muted / selected surface (toolbar) | 5.33:1 | 4.78:1 |
+| muted / hover surface (toolbar) | 8.08:1 | 9.80:1 |
 | foreground / card | 18.46:1 | 16.11:1 |
 | muted / card | 9.04:1 | 10.68:1 |
 | control foreground / field surface | 18.46:1 | 16.11:1 |
@@ -41,6 +43,9 @@ card, in both themes.
 The app-local `--color-field-surface` names the native field and autofill
 background. `--color-control` keeps the shared Kaliber control edge. This
 keeps unchecked switches visible without changing the field text ratios.
+
+Workspace toolbar labels use the muted text role at regular weight. The
+normal, selected and hover backgrounds all keep at least 4.5:1 contrast.
 
 Measured on the K1 fix head (2026-10-24), lowest ratio over both themes:
 
