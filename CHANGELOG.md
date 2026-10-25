@@ -2,21 +2,6 @@
 
 ## Unreleased
 
-### Fixed
-
-- Restore the gap between the workspace page and the top of its well.
-- Restore unchecked switch edges in both themes and keep settings labels
-  beside their switches.
-- Render the clicked page before taking carry snapshots, so PDF animation
-  frames cannot block the page change. Skip the carry after a 200 ms wait.
-- Split autosave validation and page overlay decisions to meet the
-  complexity limit without changing their behaviour.
-- Keep Save as the close dialog's single solid action; outline Discard
-  with the danger colour.
-- Use muted, regular-weight workspace toolbar labels. Selected and hover
-  states keep WCAG AA text contrast.
-- Use a 1 px danger edge without a shadow for file-opening alerts.
-
 ### Added
 
 - Thumbnail image carry into the workspace page (about 200 ms), with
@@ -193,6 +178,19 @@
   (`KNOWN_ISSUES.md`).
 
 ### Fixed
+
+- Restore the gap between the workspace page and the top of its well.
+- Restore unchecked switch edges in both themes and keep settings labels
+  beside their switches.
+- Render the clicked page before taking carry snapshots, so PDF animation
+  frames cannot block the page change. Skip the carry after a 200 ms wait.
+- Split autosave validation and page overlay decisions to meet the
+  complexity limit without changing their behaviour.
+- Keep Save as the close dialog's single solid action; outline Discard
+  with the danger colour.
+- Use muted, regular-weight workspace toolbar labels. Selected and hover
+  states keep WCAG AA text contrast.
+- Use a 1 px danger edge without a shadow for file-opening alerts.
 
 - Own-field preview labels now use the foreground paired with the accent-soft
   fill in both themes, including saved fields opened for layout editing.
