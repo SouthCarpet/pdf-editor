@@ -5,9 +5,9 @@
 The app uses Fira Sans and the Kaliber r4 design language.
 
 - App styles now read Kaliber roles directly; the old token aliases are removed.
-- The page strip shows every page. Its list now fits the panel, so the last pages can be reached.
   Field fills, warning text, native select arrows, type sizes and radii keep
   their previous values.
+- The page strip shows every page. Its list now fits the panel, so the last pages can be reached.
 
 ### Added
 
