@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- Restore the gap between the workspace page and the top of its well.
+
 ### Added
 
 - Thumbnail image carry into the workspace page (about 200 ms), with
