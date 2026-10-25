@@ -11,7 +11,7 @@ interface SettingSwitchProps {
  * markup and the label text. */
 export function SettingSwitch({ checked, disabled, onChange, children }: SettingSwitchProps) {
   return (
-    <label className="k-switch">
+    <label className="k-switch self-start">
       <input
         className="k-switch-input"
         type="checkbox"

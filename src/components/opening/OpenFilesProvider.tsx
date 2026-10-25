@@ -109,12 +109,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       });
 
     void (async () => {
-      let initialPaths: string[];
-      try {
-        initialPaths = await startupPaths();
-      } catch {
-        initialPaths = [];
-      }
+      const initialPaths = await startupPaths().catch(() => []);
       if (disposed) return;
       if (initialPaths.length > 0) {
         await openPaths(initialPaths);
@@ -132,12 +127,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       const candidate = files[0]?.path;
       if (!candidate) return;
 
-      let onDisk = false;
-      try {
-        onDisk = await pathExists(candidate);
-      } catch {
-        onDisk = false;
-      }
+      const onDisk = await pathExists(candidate).catch(() => false);
       if (disposed) return;
       const toOpen = documentToOpenAtStart(
         useAppStore.getState().openLastDocumentAtStart,
@@ -176,7 +166,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       {error && (
         <div
           role="alert"
-          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-soft-foreground)] shadow-lg"
+          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-soft-foreground)]"
         >
           <span>{error}</span>
           <button

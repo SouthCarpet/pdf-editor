@@ -159,7 +159,12 @@ export function CloseGuardDialog() {
           <Button variant="ghost" onClick={dismiss} disabled={busy}>
             {t("close_guard.cancel")}
           </Button>
-          <Button variant="destructive" onClick={() => void onDiscard()} disabled={busy}>
+          <Button
+            variant="outline"
+            className="border-[var(--color-danger)] text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+            onClick={() => void onDiscard()}
+            disabled={busy}
+          >
             {t("close_guard.discard")}
           </Button>
           <Button onClick={() => void onSave()} disabled={busy}>

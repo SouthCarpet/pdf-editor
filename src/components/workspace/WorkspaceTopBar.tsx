@@ -242,13 +242,13 @@ export function WorkspaceTopBar({
 
   function renderToolbar() {
     return (
-      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)]">
+      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--color-border)] bg-[var(--color-background)] px-2 py-1 text-[length:var(--text-sm)] text-[var(--color-text-muted)] [&_button]:font-normal [&_button]:text-[var(--color-text-muted)]">
         {TOOLS.map((id) => (
           <Button
             key={id}
             variant="ghost"
             aria-pressed={id === tool}
-            className="text-[var(--color-text-muted)] aria-pressed:bg-[var(--color-surface-selected)] aria-pressed:font-bold aria-pressed:text-[var(--color-text)]"
+            className="text-[var(--color-text-muted)] aria-pressed:bg-[var(--color-surface-selected)]"
 
             onClick={() => selectTool(id)}
           >
@@ -307,7 +307,7 @@ export function WorkspaceTopBar({
         <Link
           to="/tools/convert/export"
           search={{ file: path }}
-          className="inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-surface-hover)]"
+          className="inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-normal text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-hover)]"
         >
           {t("workspace:toolbar.convert")}
         </Link>

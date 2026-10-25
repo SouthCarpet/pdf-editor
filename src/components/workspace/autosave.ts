@@ -114,8 +114,12 @@ export function parseAutosaveRecord(json: string): AutosaveRecord | null {
   } catch {
     return null;
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
-  const obj = parsed as Record<string, unknown>;
+  return parseStoredRecord(parsed);
+}
+
+function parseStoredRecord(value: unknown): AutosaveRecord | null {
+  if (!isPlainObject(value)) return null;
+  const obj = value;
   if (obj.v !== AUTOSAVE_VERSION) return null;
   if (typeof obj.savedAt !== "number" || !Number.isFinite(obj.savedAt)) return null;
   if (!Array.isArray(obj.annotations)) return null;
@@ -161,8 +165,8 @@ function isClientAnnotation(value: unknown): value is ClientAnnotation {
 }
 
 function parseFilledMarks(value: unknown): SerializedFilledMarks | null {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
-  const row = value as Record<string, unknown>;
+  if (!isPlainObject(value)) return null;
+  const row = value;
   if (typeof row.key !== "string") return null;
   if (!Array.isArray(row.ids) || !row.ids.every((id) => typeof id === "string")) return null;
   if (typeof row.fieldIdByClientId !== "object" || row.fieldIdByClientId === null) return null;

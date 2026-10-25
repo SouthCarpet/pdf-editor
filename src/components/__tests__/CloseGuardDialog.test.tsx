@@ -98,6 +98,18 @@ describe("CloseGuardDialog - window scope", () => {
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
   });
 
+  // Oracle: 119-K5 finding 5. Save leads; Discard keeps its danger meaning
+  // without a second solid ink block in the same close dialog.
+  it("has one solid Save action and an outlined destructive Discard action", () => {
+    useCloseGuard.getState().open({ kind: "tab", docId: DOC_A, onClosed: () => {} });
+    render(<CloseGuardDialog />);
+    expect(screen.getByRole("button", { name: "Uložiť" })).toHaveClass("k-btn-primary");
+    expect(screen.getByRole("button", { name: "Neukladať" })).toHaveClass(
+      "k-btn-secondary", "text-[var(--color-danger)]",
+    );
+    expect(document.querySelectorAll(".k-btn-primary, .k-btn-danger")).toHaveLength(1);
+  });
+
   /** Fires one OS close request and reports whether it was vetoed. */
   async function triggerClose() {
     await waitFor(() => expect(tauriWindow.handler).not.toBeNull());

@@ -1096,7 +1096,7 @@ export function Workspace({ pdf, path }: Props) {
           </aside>
           <main
             ref={mainRef}
-            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-well)] p-[var(--space-5)]"
+            className="flex flex-1 items-start justify-center overflow-auto bg-[var(--color-well)] p-[var(--space-6)]"
           >
             {bookMode ? (
               <div

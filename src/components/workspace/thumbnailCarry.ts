@@ -19,43 +19,54 @@ export function carryThumbnail(
   const root = doc.documentElement;
   const rootName = root.style.viewTransitionName;
   let destination: HTMLCanvasElement | null = null;
+  let transition: ViewTransition | undefined;
   let cancelled = false;
   let cleared = false;
+  let named = false;
   const ready = waitForPageImage(pageHost, page);
-  source!.style.viewTransitionName = IMAGE_NAME;
-  root.style.viewTransitionName = "none";
 
   function clear() {
     if (cleared) return;
     cleared = true;
     ready.cancel();
-    source!.style.viewTransitionName = "";
-    if (destination) destination.style.viewTransitionName = "";
-    root.style.viewTransitionName = rootName;
+    if (named) {
+      source!.style.viewTransitionName = "";
+      if (destination) destination.style.viewTransitionName = "";
+      root.style.viewTransitionName = rootName;
+    }
   }
 
-  let transition: ViewTransition;
-  try {
-    transition = doc.startViewTransition(async () => {
-      if (cancelled) return;
-      source!.style.viewTransitionName = "";
-      flushSync(select);
-      ready.readExisting();
-      destination = await ready.image;
-      if (destination && !cancelled) destination.style.viewTransitionName = IMAGE_NAME;
-    });
-  } catch {
-    clear();
-    select();
-    return () => { };
+  async function prepare() {
+    // PDF display renders need animation frames. Finish them before the
+    // browser pauses frames to take the transition's new snapshot.
+    flushSync(select);
+    ready.readExisting();
+    destination = await ready.image;
+    if (!destination || cancelled) {
+      clear();
+      return;
+    }
+    source!.style.viewTransitionName = IMAGE_NAME;
+    root.style.viewTransitionName = "none";
+    named = true;
+    try {
+      transition = doc!.startViewTransition(() => {
+        if (cancelled) return;
+        source!.style.viewTransitionName = "";
+        destination!.style.viewTransitionName = IMAGE_NAME;
+      });
+    } catch {
+      clear();
+      return;
+    }
+    // Skipped snapshots still leave the clicked page selected.
+    void transition.ready.catch(() => { });
+    void transition.finished.then(clear, clear);
   }
-  // A skipped transition still commits the page. Handle rejection from an
-  // unsupported snapshot or a hidden window without an unhandled promise.
-  void transition.ready.catch(() => { });
-  void transition.finished.then(clear, clear);
+  void prepare();
   return () => {
     cancelled = true;
-    transition.skipTransition();
+    transition?.skipTransition();
     clear();
   };
 }
@@ -63,7 +74,7 @@ export function carryThumbnail(
 function waitForPageImage(host: HTMLElement, page: number) {
   let finish: (image: HTMLCanvasElement | null) => void = () => { };
   const image = new Promise<HTMLCanvasElement | null>((resolve) => { finish = resolve; });
-  const timer = window.setTimeout(() => cancel(), 2000);
+  const timer = window.setTimeout(() => cancel(), 200);
   function onReady(event: Event) {
     const canvas = event.target;
     if (!(canvas instanceof HTMLCanvasElement) || canvas.dataset.pageImage !== String(page)) return;

@@ -5,15 +5,18 @@ is `src/test/themeContrast.spec.ts`. Since Kaliber r4 (plan 119 K1) it reads
 `src/styles/tokens.css` (oklch) and the alias block of `src/styles/globals.css`,
 converts to sRGB and fails below 4.5:1. The ratios below are the K1 state, with the dark column recomputed on 2026-10-24 for the darker neutrals; the
 older table (hex values of the pre-r4 theme) is gone.
+Toolbar selected and hover rows were measured for K5 on 2026-10-25.
 
 | Token pair | Light | Dark |
 | --- | ---: | ---: |
 | foreground / background | 16.75:1 | 17.11:1 |
 | muted / background | 8.20:1 | 11.34:1 |
+| muted / selected surface (toolbar) | 5.33:1 | 4.78:1 |
+| muted / hover surface (toolbar) | 8.08:1 | 9.80:1 |
 | foreground / card | 18.46:1 | 16.11:1 |
 | muted / card | 9.04:1 | 10.68:1 |
-| control foreground / control | 18.46:1 | 16.11:1 |
-| placeholder / control | 9.04:1 | 10.68:1 |
+| control foreground / field surface | 18.46:1 | 16.11:1 |
+| placeholder / field surface | 9.04:1 | 10.68:1 |
 | accent foreground / accent | 7.75:1 | 9.31:1 |
 | accent-soft foreground / accent-soft | 9.93:1 | 10.54:1 |
 | danger foreground / danger | 6.29:1 | 6.95:1 |
@@ -38,11 +41,20 @@ card, in both themes.
 
 ## Worst offenders
 
-Measured on the K1 fix head (2026-10-24), lowest ratio over both themes:
+The app-local `--color-field-surface` names the native field and autofill
+background. `--color-control` keeps the shared Kaliber control edge. This
+keeps unchecked switches visible without changing the field text ratios.
+
+Workspace toolbar labels use the muted text role at regular weight. The
+normal, selected and hover backgrounds all keep at least 4.5:1 contrast.
+
+Measured on the K1 fix head (2026-10-24), with the K5 toolbar pair added
+on 2026-10-25. Lowest ratios over both themes:
 
 | Surface | Ratio |
 | --- | ---: |
 | warning (token) as a border or icon on the light paper, 3:1 rule, not text | 4.44:1 |
+| muted toolbar text on the selected surface, dark | 4.78:1 |
 | warning foreground on a warning fill, light | 4.84:1 |
 | success text on the light paper | 5.07:1 |
 | focus ring on the light paper, 3:1 rule, not text | 5.24:1 |
