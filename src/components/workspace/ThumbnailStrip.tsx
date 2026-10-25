@@ -3,7 +3,7 @@
 // current page highlighted. react-window only mounts rows near the
 // viewport, so long documents stay cheap. Collapse is session state
 // owned by the workspace store.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { List, type ListImperativeAPI, type RowComponentProps } from "react-window";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -28,7 +28,6 @@ interface Props {
   active: number;
   bookMode: boolean;
   onSelect: (i: number, image?: HTMLCanvasElement) => void;
-  height: number;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -90,17 +89,30 @@ export function ThumbnailStrip({
   active,
   bookMode,
   onSelect,
-  height,
   collapsed,
   onToggleCollapsed,
 }: Props) {
   const { t } = useTranslation("workspace");
   const listRef = useRef<ListImperativeAPI | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [height, setHeight] = useState(0);
   const pageCount = pdf.numPages;
   const rowProps = useMemo<RowExtras>(
     () => ({ pdf, active, bookMode, onSelect, pageCount }),
     [pdf, active, bookMode, onSelect, pageCount],
   );
+
+  // The strip fills its aside. Measuring the aside keeps the list inside it
+  // whatever the tab bar, toolbar or search panel take away.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => setHeight(nav.clientHeight);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(nav);
+    return () => observer?.disconnect();
+  }, []);
 
   useEffect(() => {
     if (collapsed || pageCount === 0) return;
@@ -113,9 +125,10 @@ export function ThumbnailStrip({
 
   return (
     <nav
+      ref={navRef}
       aria-label={t("thumbnails")}
-      className="flex h-full flex-col bg-[var(--color-background)]"
-      style={{ width, height }}
+      className="flex h-full min-h-0 flex-col bg-[var(--color-background)]"
+      style={{ width }}
     >
       <div
         className="flex shrink-0 items-center border-b border-[var(--color-border)] px-1"
