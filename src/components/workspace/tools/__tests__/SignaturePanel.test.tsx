@@ -44,7 +44,7 @@ describe("SignaturePanel", () => {
     fsFakes.readFile.mockReset();
     tokenFakes.readToken.mockReset();
     tokenFakes.readToken.mockImplementation((name: string, fallback: string) =>
-      name === "--color-foreground"
+      name === "--color-text"
         ? "rgb(10, 20, 30)"
         : name === "--color-accent"
           ? "rgb(40, 50, 60)"
@@ -83,14 +83,22 @@ describe("SignaturePanel", () => {
   });
 
   it("asks for confirmation before deleting a saved signature", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+    // K4 carried item: the in-app dialog names the item. Cancel is safe.
+    const nativeConfirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     render(<SignaturePanel onChoose={() => undefined} />);
     const remove = await screen.findByRole("button", { name: "Delete Môj podpis" });
 
     await user.click(remove);
 
+    expect(screen.getByRole("dialog")).toHaveTextContent('Delete saved signature “Môj podpis”?');
+    expect(commandFakes.signatureDelete).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(remove);
+    await user.click(screen.getByRole("button", { name: /^Delete$/ }));
     await waitFor(() => expect(commandFakes.signatureDelete).toHaveBeenCalledWith(SAVED.id));
+    expect(nativeConfirm).not.toHaveBeenCalled();
   });
 
   it("rasterises a named drawing at two-times resolution and saves PNG bytes", async () => {
@@ -132,7 +140,7 @@ describe("SignaturePanel", () => {
 
   it("draws with a themed ink colour, not a fixed hex (Minor 2 / F8)", async () => {
     // A literal near-black ("#111827") nearly vanishes on the dark canvas
-    // background (`--color-control`). Ink must come from `readToken`.
+    // background. Ink must come from `readToken`.
     const context = {
       setTransform: vi.fn(),
       beginPath: vi.fn(),
@@ -154,7 +162,7 @@ describe("SignaturePanel", () => {
     render(<SignaturePanel onChoose={() => undefined} />);
     await user.click(screen.getByRole("button", { name: "Draw" }));
 
-    expect(tokenFakes.readToken).toHaveBeenCalledWith("--color-foreground", expect.any(String));
+    expect(tokenFakes.readToken).toHaveBeenCalledWith("--color-text", expect.any(String));
     expect(tokenFakes.readToken).toHaveBeenCalledWith("--color-accent", expect.any(String));
 
     const blackSwatch = screen.getByRole("button", { name: "Black" }).querySelector("span");

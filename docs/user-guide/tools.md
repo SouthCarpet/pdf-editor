@@ -21,7 +21,7 @@ Reduces file size via Ghostscript presets (Screen / Recommended / Print) or a Cu
 Modular pipeline: deduplicate, subset fonts, strip unused objects, recompress images, garbage-collect. Each step is opt-in with sensible defaults.
 
 ## Edit
-Three sub-tools, all in the Workspace:
+Four sub-tools, all in the Workspace:
 - **Forms**: fill out / flatten AcroForm fields. Typed AcroForm values stay when you switch to another sub-tool and back. The first **Save filled copy** asks for a path. A later save writes over that saved copy without asking, starts from it, and sends every value that differs from it. After a save the workspace shows the saved copy with its values. A value you change while a save is still writing stays unsaved, and the next save writes it.
   - A scanned form has no AcroForm fields. **Find fields** detects the empty cells and lines of the page: one field per visible table cell. A cell whose printed label leaves no room to write (for example "Name:" or a column header) is not a field. A cell with a label and a wide empty part stays a field.
   - A document can mix native form fields and printed boxes (a scan appended to a form). **Find fields** is then offered below the native field list and works on the page in view. A detected box is left out when native form widgets cover at least half of it, so one cell never gets two fields. A small widget inside a large cell, such as a checkbox in a corner, does not hide the cell. Once boxes are found, the button under them is named **Save form values and detected fields** and writes both kinds of value.
@@ -34,6 +34,13 @@ Three sub-tools, all in the Workspace:
   - **Save filled copy** (detected fields) writes each value as a FreeText annotation with an appearance stream (`/AP`). The values are not flattened and are not AcroForm values; any PDF reader shows them. After a save the workspace shows the saved copy, and cells that hold a saved value show as filled. A later save starts from that saved copy, so all values stay. The saved copy is replaced only after the new file is written completely.
 - **Annotations**: text notes, highlights, shapes, free-draw.
 - **Text**: real inline text editing of existing content. Replaces text with proper Type0 CIDFont embedding (preserves Slovak/Czech/German/etc. diacritics with no Standard-14 fallback).
+- **Signature**: draw a signature, upload a PNG, or select a saved signature or stamp. Deleting a saved signature opens a dialog with its name. Select **Delete** to remove it or **Cancel** to keep it.
+
+The page sits on a flat sheet above the canvas. The tool bar and side panels
+use quieter controls. Select a page thumbnail to carry its image into the
+page view. The carry takes about 200 ms after the page renders. With reduced
+motion, or when view transitions are unavailable, the page changes without
+animation. Thumbnails keep visible keyboard focus.
 
 ### Draw your own form fields
 
@@ -47,7 +54,9 @@ Click a pending box or its name in the **Own fields** list to select it.
 The list can also take you to a field on another page. For a new field, change its name and,
 for text, **Multiline** and **Font size** (0 means automatic). Drag the box
 to move it, or drag an edge handle to resize it. Arrow keys move it 1 pt;
-Shift+arrow moves it 10 pt. Delete removes the selected box when focus is
+Shift+arrow moves it 10 pt. Tab to an edge handle to resize with arrow keys
+(1 pt, or 10 pt with Shift). The focused handle has a visible outline.
+Delete removes the selected box when focus is
 outside a text input. **Delete field** also removes it. Ctrl+Z and Ctrl+Y
 undo and redo creation, edits, moves, resizes and deletion.
 
@@ -70,6 +79,10 @@ saved field. Source fields and older own fields without the ownership
 marker have no layout action. Their values remain available in Forms.
 Layout edits keep the saved field's name, filled value and text settings.
 The name, multiline and font-size controls apply to new pending fields.
+Pending own fields and saved fields opened for layout editing use the same
+tinted preview with readable labels in light and dark themes. Typed form
+values also use a tinted preview until saved. These preview colours do not
+change the PDF content.
 
 ## Crop
 Set page-box rectangles manually, lock to a preset paper size, or auto-detect content margins. Supports per-page or apply-to-all.
