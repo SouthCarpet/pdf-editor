@@ -1,7 +1,8 @@
 // Oracle: K4 carried finding E. Pending and saved own fields use accent-soft
 // with its paired foreground in both themes, including after a theme change.
 import type { ReactNode } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, render } from "@testing-library/react";
 import type { PageViewport } from "pdfjs-dist";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
@@ -23,35 +24,37 @@ const field: ClientAnnotation = {
   kind: "text", multiline: false, font_size: 12, __clientId: "pending",
 };
 
+const css = ["../../../styles/tokens.css", "../workspace.css"]
+  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
+const LIGHT_SOFT = "oklch(0.92 0.03 235)";
+const LIGHT_FOREGROUND = "oklch(0.32 0.07 235)";
+
+beforeEach(() => {
+  const style = document.createElement("style");
+  style.dataset.test = "colors";
+  style.textContent = css;
+  document.head.append(style);
+});
 afterEach(() => {
-  document.documentElement.removeAttribute("style");
+  document.head.querySelectorAll("style[data-test]").forEach((node) => node.remove());
   document.documentElement.removeAttribute("data-theme");
 });
 
-it.each([
-  ["light", "rgb(225, 240, 249)", "rgb(15, 55, 75)"],
-  ["dark", "rgb(20, 42, 55)", "rgb(190, 225, 245)"],
-])("keeps pending and saved own-field boxes readable in %s", (theme, soft, foreground) => {
+it.each(["light", "dark"])("keeps pending and saved own-field boxes on the light paper look in %s", (theme) => {
   document.documentElement.dataset.theme = theme;
-  document.documentElement.style.setProperty("--color-accent-soft", soft);
-  document.documentElement.style.setProperty("--color-accent-soft-foreground", foreground);
   nodes.boxes.length = 0;
   nodes.labels.length = 0;
   render(<PendingOwnFieldLayer page={0} viewport={viewport}
     annotations={[field, { ...field, __clientId: "saved", __replaces: { object: 12, generation: 0 } }]}
     selectedId={null} onSelect={() => { }} onRectChange={() => { }} />);
-  expect(nodes.boxes).toEqual([soft, soft]);
-  expect(nodes.labels).toEqual([foreground, foreground]);
+  expect(nodes.boxes).toEqual([LIGHT_SOFT, LIGHT_SOFT]);
+  expect(nodes.labels).toEqual([LIGHT_FOREGROUND, LIGHT_FOREGROUND]);
 });
 
-it("updates own-field labels and fills when the theme changes", async () => {
+it("keeps own-field labels and fills light when the theme changes", async () => {
   render(<PendingOwnFieldLayer page={0} viewport={viewport} annotations={[field]}
     selectedId={null} onSelect={() => { }} onRectChange={() => { }} />);
-  await act(async () => {
-    document.documentElement.style.setProperty("--color-accent-soft", "rgb(20, 42, 55)");
-    document.documentElement.style.setProperty("--color-accent-soft-foreground", "rgb(190, 225, 245)");
-    document.documentElement.dataset.theme = "dark";
-  });
-  expect(nodes.boxes.at(-1)).toBe("rgb(20, 42, 55)");
-  expect(nodes.labels.at(-1)).toBe("rgb(190, 225, 245)");
+  await act(async () => { document.documentElement.dataset.theme = "dark"; });
+  expect(nodes.boxes.at(-1)).toBe(LIGHT_SOFT);
+  expect(nodes.labels.at(-1)).toBe(LIGHT_FOREGROUND);
 });

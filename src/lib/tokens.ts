@@ -1,15 +1,19 @@
-/** Read a CSS custom property from `:root`. Konva cannot resolve `var(...)`. */
+/** Read a CSS custom property from `:root`, or from `scope`. Konva cannot resolve `var(...)`. */
 
 const HEX = /^#([\da-f]{3}|[\da-f]{6})$/i;
 const RGB =
   /^rgba?\(\s*([\d.]+)\s*[, ]\s*([\d.]+)\s*[, ]\s*([\d.]+)(?:\s*[,/]\s*[\d.%]+)?\s*\)$/i;
 const OKLCH = /^oklch\(\s*([^)/]+?)\s*(?:\/\s*[^)]+)?\)$/i;
 
-export function readToken(name: string, fallback: string): string {
+export function readToken(
+  name: string,
+  fallback: string,
+  scope?: Element,
+): string {
   if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
     return fallback;
   }
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const value = getComputedStyle(scope ?? document.documentElement).getPropertyValue(name).trim();
   return value === "" ? fallback : value;
 }
 

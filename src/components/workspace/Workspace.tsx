@@ -978,22 +978,24 @@ export function Workspace({ pdf, path }: Props) {
           className="block border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           hiddenAnnotationIds={replacedAnnotationIds}
         />
-        {renderSearchHighlights()}
-        {activeTool === "crop" && pageSize.width > 0 && (
-          <CropOverlay
-            width={pageSize.width}
-            height={pageSize.height}
-            rect={scaleCropRect(cropRect, zoom)}
-            onRectChange={(screenRect) =>
-              changeCropRect(scaleCropRect(screenRect, zoom > 0 ? 1 / zoom : 1))
-            }
-            docPath={path}
-          />
-        )}
-        {renderPendingPreview()}
-        {renderPendingEditor()}
+        <div className="paper-light contents">
+          {renderSearchHighlights()}
+          {activeTool === "crop" && pageSize.width > 0 && (
+            <CropOverlay
+              width={pageSize.width}
+              height={pageSize.height}
+              rect={scaleCropRect(cropRect, zoom)}
+              onRectChange={(screenRect) =>
+                changeCropRect(scaleCropRect(screenRect, zoom > 0 ? 1 / zoom : 1))
+              }
+              docPath={path}
+            />
+          )}
+          {renderPendingPreview()}
+          {renderPendingEditor()}
+        </div>
         {renderPendingControls()}
-        {renderOcrSelection()}
+        <div className="paper-light contents">{renderOcrSelection()}</div>
       </div>
     );
   }
@@ -1011,7 +1013,7 @@ export function Workspace({ pdf, path }: Props) {
     }
     if (pageIndex === activePage) return focusedPageSurface;
     return (
-      <div className="relative shrink-0" style={{ width: size.width, height: size.height }}>
+      <div className="paper-light relative shrink-0" style={{ width: size.width, height: size.height }}>
         <BookFacingPage
           pdf={pdf}
           pageIndex={pageIndex}
