@@ -18,14 +18,6 @@ as source fields. Their values can still be filled, but they cannot be
 moved, resized or deleted in this app. Draw a new field to replace their
 layout in a separate copy if needed.
 
-## Last-resort text replacement can lose page images
-
-When a font cannot be decoded, Edit Text offers a redaction-style fallback.
-That fallback can lose images and existing fonts when the page stores its
-resources indirectly. Avoid that fallback on such pages. This is separate
-from saving form values, whose resource handling is fixed. The remaining
-writer is `text_edit.rs::replace_run_via_redaction`.
-
 ## Update check and download fail behind a corporate proxy
 
 **What happens.** With the update consent on (Settings -> About), the

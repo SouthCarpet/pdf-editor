@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::{AppError, AppResult};
+use crate::services::annotations::{dictionary_copy, page_resources_copy};
 use crate::services::lopdf_ext::ObjectExt;
 
 /// Discovered glyph run that the frontend lists as a candidate edit
@@ -673,6 +674,15 @@ pub fn replace_run_via_redaction(
         "BaseFont" => "Helvetica",
         "Encoding" => "WinAnsiEncoding"
     });
+    let mut resources = page_resources_copy(&doc, page_id)?;
+    let mut fonts = resources
+        .get(b"Font")
+        .ok()
+        .map(|entry| dictionary_copy(&doc, entry))
+        .transpose()?
+        .unwrap_or_default();
+    fonts.set("F1", Object::Reference(font_id));
+    resources.set("Font", fonts);
     if let Some(obj) = doc.objects.get_mut(&page_id) {
         if let Ok(d) = obj.as_dict_mut() {
             let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
@@ -682,30 +692,7 @@ pub fn replace_run_via_redaction(
             };
             contents.push(Object::Reference(stream_id));
             d.set("Contents", contents);
-            let res = match d.get_mut(b"Resources") {
-                Ok(o) => o.as_dict_mut().ok(),
-                Err(_) => None,
-            };
-            if let Some(res) = res {
-                let fonts = match res.get(b"Font").cloned() {
-                    Ok(Object::Dictionary(mut fd)) => {
-                        fd.set("F1", Object::Reference(font_id));
-                        fd
-                    }
-                    _ => {
-                        let mut fd = lopdf::Dictionary::new();
-                        fd.set("F1", Object::Reference(font_id));
-                        fd
-                    }
-                };
-                res.set("Font", Object::Dictionary(fonts));
-            } else {
-                let mut new_res = lopdf::Dictionary::new();
-                let mut fd = lopdf::Dictionary::new();
-                fd.set("F1", Object::Reference(font_id));
-                new_res.set("Font", Object::Dictionary(fd));
-                d.set("Resources", Object::Dictionary(new_res));
-            }
+            d.set("Resources", resources);
         }
     }
     doc.compress();

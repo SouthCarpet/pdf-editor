@@ -1149,13 +1149,13 @@ fn ensure_page_font(
     Ok(())
 }
 
-fn dictionary_copy(doc: &Document, entry: &Object) -> Result<lopdf::Dictionary> {
+pub(crate) fn dictionary_copy(doc: &Document, entry: &Object) -> Result<lopdf::Dictionary> {
     Ok(doc.dereference(entry)?.1.as_dict()?.clone())
 }
 
 /// Resources may be shared or inherited. Copy them onto this page before
 /// binding a value font, so another page keeps its original resources.
-fn page_resources_copy(doc: &Document, page_id: ObjectId) -> Result<lopdf::Dictionary> {
+pub(crate) fn page_resources_copy(doc: &Document, page_id: ObjectId) -> Result<lopdf::Dictionary> {
     let mut current = page_id;
     let mut visited = HashSet::new();
     while visited.insert(current) {

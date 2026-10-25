@@ -130,6 +130,8 @@
 
 ### Fixed
 
+- Last-resort text replacement keeps images and existing fonts when page resources or font dictionaries use indirect references.
+
 - Saving values on pages with indirect resources preserves existing images
   and font resources.
 
