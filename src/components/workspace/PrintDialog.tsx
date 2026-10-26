@@ -14,7 +14,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { writePendingAnnotationsCopy } from "@/lib/documentSave";
-import { cn } from "@/lib/utils";
 import {
   buildPrintPlan,
   DEFAULT_PRINT_OPTIONS,
@@ -52,26 +51,17 @@ function SwitchControl({
   onCheckedChange?: (checked: boolean) => void;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onCheckedChange?.(!checked)}
-      className={cn(
-        "relative h-8 w-11 shrink-0 rounded-full border border-[var(--color-border)] bg-[var(--color-control)] p-1 transition-[background-color,opacity] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] disabled:cursor-not-allowed disabled:opacity-60",
-        checked && "border-[var(--color-accent)] bg-[var(--color-accent)]",
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={cn(
-          "block size-5 rounded-full bg-[var(--color-card)] shadow-sm transition-transform",
-          checked && "translate-x-3",
-        )}
-      />
-    </button>
+    <label className="k-switch shrink-0">
+      <input className="k-switch-input" type="checkbox" role="switch"
+        checked={checked} aria-checked={checked} aria-label={label} disabled={disabled}
+        onChange={(event) => onCheckedChange?.(event.target.checked)} />
+      <span className="k-switch-track" aria-hidden="true">
+        <span className="k-switch-bg" />
+        <span className="k-switch-mark k-switch-mark--on" />
+        <span className="k-switch-mark k-switch-mark--off" />
+        <span className="k-switch-thumb" />
+      </span>
+    </label>
   );
 }
 
@@ -214,8 +204,7 @@ export function PrintDialog({
     setNotice(null);
     cancelRequested.current = false;
 
-    try {
-      let printSource = path;
+    async function preparePrintSource() {
       if (plan.source === "filled") {
         temporaryPdf = await join(
           await tempDir(),
@@ -223,11 +212,12 @@ export function PrintDialog({
         );
         const written = await writePendingAnnotationsCopy(path, temporaryPdf);
         if (!written) throw new Error("print-annotation-apply");
-        printSource = temporaryPdf;
+        return temporaryPdf;
       }
+      return path;
+    }
 
-      if (cancelRequested.current) throw new DOMException("cancelled", "AbortError");
-
+    async function renderPrintPages(printSource: string) {
       const pages = new Map<number, RenderedPage>();
       for (let page = 1; page <= plan.pageCount; page += 1) {
         if (cancelRequested.current) throw new DOMException("cancelled", "AbortError");
@@ -240,6 +230,15 @@ export function PrintDialog({
         pages.set(page, { page, url });
         setCompletedPages(page);
       }
+      return pages;
+    }
+
+    try {
+      const printSource = await preparePrintSource();
+
+      if (cancelRequested.current) throw new DOMException("cancelled", "AbortError");
+
+      const pages = await renderPrintPages(printSource);
 
       const sheets = plan.sheets.map(
         ([left, right]): RenderedSheet => [
@@ -279,144 +278,148 @@ export function PrintDialog({
 
   const progress = pageCount === 0 ? 0 : Math.round((completedPages / pageCount) * 100);
 
-  return (
-    <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent
-          closeLabel={t("common:close")}
-          className="max-w-[360px] gap-3 rounded-lg p-4"
-        >
-          <DialogHeader className="pr-8">
-            <DialogTitle className="text-balance">{t("workspace:print.title")}</DialogTitle>
-            <DialogDescription className="text-pretty">
-              {t("workspace:print.description")}
-            </DialogDescription>
-          </DialogHeader>
+  return renderDialog();
 
-          <div className="grid gap-1 divide-y divide-[var(--color-border)]">
-            <div
-              role="radiogroup"
-              aria-label={t("workspace:print.content_label")}
-              className="grid h-8 grid-cols-2 rounded-md border border-[var(--color-border)] bg-[var(--color-control)] p-0.5"
-            >
-              {(["filled", "original"] as const).map((content) => (
-                <button
-                  key={content}
-                  type="button"
-                  role="radio"
-                  aria-checked={options.content === content}
-                  disabled={busy}
-                  onClick={() => updateOptions({ content })}
-                  className="rounded text-xs font-medium text-[var(--color-muted)] transition-[background-color,color,scale] active:not-disabled:scale-[0.96] aria-checked:bg-[var(--color-card)] aria-checked:text-[var(--color-foreground)] aria-checked:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] disabled:opacity-50"
-                >
-                  {content === "filled"
-                    ? t("workspace:print.filled")
-                    : t("workspace:print.original")}
-                </button>
-              ))}
-            </div>
+  function renderDialog() {
+    return (
+      <>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+          <DialogContent
+            closeLabel={t("common:close")}
+            className="max-w-[360px] gap-3 rounded-lg p-4"
+          >
+            <DialogHeader className="pr-8">
+              <DialogTitle className="text-balance">{t("workspace:print.title")}</DialogTitle>
+              <DialogDescription className="text-pretty">
+                {t("workspace:print.description")}
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="flex min-h-14 items-center justify-between gap-4 py-2">
-              <div>
-                <p className="text-sm font-medium">{t("workspace:print.as_image")}</p>
-                <p id="print-image-note" className="text-pretty text-xs text-[var(--color-muted)]">
-                  {t("workspace:print.image_always_note")}
-                </p>
-              </div>
-              <Tooltip.Provider delayDuration={300}>
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]">
-                      <SwitchControl
-                        checked
-                        disabled
-                        label={t("workspace:print.as_image")}
-                      />
-                    </span>
-                  </Tooltip.Trigger>
-                  <Tooltip.Portal>
-                    <Tooltip.Content
-                      side="top"
-                      className="z-[60] max-w-56 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1.5 text-xs text-[var(--color-foreground)] shadow-lg"
-                    >
-                      {t("workspace:print.image_tooltip")}
-                    </Tooltip.Content>
-                  </Tooltip.Portal>
-                </Tooltip.Root>
-              </Tooltip.Provider>
-            </div>
-
-            <div className="flex min-h-14 items-center justify-between gap-4 py-2">
-              <div>
-                <p className="text-sm font-medium">{t("workspace:print.booklet")}</p>
-                <p className="text-pretty text-xs text-[var(--color-muted)]">
-                  {t("workspace:print.booklet_note")}
-                </p>
-              </div>
-              <SwitchControl
-                checked={options.booklet}
-                disabled={busy}
-                label={t("workspace:print.booklet")}
-                onCheckedChange={(booklet) => updateOptions({ booklet })}
-              />
-            </div>
-
-            <div className="flex min-h-12 items-center justify-between gap-4 py-2">
-              <p className="text-sm font-medium">{t("workspace:print.reverse")}</p>
-              <SwitchControl
-                checked={options.reverse}
-                disabled={busy}
-                label={t("workspace:print.reverse")}
-                onCheckedChange={(reverse) => updateOptions({ reverse })}
-              />
-            </div>
-          </div>
-
-          {busy && pageCount >= LONG_DOCUMENT_PAGES ? (
-            <div className="space-y-1.5" role="status">
-              <div className="flex justify-between text-xs tabular-nums text-[var(--color-muted)]">
-                <span>{t("workspace:print.preparing")}</span>
-                <span>{t("workspace:print.progress", { current: completedPages, total: pageCount })}</span>
-              </div>
+            <div className="grid gap-1 divide-y divide-[var(--color-border)]">
               <div
-                role="progressbar"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={progress}
-                className="h-1.5 overflow-hidden rounded-full bg-[var(--color-control)]"
+                role="radiogroup"
+                aria-label={t("workspace:print.content_label")}
+                className="grid h-8 grid-cols-2 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-0.5"
               >
-                <div
-                  className="h-full rounded-full bg-[var(--color-accent)] transition-transform"
-                  style={{ transform: `translateX(${progress - 100}%)` }}
+                {(["filled", "original"] as const).map((content) => (
+                  <button
+                    key={content}
+                    type="button"
+                    role="radio"
+                    aria-checked={options.content === content}
+                    disabled={busy}
+                    onClick={() => updateOptions({ content })}
+                    className="rounded-[var(--radius-sm)] text-xs text-[var(--color-text-muted)] transition-colors aria-checked:bg-[var(--color-surface-selected)] aria-checked:font-bold aria-checked:text-[var(--color-text)] focus-visible:outline-2 focus-visible:outline-[var(--color-focus)] disabled:opacity-50"
+                  >
+                    {content === "filled"
+                      ? t("workspace:print.filled")
+                      : t("workspace:print.original")}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex min-h-14 items-center justify-between gap-4 py-2">
+                <div>
+                  <p className="text-sm font-medium">{t("workspace:print.as_image")}</p>
+                  <p id="print-image-note" className="text-pretty text-xs text-[var(--color-text-muted)]">
+                    {t("workspace:print.image_always_note")}
+                  </p>
+                </div>
+                <Tooltip.Provider delayDuration={300}>
+                  <Tooltip.Root>
+                    <Tooltip.Trigger asChild>
+                      <span tabIndex={0} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)]">
+                        <SwitchControl
+                          checked
+                          disabled
+                          label={t("workspace:print.as_image")}
+                        />
+                      </span>
+                    </Tooltip.Trigger>
+                    <Tooltip.Portal>
+                      <Tooltip.Content
+                        side="top"
+                        className="z-[60] max-w-56 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2 py-1.5 text-xs text-[var(--color-text)]"
+                      >
+                        {t("workspace:print.image_tooltip")}
+                      </Tooltip.Content>
+                    </Tooltip.Portal>
+                  </Tooltip.Root>
+                </Tooltip.Provider>
+              </div>
+
+              <div className="flex min-h-14 items-center justify-between gap-4 py-2">
+                <div>
+                  <p className="text-sm font-medium">{t("workspace:print.booklet")}</p>
+                  <p className="text-pretty text-xs text-[var(--color-text-muted)]">
+                    {t("workspace:print.booklet_note")}
+                  </p>
+                </div>
+                <SwitchControl
+                  checked={options.booklet}
+                  disabled={busy}
+                  label={t("workspace:print.booklet")}
+                  onCheckedChange={(booklet) => updateOptions({ booklet })}
+                />
+              </div>
+
+              <div className="flex min-h-12 items-center justify-between gap-4 py-2">
+                <p className="text-sm font-medium">{t("workspace:print.reverse")}</p>
+                <SwitchControl
+                  checked={options.reverse}
+                  disabled={busy}
+                  label={t("workspace:print.reverse")}
+                  onCheckedChange={(reverse) => updateOptions({ reverse })}
                 />
               </div>
             </div>
-          ) : null}
 
-          {notice ? (
-            <p role="status" className="text-pretty text-xs text-[var(--color-muted)]">
-              {notice === "cancelled"
-                ? t("workspace:print.cancelled")
-                : t("workspace:print.error")}
-            </p>
-          ) : null}
+            {busy && pageCount >= LONG_DOCUMENT_PAGES ? (
+              <div className="space-y-1.5" role="status">
+                <div className="flex justify-between text-xs tabular-nums text-[var(--color-text-muted)]">
+                  <span>{t("workspace:print.preparing")}</span>
+                  <span>{t("workspace:print.progress", { current: completedPages, total: pageCount })}</span>
+                </div>
+                <div
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
+                  className="k-progress"
+                >
+                  <div
+                    className="k-progress-fill"
+                    style={{ transform: `scaleX(${progress / 100})` }}
+                  />
+                </div>
+              </div>
+            ) : null}
 
-          <DialogFooter className="flex-row justify-end space-x-2">
-            <Button type="button" variant="ghost" size="sm" onClick={cancel}>
-              {busy ? t("workspace:print.stop") : t("common:cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              disabled={!canPrint || busy}
-              onClick={() => void print()}
-            >
-              {busy ? t("workspace:print.preparing") : t("workspace:print.action")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <PrintView sheets={renderedSheets} slotsPerSheet={slotsPerSheet} />
-    </>
-  );
+            {notice ? (
+              <p role="status" className="text-pretty text-xs text-[var(--color-text-muted)]">
+                {notice === "cancelled"
+                  ? t("workspace:print.cancelled")
+                  : t("workspace:print.error")}
+              </p>
+            ) : null}
+
+            <DialogFooter className="flex-row justify-end space-x-2">
+              <Button type="button" variant="ghost" onClick={cancel}>
+                {busy ? t("workspace:print.stop") : t("common:cancel")}
+              </Button>
+              <Button
+                type="button"
+
+                disabled={!canPrint || busy}
+                onClick={() => void print()}
+              >
+                {busy ? t("workspace:print.preparing") : t("workspace:print.action")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <PrintView sheets={renderedSheets} slotsPerSheet={slotsPerSheet} />
+      </>
+    );
+  }
 }

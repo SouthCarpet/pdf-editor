@@ -93,42 +93,9 @@ pub async fn convert_pdf_export_cmd(
 
     let result: AppResult<ExportResult> = match args.format {
         ExportFormat::Png | ExportFormat::Jpg | ExportFormat::Tiff => {
-            let (fmt, ext, multi_page_single_file) = match args.format {
-                ExportFormat::Png => ("png", "png", false),
-                ExportFormat::Jpg => ("jpeg", "jpg", false),
-                ExportFormat::Tiff => ("tiff", "tiff", true),
-                _ => unreachable!(),
-            };
-            // mutool's `-o` accepts a `%d` template for multi-file outputs.
-            // For PNG/JPG we produce one file per page; for TIFF we write a
-            // single multi-page TIFF.
-            let pattern = if multi_page_single_file {
-                out_dir.join(format!("{stem}.{ext}"))
-            } else {
-                out_dir.join(format!("{stem}-%d.{ext}"))
-            };
-            state
-                .mupdf
-                .convert_to_format(&input, &pattern, fmt, 150, Some(token.clone()))
-                .await?;
-            // We can't enumerate exact output filenames without scanning the
-            // directory (mutool numbers pages 1..N). Glob the expected names
-            // and report what exists; for TIFF it's just the single file.
-            let outs = if multi_page_single_file {
-                vec![pattern.display().to_string()]
-            } else {
-                let mut v = Vec::new();
-                for i in 1..=10_000u32 {
-                    let candidate = out_dir.join(format!("{stem}-{i}.{ext}"));
-                    if candidate.exists() {
-                        v.push(candidate.display().to_string());
-                    } else {
-                        break;
-                    }
-                }
-                v
-            };
-            Ok(ExportResult { output_paths: outs })
+            let output =
+                export_raster(&state, &input, &out_dir, &stem, args.format, &token).await?;
+            Ok(output)
         }
         ExportFormat::Txt => {
             let out = out_dir.join(format!("{stem}.txt"));
@@ -170,35 +137,92 @@ pub async fn convert_pdf_export_cmd(
             })
         }
         ExportFormat::PdfA => {
-            // Delta E: LO primary, GS fallback.
-            let lo_target =
-                "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
-            let lo_attempt = state
-                .soffice
-                .convert(&input, &out_dir, lo_target, Some(token.clone()))
-                .await;
-            match lo_attempt {
-                Ok(out) => Ok(ExportResult {
-                    output_paths: vec![out.display().to_string()],
-                }),
-                Err(lo_err) => {
-                    warn!(
-                        error = ?lo_err,
-                        "LibreOffice PDF/A export failed; falling back to Ghostscript"
-                    );
-                    let gs_out = out_dir.join(format!("{stem}.pdf"));
-                    state
-                        .gs
-                        .convert_to_pdfa(&input, &gs_out, 2, Some(token.clone()))
-                        .await?;
-                    Ok(ExportResult {
-                        output_paths: vec![gs_out.display().to_string()],
-                    })
-                }
-            }
+            let output = export_pdfa(&state, &input, &out_dir, &stem, &token).await?;
+            Ok(output)
         }
     };
 
     state.cancellation.forget(&args.job_id);
     result
+}
+
+async fn export_raster(
+    state: &AppState,
+    input: &std::path::Path,
+    out_dir: &std::path::Path,
+    stem: &str,
+    format: ExportFormat,
+    token: &tokio_util::sync::CancellationToken,
+) -> AppResult<ExportResult> {
+    let (fmt, ext, multi_page_single_file) = match format {
+        ExportFormat::Png => ("png", "png", false),
+        ExportFormat::Jpg => ("jpeg", "jpg", false),
+        ExportFormat::Tiff => ("tiff", "tiff", true),
+        _ => unreachable!(),
+    };
+    // mutool's `-o` accepts a `%d` template for multi-file outputs.
+    // For PNG/JPG we produce one file per page; for TIFF we write a
+    // single multi-page TIFF.
+    let pattern = if multi_page_single_file {
+        out_dir.join(format!("{stem}.{ext}"))
+    } else {
+        out_dir.join(format!("{stem}-%d.{ext}"))
+    };
+    state
+        .mupdf
+        .convert_to_format(input, &pattern, fmt, 150, Some(token.clone()))
+        .await?;
+    // We can't enumerate exact output filenames without scanning the
+    // directory (mutool numbers pages 1..N). Glob the expected names
+    // and report what exists; for TIFF it's just the single file.
+    let outs = if multi_page_single_file {
+        vec![pattern.display().to_string()]
+    } else {
+        let mut v = Vec::new();
+        for i in 1..=10_000u32 {
+            let candidate = out_dir.join(format!("{stem}-{i}.{ext}"));
+            if candidate.exists() {
+                v.push(candidate.display().to_string());
+            } else {
+                break;
+            }
+        }
+        v
+    };
+    Ok(ExportResult { output_paths: outs })
+}
+
+async fn export_pdfa(
+    state: &AppState,
+    input: &std::path::Path,
+    out_dir: &std::path::Path,
+    stem: &str,
+    token: &tokio_util::sync::CancellationToken,
+) -> AppResult<ExportResult> {
+    // Delta E: LO primary, GS fallback.
+    let lo_target =
+        "pdf:writer_pdf_Export:{\"SelectPdfVersion\":{\"type\":\"long\",\"value\":\"2\"}}";
+    let lo_attempt = state
+        .soffice
+        .convert(input, out_dir, lo_target, Some(token.clone()))
+        .await;
+    match lo_attempt {
+        Ok(out) => Ok(ExportResult {
+            output_paths: vec![out.display().to_string()],
+        }),
+        Err(lo_err) => {
+            warn!(
+                error = ?lo_err,
+                "LibreOffice PDF/A export failed; falling back to Ghostscript"
+            );
+            let gs_out = out_dir.join(format!("{stem}.pdf"));
+            state
+                .gs
+                .convert_to_pdfa(input, &gs_out, 2, Some(token.clone()))
+                .await?;
+            Ok(ExportResult {
+                output_paths: vec![gs_out.display().to_string()],
+            })
+        }
+    }
 }

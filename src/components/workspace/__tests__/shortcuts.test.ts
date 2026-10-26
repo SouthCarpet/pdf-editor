@@ -103,7 +103,7 @@ describe("resolveShortcut", () => {
   });
 
   // Plan 062 T1.1: Delete / Backspace clear a selected pending fill, but
-  // only when the event is not typing into a text field. Oracle: Michal's
+  // only when the event is not typing into a text field. Oracle: the owner's
   // 2026-08-29 defect (click a filled cell, Delete does nothing) and R1
   // of the round-2 brief.
   it("Delete maps to delete-pending when no text input is focused", () => {

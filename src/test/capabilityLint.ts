@@ -47,7 +47,7 @@ export type AclManifest = Record<string, AclNamespace>;
 // reference through a `<namespace>:default` entry (`core:default`,
 // `dialog:default`, `fs:default`, plus the `core:*` sub-namespaces
 // `core:default` itself expands to). It is data straight from Tauri's own
-// permission schema for the pinned `tauri = "=2.11"` (`CLAUDE.md`), not app
+// permission schema for the pinned `tauri = "=2.11"` (`src-tauri/Cargo.toml`), not app
 // logic, so it changes only when that pin moves - and the sync test below
 // re-checks it against the real file whenever a build has produced one.
 // `lintCapabilities()` falls back to this only when the generated file is
@@ -353,7 +353,7 @@ export const CALL_PERMISSIONS: Record<string, string> = {
 // them into a tauri_build::AppManifest command list in src-tauri/build.rs
 // switches EVERY app command to the ACL, and the unlisted ones (for example
 // check_for_update, open_document) fail at runtime with "not allowed by ACL"
-// (found by Michal in the 2026-08-30 build). This map therefore stays empty;
+// (found by the owner in the 2026-08-30 build). This map therefore stays empty;
 // a companion test asserts build.rs carries no AppManifest command list.
 const APP_COMMAND_PERMISSIONS: Record<string, string> = {};
 
@@ -381,98 +381,95 @@ function lineNumberAt(text: string, index: number): number {
 
 const IMPORT_RE = /import\s*\{([^}]+)\}\s*from\s*["']@tauri-apps\/([\w./-]+)["']/g;
 
-/** Scans one file's text for the three call shapes R1 lists. `filePath` is
- * used only for messages, so callers can pass a repo-relative path. */
-export function scanFile(filePath: string, text: string): { calls: CallSite[]; unknown: UnknownCall[] } {
-  const calls: CallSite[] = [];
-  const unknown: UnknownCall[] = [];
+interface CallAliases {
+  direct: Map<string, string>;
+  window: string | null;
+  webview: string | null;
+  invoke: string | null;
+}
 
-  const aliasKey = new Map<string, string>();
-  let windowAlias: string | null = null;
-  let webviewAlias: string | null = null;
-  let invokeLocal: string | null = null;
+interface ScanResult {
+  calls: CallSite[];
+  unknown: UnknownCall[];
+}
 
+function recordImport(aliases: CallAliases, modulePath: string, { original, local }: ImportedName): void {
+  if (modulePath === "api/window") {
+    if (["getCurrentWindow", "getCurrentWebviewWindow"].includes(original)) aliases.window = local;
+  } else if (modulePath === "api/webview") {
+    if (original === "getCurrentWebview") aliases.webview = local;
+  } else if (modulePath === "api/core") {
+    if (original === "invoke") aliases.invoke = local;
+  } else if (modulePath === "api/event" || modulePath === "api/path" || modulePath.startsWith("plugin-")) {
+    aliases.direct.set(local, `${modulePath}:${original}`);
+  }
+}
+
+function parseCallAliases(text: string): CallAliases {
+  const aliases: CallAliases = { direct: new Map(), window: null, webview: null, invoke: null };
   for (const [, namedSpec, modulePath] of text.matchAll(IMPORT_RE)) {
-    const names = parseNamedImports(namedSpec);
-    if (modulePath === "api/window") {
-      for (const { original, local } of names) {
-        if (original === "getCurrentWindow" || original === "getCurrentWebviewWindow") windowAlias = local;
-      }
-    } else if (modulePath === "api/webview") {
-      for (const { original, local } of names) {
-        if (original === "getCurrentWebview") webviewAlias = local;
-      }
-    } else if (modulePath === "api/core") {
-      for (const { original, local } of names) {
-        if (original === "invoke") invokeLocal = local;
-      }
-    } else if (
-      modulePath === "api/event" ||
-      modulePath === "api/path" ||
-      modulePath.startsWith("plugin-")
-    ) {
-      for (const { original, local } of names) aliasKey.set(local, `${modulePath}:${original}`);
+    for (const name of parseNamedImports(namedSpec)) {
+      recordImport(aliases, modulePath, name);
     }
   }
+  return aliases;
+}
 
+function scanNamedCalls(filePath: string, text: string, aliasKey: Map<string, string>, result: ScanResult): void {
   for (const [local, key] of aliasKey) {
     const callRe = new RegExp(`\\b${local}\\s*\\(`, "g");
     for (const m of text.matchAll(callRe)) {
       const line = lineNumberAt(text, m.index ?? 0);
       const permission = CALL_PERMISSIONS[key];
-      if (permission === undefined) unknown.push({ file: filePath, line, detail: `${local}(...) [${key}]` });
-      else calls.push({ file: filePath, line, permission, detail: `${local}(...)` });
+      if (permission === undefined) result.unknown.push({ file: filePath, line, detail: `${local}(...) [${key}]` });
+      else result.calls.push({ file: filePath, line, permission, detail: `${local}(...)` });
     }
   }
+}
 
-  if (windowAlias) {
-    const methodRe = new RegExp(`\\b${windowAlias}\\s*\\(\\s*\\)\\s*\\.\\s*(\\w+)\\s*\\(`, "g");
-    for (const m of text.matchAll(methodRe)) {
-      const methodName = m[1];
-      const line = lineNumberAt(text, m.index ?? 0);
-      const key = `window:${methodName}`;
-      const permission = CALL_PERMISSIONS[key];
-      const detail = `${windowAlias}().${methodName}(...)`;
-      if (permission === undefined) unknown.push({ file: filePath, line, detail });
-      else calls.push({ file: filePath, line, permission, detail });
-    }
+function scanAccessorCalls(
+  filePath: string,
+  text: string,
+  alias: string | null,
+  kind: "window" | "webview",
+  result: ScanResult,
+): void {
+  if (!alias) return;
+  const methodRe = new RegExp(`\\b${alias}\\s*\\(\\s*\\)\\s*\\.\\s*(\\w+)\\s*\\(`, "g");
+  for (const m of text.matchAll(methodRe)) {
+    const methodName = m[1];
+    const line = lineNumberAt(text, m.index ?? 0);
+    const permission = CALL_PERMISSIONS[`${kind}:${methodName}`];
+    const detail = `${alias}().${methodName}(...)`;
+    if (permission === undefined) result.unknown.push({ file: filePath, line, detail });
+    else result.calls.push({ file: filePath, line, permission, detail });
   }
+}
 
-  if (webviewAlias) {
-    const methodRe = new RegExp(`\\b${webviewAlias}\\s*\\(\\s*\\)\\s*\\.\\s*(\\w+)\\s*\\(`, "g");
-    for (const m of text.matchAll(methodRe)) {
-      const methodName = m[1];
-      const line = lineNumberAt(text, m.index ?? 0);
-      const key = `webview:${methodName}`;
-      const permission = CALL_PERMISSIONS[key];
-      const detail = `${webviewAlias}().${methodName}(...)`;
-      if (permission === undefined) unknown.push({ file: filePath, line, detail });
-      else calls.push({ file: filePath, line, permission, detail });
-    }
-  }
-
-  if (invokeLocal) {
-    const invokeRe = new RegExp(`\\b${invokeLocal}\\s*(?:<[^>]*>)?\\s*\\(\\s*["']([^"']+)["']`, "g");
-    for (const m of text.matchAll(invokeRe)) {
-      const literal = m[1];
-      const line = lineNumberAt(text, m.index ?? 0);
-      if (!literal.startsWith("plugin:")) {
-        const permission = APP_COMMAND_PERMISSIONS[literal];
-        if (permission) {
-          calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
-        }
-        continue;
+function scanInvokes(filePath: string, text: string, invokeLocal: string | null, result: ScanResult): void {
+  if (!invokeLocal) return;
+  const invokeRe = new RegExp(`\\b${invokeLocal}\\s*(?:<[^>]*>)?\\s*\\(\\s*["']([^"']+)["']`, "g");
+  for (const m of text.matchAll(invokeRe)) {
+    const literal = m[1];
+    const line = lineNumberAt(text, m.index ?? 0);
+    if (!literal.startsWith("plugin:")) {
+      const permission = APP_COMMAND_PERMISSIONS[literal];
+      if (permission) {
+        result.calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
       }
-      const [pluginName, command] = literal.slice("plugin:".length).split("|");
-      if (!pluginName || !command) {
-        unknown.push({ file: filePath, line, detail: `invoke("${literal}") [malformed plugin call]` });
-        continue;
-      }
-      const permission = `${pluginName}:allow-${command.replace(/_/g, "-")}`;
-      calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
+      continue;
     }
+    const [pluginName, command] = literal.slice("plugin:".length).split("|");
+    if (!pluginName || !command) {
+      result.unknown.push({ file: filePath, line, detail: `invoke("${literal}") [malformed plugin call]` });
+      continue;
+    }
+    const permission = `${pluginName}:allow-${command.replace(/_/g, "-")}`;
+    result.calls.push({ file: filePath, line, permission, detail: `invoke("${literal}")` });
   }
+}
 
+function scanBindings(filePath: string, text: string, result: ScanResult): void {
   // Generated Specta bindings use camelCase command methods. Most app
   // commands are allowed by default; only commands listed in build.rs's
   // AppManifest need an explicit permission and therefore appear here.
@@ -481,15 +478,26 @@ export function scanFile(filePath: string, text: string): { calls: CallSite[]; u
     const command = m[1];
     const permission = APP_COMMAND_PERMISSIONS[command];
     if (!permission) continue;
-    calls.push({
+    result.calls.push({
       file: filePath,
       line: lineNumberAt(text, m.index ?? 0),
       permission,
       detail: `commands.${command}(...)`,
     });
   }
+}
 
-  return { calls, unknown };
+/** Scans one file's text for the three call shapes R1 lists. `filePath` is
+ * used only for messages, so callers can pass a repo-relative path. */
+export function scanFile(filePath: string, text: string): ScanResult {
+  const result: ScanResult = { calls: [], unknown: [] };
+  const aliases = parseCallAliases(text);
+  scanNamedCalls(filePath, text, aliases.direct, result);
+  scanAccessorCalls(filePath, text, aliases.window, "window", result);
+  scanAccessorCalls(filePath, text, aliases.webview, "webview", result);
+  scanInvokes(filePath, text, aliases.invoke, result);
+  scanBindings(filePath, text, result);
+  return result;
 }
 
 const EXCLUDED_DIR_NAMES = new Set(["test", "tests", "__tests__"]);

@@ -1,89 +1,48 @@
 @import "tailwindcss";
+/* Kaliber r4 (plan 119 K1). Order is fixed: tokens, kaliber, app CSS.
+   tokens.css and kaliber.css are byte copies of the design tree (see
+   docs/stack.md); never edit them here. kaliber.css joins Tailwind's
+   `components` layer, so a utility such as `p-6` still beats `.k-btn`. */
+@import "./tokens.css";
+@import "./kaliber.css" layer(components);
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --color-background: #fafafa;
-  --color-foreground: #111111;
-  --color-muted: #5f5f5f;
-  --color-border: #d4d4d4;
-  --color-card: #ffffff;
-  --color-control: #ffffff;
-  --color-control-hover: #f5f5f5;
-  --color-control-active: #e5e5e5;
-  --color-control-foreground: #111111;
-  --color-placeholder: #737373;
-  --color-focus: #2563eb;
-  --color-accent: #1d4ed8;
-  --color-accent-hover: #1e40af;
-  --color-accent-foreground: #ffffff;
-  --color-accent-soft: #dbeafe;
-  --color-accent-soft-foreground: #1e3a8a;
-  --color-danger: #b91c1c;
-  --color-danger-hover: #991b1b;
-  --color-danger-foreground: #ffffff;
-  --color-danger-text: #b91c1c;
-  --color-danger-soft: #fee2e2;
-  --color-danger-soft-foreground: #991b1b;
-  --color-warning: #b45309;
-  --color-warning-hover: #92400e;
-  --color-warning-foreground: #ffffff;
-  --color-warning-soft: #fef3c7;
-  --color-warning-soft-foreground: #78350f;
-  --color-success-text: #166534;
-  --color-success-soft: #dcfce7;
-  --color-success-soft-foreground: #14532d;
-  --color-dropzone: #ffffff;
-  --color-dropzone-active: #f5f5f5;
-  --color-dropzone-border-active: #525252;
-  --color-overlay: rgb(0 0 0 / 0.8);
-  --color-overlay-soft: rgb(0 0 0 / 0.4);
-  --color-selection: #dbeafe;
-  --color-selection-foreground: #172554;
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235f5f5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+:root {
+  --color-field-surface: var(--color-surface-raised);
+  --color-warning-text: oklch(0.5 0.12 70);
+  /* App roles and Tailwind compatibility.
+     Type sizes and radii: tokens.css reuses the names of Tailwind's own theme
+     values (text-xs to text-3xl, radius-sm to radius-lg), so the Kaliber
+     numbers would resize every text-* and rounded-* class. The Tailwind
+     defaults of 186f632 stay to preserve the app geometry.
+     kaliber.css also sets the page text size from --text-body (15 px), which
+     moves every control that inherits it. 1rem is the size before r4. */
+  --text-body: 1rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --app-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235f5f5f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
-.dark {
-  --color-background: #0a0a0a;
-  --color-foreground: #fafafa;
-  --color-muted: #a3a3a3;
-  --color-border: #404040;
-  --color-card: #171717;
-  --color-control: #171717;
-  --color-control-hover: #262626;
-  --color-control-active: #404040;
-  --color-control-foreground: #fafafa;
-  --color-placeholder: #a3a3a3;
-  --color-focus: #60a5fa;
-  --color-accent: #2563eb;
-  --color-accent-hover: #1d4ed8;
-  --color-accent-foreground: #ffffff;
-  --color-accent-soft: #172554;
-  --color-accent-soft-foreground: #bfdbfe;
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
-  --color-danger-foreground: #ffffff;
-  --color-danger-text: #f87171;
-  --color-danger-soft: #450a0a;
-  --color-danger-soft-foreground: #fecaca;
-  --color-warning: #fbbf24;
-  --color-warning-hover: #f59e0b;
-  --color-warning-foreground: #111111;
-  --color-warning-soft: #451a03;
-  --color-warning-soft-foreground: #fde68a;
-  --color-success-text: #86efac;
-  --color-success-soft: #052e16;
-  --color-success-soft-foreground: #bbf7d0;
-  --color-dropzone: #171717;
-  --color-dropzone-active: #262626;
-  --color-dropzone-border-active: #d4d4d4;
-  --color-selection: #1e3a8a;
-  --color-selection-foreground: #dbeafe;
-  --color-overlay-soft: rgb(0 0 0 / 0.6);
-  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+/* Radix sets these two on the open select at run time. `initial` declares
+   them without a value, so nothing changes, and the undeclared-token gate
+   (design/scripts/check_refs.py) knows they exist. */
+:root {
+  --radix-select-trigger-height: initial;
+  --radix-select-trigger-width: initial;
+}
+
+[data-theme="dark"] {
+  --color-warning-text: var(--color-warning);
+  --app-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a3a3a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 html {
-  color-scheme: light;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -94,24 +53,24 @@ html.dark {
 
 body {
   background: var(--color-background);
-  color: var(--color-foreground);
+  color: var(--color-text);
   font-family: var(--font-sans);
   margin: 0;
 }
 
 ::selection {
-  background: var(--color-selection);
-  color: var(--color-selection-foreground);
+  background: var(--color-surface-selected);
+  color: var(--color-text);
 }
 
 select {
   appearance: none;
   border-color: var(--color-border);
-  background-color: var(--color-control);
-  background-image: var(--select-chevron);
+  background-color: var(--color-field-surface);
+  background-image: var(--app-select-chevron);
   background-position: right 0.625rem center;
   background-repeat: no-repeat;
-  color: var(--color-control-foreground);
+  color: var(--color-text);
   padding-right: 2.25rem;
 }
 
@@ -127,12 +86,12 @@ button:focus-visible,
 
 input,
 textarea {
-  color: var(--color-control-foreground);
+  color: var(--color-text);
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--color-placeholder);
+  color: var(--color-text-muted);
   opacity: 1;
 }
 
@@ -150,24 +109,7 @@ input:-webkit-autofill:hover,
 input:-webkit-autofill:focus,
 textarea:-webkit-autofill,
 select:-webkit-autofill {
-  -webkit-text-fill-color: var(--color-control-foreground);
-  box-shadow: 0 0 0 1000px var(--color-control) inset;
-  caret-color: var(--color-control-foreground);
-}
-
-@keyframes update-notice-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-0.25rem);
-  }
-}
-
-.update-notice-enter {
-  animation: update-notice-enter 180ms ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .update-notice-enter {
-    animation: none;
-  }
+  -webkit-text-fill-color: var(--color-text);
+  box-shadow: 0 0 0 1000px var(--color-field-surface) inset;
+  caret-color: var(--color-text);
 }

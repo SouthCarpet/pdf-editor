@@ -4,6 +4,7 @@
   "save_status_dirty": "Unsaved changes",
   "save_status_saving": "Saving...",
   "save_toast": {
+    "signature_warning": "Saving changes invalidates digital signatures. Keep the signed original.",
     "saved": "PDF saved.",
     "reveal": "Show in Explorer"
   },
@@ -156,6 +157,9 @@
     "loading": "Reading form fields...",
     "no_fields": "No native form fields found",
     "detect_explanation": "This PDF has no form fields. The app can look for empty boxes and lines in the page image.",
+    "detect_hybrid_title": "Fields without a form widget",
+    "detect_hybrid_explanation": "A page can have printed boxes and lines that are not form fields, for example a scanned page. The app can look for them in the page image. Boxes that are already form fields are left out.",
+    "detect_save_all": "Save form values and detected fields",
     "detect_fields": "Find fields",
     "detecting": "Searching...",
     "detect_error": "Field detection failed.",
@@ -197,6 +201,23 @@
       "choice": "choice",
       "signature": "signature",
       "button": "button"
+    },
+    "own": {
+      "title": "Own fields",
+      "text": "Text field",
+      "checkbox": "Checkbox",
+      "name": "Field name",
+      "multiline": "Multiline",
+      "font_size": "Font size (pt, 0 = auto)",
+      "delete": "Delete field",
+      "edit_layout": "Edit layout: {{name}}",
+      "place_hint": "Click or drag on the page. Press Escape to cancel.",
+      "save_hint": "Save applies field changes. Fill new fields after saving.",
+      "move_hint": "Drag the box or its edge handles. Arrow keys move it 1 pt; Shift moves it 10 pt. Tab to a handle to resize with arrow keys.",
+      "resize_left": "Resize left edge of {{name}}",
+      "resize_right": "Resize right edge of {{name}}",
+      "resize_top": "Resize top edge of {{name}}",
+      "resize_bottom": "Resize bottom edge of {{name}}"
     }
   },
   "ocr_edit": {
@@ -250,7 +271,7 @@
     "empty": "No signatures saved yet.",
     "place_named": "Place {{name}}",
     "delete_named": "Delete {{name}}",
-    "delete_confirm": "Delete signature {{name}}?",
+    "delete_confirm": "Delete saved signature “{{name}}”?",
     "error": "The signature could not be processed: {{error}}",
     "stamps": {
       "title": "Stamps",

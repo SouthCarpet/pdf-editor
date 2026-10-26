@@ -1,25 +1,63 @@
-import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
+import { Link, useCanGoBack, useRouter, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Home, Moon, Sun, Monitor, Settings } from "lucide-react";
-import { useTheme } from "./ThemeProvider";
+import { ArrowLeft } from "lucide-react";
 import { useAppStore } from "@/stores/appStore";
+import { useUpdateStore } from "@/stores/updateStore";
 import { Button } from "@/components/ui/button";
+import { ThemeSwitch } from "@/components/shell/ThemeSwitch";
+
+type SectionPath = "/" | "/projects" | "/pipeline" | "/settings";
+
+interface Section {
+  to: SectionPath;
+  /** True when the current path belongs to this section. */
+  owns: (pathname: string) => boolean;
+}
+
+/** The four sections, Settings last. Tool pages belong to Tools. */
+const SECTIONS: readonly Section[] = [
+  { to: "/", owns: (p) => p === "/" || p.startsWith("/tools") },
+  { to: "/projects", owns: (p) => p.startsWith("/projects") },
+  { to: "/pipeline", owns: (p) => p.startsWith("/pipeline") },
+  { to: "/settings", owns: (p) => p.startsWith("/settings") },
+];
+
+function SectionTab({ section, label, active }: { section: Section; label: string; active: boolean }) {
+  return (
+    <Link
+      to={section.to}
+      className={active ? "k-tab is-active" : "k-tab"}
+      data-k-label={label}
+      aria-current={active ? "page" : undefined}
+      data-onboard={section.to === "/settings" ? "settings" : undefined}
+    >
+      {label}
+    </Link>
+  );
+}
 
 export function TopBar() {
   const { t, i18n } = useTranslation("common");
-  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const canGoBack = useCanGoBack();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const lang = i18n.resolvedLanguage === "sk" ? "sk" : "en";
   const setLanguage = useAppStore((s) => s.setLanguage);
+  const updateFlag = useUpdateStore((s) => s.updateFlag);
+  const labels: Record<SectionPath, string> = {
+    "/": t("shell.tools_tab"),
+    "/projects": t("shell.projects_tab"),
+    "/pipeline": t("shell.pipeline_tab"),
+    "/settings": t("settings"),
+  };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-card)] px-4">
-      <div className="flex items-center gap-1">
+    <header className="k-header shrink-0">
+      <div className="k-shell">
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9"
+          className="self-center"
           aria-label={t("back")}
           title={t("back")}
           onClick={() => router.history.back()}
@@ -27,45 +65,35 @@ export function TopBar() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <Button asChild variant="ghost" size="icon" className="h-9 w-9" title={t("home")}>
-          <Link to="/projects" aria-label={t("home")}>
-            <Home className="h-4 w-4" />
-          </Link>
-        </Button>
-        <Link to="/" className="ml-2 text-lg font-semibold">
+        <Link to="/" className="k-header-name">
           {t("app_name")}
         </Link>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setLanguage(lang === "en" ? "sk" : "en")}
-          aria-label={t("language")}
-        >
-          {lang.toUpperCase()}
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() =>
-            setTheme(theme === "light" ? "dark" : theme === "dark" ? "system" : "light")
-          }
-          aria-label={t("theme.label")}
-        >
-          {theme === "light" ? (
-            <Sun className="h-4 w-4" />
-          ) : theme === "dark" ? (
-            <Moon className="h-4 w-4" />
-          ) : (
-            <Monitor className="h-4 w-4" />
+        <nav className="k-tabs" aria-label={t("shell.sections")}>
+          {SECTIONS.map((section) => (
+            <SectionTab
+              key={section.to}
+              section={section}
+              label={labels[section.to]}
+              active={section.owns(pathname)}
+            />
+          ))}
+        </nav>
+        <div className="k-header-tools">
+          {updateFlag && (
+            <Link to="/settings" className="k-link k-update-line" data-testid="update-line">
+              {t("shell.update_available")}
+            </Link>
           )}
-        </Button>
-        <Link to="/settings" data-onboard="settings">
-          <Button variant="ghost" size="icon" aria-label={t("settings")}>
-            <Settings className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setLanguage(lang === "en" ? "sk" : "en")}
+            aria-label={t("language")}
+          >
+            {lang.toUpperCase()}
           </Button>
-        </Link>
+          <ThemeSwitch />
+        </div>
       </div>
     </header>
   );

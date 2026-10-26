@@ -1,18 +1,24 @@
 name: Release
 
+# Starts on a pushed tag v* (for example v1.1.0) and by hand
+# (workflow_dispatch). A manual run builds and checks the setup and keeps it
+# as a workflow artifact; only a tag run attaches it to a GitHub release.
 on:
   push:
     tags:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  msi-build:
+  setup-build:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -38,27 +44,72 @@ jobs:
       - shell: pwsh
         run: pwsh scripts/stage-sidecars.ps1
       - run: pnpm install --frozen-lockfile
-      # frontend build first so dist/ exists for tauri::generate_context!() in
-      # main.rs (the generate_bindings binary still depends on the lib which
-      # transitively pulls the tauri-build script).
-      - run: pnpm build
-      - run: pnpm gen:bindings
-      - run: pnpm tauri build
+      # The payload and release checks have their own tests; run them before
+      # the long build.
+      - name: Payload and release check tests
+        run: pnpm vitest run packaging
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      # tsc, vite build, tauri build --no-bundle (no MSI), the payload and
+      # version check (packaging/check-payload.mjs), ISCC and SHA256SUMS.txt.
+      - name: Build the setup
+        shell: pwsh
+        run: pwsh packaging/build-installer.ps1
+      # Replaces the old MSI smoke test: the setup and SHA256SUMS.txt exist,
+      # the hash matches, the asset name is pdf-editor-setup-<version>.exe,
+      # the three manifests agree and a tag is exactly v<version>.
+      - name: Check the release assets
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node packaging/check-release.mjs . packaging/output "$env:RELEASE_TAG"
       - uses: actions/upload-artifact@v7
         with:
-          name: msi-bundle
-          path: src-tauri/target/release/bundle/msi/*.msi
+          name: setup
+          path: |
+            packaging/output/pdf-editor-setup-*.exe
+            packaging/output/SHA256SUMS.txt
+          if-no-files-found: error
 
-  msi-install-smoke:
-    needs: [msi-build]
-    runs-on: windows-latest
-    timeout-minutes: 30
+  github-release:
+    needs: [setup-build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
+      # Only for the release gate in packaging/check-release.mjs.
       - uses: actions/checkout@v7
+        with:
+          sparse-checkout: packaging
       - uses: actions/download-artifact@v8
         with:
-          name: msi-bundle
-          path: src-tauri/target/release/bundle/msi/
-      - name: Run install smoke (requires Sandbox-enabled runner)
-        shell: pwsh
-        run: pwsh scripts/test-msi-install.ps1
+          name: setup
+          path: assets
+      # A new release starts as a draft: the owner publishes it after the
+      # manual acceptance steps in docs/release-checklist.md. The app's
+      # update check sees only published, non-pre-release releases.
+      # The gate prints create (no release) or upload (a draft) and stops
+      # the job when the release is published, so --clobber never replaces
+      # a published asset.
+      - name: Attach the setup and SHA256SUMS.txt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          files=(assets/pdf-editor-setup-*.exe assets/SHA256SUMS.txt)
+          state=$(gh release view "$TAG" --json isDraft 2>/dev/null || true)
+          action=$(node packaging/check-release.mjs --release-action "$state")
+          case "$action" in
+            upload)
+              gh release upload "$TAG" "${files[@]}" --clobber
+              ;;
+            create)
+              gh release create "$TAG" "${files[@]}" --draft --verify-tag \
+                --title "PDF Editor ${TAG#v}" --generate-notes
+              ;;
+          esac

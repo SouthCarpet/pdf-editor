@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { parsePageList } from "@/lib/parsePageList";
+import { AlertNote, TextField } from "./fields";
 
 const MAX_PAGE_HINT = 100000;
 
@@ -26,16 +27,17 @@ export function ExtractOptions({ value, onChange }: Props) {
   const pages = useMemo(() => parsePageList(value.pageInput, MAX_PAGE_HINT), [value.pageInput]);
   const valid = pages !== null && pages.length > 0;
   return (
-    <div className="space-y-1">
-      <label className="text-sm text-[var(--color-muted)]">{t("extract.pages_label")}</label>
-      <Input
-        type="text"
-        value={value.pageInput}
-        onChange={(e) => onChange({ pageInput: e.target.value })}
-        placeholder="1,3,5-7"
-      />
+    <div className="space-y-2">
+      <TextField label={t("extract.pages_label")}>
+        <Input
+          type="text"
+          value={value.pageInput}
+          onChange={(e) => onChange({ pageInput: e.target.value })}
+          placeholder="1,3,5-7"
+        />
+      </TextField>
       {!valid && value.pageInput.length > 0 && (
-        <p className="text-xs text-[var(--color-danger-text)]">{t("extract.invalid_pages")}</p>
+        <AlertNote kind="error">{t("extract.invalid_pages")}</AlertNote>
       )}
     </div>
   );

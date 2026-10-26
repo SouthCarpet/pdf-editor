@@ -12,6 +12,53 @@ afterEach(() => {
 });
 
 describe("dark theme token coverage", () => {
+  // Oracle: plan 119 K6 removes all 24 pre-r4 names from app styles.
+  // Build names from suffixes so the src-wide grep gate can check this test too.
+  it("has no pre-r4 token declarations or uses in any app stylesheet", () => {
+    const oldNames = [
+      "foreground",
+      "muted",
+      "card",
+      "control-hover",
+      "control-active",
+      "control-foreground",
+      "placeholder",
+      "accent-foreground",
+      "danger-foreground",
+      "danger-text",
+      "danger-soft-foreground",
+      "warning-foreground",
+      "warning-soft-foreground",
+      "success-text",
+      "success-soft-foreground",
+      "dropzone",
+      "dropzone-active",
+      "dropzone-border-active",
+      "overlay",
+      "overlay-soft",
+      "selection",
+      "selection-foreground",
+      "warning-hover",
+    ].map((name) => `--color-${name}`);
+    oldNames.push(["--select", "chevron"].join("-"));
+    const directory = join(process.cwd(), "src/styles");
+    const violations = readdirSync(directory)
+      .filter((file) => file.endsWith(".css"))
+      .flatMap((file) => {
+        const css = readFileSync(join(directory, file), "utf8");
+        return oldNames.filter((name) => css.includes(name))
+          .map((name) => `${file}: ${name}`);
+      });
+    expect(violations).toEqual([]);
+  });
+
+  // Oracle: 119-K5 finding 2. App field fills must not replace Kaliber's
+  // mid-grey control edge, or unchecked switches disappear in both themes.
+  it("preserves the shared control edge instead of aliasing it to a field fill", () => {
+    const css = readFileSync(join(process.cwd(), "src/styles/globals.css"), "utf8");
+    expect(css).not.toMatch(/--color-control\s*:/);
+  });
+
   it("renders shared controls and the drop surface with semantic token classes", () => {
     document.documentElement.classList.add("dark");
     render(
@@ -22,20 +69,22 @@ describe("dark theme token coverage", () => {
       </>,
     );
 
-    expect(screen.getByRole("button", { name: "Browse" })).toHaveClass(
-      "bg-[var(--color-control)]",
-      "text-[var(--color-control-foreground)]",
-    );
+    // Kaliber r4 (plan 119 K2): the shared controls take their colours from
+    // the `.k-*` classes, which read the theme tokens; they carry no colour
+    // class of their own.
+    expect(screen.getByRole("button", { name: "Browse" })).toHaveClass("k-btn", "k-btn-secondary");
     expect(screen.getByRole("textbox", { name: "Name" })).toHaveClass(
-      "bg-[var(--color-control)]",
-      "placeholder:text-[var(--color-placeholder)]",
+      "k-input",
+      "placeholder:text-[var(--color-text-muted)]",
     );
     // Located by test id, not by copy: this test is about theme tokens, and
     // it broke the moment the placeholder went through t() (plan 029), which
     // is a copy change that says nothing about theming.
     const placeholder = screen.getByTestId("dropzone-placeholder");
-    expect(placeholder).toHaveClass("text-[var(--color-placeholder)]");
-    expect(placeholder.parentElement).toHaveClass("bg-[var(--color-dropzone)]");
+    // The drop surface is the Kaliber .k-drop-zone: its colours come from the
+    // tokens in kaliber.css, so the theme switch reaches it with no own class.
+    expect(placeholder).toHaveClass("k-drop-hint");
+    expect(placeholder.parentElement).toHaveClass("k-drop-zone");
   });
 
   it("keeps native selects on themed surfaces under the dark root class", () => {
@@ -43,7 +92,7 @@ describe("dark theme token coverage", () => {
     render(<GeneralSettings />);
 
     for (const select of screen.getAllByRole("combobox")) {
-      expect(select.className).toContain("var(--color-");
+      expect(select.className).toContain("k-select");
       expect(select.className).not.toMatch(/\bbg-white\b|\btext-black\b/);
     }
   });
@@ -55,9 +104,9 @@ describe("dark theme token coverage", () => {
     );
 
     expect(css).toMatch(/select\s*\{[\s\S]*appearance:\s*none/);
-    expect(css).toMatch(/background-image:\s*var\(--select-chevron\)/);
-    expect(css).toMatch(/input::placeholder[\s\S]*--color-placeholder/);
-    expect(css).toMatch(/input:-webkit-autofill[\s\S]*--color-control/);
+    expect(css).toMatch(/background-image:\s*var\(--app-select-chevron\)/);
+    expect(css).toMatch(/input::placeholder[\s\S]*--color-text-muted/);
+    expect(css).toMatch(/input:-webkit-autofill[\s\S]*var\(--color-field-surface\) inset/);
     expect(css).toMatch(/html\.dark\s*\{[\s\S]*color-scheme:\s*dark/);
   });
 

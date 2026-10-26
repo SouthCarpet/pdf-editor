@@ -1,6 +1,6 @@
 # Force LF for source files so rustfmt (`newline_style = "Unix"`) passes on
 # the Windows CI runner (default `core.autocrlf` rewrites checkouts to CRLF
-# otherwise). See .vault/process/debug/debug_011_2026-05-15.md.
+# otherwise).
 
 *.rs        text eol=lf
 *.toml      text eol=lf
@@ -19,6 +19,12 @@
 *.scss      text eol=lf
 *.html      text eol=lf
 *.svg       text eol=lf
+
+# sqlx stores a SHA-384 of each migration's raw bytes in the database and
+# refuses a database whose stored value differs. The release was built from
+# LF files, so a CRLF checkout built an app that refused every existing
+# database. tests/migration_checksums_test.rs locks the released checksums.
+*.sql       text eol=lf
 
 # PowerShell scripts are Windows-native — keep CRLF (or whatever)
 *.ps1       text
@@ -54,3 +60,7 @@
 # converted. `-text` disables conversion in both directions.
 src-tauri/resources/ocr/*.txt    -text
 src-tauri/resources/ocr/*.onnx   -text
+
+# Fira Sans files stay byte-identical to the design tree (SHA256SUMS in the folder
+# checks them), so git must not convert line endings of OFL.txt or SHA256SUMS.
+src/assets/fonts/fira-sans/* -text

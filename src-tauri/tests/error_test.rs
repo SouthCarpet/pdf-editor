@@ -16,6 +16,19 @@ fn app_error_serializes_with_localized_key() {
 }
 
 #[test]
+fn missing_libreoffice_carries_the_official_download_page() {
+    let err = pdf_editor_lib::sidecars::soffice::libreoffice_missing();
+    let value = serde_json::to_value(&err).unwrap();
+    assert_eq!(
+        value,
+        serde_json::json!({
+            "key": "libreoffice_missing",
+            "data": { "detail": "https://www.libreoffice.org/download/download-libreoffice/" }
+        })
+    );
+}
+
+#[test]
 fn app_error_password_invalid_serializes() {
     let err = AppError::PasswordInvalid;
     let value = serde_json::to_value(&err).unwrap();

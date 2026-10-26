@@ -41,6 +41,7 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
   autosaveDelete: vi.fn(),
+  readFormFieldsCmd: vi.fn().mockResolvedValue({ status: "ok", data: [] }),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -66,7 +67,7 @@ describe("WorkspaceTopBar", () => {
     vi.clearAllMocks();
     resetFakeBridge();
     commandFakes.applyAnnotationsCmd.mockReset();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockReset();
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
@@ -86,6 +87,16 @@ describe("WorkspaceTopBar", () => {
     expect(await screen.findByRole("button", { name: "Upraviť" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Zoradiť" })).toBeInTheDocument();
     expect(screen.getByText(`${ZOOM_DEFAULT * 100}%`)).toBeInTheDocument();
+  });
+
+  // Oracle: K4 R24 and 119-K5 finding 6. Workspace labels use a muted,
+  // regular-weight role so the document page remains the lead element.
+  it("uses muted regular labels for toolbar buttons and the Convert link", async () => {
+    renderWithRouter(<WorkspaceTopBar path={DOC_A} />);
+    const edit = await screen.findByRole("button", { name: "Upraviť" });
+    expect(edit.parentElement).toHaveClass("[&_button]:font-normal", "[&_button]:text-[var(--color-text-muted)]");
+    expect(edit.className).not.toContain("aria-pressed:font-bold");
+    expect(screen.getByRole("link", { name: "Konvertovať" })).toHaveClass("font-normal", "text-[var(--color-text-muted)]");
   });
 
   it("disables Save and Save as when the document has nothing pending", async () => {

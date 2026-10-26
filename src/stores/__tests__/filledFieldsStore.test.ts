@@ -11,7 +11,7 @@ import {
 } from "@/components/workspace/filledFieldsState";
 import { filledIdsFor, filledMarksFor, useFilledFields } from "../filledFieldsStore";
 
-const DOC = "A:\\scans\\hodiny.pdf";
+const DOC = "A:\\scans\\timesheet-scan.pdf";
 const PAGE_KEY = `${DOC}\u00000`;
 
 describe("filledFieldsStore", () => {

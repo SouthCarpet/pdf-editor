@@ -30,7 +30,6 @@
   "preset_name_required": "Name is required",
   "preset_empty": "No saved presets yet.",
   "preset_load_failed": "Failed to load preset: {{error}}",
-  "preset_delete_confirm": "Delete preset '{{name}}'? This cannot be undone.",
   "editor": {
     "selection_hint": "Choose a step from Nodes at any time, then connect it top-to-bottom. Select a node to edit its configuration."
   },
@@ -49,6 +48,42 @@
     "metadata": "metadata",
     "bookmarks": "bookmarks",
     "signatures": "signatures",
-    "outlines": "outlines"
-  }
+    "outlines": "outlines",
+    "text_layer": "text layer",
+    "embedded_fonts": "embedded fonts",
+    "pdfa_compliance": "PDF/A compliance",
+    "linearization": "linearization"
+  },
+  "run_dialog_title": "Run pipeline",
+  "run_on_files": "Run on files",
+  "pick_hint": "Pick files or a folder to start.",
+  "table": {
+    "file": "File",
+    "status": "Status"
+  },
+  "status": {
+    "queued": "Queued",
+    "running": "Running",
+    "ok": "Done",
+    "failed": "Failed"
+  },
+  "edge_strips": "{{from}} to {{to}}: may remove {{artifacts}}",
+  "edge_title": "The next step removes: {{artifacts}}",
+  "summary": "Done {{ok}}, failed {{failed}}, output files {{outputs}}",
+  "copy_output": "Copy output path",
+  "copy_failed": "The path could not be copied.",
+  "cancel_failed": "Cancel failed: {{error}}",
+  "progress_start": "Starting",
+  "progress_done": "Done",
+  "scanning_folder": "Scanning folder",
+  "default_config": "Default settings",
+  "watermark_note": "Watermark execution is not available yet. The node stays in the graph, and running it shows a clear error.",
+  "watermark_text": "Text",
+  "watermark_opacity": "Opacity",
+  "save_dir_placeholder": "C:\\out",
+  "save_dir": "Output folder",
+  "save_template": "Name template",
+  "save_variables": "Variables: {stem}, {i}, {date}, {tool}, {ext}.",
+  "preset_delete_title": "Delete preset “{{name}}”?",
+  "preset_delete_body": "The preset has {{steps}}. This cannot be undone."
 }

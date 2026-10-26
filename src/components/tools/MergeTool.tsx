@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFiles } from "./SelectedFiles";
 import { useToolJob } from "@/hooks/useToolJob";
 
 export function MergeTool() {
@@ -26,23 +27,7 @@ export function MergeTool() {
   return (
     <ToolPage title={t("tools.merge")} description={t("tools:merge.description")}>
       <FileDropzone onFiles={(p) => setFiles((prev) => [...prev, ...p])} multiple />
-      <div className="space-y-2">
-        {files.map((f, i) => (
-          <div
-            key={`${f}-${i}`}
-            className="flex items-center justify-between gap-2 rounded border p-2 text-sm"
-          >
-            <span className="truncate">{f}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-            >
-              {t("delete")}
-            </Button>
-          </div>
-        ))}
-      </div>
+      <SelectedFiles files={files} onRemove={(i) => setFiles((prev) => prev.filter((_, j) => j !== i))} />
       <div className="flex gap-2">
         <Button disabled={files.length < 2 || !!activeId} onClick={onRun}>
           {t("tools:merge.run")}

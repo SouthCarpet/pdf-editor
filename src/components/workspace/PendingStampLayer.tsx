@@ -1,3 +1,5 @@
+import { withAlpha } from "@/lib/tokens";
+import { useCanvasColors, canvasOutline } from "./useCanvasColors";
 import { useEffect, useState } from "react";
 import type { PageViewport } from "pdfjs-dist";
 import type { KonvaEventObject } from "konva/lib/Node";
@@ -67,6 +69,7 @@ export function PendingStampLayer({
   onRectChange,
   onPlace,
 }: Props) {
+  const colors = useCanvasColors();
   const [previewRect, setPreviewRect] = useState<ScreenRect | null>(null);
   const placementUrl = useLocalPngUrl(placement?.imagePath ?? null);
   const placementImage = useHtmlImage(placement === null ? null : placementUrl);
@@ -102,7 +105,7 @@ export function PendingStampLayer({
         <Rect
           width={viewport.width}
           height={viewport.height}
-          fill="rgba(0,0,0,0.001)"
+          fill={withAlpha(colors.accent, 0.001)}
           onMouseMove={updatePreview}
           onTouchMove={updatePreview}
           onClick={place}
@@ -147,6 +150,7 @@ function PendingStampItem({
   onSelect: () => void;
   onRectChange: (rect: [number, number, number, number]) => void;
 }) {
+  const colors = useCanvasColors();
   const url = useLocalPngUrl(item.image_path);
   const image = useHtmlImage(url);
   // Corner handles preview locally while dragging and commit once on
@@ -237,9 +241,7 @@ function PendingStampItem({
         <Rect
           width={visible.width}
           height={visible.height}
-          stroke={selected ? "#111827" : "rgba(17, 24, 39, 0.35)"}
-          strokeWidth={selected ? 1.5 : 1}
-          dash={selected ? undefined : [3, 3]}
+          {...canvasOutline(selected, colors.accent)}
         />
       </Group>
       {selected &&
@@ -251,7 +253,7 @@ function PendingStampItem({
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
             height={HANDLE_SIZE}
-            fill="#111827"
+            fill={colors.accent}
             draggable
             dragBoundFunc={(position: Vector2d) => position}
             onDragMove={onCornerDragMove(corner)}

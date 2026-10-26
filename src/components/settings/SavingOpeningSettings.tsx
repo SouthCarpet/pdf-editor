@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_ZOOM_PRESETS, useAppStore } from "@/stores/appStore";
 import { pickPaths } from "@/tauri/bridge";
+import { SettingSwitch } from "./SettingSwitch";
 
 export function SavingOpeningSettings() {
   const { t } = useTranslation("settings");
@@ -19,20 +20,15 @@ export function SavingOpeningSettings() {
   }
 
   return (
-    <section aria-labelledby="saving-opening-heading" className="space-y-6">
-      <h2 id="saving-opening-heading" className="text-lg font-semibold text-balance">
-        {t("saving_opening")}
-      </h2>
+    <section className="k-settings-section" aria-labelledby="saving-opening-heading">
+      <h3 id="saving-opening-heading">{t("saving_opening")}</h3>
 
-      <div>
-        <p className="text-sm font-medium">{t("default_save_folder")}</p>
-        <p
-          className="mt-1 truncate text-sm text-[var(--color-muted)]"
-          title={defaultSaveFolder ?? undefined}
-        >
+      <div className="k-field-block">
+        <span className="k-field-label">{t("default_save_folder")}</span>
+        <p className="truncate text-sm" title={defaultSaveFolder ?? undefined}>
           {defaultSaveFolder ?? t("no_save_folder")}
         </p>
-        <div className="mt-2 flex flex-wrap gap-2">
+        <div className="mt-1 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => void pickFolder()}>
             {t("pick_folder")}
           </Button>
@@ -47,13 +43,13 @@ export function SavingOpeningSettings() {
         </div>
       </div>
 
-      <div>
-        <label className="text-sm font-medium" htmlFor="settings-default-zoom">
+      <div className="k-field-block">
+        <label className="k-field-label" htmlFor="settings-default-zoom">
           {t("default_zoom")}
         </label>
         <select
           id="settings-default-zoom"
-          className="mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2"
+          className="k-select w-full"
           value={String(defaultZoom)}
           onChange={(e) => setDefaultZoom(Number(e.target.value))}
         >
@@ -65,16 +61,9 @@ export function SavingOpeningSettings() {
         </select>
       </div>
 
-      <div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={openLastDocumentAtStart}
-            onChange={(e) => setOpenLastDocumentAtStart(e.target.checked)}
-          />
-          {t("open_last_at_start")}
-        </label>
-      </div>
+      <SettingSwitch checked={openLastDocumentAtStart} onChange={setOpenLastDocumentAtStart}>
+        {t("open_last_at_start")}
+      </SettingSwitch>
     </section>
   );
 }

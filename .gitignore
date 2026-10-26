@@ -37,14 +37,14 @@ src-tauri/tests/fixtures/pdfs/*.pdf
 # shells out to the real mutool sidecar, and the cargo-test jobs only have
 # zero-byte sidecar stubs, so running the generator there fails with "not a
 # valid application for this OS platform". The five generated fixtures total
-# 28 KB; hodiny.pdf is a fixed regression sample. Tracking them makes tests
+# 28 KB; timesheet-scan.pdf is a synthetic regression sample. Tracking them makes tests
 # hermetic instead of dependent on a sidecar download.
 !src-tauri/tests/fixtures/pdfs/sample.pdf
 !src-tauri/tests/fixtures/pdfs/scanned.pdf
 !src-tauri/tests/fixtures/pdfs/large.pdf
 !src-tauri/tests/fixtures/pdfs/password-open.pdf
 !src-tauri/tests/fixtures/pdfs/password-permission.pdf
-!src-tauri/tests/fixtures/pdfs/hodiny.pdf
+!src-tauri/tests/fixtures/pdfs/timesheet-scan.pdf
 src-tauri/tests/fixtures/docs/*.docx
 src-tauri/tests/fixtures/docs/*.odt
 src-tauri/tests/fixtures/images/*.png
@@ -81,6 +81,17 @@ Thumbs.db
 .phase12-stash/
 .claude/settings.local.json
 
+# Private agent instructions, skills, hooks and notes: kept on the owner's
+# machine, not published.
+/CLAUDE.md
+/AGENTS.md
+/.claude/
+/.vault/
+/.mcp.json
+/scripts/vault/
+/scripts/hooks/
+/docs/superpowers/
+
 # tsc composite project incremental + emit
 tsconfig.tsbuildinfo
 dist-types/
@@ -99,3 +110,7 @@ scripts/vault/__pycache__/
 
 # Playwright verification screenshots from agent runs
 output/
+
+# Per-user setup build output (plan 119): setup EXE, SHA256SUMS.txt,
+# payload report and the generated payload-files.iss include.
+packaging/output/

@@ -4,7 +4,7 @@
 // (`__clientId`) for list-key stability; that field is stripped before
 // serializing to the Rust command schema.
 import { create } from "zustand";
-import type { Annotation } from "@/bindings";
+import type { Annotation, AnnotationRef } from "@/bindings";
 import {
   createAnnotationHistoryActions,
   type EditableAnnotationPatch,
@@ -20,7 +20,16 @@ export type AnnotationMode =
   | "stamp"
   | "ink";
 
-export type ClientAnnotation = Annotation & { __clientId: string };
+/** Plan 119 p1b: a pending value that edits a value already saved in the
+ * file names the saved annotation in `__replaces`. The save removes that
+ * annotation before it writes the new one. Stripped like `__clientId`. */
+export type NewAnnotation = Annotation & {
+  __replaces?: AnnotationRef;
+  /** Keep a deleted saved field until Save can remove its old object. */
+  __deleted?: boolean;
+};
+
+export type ClientAnnotation = NewAnnotation & { __clientId: string };
 
 // Shared empty result for documents with no annotations yet. A selector that
 // returns a fresh `[]` gives useSyncExternalStore a new snapshot on every read,
@@ -38,7 +47,7 @@ interface AnnotationsState {
   setMode: (m: AnnotationMode) => void;
   /** Returns the generated client id, so a caller can select the new item
    * for immediate editing (Plan 050 task D2-UX, R2). */
-  add: (docPath: string, ann: Annotation) => string;
+  add: (docPath: string, ann: NewAnnotation) => string;
   /** Partial update of a pending text or stamp annotation. */
   update: (docPath: string, clientId: string, patch: EditableAnnotationPatch) => void;
   remove: (docPath: string, clientId: string) => void;

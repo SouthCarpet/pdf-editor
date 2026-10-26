@@ -28,24 +28,28 @@ vi.mock("react-konva", () => ({
 
 import { PendingFreeTextLayer } from "../PendingFreeTextLayer";
 
+/** A 612 x 792 pt page at scale 1. Rotation 90 turns it clockwise: screen x
+ * follows PDF y and screen y follows PDF x (pdf.js's own mapping). */
 class FakeViewport {
   scale = 1;
-  constructor(private pageHeight = 792) {}
+  viewBox = [0, 0, 612, 792];
+  constructor(
+    private rotation: 0 | 90 = 0,
+    private pageHeight = 792,
+  ) {}
+  private toScreen(x: number, y: number): [number, number] {
+    return this.rotation === 90 ? [y, x] : [x, this.pageHeight - y];
+  }
   convertToViewportRectangle(rect: number[]): number[] {
     const [x0, y0, x1, y1] = rect;
-    return [
-      x0 * this.scale,
-      (this.pageHeight - y0) * this.scale,
-      x1 * this.scale,
-      (this.pageHeight - y1) * this.scale,
-    ];
+    return [...this.toScreen(x0, y0), ...this.toScreen(x1, y1)];
   }
   convertToPdfPoint(x: number, y: number): number[] {
-    return [x / this.scale, this.pageHeight - y / this.scale];
+    return this.rotation === 90 ? [y, x] : [x, this.pageHeight - y];
   }
 }
-function makeViewport(): PageViewport {
-  return new FakeViewport() as unknown as PageViewport;
+function makeViewport(rotation: 0 | 90 = 0): PageViewport {
+  return new FakeViewport(rotation) as unknown as PageViewport;
 }
 
 type FreeText = Extract<Annotation, { type: "free_text" }>;
@@ -114,5 +118,61 @@ describe("PendingFreeTextLayer resize handles (F6)", () => {
     const [clientId, rect] = onRectChange.mock.calls[0] as [string, [number, number, number, number]];
     expect(clientId).toBe("client-1");
     expect(rect[2]).toBeGreaterThan(200); // the dragged (right) edge moved outward
+  });
+});
+
+// Plan 119 p1c: a resize cannot push a value off the page. Each handle is a
+// SCREEN side, so on a page turned 90 degrees it moves another PDF edge.
+describe("PendingFreeTextLayer resize handles stay on the page (p1c)", () => {
+  type Rect = [number, number, number, number];
+
+  /** Drags the named handle until its position is `value` (screen px) and
+   * returns the rect the layer commits. */
+  function dragHandle(rotation: 0 | 90, name: string, value: number): Rect {
+    for (const key of Object.keys(captured)) delete captured[key];
+    const onRectChange = vi.fn();
+    render(
+      <PendingFreeTextLayer
+        page={0}
+        viewport={makeViewport(rotation)}
+        annotations={[freeText()]}
+        selectedId="client-1"
+        onSelect={() => {}}
+        onRectChange={onRectChange}
+      />,
+    );
+    const onDragEnd = captured[name].onDragEnd as (e: KonvaEventObject<DragEvent>) => void;
+    const at = value - 4.5; // the handle is 9 px wide and the layer reads its centre
+    onDragEnd(fakeDrag(at, at));
+    expect(onRectChange).toHaveBeenCalledTimes(1);
+    return onRectChange.mock.calls[0][1] as Rect;
+  }
+
+  // The value sits at PDF [100, 600, 200, 624] on a 612 x 792 pt page.
+  it.each([
+    ["resize-left", -50, [0, 600, 200, 624]],
+    ["resize-right", 900, [100, 600, 612, 624]],
+    ["resize-top", -40, [100, 600, 200, 792]],
+    ["resize-bottom", 900, [100, 0, 200, 624]],
+  ] as const)("%s cuts the rect at the page edge", (name, value, expected) => {
+    expect(dragHandle(0, name, value)).toEqual(expected);
+  });
+
+  it.each([
+    ["resize-left", -50, [100, 0, 200, 624]],
+    ["resize-right", 900, [100, 600, 200, 792]],
+    ["resize-top", -40, [0, 600, 200, 624]],
+    ["resize-bottom", 700, [100, 600, 612, 624]],
+  ] as const)("%s cuts the rect at the page edge on a page turned 90 degrees", (name, value, expected) => {
+    expect(dragHandle(90, name, value)).toEqual(expected);
+  });
+
+  it("resizes inside the page as before", () => {
+    expect(dragHandle(0, "resize-right", 300)).toEqual([100, 600, 300, 624]);
+  });
+
+  it("moves the PDF edge that lies under the handle on a turned page", () => {
+    // Screen x follows PDF y on a 90 degree page, so the right handle moves y1.
+    expect(dragHandle(90, "resize-right", 700)).toEqual([100, 600, 200, 700]);
   });
 });

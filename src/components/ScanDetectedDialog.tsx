@@ -5,6 +5,7 @@
 // languages, render DPI, and PSM, then trigger an OCR run that
 // re-injects an invisible text layer into the open document.
 import { useEffect, useState } from "react";
+import { TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -81,54 +82,55 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay-soft)]">
+    <div className="k-modal-root">
+      <div className="k-scrim" />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="ocr-scan-title"
         aria-describedby="ocr-scan-description"
-        className="max-h-[calc(100vh-2rem)] w-[480px] space-y-3 overflow-y-auto rounded-lg bg-[var(--color-card)] p-6 text-[var(--color-foreground)] shadow-xl"
+        className="k-dialog max-h-[calc(100vh-2rem)] w-[480px] space-y-3 overflow-y-auto"
       >
-        <h2 id="ocr-scan-title" className="text-lg font-semibold text-balance">
+        <h2 id="ocr-scan-title" className="k-dialog-title text-balance">
           {t("ocr_scan.title")}
         </h2>
-        <p id="ocr-scan-description" className="text-sm text-pretty text-[var(--color-muted)]">
+        <p id="ocr-scan-description" className="k-dialog-body text-pretty">
           {t("ocr_scan.description")}
         </p>
 
-        <label className="block text-xs">
-          <span className="font-medium">{t("ocr_scan.engine")}</span>
+        <label className="k-field-block">
+          <span className="k-field-label">{t("ocr_scan.engine")}</span>
           <select
             value={engine}
             onChange={(event) => selectEngine(event.target.value as OcrEngineId)}
-            className="mt-1 block min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
+            className="k-select w-full"
           >
             <option value="tesseract">{t("ocr_scan.engine_tesseract")}</option>
             <option value="rapidocr">{t("ocr_scan.engine_rapidocr")}</option>
           </select>
         </label>
         {selectedBackend && !selectedBackend.available && (
-          <div
-            role="status"
-            className="rounded border border-[var(--color-warning)] bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning-soft-foreground)]"
-          >
-            <p>
-              {t("ocr_scan.engine_unavailable", {
-                engine: selectedBackend.display_name,
-              })}
-            </p>
-            {selectedBackend.unavailable_reason && (
-              <p className="mt-1 text-[11px] break-words opacity-80">
-                {t("ocr_scan.engine_unavailable_reason", {
-                  reason: selectedBackend.unavailable_reason,
+          <div role="status" className="k-alert k-alert--warning">
+            <TriangleAlert className="k-alert-icon h-4 w-4" aria-hidden="true" />
+            <div className="k-alert-body">
+              <p>
+                {t("ocr_scan.engine_unavailable", {
+                  engine: selectedBackend.display_name,
                 })}
               </p>
-            )}
+              {selectedBackend.unavailable_reason && (
+                <p className="k-caption mt-1 break-words">
+                  {t("ocr_scan.engine_unavailable_reason", {
+                    reason: selectedBackend.unavailable_reason,
+                  })}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
-        <div>
-          <p className="mb-1 text-xs font-medium">{t("ocr_scan.languages")}</p>
+        <div className="k-field-block">
+          <p className="k-field-label">{t("ocr_scan.languages")}</p>
           <div className="flex flex-wrap gap-1">
             {available.map((l) => (
               <button
@@ -136,11 +138,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
                 key={l}
                 aria-pressed={selected.includes(l)}
                 onClick={() => toggle(l)}
-                className={`min-h-10 rounded border px-3 py-1 text-xs transition-transform duration-150 ease-out active:scale-[0.96] ${
-                  selected.includes(l)
-                    ? "border-[var(--color-focus)] bg-[var(--color-accent-soft)] text-[var(--color-accent-soft-foreground)]"
-                    : "border-[var(--color-border)]"
-                }`}
+                className="k-toggle"
               >
                 {l}
               </button>
@@ -149,20 +147,20 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
         </div>
 
         <div>
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center justify-between text-sm">
             <span>{t("ocr_scan.render_dpi")}</span>
-            <span className="tabular-nums">{dpi}</span>
+            <span className="k-num">{dpi}</span>
           </div>
           <Slider value={[dpi]} min={150} max={600} step={25} onValueChange={(v) => setDpi(v[0])} />
         </div>
 
-        <label className="block text-xs">
-          <span className="text-[var(--color-muted)]">{t("ocr_scan.psm")}</span>
+        <label className="k-field-block">
+          <span className="k-field-label">{t("ocr_scan.psm")}</span>
           <select
             value={psm}
             onChange={(e) => setPsm(Number(e.target.value))}
             disabled={engine === "rapidocr"}
-            className="mt-1 block min-h-10 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1"
+            className="k-select w-full"
           >
             <option value={3}>{t("ocr_scan.psm_auto")}</option>
             <option value={6}>{t("ocr_scan.psm_block")}</option>
@@ -172,7 +170,7 @@ export function ScanDetectedDialog({ open, onClose, onRunOcr }: Props) {
           </select>
         </label>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="k-dialog-actions pt-2">
           <Button variant="ghost" onClick={onClose}>
             {t("ocr_scan.later")}
           </Button>

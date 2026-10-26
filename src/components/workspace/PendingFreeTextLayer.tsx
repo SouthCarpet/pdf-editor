@@ -1,3 +1,4 @@
+import { useCanvasColors, canvasOutline } from "./useCanvasColors";
 // Plan 050 task D2-UX (R1): the live preview for every accumulated (not
 // yet saved) FreeText annotation on the current page - at its rectangle,
 // with the font size and colour that will be written to the PDF, through
@@ -17,8 +18,11 @@ import type { Vector2d } from "konva/lib/types";
 import { Group, Rect, Text } from "react-konva";
 import type { ClientAnnotation } from "@/stores/annotationsStore";
 import {
+  MIN_RESIZE_SIZE_PT,
+  clampRectToPage,
   freeTextRenderProps,
-  resizeRectEdge,
+  keepRectOnPage,
+  resizeScreenEdge,
   toPdfRect,
   type FreeTextAnnotation,
   type ResizeEdge,
@@ -110,29 +114,13 @@ function PendingFreeTextItem({
   // same fix the crop overlay already applies to its own drag. Declared
   // before the early return below so hook order stays stable.
   const [previewScreen, setPreviewScreen] = useState<ScreenRect | null>(null);
+  const colors = useCanvasColors();
   const rendered = freeTextRenderProps(item, viewport);
   if (rendered === null) return null;
   const { screen: baseScreen, fontSizePx, colorCss, backgroundCss } = rendered;
   const screen = previewScreen ?? baseScreen;
-  const lines = item.contents.split(/\r?\n/);
-  const lineHeight = item.style.line_height_multiplier ?? 1.2;
-  const verticalOffsetPx = textBlockOffset(
-    [0, 0, screen.width, screen.height],
-    lines,
-    fontSizePx,
-    lineHeight,
-    item.style.vertical_align ?? "top"
-  );
   const horizontalInsetPx = 2 * viewport.scale;
-  const fontStyle = [item.style.bold ? "bold" : "", item.style.italic ? "italic" : ""]
-    .filter(Boolean)
-    .join(" ");
-  const textDecoration = [
-    item.style.underline ? "underline" : "",
-    item.style.strikethrough ? "line-through" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const { verticalOffsetPx, lineHeight, fontStyle, textDecoration } = previewTypography(item, screen, fontSizePx);
 
   function onDragEnd(e: KonvaEventObject<DragEvent>) {
     const next: ScreenRect = {
@@ -141,28 +129,28 @@ function PendingFreeTextItem({
       width: screen.width,
       height: screen.height,
     };
-    onRectChange(toPdfRect(next, viewport));
+    onRectChange(keepRectOnPage(toPdfRect(next, viewport), viewport.viewBox));
   }
 
   // R2 (plan 050 D2-UX-3b): resize from any of the four edges, not only
   // the bottom-right corner - a wide detected field can now be narrowed.
-  // `screen` (already validated non-null above) recovers the current PDF
-  // rect through `toPdfRect`, so the resize maths never has to special-
-  // case the wire annotation's nullable `rect` tuple. The font size is
+  // Plan 119 p1c: the handle moves one SCREEN side, the result is converted
+  // back to a PDF rect (so a page turned by 90 degrees moves the right PDF
+  // edge) and cut at the page box, like a whole-box drag. The font size is
   // never touched here (R2): only `rect` is patched.
   function edgeResizeRect(
     edge: ResizeEdge,
     axis: "x" | "y",
     e: KonvaEventObject<DragEvent>,
   ): [number, number, number, number] {
-    const currentRect = toPdfRect(screen, viewport);
     const screenValue = (axis === "x" ? e.target.x() : e.target.y()) + HANDLE_SIZE / 2;
-    const point =
-      axis === "x"
-        ? viewport.convertToPdfPoint(screenValue, screen.y)
-        : viewport.convertToPdfPoint(screen.x, screenValue);
-    const valuePt = axis === "x" ? point[0] : point[1];
-    return resizeRectEdge(currentRect, edge, valuePt);
+    const resized = resizeScreenEdge(
+      screen,
+      edge,
+      screenValue,
+      MIN_RESIZE_SIZE_PT * viewport.scale,
+    );
+    return clampRectToPage(toPdfRect(resized, viewport), viewport.viewBox);
   }
 
   function onEdgeDragMove(edge: ResizeEdge, axis: "x" | "y") {
@@ -183,34 +171,44 @@ function PendingFreeTextItem({
   return (
     <Group>
       <Rect
+        name="pending-value"
         x={screen.x}
         y={screen.y}
         width={screen.width}
         height={screen.height}
         fill={backgroundCss ?? undefined}
-        stroke={selected ? "#111827" : "rgba(17, 24, 39, 0.35)"}
-        strokeWidth={selected ? 1.5 : 1}
-        dash={selected ? undefined : [3, 3]}
+        {...canvasOutline(selected, colors.accent)}
         draggable={selected}
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={onDragEnd}
       />
-      <Text
-        x={screen.x + horizontalInsetPx}
-        y={screen.y + verticalOffsetPx}
-        width={Math.max(screen.width - 2 * horizontalInsetPx, 1)}
-        text={item.contents}
-        fontSize={fontSizePx}
-        fontFamily={standardFontPreviewFamily(item.style.font_family)}
-        fontStyle={fontStyle || "normal"}
-        textDecoration={textDecoration || undefined}
-        lineHeight={lineHeight}
-        fill={colorCss}
-        align={item.style.align}
-        wrap="none"
+      {/* Plan 119 p1b: a value longer than its cell is clipped to the cell,
+          like the saved appearance stream (its /BBox is the cell). */}
+      <Group
+        name="pending-value-clip"
+        clipX={screen.x}
+        clipY={screen.y}
+        clipWidth={screen.width}
+        clipHeight={screen.height}
         listening={false}
-      />
+      >
+        <Text
+          x={screen.x + horizontalInsetPx}
+          y={screen.y + verticalOffsetPx}
+          width={Math.max(screen.width - 2 * horizontalInsetPx, 1)}
+          text={item.contents}
+          fontSize={fontSizePx}
+          fontFamily={standardFontPreviewFamily(item.style.font_family)}
+          fontStyle={fontStyle}
+          textDecoration={textDecoration}
+          lineHeight={lineHeight}
+          fill={colorCss}
+          align={item.style.align}
+          wrap="none"
+          listening={false}
+        />
+      </Group>
       {selected &&
         edgeHandles(screen).map(({ edge, x, y, axis }) => (
           <Rect
@@ -220,7 +218,7 @@ function PendingFreeTextItem({
             y={y - HANDLE_SIZE / 2}
             width={HANDLE_SIZE}
             height={HANDLE_SIZE}
-            fill="#111827"
+            fill={colors.accent}
             draggable
             dragBoundFunc={(pos: Vector2d): Vector2d =>
               axis === "x"
@@ -233,4 +231,27 @@ function PendingFreeTextItem({
         ))}
     </Group>
   );
+}
+
+
+function previewTypography(item: PendingFreeText, screen: ScreenRect, fontSizePx: number) {
+  const lines = item.contents.split(/\r?\n/);
+  const lineHeight = item.style.line_height_multiplier ?? 1.2;
+  const verticalOffsetPx = textBlockOffset(
+    [0, 0, screen.width, screen.height],
+    lines,
+    fontSizePx,
+    lineHeight,
+    item.style.vertical_align ?? "top"
+  );
+  const fontStyle = [item.style.bold ? "bold" : "", item.style.italic ? "italic" : ""]
+    .filter(Boolean)
+    .join(" ");
+  const textDecoration = [
+    item.style.underline ? "underline" : "",
+    item.style.strikethrough ? "line-through" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return { verticalOffsetPx, lineHeight, fontStyle: fontStyle || "normal", textDecoration: textDecoration || undefined };
 }

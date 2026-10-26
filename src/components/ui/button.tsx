@@ -4,24 +4,24 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/** The secondary button uses the strong border role. */
+const EDGE = "border-[var(--color-border-strong)]";
+
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-[scale,background-color,color,box-shadow] duration-150 ease-out active:not-disabled:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)] disabled:pointer-events-none disabled:opacity-50",
+  "k-btn k-btn-auto inline-flex items-center justify-center whitespace-nowrap disabled:pointer-events-none",
   {
     variants: {
       variant: {
-        default:
-          "bg-[var(--color-accent)] text-[var(--color-accent-foreground)] hover:bg-[var(--color-accent-hover)]",
-        outline:
-          "border border-[var(--color-border)] bg-[var(--color-control)] text-[var(--color-control-foreground)] hover:bg-[var(--color-control-hover)]",
-        ghost: "text-[var(--color-foreground)] hover:bg-[var(--color-control-hover)]",
-        destructive:
-          "bg-[var(--color-danger)] text-[var(--color-danger-foreground)] hover:bg-[var(--color-danger-hover)]",
+        default: "k-btn-primary",
+        outline: `k-btn-secondary ${EDGE}`,
+        ghost: "k-btn-ghost",
+        destructive: "k-btn-danger",
       },
       size: {
-        default: "h-10 px-4 py-2",
-        sm: "h-8 px-3",
-        lg: "h-12 px-6",
-        icon: "h-10 w-10",
+        default: "",
+        sm: "h-7 px-3",
+        lg: "h-10 px-6",
+        icon: "w-8 px-0",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

@@ -12,5 +12,6 @@
   "encoding_mismatch": "Vybraný font alebo kódovanie nedokáže zobraziť nový text: {{detail}}",
   "boundary_title": "Niečo sa pokazilo",
   "boundary_retry": "Skúsiť znova",
-  "boundary_copy": "Skopírovať detaily"
+  "boundary_copy": "Skopírovať detaily",
+  "libreoffice_missing": "Konverzia súborov Office potrebuje LibreOffice, ktorý nie je nainštalovaný. Stiahnite ho z {{detail}} a skúste to znova."
 }

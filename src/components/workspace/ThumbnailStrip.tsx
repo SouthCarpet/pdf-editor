@@ -3,7 +3,7 @@
 // current page highlighted. react-window only mounts rows near the
 // viewport, so long documents stay cheap. Collapse is session state
 // owned by the workspace store.
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { List, type ListImperativeAPI, type RowComponentProps } from "react-window";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -27,8 +27,7 @@ interface Props {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
   bookMode: boolean;
-  onSelect: (i: number) => void;
-  height: number;
+  onSelect: (i: number, image?: HTMLCanvasElement) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -37,7 +36,7 @@ interface RowExtras {
   pdf: pdfjs.PDFDocumentProxy;
   active: number;
   bookMode: boolean;
-  onSelect: (i: number) => void;
+  onSelect: (i: number, image?: HTMLCanvasElement) => void;
   pageCount: number;
 }
 
@@ -60,15 +59,15 @@ function Row({
         aria-label={label}
         aria-current={selection.focused ? "page" : undefined}
         title={label}
-        onClick={() => onSelect(index)}
+        onClick={(event) => onSelect(index, event.currentTarget.querySelector("canvas") ?? undefined)}
         className={cn(
-          "flex h-full w-full cursor-pointer flex-col items-center rounded border border-transparent",
+          "flex h-full w-full cursor-pointer flex-col items-center rounded-[var(--radius-sm)] border border-transparent hover:bg-[var(--color-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--color-focus)]",
           selection.highlighted && "bg-[var(--color-accent-soft)]",
-          selection.focused && "border-[var(--color-accent)]",
+          selection.focused && "font-bold",
         )}
       >
         <div
-          className="flex items-center justify-center overflow-hidden bg-[var(--color-background)]"
+          className="flex items-center justify-center overflow-hidden bg-[var(--color-well)]"
           style={{ width: THUMBNAIL_BOX_WIDTH, height: THUMBNAIL_BOX_HEIGHT }}
         >
           <PdfViewer
@@ -76,10 +75,10 @@ function Row({
             pageIndex={index}
             zoom={1}
             fitBox={THUMB_FIT_BOX}
-            className="shadow"
+            className="border border-[var(--color-border)] bg-[var(--color-surface-raised)]"
           />
         </div>
-        <span className="mt-1 text-xs tabular-nums text-[var(--color-muted)]">{index + 1}</span>
+        <span className="mt-1 text-xs tabular-nums text-[var(--color-text-muted)]">{index + 1}</span>
       </button>
     </div>
   );
@@ -90,17 +89,30 @@ export function ThumbnailStrip({
   active,
   bookMode,
   onSelect,
-  height,
   collapsed,
   onToggleCollapsed,
 }: Props) {
   const { t } = useTranslation("workspace");
   const listRef = useRef<ListImperativeAPI | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
+  const [height, setHeight] = useState(0);
   const pageCount = pdf.numPages;
   const rowProps = useMemo<RowExtras>(
     () => ({ pdf, active, bookMode, onSelect, pageCount }),
     [pdf, active, bookMode, onSelect, pageCount],
   );
+
+  // The strip fills its aside. Measuring the aside keeps the list inside it
+  // whatever the tab bar, toolbar or search panel take away.
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const measure = () => setHeight(nav.clientHeight);
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(nav);
+    return () => observer?.disconnect();
+  }, []);
 
   useEffect(() => {
     if (collapsed || pageCount === 0) return;
@@ -113,22 +125,23 @@ export function ThumbnailStrip({
 
   return (
     <nav
+      ref={navRef}
       aria-label={t("thumbnails")}
-      className="flex h-full flex-col bg-[var(--color-card)]"
-      style={{ width, height }}
+      className="flex h-full min-h-0 flex-col bg-[var(--color-background)]"
+      style={{ width }}
     >
       <div
         className="flex shrink-0 items-center border-b border-[var(--color-border)] px-1"
         style={{ height: THUMBNAIL_HEADER_HEIGHT }}
       >
         {!collapsed && (
-          <span className="min-w-0 flex-1 truncate px-1 text-xs text-[var(--color-muted)]">
+          <span className="min-w-0 flex-1 truncate px-1 text-xs text-[var(--color-text-muted)]">
             {t("page_panel.pages", { count: pageCount })}
           </span>
         )}
         <Button
           type="button"
-          size="sm"
+
           variant="ghost"
           className="h-7 w-7 shrink-0 p-0"
           aria-label={collapsed ? t("page_panel.expand") : t("page_panel.collapse")}

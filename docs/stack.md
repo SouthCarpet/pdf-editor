@@ -1,7 +1,7 @@
 # PDF Editor — Stack
 
 Konkrétny zoznam jazykov, knižníc a nástrojov, ktoré táto aplikácia používa.
-Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bumpy vyžadujú spec update.
+Verzie knižníc uvádzajú požadované minimum. Časť 4 uvádza verzie zabalených bináriek podľa manifestu.
 
 ## 1. Programovacie jazyky
 
@@ -64,6 +64,17 @@ Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bum
 | `react-dnd` | 16.x | Drag-drop (Organize stránok, pipeline node manipulácia) |
 | `react-dnd-html5-backend` | 16.x | Browser DnD backend |
 | `react-error-boundary` | 4.x | Error boundaries per route |
+
+### 2.4a Dizajn (Kaliber r4)
+
+| Súbor | Čo to je | Poznámka |
+|---|---|---|
+| `src/styles/tokens.css` | Vygenerované tokeny (`design-tokens css --app pdf-editor`) | Bajtová kópia `design/web/pdf-editor.tokens.css`. Neupravuj ručne. |
+| `src/styles/kaliber.css` | Spoločná vrstva komponentov `.k-*` | Bajtová kópia `design/web/kaliber.css`. Neupravuj ručne. |
+| `src/assets/fonts/fira-sans/` | Písmo Fira Sans 400, 500, 600, 700 + `OFL.txt` + `SHA256SUMS` | SIL OFL 1.1. `kaliber.css` ich hľadá relatívne k sebe. |
+| `src/styles/globals.css` | Poradie importov a pravidlá aplikácie | Poradie: `tailwindcss`, `tokens.css`, `kaliber.css` vo vrstve `components`, potom CSS aplikácie. Vrstva zaručí, že utilita (napr. `p-6`) vyhrá nad `.k-btn`. Staré aliasy sú odstránené. CSS aplikácie drží pozadie polí `--color-field-surface`, šípku natívneho selectu `--app-select-chevron`, rolu `--color-warning-text` (text varovania, 4,5:1), pôvodné veľkosti písma a polomery Tailwindu (`--text-xs` až `--text-3xl`, `--radius-sm` až `--radius-lg`) a veľkosť písma stránky (`--text-body`, 1rem), ktoré by tokeny Kaliber inak prepísali. |
+
+Téma: `src/components/ThemeProvider.tsx` nastaví `data-theme` (pre tokeny) aj triedu `dark` (pre staré selektory) a ukladá voľbu pod kľúč `kaliber-theme`. Voľba „system" je bez uloženej hodnoty. Starý kľúč `theme` sa prečíta raz a zmaže.
 
 ### 2.5 Frontend dev / test
 
@@ -141,38 +152,39 @@ Všetky verzie sú "minimum required" — vyšsie patch verzie sú OK, major bum
 
 ## 4. Sidecar binárky (zabaľované do inštalátora)
 
-Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do `.msi` cez `tauri.conf.json` `bundle.externalBin`.
+Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlované do per-user inštalátora (Inno Setup 6, `packaging/payload.json`) v rovnakom rozložení ako staré MSI cez `tauri.conf.json` `bundle.externalBin`.
 
 | Binárka | Verzia | Licencia | Veľkosť | Použitie |
 |---|---|---|---|---|
-| **qpdf** (`qpdf.exe`) | 12.3.2+ | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
-| **Ghostscript** (`gswin64c.exe` + libs) | 10.x | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
-| **MuPDF tools** (`mutool.exe` + `libmupdf.dll`) | 1.24+ | AGPL-3.0 | ~15 MB | Companion k `mupdf-rs`. `mutool clean -gggg` = full GC + xref kompakcia + object/stream dedup (object-level cleanup). `-S` = font subsetting (EXPERIMENTAL — používať s opatrnosťou) |
-| **LibreOffice portable** (`soffice.exe` + libs) | 24.x | MPL 2.0 | ~150 MB | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export |
-| **Tesseract OCR** (`tesseract.exe` + `tesseract.dll`) | 5.x | Apache 2.0 | ~30 MB | OCR (alternatíva k Rust `tesseract` crate; zabalené pre robustnosť) |
-| **tessdata_best** (eng, slk, ces, deu) | latest | Apache 2.0 | ~200 MB | OCR jazykové modely (4 jazyky pre offline; user môže drag-drop ďalšie do `%AppData%\PdfEditor\tessdata-extra\`) |
-| **pdfcrack** (`pdfcrack.exe`) | 0.20+ | GPL-2.0+ | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
-| **WiX Toolset** | 4.x (build-only) | MS-RL | — | MSI installer creation (nezahrnuté do produktu, len v build chain) |
+| **qpdf** (`qpdf.exe`) | 12.3.2 | Apache 2.0 | ~3 MB | Unlock (Type A/B), linearize, structural ops, flatten annotations, object streams. 12.3.2 fixuje `--password` regression z 12.0–12.3.1 |
+| **Ghostscript** (`gswin64c.exe` + `gsdll64.dll`) | 10.07.0 | AGPL-3.0 | ~30 MB | Compress (3 presety), PDF/A creation (sekundárne, primárne LO) |
+| **MuPDF tools** (`mutool.exe`) | 1.27.0 | AGPL-3.0 | ~15 MB | `mutool clean -gggg`: odstránenie nepoužitých objektov, kompakcia xref a deduplikácia. `-S`: experimentálne zmenšenie fontov. |
+| **LibreOffice** (`soffice.exe`), nie je zabalený (plán 119) | 24.x | MPL 2.0 | ~350 MB, inštaluje používateľ | Konverzia: DOCX/ODT/XLSX/PPTX/HTML/RTF/ePub ↔ PDF, PDF/A export. Aplikácia ho nájde v registri; inštalátor ponúkne inštaláciu cez winget (`docs/install-contract.md`) |
+| **Tesseract OCR** (`tesseract.exe` + `libtesseract-5.dll`) | 5.4.0.20240606 | Apache 2.0 | ~30 MB | OCR cez sidecar. |
+| **tessdata_best** (eng, slk, ces, deu, pol) | podľa manifestu | Apache 2.0 | podľa súborov | Päť jazykov pre offline OCR. Ďalšie modely sa ukladajú do `%APPDATA%\PdfEditor\PdfEditor\data\tessdata-extra\`. |
+| **pdfcrack** (`pdfcrack.exe`) | 0.19 | GPL-2.0-or-later | ~1 MB | Brute-force unlock (Recovery mode, secondary, behind warning) |
+| **WiX Toolset** | 3.14 (iba build) | MS-RL | — | Staré MSI, bez vydania v novom release. |
 
-**Spolu sidecary: ~430 MB** (pred kompresiou MSI).
+Presný zoznam súborov určuje `packaging/payload.json`. Veľkosť payloadu sa meria pred kompresiou Inno Setup. Licencie a otvorené blokery sú v [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## 5. Build tooling
 
 | Nástroj | Verzia | Účel |
 |---|---|---|
 | `cargo` | 1.85+ | Rust build |
-| `pnpm` | 9.x | Node deps |
+| `pnpm` | 11.0.3 | Node deps |
 | `rustup` | latest | Rust toolchain manager |
 | `node` | 20.19+ LTS | TypeScript / Vite runtime (Vite 6 minimum) |
 | `tauri-cli` | 2.x | `tauri dev`, `tauri build` |
-| `wix` | 4.x | MSI generation |
+| Inno Setup | 6.x | Per-user inštalátor (`packaging/build-installer.ps1`, plán 119) |
+| `wix` | 3.14 | Staré MSI (`pnpm tauri build`) |
 | `pwsh` | 7+ | Build skripty (Windows-friendly) |
 
 ## 6. CI / linting / formátovanie
 
 | Nástroj | Účel |
 |---|---|
-| `clippy` (Rust) | Lint, CI-enforced `-D warnings` |
+| `clippy` (Rust) | Lint, CI-enforced `-D warnings`. CI enforces complexity through `src-tauri/Cargo.toml` `[lints.clippy]` `cognitive_complexity = "deny"` (threshold 12 in `src-tauri/.clippy.toml`) |
 | `rustfmt` (Rust) | Format, CI-enforced |
 | `cargo-deny` (Rust) | License + advisory check |
 | `eslint` + `@typescript-eslint` | Lint (TS/React) |
@@ -185,16 +197,17 @@ Externé binárky spawn-ované Rust core-om na ťažké PDF operácie. Bundlovan
 
 - **OS:** Windows 10 21H2+ alebo Windows 11
 - **Architecture:** x64
-- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10 fallback inštalácia v MSI ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
+- **WebView2 Runtime:** automaticky inštalované cez Edge na Win 11; Win 10: inštalátor ju po súhlase stiahne, ak chýba (~150 MB stiahnutia z MS pri install — len ak chýba)
 - **Disk:** ~480 MB pre app + dáta v `%AppData%\PdfEditor\`
 - **RAM:** 4 GB minimum, 8 GB odporúčané (OCR a veľké PDF benefity)
 - **CPU:** ľubovoľný x64 z posledných 8 rokov; Tesseract a Ghostscript sú CPU-bound
-- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline
+- **Sieť:** **nepotrebná**. Aplikácia funguje 100% offline. Jediná požiadavka je voliteľná kontrola novej verzie na GitHube (predvolene vypnutá, plán 119)
 
 ## 8. Licencie zhrnutie
 
 - **Naša app code:** AGPL-3.0 (kvôli AGPL sidecarom MuPDF + Ghostscript)
 - **Bundlované sidecary:** každý so svojou licenciou (Apache 2.0, AGPL-3.0, MPL 2.0, GPL-2.0+, MS-RL)
+- **Písmo Fira Sans:** SIL Open Font License 1.1 (text v `src/assets/fonts/fira-sans/OFL.txt`, inštalátor ho dá do `resources\licenses\FiraSans-OFL.txt`)
 - **THIRD_PARTY_LICENSES.md** v inštalátore obsahuje plný text + source URL každej zložky (AGPL §6 source-offer obligation)
 
 ## 9. Mimo scope (čo NEpoužívame)
@@ -209,7 +222,7 @@ Pre referenciu, čo sme zámerne **odmietli** a prečo:
 - ❌ **Redux** — Zustand je menej boilerplate pre tento usecase
 - ❌ **Webpack** — Vite je rýchlejší, modernejší
 - ❌ **CRA (Create React App)** — deprecated v 2023
-- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania
+- ❌ **fetch / axios / reqwest** v default mode — žiadne sieťové volania. Výnimka (plán 119): `reqwest` iba v `src-tauri/src/services/release_check.rs`, kontrola a stiahnutie aktualizácie po súhlase
 - ❌ **GitHub Pages / cloud hosting** — localhost-only, žiadny server
 - ❌ **LLM SDKs** (OpenAI, Anthropic, atď.) — žiadny LLM
 - ❌ **Telemetria** (PostHog, Sentry, Mixpanel) — žiadne tracking

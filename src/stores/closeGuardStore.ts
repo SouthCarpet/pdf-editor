@@ -6,7 +6,9 @@ import type { DocId } from "./documentStore";
 
 export type CloseGuardRequest =
   | { kind: "window"; docIds: DocId[] }
-  | { kind: "tab"; docId: DocId; onClosed: () => void };
+  | { kind: "tab"; docId: DocId; onClosed: () => void }
+  // Plan 119: the Update button asks before the setup closes the app.
+  | { kind: "update"; docIds: DocId[]; onClosed: () => void };
 
 interface CloseGuardState {
   request: CloseGuardRequest | null;

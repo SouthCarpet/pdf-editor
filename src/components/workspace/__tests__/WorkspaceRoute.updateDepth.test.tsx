@@ -19,13 +19,14 @@ import { useDocuments } from "@/stores/documentStore";
 import { useWorkspace } from "@/stores/workspaceStore";
 
 const SEPARATOR = String.fromCharCode(92);
-const DOC_PATH = ["A:", "scans", "hodiny.pdf"].join(SEPARATOR);
+const DOC_PATH = ["A:", "scans", "timesheet-scan.pdf"].join(SEPARATOR);
 
 vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).fakeBridge);
 
 const commandFakes = vi.hoisted(() => ({
   openDocument: vi.fn(),
   detectScannedPdf: vi.fn(),
+  pageCount: 1,
 }));
 vi.mock("@/bindings", () => ({
   Channel: class {},
@@ -38,18 +39,23 @@ vi.mock("@/bindings", () => ({
 }));
 
 // The real hook needs the pdf.js worker, which jsdom has no use for. The stub
-// keeps the page count of hodiny.pdf (1 page).
+// keeps the page count of timesheet-scan.pdf (1 page).
 vi.mock("@/hooks/usePdfDocument", () => ({
   usePdfDocument: (path: string | null) =>
     path
       ? {
           pdf: {
-            numPages: 1,
+            numPages: commandFakes.pageCount,
             getPage: async () => ({ getViewport: () => ({ width: 600, height: 850 }) }),
           },
-          numPages: 1,
+          numPages: commandFakes.pageCount,
         }
       : null,
+}));
+
+vi.mock("@/components/workspace/PdfViewer", () => ({
+  PdfViewer: ({ pageIndex, className }: { pageIndex: number; className: string }) =>
+    <canvas data-testid={`page-frame-${pageIndex}`} className={className} />,
 }));
 
 import { resetFakeBridge } from "@/test/fakeTauriBridge";
@@ -73,7 +79,7 @@ async function renderAndCollectErrors() {
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
   try {
     renderWorkspace();
-    await screen.findAllByText(/hodiny\.pdf/);
+    await screen.findAllByText(/timesheet-scan\.pdf/);
     const messages = consoleError.mock.calls.map((call) =>
       call.map(String).join(" "),
     );
@@ -113,6 +119,7 @@ describe("workspace route for a scanned PDF", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    commandFakes.pageCount = 1;
     resetFakeBridge();
     commandFakes.openDocument.mockResolvedValue({
       status: "ok",
@@ -143,7 +150,7 @@ describe("workspace route for a scanned PDF", () => {
     useWorkspace.setState({ editSubTool: "forms" });
     const looped = await renderAndCollectErrors();
     expect(looped).toBe(false);
-    expect(screen.getByText(/hodiny\.pdf/)).toBeInTheDocument();
+    expect(screen.getByText(/timesheet-scan\.pdf/)).toBeInTheDocument();
   });
 
   it("stays stable with two tabs of the same file", async () => {
@@ -156,5 +163,22 @@ describe("workspace route for a scanned PDF", () => {
     const looped = await renderAndCollectErrors();
     expect(looped).toBe(false);
     expect(useDocuments.getState().documents.size).toBe(2);
+  });
+
+  // Oracle: V4b F1. The focused and facing page frames both belong to paper,
+  // so dark chrome cannot change the border of only one half of a spread.
+  it("puts both page frames inside the paper scope in dark book mode", async () => {
+    document.documentElement.dataset.theme = "dark";
+    commandFakes.pageCount = 3;
+    useWorkspace.setState({ activePage: 1, bookModeByDoc: { [DOC_PATH]: true } });
+    try {
+      renderWorkspace();
+      const focused = (await screen.findAllByTestId("page-frame-1")).find((node) => node.classList.contains("block"))!;
+      const facing = (await screen.findAllByTestId("page-frame-2")).find((node) => node.classList.contains("block"))!;
+      expect(focused.closest(".paper-light")).not.toBeNull();
+      expect(facing.closest(".paper-light")).not.toBeNull();
+    } finally {
+      document.documentElement.removeAttribute("data-theme");
+    }
   });
 });

@@ -14,7 +14,7 @@ import { useWorkspace } from "@/stores/workspaceStore";
 import { hasUnsavedWork } from "@/lib/unsavedWork";
 import { EditTextPanel } from "../EditTextPanel";
 
-const DOC_PATH = "A:\\scans\\hodiny.pdf";
+const DOC_PATH = "A:\\scans\\timesheet-scan.pdf";
 
 const mocks = vi.hoisted(() => ({
   extractRunsCmd: vi.fn(),
@@ -164,7 +164,7 @@ describe("EditTextPanel text-draft dirty tracking", () => {
 
   it("clears the dirty flag once Apply succeeds", async () => {
     const { save } = await import("@tauri-apps/plugin-dialog");
-    vi.mocked(save).mockResolvedValue("A:\\scans\\hodiny.edited.pdf");
+    vi.mocked(save).mockResolvedValue("A:\\scans\\timesheet-scan.edited.pdf");
     mocks.replaceRunCmd.mockResolvedValue({ status: "ok", data: null });
 
     const user = userEvent.setup();

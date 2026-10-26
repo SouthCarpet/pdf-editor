@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import type * as pdfjs from "pdfjs-dist";
 import { cn } from "@/lib/utils";
 import { fitThumbnailSize } from "./thumbnailLayout";
+import { PAGE_IMAGE_READY } from "./thumbnailCarry";
 
 interface Props {
   pdf: pdfjs.PDFDocumentProxy;
@@ -14,12 +15,37 @@ interface Props {
    * using `zoom`. The canvas CSS size never exceeds the box. */
   fitBox?: { width: number; height: number };
   className?: string;
+  /** Plan 119 p1b: pdf.js ids (`"12R"`) of saved annotations not to draw,
+   * because a pending edit replaces them. */
+  hiddenAnnotationIds?: readonly string[];
 }
 
-export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
+// pdf.js `AnnotationMode.ENABLE_STORAGE`. A value import of pdfjs-dist here
+// would load pdf.js in every test that mounts this component.
+const ANNOTATION_MODE_ENABLE_STORAGE = 3;
+
+export function PdfViewer({
+  pdf,
+  pageIndex,
+  zoom,
+  fitBox,
+  className,
+  hiddenAnnotationIds = NO_IDS,
+}: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fitWidth = fitBox?.width;
   const fitHeight = fitBox?.height;
+  const hiddenKey = hiddenAnnotationIds.join(",");
+
+  // pdf.js skips an annotation whose storage entry says `noView` when the
+  // page renders with ENABLE_STORAGE. The ids are cleared again on change.
+  useEffect(() => {
+    const ids = hiddenKey === "" ? [] : hiddenKey.split(",");
+    for (const id of ids) holdHidden(pdf, id);
+    return () => {
+      for (const id of ids) releaseHidden(pdf, id);
+    };
+  }, [pdf, hiddenKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,8 +76,17 @@ export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
         canvas.style.maxWidth = "";
         canvas.style.maxHeight = "";
       }
-      renderTask = page.render({ canvas, canvasContext: ctx, viewport });
+      renderTask = page.render({
+        canvas,
+        canvasContext: ctx,
+        viewport,
+        annotationMode: ANNOTATION_MODE_ENABLE_STORAGE,
+      });
       await renderTask.promise;
+      if (!cancelled) {
+        canvas.dataset.renderedPage = String(pageIndex);
+        canvas.dispatchEvent(new Event(PAGE_IMAGE_READY, { bubbles: true }));
+      }
     })().catch((err) => {
       // RenderingCancelledException is fine; the next effect already kicked
       // off a fresh render. Anything else is worth logging.
@@ -63,12 +98,38 @@ export function PdfViewer({ pdf, pageIndex, zoom, fitBox, className }: Props) {
       cancelled = true;
       renderTask?.cancel();
     };
-  }, [pdf, pageIndex, zoom, fitWidth, fitHeight]);
+  }, [pdf, pageIndex, zoom, fitWidth, fitHeight, hiddenKey]);
 
   return (
     <canvas
       ref={canvasRef}
+      data-page-image={pageIndex}
       className={cn(fitBox && "max-h-full max-w-full object-contain", className)}
     />
   );
+}
+
+const NO_IDS: readonly string[] = [];
+
+// Plan 119 p1c: book mode mounts two viewers on one document, and both hide
+// the value being edited. The storage entry is per document, so it is held
+// once per viewer and removed when the last viewer lets go.
+const hiddenHolds = new WeakMap<pdfjs.PDFDocumentProxy, Map<string, number>>();
+
+function holdHidden(pdf: pdfjs.PDFDocumentProxy, id: string): void {
+  const holds = hiddenHolds.get(pdf) ?? new Map<string, number>();
+  hiddenHolds.set(pdf, holds);
+  holds.set(id, (holds.get(id) ?? 0) + 1);
+  pdf.annotationStorage.setValue(id, { noView: true });
+}
+
+function releaseHidden(pdf: pdfjs.PDFDocumentProxy, id: string): void {
+  const holds = hiddenHolds.get(pdf);
+  const remaining = (holds?.get(id) ?? 1) - 1;
+  if (remaining > 0) {
+    holds?.set(id, remaining);
+    return;
+  }
+  holds?.delete(id);
+  pdf.annotationStorage.remove(id);
 }

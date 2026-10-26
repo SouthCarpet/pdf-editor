@@ -1,9 +1,8 @@
 // Plan 036 gate: every sidecar must launch THROUGH `SidecarManager`, from the
 // same layout the built app ships (`target/{debug,release}`: unsuffixed exe,
 // no DLLs colocated), with a scrubbed PATH so the developer machine's PATH
-// cannot mask a delivery defect. See
-// `A:/projects-vault/apps/pdf-editor/.vault/process/plans/plan_v1_sidecar_dlls.md`
-// (gate-phase verification contract) for the requirements this encodes.
+// cannot mask a delivery defect. The sidecar DLL plan (gate-phase
+// verification contract) holds the requirements this encodes.
 //
 // `resolve_binary`'s first branch resolves `current_exe().parent().join("{name}.exe")`.
 // Under `cargo test`, `current_exe()` is the test binary itself, which lives in
@@ -164,8 +163,7 @@ async fn all_five_sidecars_launch_through_manager_from_target_layout() {
 /// `sidecars/manager.rs`) instead of the test binary's own directory, so
 /// this runs against a REAL MSI install directory (`Program Files\PDF
 /// Editor` for the shipped perMachine MSI, or an administrative-extract
-/// directory standing in for it, see
-/// `.vault/process/plans/plan_v1_sidecar_dlls.md`) rather than a simulated
+/// directory standing in for it) rather than a simulated
 /// `target/debug` shape. Requires `PDF_EDITOR_INSTALL_DIR` to be set to that
 /// directory before `cargo test --features sidecar-tests` (the
 /// `cfg_attr` below only controls whether the test runs at all under a
@@ -195,8 +193,7 @@ async fn all_five_sidecars_launch_through_manager_from_installed_layout() {
     assert!(
         !install_dir.is_empty(),
         "PDF_EDITOR_INSTALL_DIR is unset or empty; set it to a real MSI installed-layout \
-         directory (an administrative extract, see \
-         .vault/process/plans/plan_v1_sidecar_dlls.md, or a real per-machine install under \
+         directory (an administrative extract, or a real per-machine install under \
          %ProgramFiles%\\PDF Editor) before running --features sidecar-tests"
     );
     let install_path = std::path::Path::new(&install_dir);

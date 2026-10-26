@@ -13,19 +13,19 @@ import { describe, expect, it } from "vitest";
 import { decodeDocId } from "@/lib/docId";
 
 describe("decodeDocId", () => {
-  it("decodes the exact path from the reported failure", () => {
-    // Copied verbatim from the on-screen diagnostic.
-    const fromRoute = "C%3A%5CUsers%5CAsus%5CDownloads%5Chodinovka%2023.10.2024%20.pdf";
+  it("decodes a path with spaces and dots", () => {
+    // Same path shape as the on-screen diagnostic, with neutral names.
+    const fromRoute = "C%3A%5CUsers%5Cuser%5CDownloads%5Ctimesheet%2023.10.2024%20.pdf";
     expect(decodeDocId(fromRoute)).toBe(
-      "C:\\Users\\Asus\\Downloads\\hodinovka 23.10.2024 .pdf",
+      "C:\\Users\\user\\Downloads\\timesheet 23.10.2024 .pdf",
     );
   });
 
   it.each([
-    "C:\\Users\\Asus\\Downloads\\hodinovka 23.10.2024 .pdf",
-    "A:\\projects-vault\\a file with spaces.pdf",
-    "C:\\Users\\Asus\\Documents\\zmluva (2) [final].pdf",
-    "C:\\Users\\Asus\\Dokumenty\\faktúra č. 5 – október.pdf",
+    "C:\\Users\\user\\Downloads\\timesheet 23.10.2024 .pdf",
+    "C:\\documents\\a file with spaces.pdf",
+    "C:\\Users\\user\\Documents\\document (2) [final].pdf",
+    "C:\\Users\\user\\Dokumenty\\ukážka č. 5 – október.pdf",
     "C:\\path\\with#hash&amp.pdf",
   ])("round-trips the navigation encoding for %s", (path) => {
     // DocumentTabs, OpenFilesProvider and the recent-files list all encode with
@@ -37,7 +37,7 @@ describe("decodeDocId", () => {
     // decodeURIComponent throws URIError on an invalid escape. A Windows path
     // may legitimately contain a bare %, and trading file_not_found for an
     // uncaught crash would be a worse bug than the one being fixed.
-    const raw = "C:\\Users\\Asus\\Downloads\\100% done.pdf";
+    const raw = "C:\\Users\\user\\Downloads\\100% done.pdf";
     expect(() => decodeDocId(raw)).not.toThrow();
     expect(decodeDocId(raw)).toBe(raw);
   });

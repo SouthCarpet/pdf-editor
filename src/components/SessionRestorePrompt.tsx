@@ -8,6 +8,7 @@
 // follow-up that fans this banner into a slot picker.
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { commands, type SessionSlot } from "@/bindings";
@@ -49,16 +50,14 @@ export function SessionRestorePrompt() {
   }
 
   return (
-    <div
-      role="alert"
-      className="mx-4 mt-2 flex items-center justify-between gap-2 rounded border border-[var(--color-focus)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm text-[var(--color-accent-soft-foreground)]"
-    >
-      <span>
+    <div role="alert" className="k-alert k-alert--info mx-4 mt-2">
+      <Info className="k-alert-icon h-4 w-4" aria-hidden="true" />
+      <p className="k-alert-body">
         {t("session.restore_prompt", {
           count: slots.length,
           defaultValue: `Restore last session? (${slots.length} document${slots.length === 1 ? "" : "s"})`,
         })}
-      </span>
+      </p>
       <div className="flex gap-2">
         <Button size="sm" variant="default" onClick={restore}>
           {t("session.restore", { defaultValue: "Restore" })}

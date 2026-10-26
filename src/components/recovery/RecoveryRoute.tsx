@@ -24,9 +24,9 @@ export function RecoveryRoute() {
 
   if (!input) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4">
-        <h1 className="text-2xl font-bold">{t("title")}</h1>
-        <p className="text-sm text-[var(--color-muted)]">{t("pick_file_description")}</p>
+      <div className="mx-auto max-w-3xl space-y-[var(--space-6)]">
+        <h1 className="k-page-title">{t("title")}</h1>
+        <p className="text-sm text-[var(--color-text-muted)]">{t("pick_file_description")}</p>
         <FileDropzone multiple={false} onFiles={(p) => p[0] && setInput(p[0])} />
         <Button variant="outline" onClick={pick}>
           {t("choose_file")}

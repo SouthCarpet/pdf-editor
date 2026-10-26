@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { FileDropzone } from "@/components/FileDropzone";
 import { ProgressList } from "@/components/ProgressList";
 import { ToolPage } from "@/components/ToolPage";
+import { SelectedFile } from "./SelectedFiles";
 import { commands, type CompressionPresetDto } from "@/bindings";
 import { useJobsStore } from "@/stores/jobsStore";
 import {
@@ -76,7 +77,7 @@ export function CompressTool() {
   return (
     <ToolPage title={t("tools.compress")} description={t("tools:compress.description")}>
       <FileDropzone onFiles={(p) => setFile(p[0] ?? null)} multiple={false} />
-      {file && <div className="truncate rounded border p-2 text-sm">{file}</div>}
+      {file && <SelectedFile path={file} />}
       <CompressOptions value={options} onChange={setOptions} mode="standalone" />
       <div className="flex gap-2">
         <Button disabled={!file || running} onClick={onRun}>
@@ -84,16 +85,24 @@ export function CompressTool() {
         </Button>
       </div>
       {stats && (
-        <div className="rounded border p-3 text-sm">
-          <div>Before: {formatBytes(stats.before)}</div>
-          <div>After: {formatBytes(stats.after)}</div>
-          <div>
-            Saved:{" "}
-            {stats.before > 0
-              ? `${(((stats.before - stats.after) / stats.before) * 100).toFixed(1)}%`
-              : "-"}
+        <dl className="k-summary">
+          <div className="k-summary-row">
+            <dt>{t("tools:compress.before")}</dt>
+            <dd className="k-summary-value k-num">{formatBytes(stats.before)}</dd>
           </div>
-        </div>
+          <div className="k-summary-row">
+            <dt>{t("tools:compress.after")}</dt>
+            <dd className="k-summary-value k-num">{formatBytes(stats.after)}</dd>
+          </div>
+          <div className="k-summary-row">
+            <dt>{t("tools:compress.saved")}</dt>
+            <dd className="k-summary-value k-num">
+              {stats.before > 0
+                ? `${(((stats.before - stats.after) / stats.before) * 100).toFixed(1)}%`
+                : "-"}
+            </dd>
+          </div>
+        </dl>
       )}
       <ProgressList />
     </ToolPage>

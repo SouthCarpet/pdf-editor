@@ -68,15 +68,15 @@ export function OcrEditPanel({
         <h3 id="ocr-edit-title" className="text-sm font-semibold">
           {t("ocr_edit.title")}
         </h3>
-        <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-muted)]">
+        <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
           {t("ocr_edit.description")}
         </p>
       </div>
 
       {loading ? (
-        <p className="text-xs text-[var(--color-muted)]">{t("ocr_edit.loading")}</p>
+        <p className="text-xs text-[var(--color-text-muted)]">{t("ocr_edit.loading")}</p>
       ) : layerNotice ? (
-        <p role="status" className="text-xs text-[var(--color-warning)]">
+        <p role="status" className="text-xs text-[var(--color-warning-text)]">
           {t("ocr_edit.no_layer")}
         </p>
       ) : (
@@ -87,11 +87,10 @@ export function OcrEditPanel({
               {t("ocr_edit.selected_count", { count: selectedIds.size })}
             </span>
           </div>
-          <p className="text-[11px] leading-relaxed text-[var(--color-muted)]">
+          <p className="text-[11px] leading-relaxed text-[var(--color-text-muted)]">
             {t("ocr_edit.selection_help")}
           </p>
           <Button
-            size="sm"
             variant="outline"
             className="w-full"
             disabled={busy || selectedIds.size === 0}
@@ -104,29 +103,28 @@ export function OcrEditPanel({
             <input
               value={replacement}
               onChange={(event) => setReplacement(event.target.value)}
-              className="h-8 w-full rounded border border-[var(--color-border)] bg-[var(--color-card)] px-2 text-xs"
+              className="k-input min-w-0 w-full"
             />
           </label>
           <Button
-            size="sm"
             className="w-full"
             disabled={busy || selectedIds.size === 0 || replacement.trim() === ""}
             onClick={() => void apply("replace")}
           >
             {busy ? t("ocr_edit.saving") : t("ocr_edit.replace")}
           </Button>
-          <p className="text-[10px] leading-relaxed text-[var(--color-muted)]">
+          <p className="text-[10px] leading-relaxed text-[var(--color-text-muted)]">
             {t("ocr_edit.undo_note")}
           </p>
         </>
       )}
       {notice && (
-        <p role="status" className="text-xs text-[var(--color-success-text)]">
+        <p role="status" className="text-xs text-[var(--color-success)]">
           {notice}
         </p>
       )}
       {error && (
-        <p role="alert" className="text-xs text-[var(--color-danger-text)]">
+        <p role="alert" className="text-xs text-[var(--color-danger)]">
           {error}
         </p>
       )}

@@ -1,80 +1,65 @@
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@/stores/appStore";
-import { useTheme } from "@/components/ThemeProvider";
-import { Button } from "@/components/ui/button";
-import { commands } from "@/bindings";
+import { useTheme, type Theme } from "@/components/ThemeProvider";
 
+/** Appearance: the theme as a segmented control (Light, Dark, System) and the
+ * language. The header switch changes the same theme state. */
 export function GeneralSettings() {
   const { t } = useTranslation(["common", "settings"]);
   const { theme, setTheme } = useTheme();
   const language = useAppStore((s) => s.language);
   const setLanguage = useAppStore((s) => s.setLanguage);
-  const privacyStrict = useAppStore((s) => s.privacyStrict);
-  const setPrivacy = useAppStore((s) => s.setPrivacy);
 
-  // Delta P: shells out to explorer.exe via the open_logs_folder Tauri
-  // command. We don't surface errors visually - the only way it can fail
-  // is if logs_dir() can't resolve %AppData% (unlikely on Windows) or
-  // spawning explorer is denied; both already produce a frontend error
-  // event captured by installCrashHandlers().
-  const handleOpenLogs = () => {
-    void commands.openLogsFolder().catch((e) => {
-      console.error("open_logs_folder failed", e);
-    });
-  };
+  const themes: { value: Theme; label: string }[] = [
+    { value: "light", label: t("theme.light") },
+    { value: "dark", label: t("theme.dark") },
+    { value: "system", label: t("theme.system") },
+  ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <label className="text-sm font-medium" htmlFor="settings-theme">
+    <section className="k-settings-section" aria-labelledby="settings-appearance">
+      <h3 id="settings-appearance">{t("settings:section_appearance")}</h3>
+
+      <div className="k-field-block">
+        <span className="k-field-label" id="settings-theme-label">
           {t("theme.label")}
-        </label>
-        <select
-          id="settings-theme"
-          className="mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")}
+        </span>
+        <div
+          className="k-segmented self-start"
+          role="radiogroup"
+          aria-labelledby="settings-theme-label"
         >
-          <option value="light">{t("theme.light")}</option>
-          <option value="dark">{t("theme.dark")}</option>
-          <option value="system">{t("theme.system")}</option>
-        </select>
+          {themes.map((option) => (
+            <label key={option.value} className="k-segmented-item">
+              <input
+                className="k-segmented-input"
+                type="radio"
+                name="settings-theme"
+                value={option.value}
+                checked={theme === option.value}
+                onChange={() => setTheme(option.value)}
+              />
+              <span className="k-segmented-label">{option.label}</span>
+            </label>
+          ))}
+        </div>
+        <p className="k-caption">{t("settings:theme_hint")}</p>
       </div>
 
-      <div>
-        <label className="text-sm font-medium" htmlFor="settings-language">
+      <div className="k-field-block">
+        <label className="k-field-label" htmlFor="settings-language">
           {t("language")}
         </label>
         <select
           id="settings-language"
-          className="mt-1 block w-full rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2"
+          className="k-select w-full"
           value={language}
-          onChange={(e) => {
-            const v = e.target.value as "en" | "sk";
-            setLanguage(v);
-          }}
+          onChange={(e) => setLanguage(e.target.value === "sk" ? "sk" : "en")}
         >
           <option value="en">English</option>
           <option value="sk">Slovenčina</option>
         </select>
       </div>
-
-      <div>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={privacyStrict}
-            onChange={(e) => setPrivacy(e.target.checked)}
-          />
-          {t("settings:strict_privacy")}
-        </label>
-      </div>
-
-      <div>
-        <Button variant="outline" onClick={handleOpenLogs}>
-          {t("settings:open_logs")}
-        </Button>
-      </div>
-    </div>
+    </section>
   );
 }

@@ -15,11 +15,13 @@ import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { useFilledFields } from "@/stores/filledFieldsStore";
+import { hasDirtyFormDraft, useFormDrafts, type FormPlace } from "@/stores/formDraftStore";
 import { CloseGuardDialog } from "../CloseGuardDialog";
 
 const DOC_A = "A:\\docs\\a.pdf";
 const DOC_B = "A:\\docs\\b.pdf";
 const OUTPUT_PATH = "A:\\docs\\a.annotated.pdf";
+const PLACE: FormPlace = { kind: "text", page_index: 0, rect: [36, 700, 240, 724] };
 
 const NOTE: Annotation = {
   type: "note",
@@ -36,6 +38,8 @@ vi.mock("@/tauri/bridge", async () => (await import("@/test/fakeTauriBridge")).f
 const commandFakes = vi.hoisted(() => ({
   applyAnnotationsCmd: vi.fn(),
   autosaveDelete: vi.fn(),
+  readFormFieldsCmd: vi.fn(),
+  setFormValuesCmd: vi.fn(),
 }));
 vi.mock("@/bindings", () => ({ commands: commandFakes }));
 
@@ -67,13 +71,43 @@ describe("CloseGuardDialog - window scope", () => {
     resetFakeBridge();
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.readFormFieldsCmd.mockResolvedValue({
+      status: "ok",
+      data: [
+        {
+          id: "10:0",
+          name: "Applicant",
+          kind: "text",
+          value: "Alice",
+          page_index: 0,
+          rect: [36, 700, 240, 724],
+          options: [],
+          read_only: false,
+          required: true,
+        },
+      ],
+    });
+    commandFakes.setFormValuesCmd.mockResolvedValue({ status: "ok", data: null });
+    useFormDrafts.setState({ byDoc: {} });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });
     useCloseGuard.setState({ request: null });
     useFilledFields.setState({ byDoc: {} });
     useDocuments.getState().add({ id: DOC_A, path: DOC_A, pageCount: 1, dirty: false });
+  });
+
+  // Oracle: 119-K5 finding 5. Save leads; Discard keeps its danger meaning
+  // without a second solid ink block in the same close dialog.
+  it("has one solid Save action and an outlined destructive Discard action", () => {
+    useCloseGuard.getState().open({ kind: "tab", docId: DOC_A, onClosed: () => {} });
+    render(<CloseGuardDialog />);
+    expect(screen.getByRole("button", { name: "Uložiť" })).toHaveClass("k-btn-primary");
+    expect(screen.getByRole("button", { name: "Neukladať" })).toHaveClass(
+      "k-btn-secondary", "text-[var(--color-danger)]",
+    );
+    expect(document.querySelectorAll(".k-btn-primary, .k-btn-danger")).toHaveLength(1);
   });
 
   /** Fires one OS close request and reports whether it was vetoed. */
@@ -90,6 +124,20 @@ describe("CloseGuardDialog - window scope", () => {
     expect(preventDefault).not.toHaveBeenCalled();
     expect(tauriWindow.close).not.toHaveBeenCalled();
     expect(screen.queryByText("Neuložené zmeny")).toBeNull();
+  });
+
+  // Oracle: E1 item 7. An empty own field is unsaved work, even without a
+  // typed value or a document dirty flag. Window close must ask first.
+  it("asks before closing a document with only a pending own field", async () => {
+    useAnnotations.getState().add(DOC_A, {
+      type: "form_field", page: 0, rect: [100, 650, 240, 672], name: "Own",
+      kind: "text", multiline: false, font_size: 0,
+    });
+    render(<CloseGuardDialog />);
+    const prevented = await triggerClose();
+    expect(prevented).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Neuložené zmeny")).toBeInTheDocument();
+    expect(tauriWindow.close).not.toHaveBeenCalled();
   });
 
   it("shows the dialog, naming the dirty document, instead of closing", async () => {
@@ -241,6 +289,54 @@ describe("CloseGuardDialog - window scope", () => {
     await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
   });
 
+  // Plan 119 p1c: a typed AcroForm value is unsaved work. The close guard
+  // asks, saves it on Uložiť and drops it on Neukladať.
+  it("asks before closing when only an AcroForm value is typed", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    render(<CloseGuardDialog />);
+
+    const preventDefault = await triggerClose();
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(tauriWindow.close).not.toHaveBeenCalled();
+    expect(await screen.findByText("Neuložené zmeny")).toBeInTheDocument();
+  });
+
+  it("Uložiť writes the typed AcroForm value, then closes", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    fakeBridge.pickSavePath.mockResolvedValue(OUTPUT_PATH);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Uložiť" }));
+
+    await waitFor(() => expect(commandFakes.setFormValuesCmd).toHaveBeenCalledTimes(1));
+    expect(commandFakes.setFormValuesCmd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: DOC_A,
+        output: OUTPUT_PATH,
+        updates: [{ field_id: "10:0", value: "Bob" }],
+      }),
+    );
+    expect(hasDirtyFormDraft(DOC_A)).toBe(false);
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+  });
+
+  it("Neukladať drops the typed AcroForm value and closes", async () => {
+    useFormDrafts.getState().setValue(DOC_A, "10:0", "Bob", PLACE);
+    const user = userEvent.setup();
+    render(<CloseGuardDialog />);
+    await triggerClose();
+
+    await user.click(await screen.findByRole("button", { name: "Neukladať" }));
+
+    expect(commandFakes.setFormValuesCmd).not.toHaveBeenCalled();
+    expect(hasDirtyFormDraft(DOC_A)).toBe(false);
+    expect(useFormDrafts.getState().byDoc[DOC_A]).toBeUndefined();
+    await waitFor(() => expect(tauriWindow.close).toHaveBeenCalledTimes(1));
+  });
+
   it("lists every dirty document when several are open", async () => {
     useDocuments.getState().add({ id: DOC_B, path: DOC_B, pageCount: 1, dirty: false });
     useAnnotations.getState().add(DOC_A, NOTE);
@@ -261,7 +357,7 @@ describe("CloseGuardDialog - tab scope", () => {
     resetFakeBridge();
     tauriWindow.handler = null;
     tauriWindow.close.mockClear();
-    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: null });
+    commandFakes.applyAnnotationsCmd.mockResolvedValue({ status: "ok", data: [] });
     commandFakes.autosaveDelete.mockResolvedValue({ status: "ok", data: null });
     useAnnotations.setState({ byDoc: {}, mode: "highlight" });
     useDocuments.setState({ documents: new Map(), activeDocId: null });

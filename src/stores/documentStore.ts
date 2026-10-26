@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useFormDrafts } from "./formDraftStore";
 
 export type DocId = string;
 
@@ -12,6 +13,9 @@ export interface OpenDocument {
    * path yet" - that is what makes global "Uložiť" behave like "Uložiť
    * ako" the first time (plan 060 task T1, R2). */
   savedPath?: string;
+  /** Plan 119 p1: counts successful saves. A save to the same path keeps
+   * `savedPath`, so the viewer reloads on this number, not on the path. */
+  savedRevision?: number;
 }
 
 interface DocState {
@@ -45,10 +49,12 @@ export const useDocuments = create<DocState>((set) => ({
     set((s) => {
       const m = new Map(s.documents);
       const d = m.get(id);
-      if (d) m.set(id, { ...d, savedPath: path });
+      if (d) m.set(id, { ...d, savedPath: path, savedRevision: (d.savedRevision ?? 0) + 1 });
       return { documents: m };
     }),
-  close: (id) =>
+  close: (id) => {
+    // Plan 119 p1c: typed AcroForm values belong to the open document.
+    useFormDrafts.getState().clear(id);
     set((s) => {
       const m = new Map(s.documents);
       m.delete(id);
@@ -56,5 +62,6 @@ export const useDocuments = create<DocState>((set) => ({
         documents: m,
         activeDocId: s.activeDocId === id ? null : s.activeDocId,
       };
-    }),
+    });
+  },
 }));

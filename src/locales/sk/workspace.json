@@ -4,6 +4,7 @@
   "save_status_dirty": "Neuložené zmeny",
   "save_status_saving": "Ukladá sa...",
   "save_toast": {
+    "signature_warning": "Uloženie zmien zneplatní digitálne podpisy. Podpísaný originál si ponechajte.",
     "saved": "PDF bolo uložené.",
     "reveal": "Zobraziť v Prieskumníku"
   },
@@ -156,6 +157,9 @@
     "loading": "Načítavajú sa formulárové polia...",
     "no_fields": "Nenašli sa natívne formulárové polia",
     "detect_explanation": "Toto PDF nemá formulárové polia. Aplikácia môže nájsť prázdne rámčeky a riadky na obrázku strany.",
+    "detect_hybrid_title": "Polia bez formulárového prvku",
+    "detect_hybrid_explanation": "Strana môže mať vytlačené rámčeky a riadky, ktoré nie sú formulárové polia, napríklad naskenovaná strana. Aplikácia ich môže nájsť na obrázku strany. Rámčeky, ktoré už sú formulárové polia, vynechá.",
+    "detect_save_all": "Uložiť hodnoty formulára a nájdené polia",
     "detect_fields": "Nájsť polia",
     "detecting": "Hľadajú sa polia...",
     "detect_error": "Hľadanie polí zlyhalo.",
@@ -200,6 +204,23 @@
       "choice": "výber",
       "signature": "podpis",
       "button": "tlačidlo"
+    },
+    "own": {
+      "title": "Vlastné polia",
+      "text": "Textové pole",
+      "checkbox": "Začiarkavacie pole",
+      "name": "Názov poľa",
+      "multiline": "Viac riadkov",
+      "font_size": "Veľkosť písma (pt, 0 = automaticky)",
+      "delete": "Zmazať pole",
+      "edit_layout": "Upraviť rozloženie: {{name}}",
+      "place_hint": "Kliknite alebo ťahajte na strane. Escape zruší vkladanie.",
+      "save_hint": "Uložte zmeny polí. Nové polia vyplňte po uložení.",
+      "move_hint": "Ťahajte pole alebo jeho okraje. Šípky posúvajú o 1 pt, so Shift o 10 pt. Klávesom Tab vyberte úchyt a šípkami zmeňte veľkosť.",
+      "resize_left": "Zmeniť ľavý okraj poľa {{name}}",
+      "resize_right": "Zmeniť pravý okraj poľa {{name}}",
+      "resize_top": "Zmeniť horný okraj poľa {{name}}",
+      "resize_bottom": "Zmeniť dolný okraj poľa {{name}}"
     }
   },
   "ocr_edit": {
@@ -254,7 +275,7 @@
     "empty": "Zatiaľ tu nie je žiadny podpis.",
     "place_named": "Vložiť {{name}}",
     "delete_named": "Odstrániť {{name}}",
-    "delete_confirm": "Odstrániť podpis {{name}}?",
+    "delete_confirm": "Odstrániť uložený podpis „{{name}}“?",
     "error": "Podpis sa nepodarilo spracovať: {{error}}",
     "stamps": {
       "title": "Pečiatky",

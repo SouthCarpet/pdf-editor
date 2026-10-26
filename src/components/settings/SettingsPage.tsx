@@ -4,16 +4,19 @@ import { GeneralSettings } from "./GeneralSettings";
 import { OcrLanguagesSettings } from "./OcrLanguagesSettings";
 import { SavingOpeningSettings } from "./SavingOpeningSettings";
 
+/** Settings: Appearance first, About last (Kaliber shell core). */
 export function SettingsPage() {
   const { t } = useTranslation("settings");
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8 p-6">
-      <h1 className="text-2xl font-bold text-balance">{t("title")}</h1>
+    <div className="mx-auto max-w-2xl p-6">
+      <div className="k-pagehead">
+        <h1 className="k-pagehead-title text-balance">{t("title")}</h1>
+      </div>
       <GeneralSettings />
       <SavingOpeningSettings />
-      <BuildInfoSettings />
       <OcrLanguagesSettings />
+      <BuildInfoSettings />
     </div>
   );
 }

@@ -30,6 +30,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::error::{AppError, AppResult};
+use crate::services::annotations::{
+    first_free_font_name, font_resources_copy, page_resources_copy,
+};
 use crate::services::lopdf_ext::ObjectExt;
 
 /// Discovered glyph run that the frontend lists as a candidate edit
@@ -639,6 +642,9 @@ pub fn replace_run_via_redaction(
         .get(&(page_index + 1))
         .copied()
         .context("page not found")?;
+    let mut resources = page_resources_copy(&doc, page_id)?;
+    let mut fonts = font_resources_copy(&doc, &resources)?;
+    let font_name = first_free_font_name(&fonts, "F", 1);
     let [x, y, w, h] = rect;
     let ops = vec![
         Operation::new("q", vec![]),
@@ -647,7 +653,13 @@ pub fn replace_run_via_redaction(
         Operation::new("f", vec![]),
         Operation::new("Q", vec![]),
         Operation::new("BT", vec![]),
-        Operation::new("Tf", vec!["F1".into(), font_size.into()]),
+        Operation::new(
+            "Tf",
+            vec![
+                Object::Name(font_name.as_bytes().to_vec()),
+                font_size.into(),
+            ],
+        ),
         Operation::new(
             "Tm",
             vec![
@@ -673,6 +685,8 @@ pub fn replace_run_via_redaction(
         "BaseFont" => "Helvetica",
         "Encoding" => "WinAnsiEncoding"
     });
+    fonts.set(font_name.as_bytes().to_vec(), Object::Reference(font_id));
+    resources.set("Font", fonts);
     if let Some(obj) = doc.objects.get_mut(&page_id) {
         if let Ok(d) = obj.as_dict_mut() {
             let mut contents: Vec<Object> = match d.get(b"Contents").cloned() {
@@ -682,30 +696,7 @@ pub fn replace_run_via_redaction(
             };
             contents.push(Object::Reference(stream_id));
             d.set("Contents", contents);
-            let res = match d.get_mut(b"Resources") {
-                Ok(o) => o.as_dict_mut().ok(),
-                Err(_) => None,
-            };
-            if let Some(res) = res {
-                let fonts = match res.get(b"Font").cloned() {
-                    Ok(Object::Dictionary(mut fd)) => {
-                        fd.set("F1", Object::Reference(font_id));
-                        fd
-                    }
-                    _ => {
-                        let mut fd = lopdf::Dictionary::new();
-                        fd.set("F1", Object::Reference(font_id));
-                        fd
-                    }
-                };
-                res.set("Font", Object::Dictionary(fonts));
-            } else {
-                let mut new_res = lopdf::Dictionary::new();
-                let mut fd = lopdf::Dictionary::new();
-                fd.set("F1", Object::Reference(font_id));
-                new_res.set("Font", Object::Dictionary(fd));
-                d.set("Resources", Object::Dictionary(new_res));
-            }
+            d.set("Resources", resources);
         }
     }
     doc.compress();

@@ -32,4 +32,9 @@ describe("withAlpha", () => {
   it("keeps rgb() channels and replaces the alpha", () => {
     expect(withAlpha("rgb(250, 250, 250)", 0.4)).toBe("rgba(250, 250, 250, 0.4)");
   });
+
+  it("sets the alpha of an oklch() token, replacing an alpha it has", () => {
+    expect(withAlpha("oklch(0.96 0.012 260)", 0.4)).toBe("oklch(0.96 0.012 260 / 0.4)");
+    expect(withAlpha("oklch(0.18 0.012 260 / 0.4)", 0.25)).toBe("oklch(0.18 0.012 260 / 0.25)");
+  });
 });

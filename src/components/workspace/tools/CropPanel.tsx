@@ -159,7 +159,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
   return (
     <div className="space-y-3">
       <h3 className="text-sm font-medium">{t("tools.crop")}</h3>
-      <p className="text-xs text-[var(--color-muted)]">{t("crop_panel.description")}</p>
+      <p className="text-xs text-[var(--color-text-muted)]">{t("crop_panel.description")}</p>
       <div className="grid grid-cols-2 gap-1 text-xs">
         <label className="flex flex-col">
           {t("crop_panel.x")}
@@ -168,7 +168,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.01"
             value={display.xMm.toFixed(2)}
             onChange={(e) => setMm("x", Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
         <label className="flex flex-col">
@@ -178,7 +178,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.01"
             value={display.yMm.toFixed(2)}
             onChange={(e) => setMm("y", Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
         <label className="flex flex-col">
@@ -188,7 +188,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.01"
             value={display.widthMm.toFixed(2)}
             onChange={(e) => setMm("width", Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
         <label className="flex flex-col">
@@ -198,7 +198,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.01"
             value={display.heightMm.toFixed(2)}
             onChange={(e) => setMm("height", Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
         <label className="flex flex-col">
@@ -208,7 +208,7 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.1"
             value={display.widthPct.toFixed(1)}
             onChange={(e) => setWidthPct(Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
         <label className="flex flex-col">
@@ -218,16 +218,15 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
             step="0.1"
             value={display.heightPct.toFixed(1)}
             onChange={(e) => setHeightPct(Number(e.target.value))}
-            className="rounded border px-1 py-0.5"
+            className="k-input min-w-0 w-full"
           />
         </label>
       </div>
       <div className="flex flex-wrap gap-1">
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => changeRect(presetA4(page))}>
+        <Button variant="outline" disabled={busy} onClick={() => changeRect(presetA4(page))}>
           {t("crop_panel.preset_a4")}
         </Button>
         <Button
-          size="sm"
           variant="outline"
           disabled={busy}
           onClick={() => changeRect(presetMargins(page, 10))}
@@ -235,7 +234,6 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
           {t("crop_panel.preset_margins")}
         </Button>
         <Button
-          size="sm"
           variant="outline"
           disabled={busy}
           onClick={() => changeRect(presetFullPage(page))}
@@ -244,19 +242,25 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         </Button>
       </div>
       <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={applyAll}
-          onChange={(e) => setApplyAll(e.target.checked)}
-        />
+        <span className="k-check">
+          <input className="k-check-input"
+            type="checkbox"
+            checked={applyAll}
+            onChange={(e) => setApplyAll(e.target.checked)}
+          />
+          <svg className="k-check-mark" viewBox="0 0 12 12" aria-hidden="true"><path className="k-check-tick" pathLength="1" d="M2 6 5 9 10 3" /></svg>
+        </span>
         {t("crop.apply_to_all", { ns: "tools" })}
       </label>
       <label className="flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={preview}
-          onChange={(e) => setPreview(e.target.checked)}
-        />
+        <span className="k-check">
+          <input className="k-check-input"
+            type="checkbox"
+            checked={preview}
+            onChange={(e) => setPreview(e.target.checked)}
+          />
+          <svg className="k-check-mark" viewBox="0 0 12 12" aria-hidden="true"><path className="k-check-tick" pathLength="1" d="M2 6 5 9 10 3" /></svg>
+        </span>
         {t("crop_panel.preview")}
       </label>
       {preview && pdfDoc && (
@@ -273,14 +277,14 @@ export function CropPanel({ docPath, pageWidth, pageHeight, rect, onRectChange }
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <Button size="sm" variant="outline" disabled={busy} onClick={autoDetect}>
+        <Button variant="outline" disabled={busy} onClick={autoDetect}>
           {t("crop_panel.auto_detect")}
         </Button>
-        <Button size="sm" disabled={busy} onClick={apply}>
+        <Button disabled={busy} onClick={apply}>
           {t("crop_panel.apply")}
         </Button>
       </div>
-      {err && <p className="text-xs text-[var(--color-danger-text)]">{err}</p>}
+      {err && <p className="text-xs text-[var(--color-danger)]">{err}</p>}
     </div>
   );
 }

@@ -1,16 +1,16 @@
-// Plan 050 task D2: scanned form field detection on the real sample.
+// Plan 050 task D2: scanned form field detection on the synthetic scan.
 //
-// The ADR `.vault/process/plans/plan_v1_scanned_form_field_detection.md`
-// section "Verification plan for D2-impl" lists what "verified on
-// hodiny.pdf" means. Every bullet there has an assertion here.
+// The design note "Verification plan for D2-impl" lists what "verified on
+// timesheet-scan.pdf" means. Every bullet there has an assertion here.
 //
-// hodiny.pdf is a Genius Scan JPEG-only PDF: one page, no text layer, no
-// AcroForm, MediaBox [0 0 595.44 841.91519], no /Rotate, no /CropBox.
+// timesheet-scan.pdf is a generated 1-bit image-only PDF: one page,
+// no text layer or AcroForm, MediaBox [0 0 595.44 841.91519],
+// rotation 0, no /CropBox.
 //
 // Gated behind `sidecar-tests` like the other tests that need a real
 // binary: detection renders the page through the mutool sidecar.
 use lopdf::Object;
-use pdf_editor_lib::services::annotations::{apply_annotations, Annotation};
+use pdf_editor_lib::services::annotations::{apply_annotations, save_annotations, Annotation};
 use pdf_editor_lib::services::form_field_detection::{
     detect_scanned_form_fields, DetectedFieldKind, DetectedFormField, DetectionAnalysis,
 };
@@ -20,27 +20,29 @@ use pdf_editor_lib::sidecars::mupdf::MupdfWrapper;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
-const HODINY: &str = "tests/fixtures/pdfs/hodiny.pdf";
+const TIMESHEET: &str = "tests/fixtures/pdfs/timesheet-scan.pdf";
 const DPI: u32 = 150;
 const PAGE_WIDTH_PT: f32 = 595.44;
 const PAGE_HEIGHT_PT: f32 = 841.915_19;
 
-// Locked after splitting row-spanning underlines at table borders:
-// 327 fields, 170 box and 157 underline, on a 1241x1754 raster
-// (2026-08-29). The +/-10% band allows minor raster/toolchain drift while
-// remaining far enough above the stale 203-field result to catch rows being
-// joined back into single fields.
-const MIN_FIELDS: usize = 294;
-const MAX_FIELDS: usize = 360;
+// Synthetic grid: 35 empty value cells plus one signature cell.
+// The +/-10% band allows minor raster/toolchain drift, but rejects a
+// duplicate underline for every table border.
+const MIN_FIELDS: usize = 32;
+const MAX_FIELDS: usize = 40;
+// "Sign:" leaves a wide free stretch to type in.
+const SIGNATURE_CELL_PT: [f32; 4] = [53.0, 160.0, 344.0, 180.0];
+// "Day" fills a narrow label cell.
+const DAY_LABEL_CELL_PT: [f32; 4] = [53.0, 644.0, 94.0, 664.0];
 const FIRST_MO_ROW_BOTTOM_PT: f32 = 624.0;
-const FIRST_MO_ROW_TOP_PT: f32 = 637.0;
+const FIRST_MO_ROW_TOP_PT: f32 = 644.0;
 const COLUMN_POSITION_TOLERANCE_PT: f32 = 0.5;
 
 async fn detect() -> DetectionAnalysis {
     let mupdf = MupdfWrapper::new(SidecarManager::new(2));
-    detect_scanned_form_fields(&mupdf, Path::new(HODINY), 0, DPI)
+    detect_scanned_form_fields(&mupdf, Path::new(TIMESHEET), 0, DPI)
         .await
-        .expect("detection runs on hodiny.pdf")
+        .expect("detection runs on timesheet-scan.pdf")
 }
 
 #[tokio::test]
@@ -48,7 +50,7 @@ async fn detect() -> DetectionAnalysis {
     not(feature = "sidecar-tests"),
     ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
 )]
-async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
+async fn timesheet_yields_one_box_per_cell_inside_the_locked_band() {
     let analysis = detect().await;
     let boxes = analysis
         .fields
@@ -61,7 +63,7 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
         .filter(|field| field.kind == DetectedFieldKind::Underline)
         .count();
     println!(
-        "hodiny.pdf: {} fields ({boxes} boxes, {underlines} underlines), raster {}x{}",
+        "timesheet-scan.pdf: {} fields ({boxes} boxes, {underlines} underlines), raster {}x{}",
         analysis.fields.len(),
         analysis.raster_width,
         analysis.raster_height
@@ -70,22 +72,38 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
         .fields
         .iter()
         .filter(|field| {
-            field.kind == DetectedFieldKind::Underline
-                && field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT
-                && field.rect[3] <= FIRST_MO_ROW_TOP_PT
+            field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT && field.rect[3] <= FIRST_MO_ROW_TOP_PT
         })
         .map(|field| field.rect)
         .collect();
     first_mo_row_rects.sort_by(|left, right| left[0].total_cmp(&right[0]));
-    println!("hodiny first Mo row fields sorted by x: {first_mo_row_rects:#?}");
+    println!("timesheet-scan first Mo row fields sorted by x: {first_mo_row_rects:#?}");
 
     assert!(boxes >= 1, "the sample has visible empty boxes");
-    assert!(underlines >= 1, "the sample has visible empty lines");
+    assert_eq!(
+        underlines, 0,
+        "every line on the sample is a table border, so none is its own field"
+    );
     assert!(
         (MIN_FIELDS..=MAX_FIELDS).contains(&analysis.fields.len()),
         "field count {} left the locked band [{MIN_FIELDS}, {MAX_FIELDS}] \
          ({boxes} boxes, {underlines} underlines)",
         analysis.fields.len()
+    );
+
+    assert!(
+        analysis
+            .fields
+            .iter()
+            .any(|field| covers(field.rect, SIGNATURE_CELL_PT)),
+        "the signature cell (label plus free space) stays a field"
+    );
+    assert!(
+        !analysis
+            .fields
+            .iter()
+            .any(|field| covers(field.rect, DAY_LABEL_CELL_PT)),
+        "the Day label cell is not a field"
     );
 
     assert_eq!(
@@ -102,14 +120,13 @@ async fn hodiny_yields_boxes_and_underlines_inside_the_locked_band() {
          {first_mo_row_rects:?}"
     );
 
-    // Oracle: the five column boundaries measured from the locked fixture's
-    // first Mo row after the split, allowing roughly one 150-DPI pixel.
+    // Column interiors measured from the generated scan at 150 DPI.
     let expected_x_ranges = [
-        [97.400_74, 153.058_3],
-        [156.416_95, 214.473_56],
-        [217.832_2, 273.489_78],
-        [276.368_6, 342.581_9],
-        [345.460_75, 522.989_2],
+        [94.5, 153.5],
+        [154.5, 213.5],
+        [214.5, 273.5],
+        [274.5, 343.5],
+        [344.5, 523.5],
     ];
     for (actual, expected) in first_mo_row_rects.iter().zip(expected_x_ranges) {
         assert!(
@@ -169,7 +186,7 @@ async fn accepted_candidates_satisfy_every_filter() {
 )]
 async fn every_rect_is_inside_the_mediabox_and_matches_the_naive_mapping() {
     let analysis = detect().await;
-    // hodiny.pdf has origin 0 and rotation 0, so the general mapping must
+    // timesheet-scan.pdf has origin 0 and rotation 0, so the general mapping must
     // still agree with `pixel / (dpi / 72)` here. The only difference
     // allowed is the sub-pixel rounding mutool applies when it sizes the
     // raster.
@@ -230,26 +247,20 @@ async fn detection_is_deterministic() {
     not(feature = "sidecar-tests"),
     ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
 )]
-async fn filling_one_box_and_one_underline_writes_rects_inside_the_detected_fields() {
+async fn filling_two_cells_writes_rects_inside_the_detected_fields() {
     let analysis = detect().await;
-    let box_field = first_of(&analysis.fields, DetectedFieldKind::Box);
-    let underline_field = first_of(&analysis.fields, DetectedFieldKind::Underline);
+    let cells = first_mo_row(&analysis.fields);
+    let (first, second) = (cells[0], cells[1]);
 
     let tmp = TempDir::new().unwrap();
-    let output: PathBuf = tmp.path().join("hodiny.filled.pdf");
-    let annotations = vec![
-        free_text(box_field, "Peter"),
-        free_text(underline_field, "12.5"),
-    ];
-    apply_annotations(Path::new(HODINY), &output, &annotations).expect("fill the detected fields");
+    let output: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
+    let annotations = vec![free_text(first, "07:00"), free_text(second, "15:30")];
+    apply_annotations(Path::new(TIMESHEET), &output, &annotations)
+        .expect("fill the detected fields");
 
     let written = annotation_rects(&output);
     assert_eq!(written.len(), 2, "one FreeText per filled field");
-    println!(
-        "fill proof: box detected {:?}, written {:?}; underline detected {:?}, written {:?}",
-        box_field.rect, written[0], underline_field.rect, written[1]
-    );
-    for (annot, field) in written.iter().zip([box_field, underline_field]) {
+    for (annot, field) in written.iter().zip([first, second]) {
         for (index, value) in annot.iter().enumerate() {
             assert!(
                 (value - field.rect[index]).abs() < 0.01,
@@ -258,21 +269,145 @@ async fn filling_one_box_and_one_underline_writes_rects_inside_the_detected_fiel
             );
         }
     }
+}
 
-    // The underline fill rect is the expanded whitespace band, not the
-    // 1 to 5 pixel stroke (which would be under 2.5pt at 150 DPI).
-    let underline_height = underline_field.rect[3] - underline_field.rect[1];
-    assert!(
-        underline_height > 3.0,
-        "the underline fill rect was not expanded: {underline_height}pt"
+// Plan 119 p1 (debug note 053): the app's second save now starts from the
+// first saved copy and writes over it. Both saves' values must survive.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn a_second_save_over_the_saved_copy_keeps_the_first_values() {
+    let analysis = detect().await;
+    let cells = first_mo_row(&analysis.fields);
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
+
+    apply_annotations(
+        Path::new(TIMESHEET),
+        &saved,
+        &[free_text(cells[0], "07:00")],
+    )
+    .expect("first save");
+    apply_annotations(&saved, &saved, &[free_text(cells[1], "Štúrovo č. 5")])
+        .expect("second save over the saved copy");
+
+    assert_eq!(
+        annotation_contents(&saved),
+        vec!["07:00".to_string(), "Štúrovo č. 5".to_string()]
     );
 }
 
-fn first_of(fields: &[DetectedFormField], kind: DetectedFieldKind) -> &DetectedFormField {
-    fields
+// Plan 119 p1b (debug note 055): fill, save, click the same cell, change,
+// save, reopen: one annotation, with the new value.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn editing_a_saved_value_replaces_it() {
+    let analysis = detect().await;
+    let cell = first_mo_row(&analysis.fields)[0];
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
+
+    let written = save_annotations(
+        Path::new(TIMESHEET),
+        &saved,
+        &[free_text(cell, "07:00")],
+        &[],
+    )
+    .expect("first save");
+    let old = written[0].expect("the value was written");
+    save_annotations(&saved, &saved, &[free_text(cell, "08:30")], &[old])
+        .expect("save the edited value");
+
+    assert_eq!(annotation_contents(&saved), vec!["08:30".to_string()]);
+}
+
+// Plan 119 p1 (debug note 053): reopening a saved copy must find the same
+// cells. Its values are FreeText annotations; detection renders the page
+// without them, so a cell full of text is still the empty printed cell.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn a_saved_copy_with_values_yields_the_same_fields() {
+    let original = detect().await;
+    let values: Vec<Annotation> = first_mo_row(&original.fields)
+        .into_iter()
+        .map(|cell| free_text(cell, "Štúrovo námestie č. 5, Ľubica"))
+        .collect();
+    let tmp = TempDir::new().unwrap();
+    let saved: PathBuf = tmp.path().join("timesheet-scan.filled.pdf");
+    apply_annotations(Path::new(TIMESHEET), &saved, &values).expect("save the values");
+
+    let mupdf = MupdfWrapper::new(SidecarManager::new(2));
+    let reopened = detect_scanned_form_fields(&mupdf, &saved, 0, DPI)
+        .await
+        .expect("detection runs on the saved copy");
+
+    assert_eq!(reopened.fields, original.fields);
+}
+
+fn first_mo_row(fields: &[DetectedFormField]) -> Vec<&DetectedFormField> {
+    let mut row: Vec<&DetectedFormField> = fields
         .iter()
-        .find(|field| field.kind == kind)
-        .unwrap_or_else(|| panic!("hodiny.pdf must yield at least one {kind:?} field"))
+        .filter(|field| {
+            field.rect[1] >= FIRST_MO_ROW_BOTTOM_PT && field.rect[3] <= FIRST_MO_ROW_TOP_PT
+        })
+        .collect();
+    row.sort_by(|left, right| left.rect[0].total_cmp(&right.rect[0]));
+    assert_eq!(row.len(), 5, "the first Mo row has five value cells");
+    row
+}
+
+// Regression for duplicate box/underline candidates in one visible cell.
+// The synthetic scan keeps table borders that exercise both candidates.
+#[tokio::test]
+#[cfg_attr(
+    not(feature = "sidecar-tests"),
+    ignore = "renders the page through the real mutool sidecar; --features sidecar-tests"
+)]
+async fn no_two_fields_share_one_visible_cell() {
+    let analysis = detect().await;
+    let mut shared = Vec::new();
+    for (index, left) in analysis.fields.iter().enumerate() {
+        for right in &analysis.fields[index + 1..] {
+            let overlap = overlap_area(left.rect, right.rect);
+            let smaller = rect_area(left.rect).min(rect_area(right.rect));
+            if smaller > 0.0 && overlap >= smaller * 0.5 {
+                shared.push((left.id.clone(), right.id.clone()));
+            }
+        }
+    }
+    assert!(
+        shared.is_empty(),
+        "{} field pairs share one cell: {shared:?}",
+        shared.len()
+    );
+}
+
+/// True when `rect` matches `cell` within two points on every side.
+fn covers(rect: [f32; 4], cell: [f32; 4]) -> bool {
+    rect.iter()
+        .zip(cell)
+        .all(|(value, expected)| (value - expected).abs() < 2.0)
+}
+
+fn rect_area(rect: [f32; 4]) -> f32 {
+    (rect[2] - rect[0]).max(0.0) * (rect[3] - rect[1]).max(0.0)
+}
+
+fn overlap_area(left: [f32; 4], right: [f32; 4]) -> f32 {
+    rect_area([
+        left[0].max(right[0]),
+        left[1].max(right[1]),
+        left[2].min(right[2]),
+        left[3].min(right[3]),
+    ])
 }
 
 fn free_text(field: &DetectedFormField, contents: &str) -> Annotation {
@@ -292,8 +427,43 @@ fn free_text(field: &DetectedFormField, contents: &str) -> Annotation {
     }
 }
 
+/// Reads the `/Contents` of every annotation on page 1 of an exported PDF.
+fn annotation_contents(path: &Path) -> Vec<String> {
+    page_annotations(path)
+        .iter()
+        .map(|dict| pdf_text_string(dict.get(b"Contents").unwrap().as_str().unwrap()))
+        .collect()
+}
+
+/// A PDF text string is UTF-16BE behind a byte order mark, or
+/// PDFDocEncoding (Latin-1 for the characters these tests write).
+fn pdf_text_string(bytes: &[u8]) -> String {
+    match bytes {
+        [0xFE, 0xFF, rest @ ..] => String::from_utf16(
+            &rest
+                .chunks(2)
+                .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap(),
+        other => other.iter().map(|&byte| char::from(byte)).collect(),
+    }
+}
+
 /// Reads the `/Rect` of every annotation on page 1 of an exported PDF.
 fn annotation_rects(path: &Path) -> Vec<[f32; 4]> {
+    page_annotations(path)
+        .iter()
+        .map(|dict| {
+            let rect = dict.get(b"Rect").unwrap().as_array().unwrap();
+            let value = |index: usize| rect[index].as_float().unwrap();
+            [value(0), value(1), value(2), value(3)]
+        })
+        .collect()
+}
+
+/// Every annotation dictionary on page 1 of an exported PDF, in order.
+fn page_annotations(path: &Path) -> Vec<lopdf::Dictionary> {
     let doc =
         pdf_editor_lib::services::pdf_guard::load_guarded(path).expect("load the exported PDF");
     let page_id = *doc.get_pages().get(&1).expect("page 1");
@@ -305,14 +475,9 @@ fn annotation_rects(path: &Path) -> Vec<[f32; 4]> {
     };
     entries
         .iter()
-        .map(|entry| {
-            let dict = match entry {
-                Object::Reference(id) => doc.get_object(*id).unwrap().as_dict().unwrap(),
-                other => other.as_dict().unwrap(),
-            };
-            let rect = dict.get(b"Rect").unwrap().as_array().unwrap();
-            let value = |index: usize| rect[index].as_float().unwrap();
-            [value(0), value(1), value(2), value(3)]
+        .map(|entry| match entry {
+            Object::Reference(id) => doc.get_object(*id).unwrap().as_dict().unwrap().clone(),
+            other => other.as_dict().unwrap().clone(),
         })
         .collect()
 }

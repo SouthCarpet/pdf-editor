@@ -10,13 +10,16 @@ pub mod lopdf_ext;
 pub mod ocr_edit;
 pub mod ocr_engine;
 pub(crate) mod ocr_geometry;
+pub mod own_fields;
 pub mod pdf_editor;
 pub mod pdf_guard;
 pub mod pdf_reader;
 pub mod pdf_renderer;
 #[cfg(windows)]
 pub mod rapidocr;
+pub mod release_check;
 pub mod text_edit;
 pub mod text_extractor;
 pub mod text_style;
+pub mod update_install;
 pub mod workspace;

@@ -145,51 +145,7 @@ impl FontSubsetter {
             } else {
                 0
             };
-            let mut to_walk: Vec<u16> = used.iter().copied().collect();
-            while let Some(g) = to_walk.pop() {
-                let (start, end) = glyph_range(loca, loc_format, g);
-                if start >= end {
-                    continue;
-                }
-                let body = &glyf[start..end];
-                if body.len() < 2 {
-                    continue;
-                }
-                let num_contours = i16::from_be_bytes([body[0], body[1]]);
-                if num_contours >= 0 {
-                    continue; // simple glyph
-                }
-                // Composite glyph: walk component records starting at byte 10.
-                let mut pos = 10usize;
-                loop {
-                    if pos + 4 > body.len() {
-                        break;
-                    }
-                    let flags = u16::from_be_bytes([body[pos], body[pos + 1]]);
-                    let comp_gid = u16::from_be_bytes([body[pos + 2], body[pos + 3]]);
-                    pos += 4;
-                    if used.insert(comp_gid) {
-                        to_walk.push(comp_gid);
-                    }
-                    // Skip argument bytes
-                    let arg_size = if (flags & 0x0001) != 0 { 4 } else { 2 }; // ARG_1_AND_2_ARE_WORDS
-                    pos += arg_size;
-                    if (flags & 0x0008) != 0 {
-                        // WE_HAVE_A_SCALE
-                        pos += 2;
-                    } else if (flags & 0x0040) != 0 {
-                        // WE_HAVE_AN_X_AND_Y_SCALE
-                        pos += 4;
-                    } else if (flags & 0x0080) != 0 {
-                        // WE_HAVE_A_TWO_BY_TWO
-                        pos += 8;
-                    }
-                    if (flags & 0x0020) == 0 {
-                        // MORE_COMPONENTS bit clear → done
-                        break;
-                    }
-                }
-            }
+            include_composite_glyphs(glyf, loca, loc_format, &mut used);
         }
         used
     }
@@ -687,6 +643,58 @@ fn subset_tag(mut seed: u64) -> String {
         seed ^= seed.rotate_left(13);
     }
     tag
+}
+
+fn include_composite_glyphs(glyf: &[u8], loca: &[u8], loc_format: u16, used: &mut BTreeSet<u16>) {
+    let mut to_walk: Vec<u16> = used.iter().copied().collect();
+    while let Some(g) = to_walk.pop() {
+        let (start, end) = glyph_range(loca, loc_format, g);
+        if start >= end {
+            continue;
+        }
+        let body = &glyf[start..end];
+        if body.len() < 2 {
+            continue;
+        }
+        let num_contours = i16::from_be_bytes([body[0], body[1]]);
+        if num_contours >= 0 {
+            continue; // simple glyph
+        }
+        include_glyph_components(body, used, &mut to_walk);
+    }
+}
+
+fn include_glyph_components(body: &[u8], used: &mut BTreeSet<u16>, to_walk: &mut Vec<u16>) {
+    // Composite glyph: walk component records starting at byte 10.
+    let mut pos = 10usize;
+    loop {
+        if pos + 4 > body.len() {
+            break;
+        }
+        let flags = u16::from_be_bytes([body[pos], body[pos + 1]]);
+        let comp_gid = u16::from_be_bytes([body[pos + 2], body[pos + 3]]);
+        pos += 4;
+        if used.insert(comp_gid) {
+            to_walk.push(comp_gid);
+        }
+        // Skip argument bytes
+        let arg_size = if (flags & 0x0001) != 0 { 4 } else { 2 }; // ARG_1_AND_2_ARE_WORDS
+        pos += arg_size;
+        if (flags & 0x0008) != 0 {
+            // WE_HAVE_A_SCALE
+            pos += 2;
+        } else if (flags & 0x0040) != 0 {
+            // WE_HAVE_AN_X_AND_Y_SCALE
+            pos += 4;
+        } else if (flags & 0x0080) != 0 {
+            // WE_HAVE_A_TWO_BY_TWO
+            pos += 8;
+        }
+        if (flags & 0x0020) == 0 {
+            // MORE_COMPONENTS bit clear → done
+            break;
+        }
+    }
 }
 
 #[cfg(test)]

@@ -1,239 +1,143 @@
+//! About, update-check and update-install commands (plan 119).
+//!
+//! The release check runs only through `check_for_update`, which reads the
+//! stored consent itself. The frontend calls it at app start, when About
+//! opens and from the manual button; every path meets the same gate here.
+//! `download_update` reads the same consent before it sends anything, and
+//! `install_update` starts only the setup that `download_update` verified.
+use crate::error::{AppError, AppResult};
+use crate::persistence::settings;
+use crate::services::release_check::{self, UpdateCheck};
+use crate::services::update_install::{self, UpdateInstall, UpdateInstallStatus, VerifiedSetup};
+use crate::util::paths::settings_path;
 use serde::Serialize;
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use tauri::AppHandle;
+use std::future::Future;
+use std::path::PathBuf;
+use std::sync::Mutex;
+
+/// The setup the last `download_update` verified. `install_update` starts
+/// only this file, never a path from the frontend.
+static VERIFIED_SETUP: Mutex<Option<VerifiedSetup>> = Mutex::new(None);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, specta::Type)]
-pub struct VersionCheck {
-    pub embedded_commit: String,
-    pub embedded_dirty: bool,
-    pub repo_head: Option<String>,
+pub struct BuildInfo {
+    /// Release version of this build (`X.Y.Z`).
+    pub version: String,
+    /// Git commit the build was made from, or `unknown`.
+    pub commit: String,
+    /// The build had uncommitted changes.
     pub dirty: bool,
-    pub behind: bool,
-    pub error: Option<String>,
 }
 
-fn embedded_commit() -> String {
-    option_env!("PDF_EDITOR_BUILD_COMMIT")
-        .unwrap_or("unknown")
-        .to_owned()
-}
-
-fn embedded_dirty() -> bool {
-    option_env!("PDF_EDITOR_BUILD_DIRTY") == Some("true")
-}
-
-fn repo_root_for_exe(exe: &Path, debug_manifest_dir: Option<&Path>) -> Result<PathBuf, String> {
-    if let Some(manifest_dir) = debug_manifest_dir {
-        return manifest_dir
-            .parent()
-            .map(Path::to_path_buf)
-            .ok_or_else(|| "CARGO_MANIFEST_DIR has no parent".to_owned());
+fn internal(error: impl std::fmt::Display) -> AppError {
+    AppError::Internal {
+        detail: error.to_string(),
     }
-
-    exe.parent()
-        .and_then(|release_dir| release_dir.ancestors().nth(3))
-        .map(Path::to_path_buf)
-        .ok_or_else(|| {
-            format!(
-                "cannot resolve repository root relative to {}",
-                exe.display()
-            )
-        })
-}
-
-fn git(repo_root: &Path, args: &[&str]) -> Result<String, String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(repo_root)
-        .args(args)
-        .output()
-        .map_err(|error| format!("could not run git: {error}"))?;
-
-    if !output.status.success() {
-        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
-        return Err(if detail.is_empty() {
-            format!("git {} failed with {}", args.join(" "), output.status)
-        } else {
-            format!("git {} failed: {detail}", args.join(" "))
-        });
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
-}
-
-fn compare_version(
-    embedded_commit: String,
-    embedded_dirty: bool,
-    repo_state: Result<(String, bool), String>,
-) -> VersionCheck {
-    match repo_state {
-        Ok((repo_head, dirty)) => VersionCheck {
-            behind: embedded_commit != "unknown" && embedded_commit != repo_head,
-            embedded_commit,
-            embedded_dirty,
-            repo_head: Some(repo_head),
-            dirty,
-            error: None,
-        },
-        Err(error) => VersionCheck {
-            embedded_commit,
-            embedded_dirty,
-            repo_head: None,
-            dirty: false,
-            behind: false,
-            error: Some(error),
-        },
-    }
-}
-
-fn check_version() -> VersionCheck {
-    let embedded_commit = embedded_commit();
-    let embedded_dirty = embedded_dirty();
-    let exe = match std::env::current_exe() {
-        Ok(exe) => exe,
-        Err(error) => {
-            return compare_version(
-                embedded_commit,
-                embedded_dirty,
-                Err(format!("could not resolve application path: {error}")),
-            );
-        }
-    };
-
-    let debug_manifest_dir = cfg!(debug_assertions).then(|| Path::new(env!("CARGO_MANIFEST_DIR")));
-    let repo_root = match repo_root_for_exe(&exe, debug_manifest_dir) {
-        Ok(repo_root) => repo_root,
-        Err(error) => {
-            return compare_version(embedded_commit, embedded_dirty, Err(error));
-        }
-    };
-
-    let repo_state = git(&repo_root, &["rev-parse", "HEAD"]).and_then(|repo_head| {
-        git(&repo_root, &["status", "--porcelain"]).map(|status| (repo_head, !status.is_empty()))
-    });
-    compare_version(embedded_commit, embedded_dirty, repo_state)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn check_for_update() -> VersionCheck {
-    tauri::async_runtime::spawn_blocking(check_version)
+pub fn build_info() -> BuildInfo {
+    BuildInfo {
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        commit: option_env!("PDF_EDITOR_BUILD_COMMIT")
+            .unwrap_or("unknown")
+            .to_owned(),
+        dirty: option_env!("PDF_EDITOR_BUILD_DIRTY") == Some("true"),
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_update_check_enabled() -> AppResult<bool> {
+    let path = settings_path().map_err(internal)?;
+    Ok(settings::update_check_enabled(&path).await)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn set_update_check_enabled(enabled: bool) -> AppResult<()> {
+    let path = settings_path().map_err(internal)?;
+    settings::set_update_check_enabled(&path, enabled)
         .await
-        .unwrap_or_else(|error| {
-            compare_version(
-                embedded_commit(),
-                embedded_dirty(),
-                Err(format!("update check task failed: {error}")),
-            )
+        .map_err(|e| AppError::IoError {
+            detail: format!("{e:#}"),
         })
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn launch_update(app: AppHandle) -> Result<(), String> {
-    let exe = std::env::current_exe()
-        .map_err(|error| format!("could not resolve application path: {error}"))?;
-    let debug_manifest_dir = cfg!(debug_assertions).then(|| Path::new(env!("CARGO_MANIFEST_DIR")));
-    let repo_root = repo_root_for_exe(&exe, debug_manifest_dir)?;
-    let update_script = repo_root.join("scripts").join("update-pdf-editor.bat");
-
-    if !update_script.is_file() {
-        return Err(format!(
-            "update script does not exist: {}",
-            update_script.display()
-        ));
-    }
-
-    #[cfg(windows)]
-    Command::new("cmd")
-        .args(["/D", "/C", "start", ""])
-        .arg(&update_script)
-        .current_dir(&repo_root)
-        .spawn()
-        .map_err(|error| format!("could not start update script: {error}"))?;
-
-    #[cfg(not(windows))]
-    return Err("local updates are only supported on Windows".to_owned());
-
-    app.exit(0);
-    Ok(())
+pub async fn check_for_update() -> UpdateCheck {
+    check_for_update_with(settings_path().ok(), release_check::send_request).await
 }
 
-#[cfg(test)]
-mod tests {
-    use super::{compare_version, repo_root_for_exe};
-    use std::path::Path;
+/// The body of `check_for_update`: reads the consent from `settings` (no
+/// path counts as off) and only then lets `send` run.
+pub async fn check_for_update_with<F, Fut>(settings: Option<PathBuf>, send: F) -> UpdateCheck
+where
+    F: FnOnce(String) -> Fut,
+    Fut: Future<Output = Result<(u16, Vec<u8>), String>>,
+{
+    let consent = stored_consent(settings).await;
+    release_check::check_with(consent, env!("CARGO_PKG_VERSION"), send).await
+}
 
-    #[test]
-    fn reports_matching_commit() {
-        let result = compare_version("abc123".to_owned(), false, Ok(("abc123".to_owned(), false)));
-
-        assert!(!result.behind);
-        assert!(!result.dirty);
-        assert_eq!(result.error, None);
+/// No settings path counts as off.
+async fn stored_consent(settings: Option<PathBuf>) -> bool {
+    match settings {
+        Some(path) => settings::update_check_enabled(&path).await,
+        None => false,
     }
+}
 
-    #[test]
-    fn reports_older_embedded_commit() {
-        let result = compare_version("abc123".to_owned(), false, Ok(("def456".to_owned(), false)));
-
-        assert!(result.behind);
+/// Downloads and verifies the setup of release `tag` (the tag the check
+/// showed) to a new folder `%TEMP%\pdf-editor-update-<random>\`. Only
+/// after a click on **Update**; the frontend asks about unsaved work first.
+/// The stored setup keeps `%TEMP%` and that folder pinned until it is
+/// replaced or the app exits.
+#[tauri::command]
+#[specta::specta]
+pub async fn download_update(tag: String) -> UpdateInstall {
+    let consent = stored_consent(settings_path().ok()).await;
+    let result = update_install::download_update_with(
+        consent,
+        &tag,
+        &std::env::temp_dir(),
+        release_check::send_request,
+        &release_check::HttpDownload,
+        std::convert::identity::<std::fs::File>,
+    )
+    .await;
+    match result {
+        Ok(setup) => {
+            let reply = UpdateInstall::ready(&setup);
+            *VERIFIED_SETUP.lock().unwrap_or_else(|e| e.into_inner()) = Some(setup);
+            reply
+        }
+        Err(failure) => UpdateInstall::failed(failure),
     }
+}
 
-    #[test]
-    fn reports_dirty_repository_without_inventing_a_commit_difference() {
-        let result = compare_version("abc123".to_owned(), true, Ok(("abc123".to_owned(), true)));
-
-        assert!(!result.behind);
-        assert!(result.embedded_dirty);
-        assert!(result.dirty);
-    }
-
-    #[test]
-    fn unknown_embedded_commit_is_not_reported_as_behind() {
-        let result = compare_version(
-            "unknown".to_owned(),
-            false,
-            Ok(("def456".to_owned(), false)),
-        );
-
-        assert!(!result.behind);
-        assert_eq!(result.repo_head.as_deref(), Some("def456"));
-    }
-
-    #[test]
-    fn git_error_is_returned_in_payload() {
-        let result = compare_version(
-            "abc123".to_owned(),
-            false,
-            Err("git is unavailable".to_owned()),
-        );
-
-        assert!(!result.behind);
-        assert_eq!(result.repo_head, None);
-        assert_eq!(result.error.as_deref(), Some("git is unavailable"));
-    }
-
-    #[test]
-    fn resolves_release_repo_root_relative_to_executable() {
-        let root = repo_root_for_exe(
-            Path::new(r"A:\repo\src-tauri\target\release\pdf-editor.exe"),
-            None,
-        )
-        .unwrap();
-
-        assert_eq!(root, Path::new(r"A:\repo"));
-    }
-
-    #[test]
-    fn resolves_dev_repo_root_from_manifest_dir() {
-        let root = repo_root_for_exe(
-            Path::new(r"C:\unrelated\target\debug\pdf-editor.exe"),
-            Some(Path::new(r"A:\repo\src-tauri")),
-        )
-        .unwrap();
-
-        assert_eq!(root, Path::new(r"A:\repo"));
+/// Hashes the verified setup again, starts it with its wizard (no silent
+/// switches) and exits the app so the setup can replace its files.
+#[tauri::command]
+#[specta::specta]
+pub fn install_update(app: tauri::AppHandle) -> UpdateInstall {
+    let verified = VERIFIED_SETUP
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let Some(setup) = verified else {
+        return UpdateInstall::failed(update_install::Failure {
+            status: UpdateInstallStatus::NoSetup,
+            detail: "download the update first".into(),
+        });
+    };
+    match update_install::start_verified(&setup, &update_install::run_setup) {
+        Ok(()) => {
+            app.exit(0);
+            UpdateInstall::started(&setup)
+        }
+        Err(failure) => UpdateInstall::failed(failure),
     }
 }

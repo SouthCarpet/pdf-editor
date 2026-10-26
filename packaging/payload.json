@@ -1,0 +1,405 @@
+{
+  "$comment": "Every file the per-user setup installs. build-installer.ps1 validates this list (check-payload.mjs) and the .iss installs exactly this list. The layout matches the MSI (tauri.conf.json bundle.externalBin and bundle.resources): exes beside pdf-editor.exe, DLLs in sidecars\\, models in resources\\. Update the list when a sidecar upgrade changes its DLLs.",
+  "files": [
+    {
+      "kind": "app",
+      "from": "src-tauri/target/release/pdf-editor.exe",
+      "to": "pdf-editor.exe"
+    },
+    {
+      "kind": "sidecar",
+      "from": "src-tauri/sidecars/qpdf-x86_64-pc-windows-msvc.exe",
+      "to": "qpdf.exe"
+    },
+    {
+      "kind": "sidecar",
+      "from": "src-tauri/sidecars/gswin64c-x86_64-pc-windows-msvc.exe",
+      "to": "gswin64c.exe"
+    },
+    {
+      "kind": "sidecar",
+      "from": "src-tauri/sidecars/mutool-x86_64-pc-windows-msvc.exe",
+      "to": "mutool.exe"
+    },
+    {
+      "kind": "sidecar",
+      "from": "src-tauri/sidecars/tesseract-x86_64-pc-windows-msvc.exe",
+      "to": "tesseract.exe"
+    },
+    {
+      "kind": "sidecar",
+      "from": "src-tauri/sidecars/pdfcrack-x86_64-pc-windows-msvc.exe",
+      "to": "pdfcrack.exe"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/concrt140.dll",
+      "to": "sidecars/concrt140.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/gsdll64.dll",
+      "to": "sidecars/gsdll64.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libLerc.dll",
+      "to": "sidecars/libLerc.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libarchive-13.dll",
+      "to": "sidecars/libarchive-13.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libb2-1.dll",
+      "to": "sidecars/libb2-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libbrotlicommon.dll",
+      "to": "sidecars/libbrotlicommon.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libbrotlidec.dll",
+      "to": "sidecars/libbrotlidec.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libbz2-1.dll",
+      "to": "sidecars/libbz2-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libcairo-2.dll",
+      "to": "sidecars/libcairo-2.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libcrypto-3-x64.dll",
+      "to": "sidecars/libcrypto-3-x64.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libdatrie-1.dll",
+      "to": "sidecars/libdatrie-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libdeflate.dll",
+      "to": "sidecars/libdeflate.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libexpat-1.dll",
+      "to": "sidecars/libexpat-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libffi-8.dll",
+      "to": "sidecars/libffi-8.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libfontconfig-1.dll",
+      "to": "sidecars/libfontconfig-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libfreetype-6.dll",
+      "to": "sidecars/libfreetype-6.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libfribidi-0.dll",
+      "to": "sidecars/libfribidi-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgcc_s_seh-1.dll",
+      "to": "sidecars/libgcc_s_seh-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgif-7.dll",
+      "to": "sidecars/libgif-7.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgio-2.0-0.dll",
+      "to": "sidecars/libgio-2.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libglib-2.0-0.dll",
+      "to": "sidecars/libglib-2.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgmodule-2.0-0.dll",
+      "to": "sidecars/libgmodule-2.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgobject-2.0-0.dll",
+      "to": "sidecars/libgobject-2.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libgraphite2.dll",
+      "to": "sidecars/libgraphite2.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libharfbuzz-0.dll",
+      "to": "sidecars/libharfbuzz-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libiconv-2.dll",
+      "to": "sidecars/libiconv-2.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libicudt75.dll",
+      "to": "sidecars/libicudt75.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libicuin75.dll",
+      "to": "sidecars/libicuin75.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libicuuc75.dll",
+      "to": "sidecars/libicuuc75.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libintl-8.dll",
+      "to": "sidecars/libintl-8.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libjbig-0.dll",
+      "to": "sidecars/libjbig-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libjpeg-8.dll",
+      "to": "sidecars/libjpeg-8.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libleptonica-6.dll",
+      "to": "sidecars/libleptonica-6.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/liblz4.dll",
+      "to": "sidecars/liblz4.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/liblzma-5.dll",
+      "to": "sidecars/liblzma-5.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libopenjp2-7.dll",
+      "to": "sidecars/libopenjp2-7.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpango-1.0-0.dll",
+      "to": "sidecars/libpango-1.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpangocairo-1.0-0.dll",
+      "to": "sidecars/libpangocairo-1.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpangoft2-1.0-0.dll",
+      "to": "sidecars/libpangoft2-1.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpangowin32-1.0-0.dll",
+      "to": "sidecars/libpangowin32-1.0-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpcre2-8-0.dll",
+      "to": "sidecars/libpcre2-8-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpixman-1-0.dll",
+      "to": "sidecars/libpixman-1-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libpng16-16.dll",
+      "to": "sidecars/libpng16-16.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libsharpyuv-0.dll",
+      "to": "sidecars/libsharpyuv-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libstdc++-6.dll",
+      "to": "sidecars/libstdc++-6.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libtesseract-5.dll",
+      "to": "sidecars/libtesseract-5.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libthai-0.dll",
+      "to": "sidecars/libthai-0.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libtiff-6.dll",
+      "to": "sidecars/libtiff-6.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libwebp-7.dll",
+      "to": "sidecars/libwebp-7.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libwebpmux-3.dll",
+      "to": "sidecars/libwebpmux-3.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libwinpthread-1.dll",
+      "to": "sidecars/libwinpthread-1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/libzstd.dll",
+      "to": "sidecars/libzstd.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/msvcp140.dll",
+      "to": "sidecars/msvcp140.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/msvcp140_1.dll",
+      "to": "sidecars/msvcp140_1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/msvcp140_2.dll",
+      "to": "sidecars/msvcp140_2.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/msvcp140_atomic_wait.dll",
+      "to": "sidecars/msvcp140_atomic_wait.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/msvcp140_codecvt_ids.dll",
+      "to": "sidecars/msvcp140_codecvt_ids.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/qpdf30.dll",
+      "to": "sidecars/qpdf30.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/vcruntime140.dll",
+      "to": "sidecars/vcruntime140.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/vcruntime140_1.dll",
+      "to": "sidecars/vcruntime140_1.dll"
+    },
+    {
+      "kind": "dll",
+      "from": "src-tauri/sidecars/zlib1.dll",
+      "to": "sidecars/zlib1.dll"
+    },
+    {
+      "kind": "tessdata",
+      "from": "src-tauri/resources/tessdata/ces.traineddata",
+      "to": "resources/tessdata/ces.traineddata"
+    },
+    {
+      "kind": "tessdata",
+      "from": "src-tauri/resources/tessdata/deu.traineddata",
+      "to": "resources/tessdata/deu.traineddata"
+    },
+    {
+      "kind": "tessdata",
+      "from": "src-tauri/resources/tessdata/eng.traineddata",
+      "to": "resources/tessdata/eng.traineddata"
+    },
+    {
+      "kind": "tessdata",
+      "from": "src-tauri/resources/tessdata/pol.traineddata",
+      "to": "resources/tessdata/pol.traineddata"
+    },
+    {
+      "kind": "tessdata",
+      "from": "src-tauri/resources/tessdata/slk.traineddata",
+      "to": "resources/tessdata/slk.traineddata"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/LICENSE-ONNXRUNTIME-MIT.txt",
+      "to": "resources/ocr/LICENSE-ONNXRUNTIME-MIT.txt"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/LICENSE-RapidOCR-APACHE-2.0.txt",
+      "to": "resources/ocr/LICENSE-RapidOCR-APACHE-2.0.txt"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/PROVENANCE.md",
+      "to": "resources/ocr/PROVENANCE.md"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/ch_PP-OCRv5_mobile_det.onnx",
+      "to": "resources/ocr/ch_PP-OCRv5_mobile_det.onnx"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/latin_PP-OCRv5_rec_mobile_infer.onnx",
+      "to": "resources/ocr/latin_PP-OCRv5_rec_mobile_infer.onnx"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/onnxruntime.dll",
+      "to": "resources/ocr/onnxruntime.dll"
+    },
+    {
+      "kind": "ocr",
+      "from": "src-tauri/resources/ocr/ppocrv5_latin_dict.txt",
+      "to": "resources/ocr/ppocrv5_latin_dict.txt"
+    },
+    {
+      "kind": "licence",
+      "from": "src/assets/fonts/fira-sans/OFL.txt",
+      "to": "resources/licenses/FiraSans-OFL.txt"
+    }
+  ]
+}

@@ -1,18 +1,23 @@
-/** Read a CSS custom property from `:root`. Konva cannot resolve `var(...)`. */
+/** Read a CSS custom property from `:root`, or from `scope`. Konva cannot resolve `var(...)`. */
 
 const HEX = /^#([\da-f]{3}|[\da-f]{6})$/i;
 const RGB =
   /^rgba?\(\s*([\d.]+)\s*[, ]\s*([\d.]+)\s*[, ]\s*([\d.]+)(?:\s*[,/]\s*[\d.%]+)?\s*\)$/i;
+const OKLCH = /^oklch\(\s*([^)/]+?)\s*(?:\/\s*[^)]+)?\)$/i;
 
-export function readToken(name: string, fallback: string): string {
+export function readToken(
+  name: string,
+  fallback: string,
+  scope?: Element,
+): string {
   if (typeof document === "undefined" || typeof getComputedStyle !== "function") {
     return fallback;
   }
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const value = getComputedStyle(scope ?? document.documentElement).getPropertyValue(name).trim();
   return value === "" ? fallback : value;
 }
 
-/** Apply an alpha channel so Konva can paint a themed dim (`--color-background` at 40%). */
+/** Apply an alpha channel so Konva can paint a themed dim (`--color-background` at 40%). Kaliber tokens are `oklch(...)`, which canvas accepts as is. */
 export function withAlpha(color: string, alpha: number): string {
   const trimmed = color.trim();
   const hex = trimmed.match(HEX);
@@ -30,5 +35,7 @@ export function withAlpha(color: string, alpha: number): string {
   if (rgb) {
     return `rgba(${Number(rgb[1])}, ${Number(rgb[2])}, ${Number(rgb[3])}, ${alpha})`;
   }
+  const oklch = trimmed.match(OKLCH);
+  if (oklch) return `oklch(${oklch[1]} / ${alpha})`;
   return trimmed;
 }

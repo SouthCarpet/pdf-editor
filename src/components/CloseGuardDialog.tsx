@@ -13,7 +13,9 @@
 // "Uložiť" runs the existing annotations save flow (`pickSavePath` +
 // `apply_annotations_cmd`, the same one `EditAnnotationsPanel` and
 // `DetectFieldsSection` already use) for every affected document, then
-// proceeds. "Neukladať" clears the tracked unsaved state and proceeds.
+// proceeds. Plan 119 p1c: the same flow writes typed AcroForm values.
+// "Neukladať" clears the tracked unsaved state (annotations, filled marks
+// and typed form values) and proceeds.
 // "Zrušiť" just closes the dialog - nothing else changes.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -32,6 +34,7 @@ import { useAnnotations } from "@/stores/annotationsStore";
 import { useDocuments, type DocId } from "@/stores/documentStore";
 import { useCloseGuard } from "@/stores/closeGuardStore";
 import { useFilledFields } from "@/stores/filledFieldsStore";
+import { useFormDrafts } from "@/stores/formDraftStore";
 import { hasUnsavedWork, unsavedDocIds } from "@/lib/unsavedWork";
 import { saveDocument } from "@/lib/documentSave";
 import { clearAnnotationFieldLinks } from "@/stores/annotationHistory";
@@ -49,6 +52,7 @@ async function discardDocument(docId: DocId): Promise<void> {
   await Promise.resolve(commands.autosaveDelete(docId)).catch(() => {});
   useAnnotations.getState().clear(docId);
   useFilledFields.getState().clear(docId);
+  useFormDrafts.getState().clear(docId);
   historyStore.getState().clear(docId);
   clearAnnotationFieldLinks(docId);
   useDocuments.getState().markDirty(docId, false);
@@ -89,14 +93,14 @@ export function CloseGuardDialog() {
 
   if (!request) return null;
 
-  const docIds = request.kind === "window" ? request.docIds : [request.docId];
+  const docIds = request.kind === "tab" ? [request.docId] : request.docIds;
   const names = docIds.map((id) => fileName(documents.get(id)?.path ?? id)).join(", ");
 
   function finish() {
     const finished = request;
     dismiss();
     if (finished?.kind === "window") void requestWindowClose();
-    else if (finished?.kind === "tab") finished.onClosed();
+    else finished?.onClosed();
   }
 
   async function onSave() {
@@ -149,13 +153,18 @@ export function CloseGuardDialog() {
           <DialogDescription>{t("close_guard.description", { names })}</DialogDescription>
         </DialogHeader>
         {hint ? (
-          <p className="text-sm text-muted-foreground">{t("close_guard.text_draft_hint")}</p>
+          <p className="k-caption">{t("close_guard.text_draft_hint")}</p>
         ) : null}
         <DialogFooter>
           <Button variant="ghost" onClick={dismiss} disabled={busy}>
             {t("close_guard.cancel")}
           </Button>
-          <Button variant="outline" onClick={() => void onDiscard()} disabled={busy}>
+          <Button
+            variant="outline"
+            className="border-[var(--color-danger)] text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+            onClick={() => void onDiscard()}
+            disabled={busy}
+          >
             {t("close_guard.discard")}
           </Button>
           <Button onClick={() => void onSave()} disabled={busy}>

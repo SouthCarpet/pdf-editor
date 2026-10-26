@@ -5,6 +5,10 @@
 // The "Load" dropdown lists all presets; clicking one replaces the
 // current draft. The "Delete" button (within the load menu) prompts
 // before deleting.
+//
+// Kaliber r4 (plan 119 K3b): the two panels sit on the sheet with a hairline
+// and no shadow, fields carry a permanent label, and deleting asks in a dialog
+// that names the preset and its step count (R14) instead of the native confirm.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { Edge } from "@xyflow/react";
@@ -13,6 +17,8 @@ import { Input } from "@/components/ui/input";
 import { commands, type PipelinePreset } from "@/bindings";
 import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStore";
 import { nodeKindByKey } from "@/pipeline/nodeKinds";
+import { ConfirmDeleteDialog } from "@/components/projects/ConfirmDeleteDialog";
+import { useCountLabels } from "@/components/projects/useCountLabels";
 
 interface DraftGraph {
   nodes: Array<{
@@ -52,6 +58,8 @@ export function PipelinePresetBar() {
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PipelinePreset | null>(null);
+  const counts = useCountLabels();
 
   async function refresh() {
     try {
@@ -140,7 +148,7 @@ export function PipelinePresetBar() {
   }
 
   async function handleDelete(p: PipelinePreset) {
-    if (!confirm(t("preset_delete_confirm", { name: p.name }))) return;
+    setPendingDelete(null);
     setBusy(true);
     setError(null);
     try {
@@ -173,58 +181,122 @@ export function PipelinePresetBar() {
         </Button>
       </div>
       {open === "save" && (
-        <div className="z-20 w-80 space-y-2 rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-3 shadow-lg">
-          <Input
-            placeholder={t("preset_name")}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <Input
-            placeholder={t("preset_description")}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-          {error && <p className="text-xs text-[var(--color-danger-text)]">{error}</p>}
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setOpen("none")} disabled={busy}>
-              {t("common:cancel")}
-            </Button>
-            <Button size="sm" onClick={handleSave} disabled={busy}>
-              {t("common:save")}
-            </Button>
-          </div>
-        </div>
+        <SavePanel
+          name={name}
+          description={description}
+          error={error}
+          busy={busy}
+          onName={setName}
+          onDescription={setDescription}
+          onCancel={() => setOpen("none")}
+          onSave={handleSave}
+        />
       )}
       {open === "load" && (
-        <div className="z-20 max-h-96 w-96 space-y-1 overflow-y-auto rounded-md border border-[var(--color-border)] bg-[var(--color-card)] p-2 shadow-lg">
-          {presets.length === 0 ? (
-            <p className="p-2 text-xs text-[var(--color-muted)]">{t("preset_empty")}</p>
-          ) : (
-            presets.map((p) => (
-              <div
-                key={p.id}
-                className="flex items-start justify-between gap-2 rounded p-2 hover:bg-[var(--color-control-hover)]"
-              >
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{p.name}</div>
-                  {p.description && (
-                    <div className="text-xs text-[var(--color-muted)]">{p.description}</div>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="outline" onClick={() => handleLoad(p)} disabled={busy}>
-                    {t("load_preset")}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} disabled={busy}>
-                    {t("common:delete")}
-                  </Button>
-                </div>
-              </div>
-            ))
-          )}
-          {error && <p className="px-2 text-xs text-[var(--color-danger-text)]">{error}</p>}
-        </div>
+        <LoadPanel
+          presets={presets}
+          error={error}
+          busy={busy}
+          onLoad={handleLoad}
+          onDelete={setPendingDelete}
+        />
       )}
+      <ConfirmDeleteDialog
+        open={pendingDelete !== null}
+        title={t("preset_delete_title", { name: pendingDelete?.name ?? "" })}
+        body={t("preset_delete_body", {
+          steps: counts.steps(pendingDelete ? stepCount(pendingDelete) : 0),
+        })}
+        onConfirm={() => pendingDelete && void handleDelete(pendingDelete)}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </div>
+  );
+}
+
+/** Number of steps (nodes) in a stored preset; 0 when the graph cannot be read. */
+function stepCount(preset: PipelinePreset): number {
+  try {
+    return (JSON.parse(preset.graph_json) as DraftGraph).nodes.length;
+  } catch {
+    return 0;
+  }
+}
+
+const PANEL = "z-20 rounded-md border border-[var(--color-border)] bg-[var(--color-surface-raised)]";
+
+interface SavePanelProps {
+  name: string;
+  description: string;
+  error: string | null;
+  busy: boolean;
+  onName: (value: string) => void;
+  onDescription: (value: string) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}
+
+function SavePanel(props: SavePanelProps) {
+  const { t } = useTranslation("pipeline");
+  return (
+    <div className={`${PANEL} w-80 space-y-3 p-3`}>
+      <label className="k-field-block">
+        <span className="k-label">{t("preset_name")}</span>
+        <Input value={props.name} onChange={(e) => props.onName(e.target.value)} />
+      </label>
+      <label className="k-field-block">
+        <span className="k-label">{t("preset_description")}</span>
+        <Input value={props.description} onChange={(e) => props.onDescription(e.target.value)} />
+      </label>
+      {props.error && <p className="k-field-msg text-xs">{props.error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" onClick={props.onCancel} disabled={props.busy}>
+          {t("common:cancel")}
+        </Button>
+        <Button size="sm" onClick={props.onSave} disabled={props.busy}>
+          {t("common:save")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface LoadPanelProps {
+  presets: PipelinePreset[];
+  error: string | null;
+  busy: boolean;
+  onLoad: (preset: PipelinePreset) => void;
+  onDelete: (preset: PipelinePreset) => void;
+}
+
+function LoadPanel({ presets, error, busy, onLoad, onDelete }: LoadPanelProps) {
+  const { t } = useTranslation("pipeline");
+  return (
+    <div className={`${PANEL} max-h-96 w-96 space-y-1 overflow-y-auto p-2`}>
+      {presets.length === 0 ? (
+        <p className="k-caption p-2">{t("preset_empty")}</p>
+      ) : (
+        presets.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-start justify-between gap-2 rounded p-2 hover:bg-[var(--color-surface-hover)]"
+          >
+            <div className="flex-1">
+              <div className="text-sm font-medium">{p.name}</div>
+              {p.description && <div className="k-caption">{p.description}</div>}
+            </div>
+            <div className="flex gap-1">
+              <Button size="sm" variant="outline" onClick={() => onLoad(p)} disabled={busy}>
+                {t("load_preset")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => onDelete(p)} disabled={busy}>
+                {t("common:delete")}
+              </Button>
+            </div>
+          </div>
+        ))
+      )}
+      {error && <p className="k-field-msg px-2 text-xs">{error}</p>}
     </div>
   );
 }

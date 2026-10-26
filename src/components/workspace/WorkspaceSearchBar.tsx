@@ -25,11 +25,11 @@ export const WorkspaceSearchBar = forwardRef<HTMLInputElement, Props>(
         role="search"
         aria-label={t("search.label")}
         aria-busy={indexing}
-        className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-[var(--color-border)] bg-[var(--color-card)] px-2"
+        className="flex h-12 shrink-0 items-center justify-end gap-1 border-b border-[var(--color-border)] bg-[var(--color-surface-raised)] px-2"
       >
         <div className="relative">
           <Search
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--color-muted)]"
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--color-text-muted)]"
             aria-hidden="true"
           />
           <input
@@ -40,20 +40,20 @@ export const WorkspaceSearchBar = forwardRef<HTMLInputElement, Props>(
             aria-label={t("search.query")}
             placeholder={t("search.placeholder")}
             onChange={(event) => onQueryChange(event.target.value)}
-            className="h-10 w-72 rounded-md border border-[var(--color-border)] bg-[var(--color-control)] pr-3 pl-9 text-sm text-[var(--color-control-foreground)] placeholder:text-[var(--color-placeholder)] focus-visible:border-[var(--color-focus)] focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] focus-visible:outline-none"
+            className="k-input min-w-0 w-full pl-10"
           />
         </div>
         <span
           role="status"
-          className="min-w-16 text-center text-xs tabular-nums text-[var(--color-muted)]"
+          className="min-w-16 text-center text-xs tabular-nums text-[var(--color-text-muted)]"
         >
           {position} / {total}
         </span>
         <Button
           type="button"
-          size="sm"
+
           variant="ghost"
-          className="h-10 w-10 p-0 active:scale-[0.96]"
+          className="h-10 w-10 p-0"
           aria-label={t("search.previous")}
           disabled={total === 0}
           onClick={onPrevious}
@@ -62,9 +62,9 @@ export const WorkspaceSearchBar = forwardRef<HTMLInputElement, Props>(
         </Button>
         <Button
           type="button"
-          size="sm"
+
           variant="ghost"
-          className="h-10 w-10 p-0 active:scale-[0.96]"
+          className="h-10 w-10 p-0"
           aria-label={t("search.next")}
           disabled={total === 0}
           onClick={onNext}
@@ -73,9 +73,9 @@ export const WorkspaceSearchBar = forwardRef<HTMLInputElement, Props>(
         </Button>
         <Button
           type="button"
-          size="sm"
+
           variant="ghost"
-          className="h-10 w-10 p-0 active:scale-[0.96]"
+          className="h-10 w-10 p-0"
           aria-label={t("search.close")}
           onClick={onClose}
         >

@@ -109,12 +109,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       });
 
     void (async () => {
-      let initialPaths: string[];
-      try {
-        initialPaths = await startupPaths();
-      } catch {
-        initialPaths = [];
-      }
+      const initialPaths = await startupPaths().catch(() => []);
       if (disposed) return;
       if (initialPaths.length > 0) {
         await openPaths(initialPaths);
@@ -132,12 +127,7 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       const candidate = files[0]?.path;
       if (!candidate) return;
 
-      let onDisk = false;
-      try {
-        onDisk = await pathExists(candidate);
-      } catch {
-        onDisk = false;
-      }
+      const onDisk = await pathExists(candidate).catch(() => false);
       if (disposed) return;
       const toOpen = documentToOpenAtStart(
         useAppStore.getState().openLastDocumentAtStart,
@@ -160,12 +150,12 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       {children}
 
       {dropActive && (
-        <div className="pointer-events-none fixed inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-dropzone)]/95 text-[var(--color-foreground)]">
+        <div className="pointer-events-none fixed inset-3 z-40 flex items-center justify-center rounded-xl border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-surface-raised)]/95 text-[var(--color-text)]">
           <div className="flex flex-col items-center gap-3 text-center">
             <FileUp className="h-9 w-9" />
             <div>
               <p className="font-semibold">{t("opening.drop_title")}</p>
-              <p className="mt-1 text-sm text-[var(--color-muted)]">
+              <p className="mt-1 text-sm text-[var(--color-text-muted)]">
                 {t("opening.drop_description_tabs")}
               </p>
             </div>
@@ -176,12 +166,12 @@ export function OpenFilesProvider({ children }: { children: ReactNode }) {
       {error && (
         <div
           role="alert"
-          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-soft-foreground)] shadow-lg"
+          className="fixed bottom-4 left-1/2 z-[60] flex max-w-lg -translate-x-1/2 items-center gap-3 rounded-md border border-[var(--color-danger)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]"
         >
           <span>{error}</span>
           <button
             type="button"
-            className="rounded p-1 hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger-soft-foreground)]"
+            className="rounded p-1 hover:bg-[var(--color-danger-soft)] hover:text-[var(--color-danger)]"
             aria-label={t("close")}
             onClick={() => setError(null)}
           >

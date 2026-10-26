@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useDocuments } from "../documentStore";
+import { useFormDrafts } from "../formDraftStore";
 
 describe("documentStore", () => {
   beforeEach(() => {
@@ -52,5 +53,18 @@ describe("documentStore", () => {
     useDocuments.getState().add({ id: "d2", path: "C:/b.pdf", pageCount: 2, dirty: false });
     useDocuments.getState().close("d1");
     expect(useDocuments.getState().activeDocId).toBe("d2");
+  });
+
+  // Plan 119 p1c: typed AcroForm values belong to the open document. Closing
+  // it drops them, so a later open of the same file starts clean.
+  it("close drops the typed form values of that document only", () => {
+    useFormDrafts.setState({ byDoc: {} });
+    useDocuments.getState().add({ id: "d1", path: "C:/a.pdf", pageCount: 1, dirty: false });
+    useDocuments.getState().add({ id: "d2", path: "C:/b.pdf", pageCount: 2, dirty: false });
+    useFormDrafts.getState().setValue("d1", "10:0", "Alice");
+    useFormDrafts.getState().setValue("d2", "10:0", "Bob");
+    useDocuments.getState().close("d1");
+    expect(useFormDrafts.getState().byDoc.d1).toBeUndefined();
+    expect(useFormDrafts.getState().byDoc.d2?.values).toEqual({ "10:0": "Bob" });
   });
 });

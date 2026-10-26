@@ -12,7 +12,7 @@ import { filledIdsFor, useFilledFields } from "../filledFieldsStore";
 import { applyPrefillFills } from "@/components/workspace/prefill/applyPrefill";
 import { prefillOffer } from "@/components/workspace/prefill/prefillOffer";
 
-const DOC = "A:\\scans\\hodiny.pdf";
+const DOC = "A:\\scans\\timesheet-scan.pdf";
 const PAGE = { width: 595, height: 842 };
 
 function field(

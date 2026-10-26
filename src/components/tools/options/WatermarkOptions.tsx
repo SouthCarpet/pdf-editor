@@ -9,7 +9,9 @@
 //
 // Until then, NodeConfigPanel renders the form but the executor errors
 // with AppError::Unimplemented at run time.
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
+import { AlertNote, CheckField, SelectField, SliderField, TextField } from "./fields";
 import type {
   WatermarkMode,
   WatermarkOptionsValue,
@@ -23,152 +25,118 @@ interface Props {
 }
 
 export function WatermarkOptions({ value, onChange, mode = "standalone" }: Props) {
+  const { t } = useTranslation("tools");
   return (
-    <div className="space-y-2 rounded border p-3 text-sm">
+    <div className="space-y-4">
       {mode === "pipeline-node" && (
-        <p className="rounded bg-[var(--color-warning-soft)] p-2 text-xs text-[var(--color-warning-soft-foreground)]">
-          Watermark execution is unimplemented in the pipeline executor
-          (awaits the standalone Watermark tool font picker). The node
-          persists in the graph; running it surfaces a clear error.
-        </p>
+        <AlertNote kind="warning">{t("watermark.pipeline_note")}</AlertNote>
       )}
-      <label className="block">
-        Mode:
-        <select
-          value={value.watermark_mode}
-          onChange={(e) =>
-            onChange({ ...value, watermark_mode: e.target.value as WatermarkMode })
-          }
-          className="ml-2 h-8 rounded border px-2"
-        >
-          <option value="text">Text</option>
-          <option value="image">Image</option>
-        </select>
-      </label>
+      <SelectField
+        label="Mode"
+        value={value.watermark_mode}
+        onChange={(v) => onChange({ ...value, watermark_mode: v as WatermarkMode })}
+      >
+        <option value="text">Text</option>
+        <option value="image">Image</option>
+      </SelectField>
       {value.watermark_mode === "text" ? (
         <>
-          <label className="block">
-            Text:
+          <TextField label="Text">
             <Input
               type="text"
               value={value.text}
               onChange={(e) => onChange({ ...value, text: e.target.value })}
-              placeholder="DRAFT"
+              placeholder={t("watermark.text_placeholder")}
             />
-          </label>
-          <label className="block">
-            Font family:
+          </TextField>
+          <TextField label="Font family">
             <Input
               type="text"
               value={value.font_family}
-              onChange={(e) =>
-                onChange({ ...value, font_family: e.target.value })
-              }
-              placeholder="Arial"
+              onChange={(e) => onChange({ ...value, font_family: e.target.value })}
+              placeholder={t("watermark.font_placeholder")}
             />
-          </label>
-          <label className="block">
-            Font size:
+          </TextField>
+          <TextField label="Font size">
             <Input
               type="number"
               min={6}
               max={300}
               value={value.font_size}
-              onChange={(e) =>
-                onChange({ ...value, font_size: Number(e.target.value) })
-              }
+              onChange={(e) => onChange({ ...value, font_size: Number(e.target.value) })}
             />
-          </label>
-          <label className="block">
-            Color:
+          </TextField>
+          <TextField label="Color">
             <input
               type="color"
               value={value.color}
               onChange={(e) => onChange({ ...value, color: e.target.value })}
-              className="ml-2 h-8 w-12 align-middle"
+              className="h-8 w-12"
             />
-          </label>
+          </TextField>
         </>
       ) : (
-        <label className="block">
-          Image path:
+        <TextField label="Image path">
           <Input
             type="text"
             value={value.image_path ?? ""}
-            onChange={(e) =>
-              onChange({ ...value, image_path: e.target.value || null })
-            }
-            placeholder="C:\\path\\to\\watermark.png"
+            onChange={(e) => onChange({ ...value, image_path: e.target.value || null })}
+            placeholder={t("watermark.image_placeholder")}
           />
-        </label>
+        </TextField>
       )}
-      <label className="block">
-        Opacity ({Math.round(value.opacity * 100)}%):
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={value.opacity}
-          onChange={(e) =>
-            onChange({ ...value, opacity: Number(e.target.value) })
-          }
-          className="ml-2 w-32 align-middle"
-        />
-      </label>
-      <label className="block">
-        Rotation:
+      <SliderField
+        label="Opacity"
+        value={Math.round(value.opacity * 100)}
+        min={0}
+        max={100}
+        step={5}
+        unit="%"
+        onChange={(v) => onChange({ ...value, opacity: v / 100 })}
+      />
+      <TextField label="Rotation">
         <Input
           type="number"
           min={-90}
           max={90}
           value={value.rotation}
-          onChange={(e) =>
-            onChange({ ...value, rotation: Number(e.target.value) })
-          }
+          onChange={(e) => onChange({ ...value, rotation: Number(e.target.value) })}
         />
-      </label>
-      <label className="block">
-        Position:
-        <select
-          value={value.position}
-          onChange={(e) =>
-            onChange({ ...value, position: e.target.value as WatermarkPosition })
-          }
-          className="ml-2 h-8 rounded border px-2"
-        >
-          <option value="top_left">Top left</option>
-          <option value="top_center">Top center</option>
-          <option value="top_right">Top right</option>
-          <option value="middle_left">Middle left</option>
-          <option value="center">Center</option>
-          <option value="middle_right">Middle right</option>
-          <option value="bottom_left">Bottom left</option>
-          <option value="bottom_center">Bottom center</option>
-          <option value="bottom_right">Bottom right</option>
-        </select>
-      </label>
-      <label className="block">
-        Pages (e.g. <code>all</code>, <code>1-5</code>, <code>1,3,5</code>):
+      </TextField>
+      <SelectField
+        label="Position"
+        value={value.position}
+        onChange={(v) => onChange({ ...value, position: v as WatermarkPosition })}
+      >
+        <option value="top_left">{t("watermark.position_top_left")}</option>
+        <option value="top_center">{t("watermark.position_top_center")}</option>
+        <option value="top_right">{t("watermark.position_top_right")}</option>
+        <option value="middle_left">{t("watermark.position_middle_left")}</option>
+        <option value="center">{t("watermark.position_center")}</option>
+        <option value="middle_right">{t("watermark.position_middle_right")}</option>
+        <option value="bottom_left">{t("watermark.position_bottom_left")}</option>
+        <option value="bottom_center">{t("watermark.position_bottom_center")}</option>
+        <option value="bottom_right">{t("watermark.position_bottom_right")}</option>
+      </SelectField>
+      <TextField
+        label={
+          <>
+            Pages (e.g. <code>all</code>, <code>1-5</code>, <code>1,3,5</code>)
+          </>
+        }
+      >
         <Input
           type="text"
           value={value.page_range}
-          onChange={(e) =>
-            onChange({ ...value, page_range: e.target.value })
-          }
-          placeholder="all"
+          onChange={(e) => onChange({ ...value, page_range: e.target.value })}
+          placeholder={t("watermark.pages_placeholder")}
         />
-      </label>
-      <label className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          checked={value.behind_text}
-          onChange={(e) =>
-            onChange({ ...value, behind_text: e.target.checked })
-          }
-        />
-        Place behind page content
-      </label>
+      </TextField>
+      <CheckField
+        label="Place behind page content"
+        checked={value.behind_text}
+        onChange={(c) => onChange({ ...value, behind_text: c })}
+      />
     </div>
   );
 }

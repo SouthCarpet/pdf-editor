@@ -9,10 +9,10 @@ interface Props {
 
 export function MergeOptions({ mode = "standalone" }: Props) {
   return (
-    <div className="rounded border p-3 text-sm text-[var(--color-muted)]">
+    <p className="k-caption">
       {mode === "pipeline-node"
         ? "Merges every upstream PDF into one. No extra options."
         : "Add multiple PDFs above. They will be merged in the listed order."}
-    </div>
+    </p>
   );
 }

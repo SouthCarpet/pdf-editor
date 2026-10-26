@@ -12,10 +12,12 @@ import { describe, it, expect } from "vitest";
 import type { PageViewport } from "pdfjs-dist";
 import type { Annotation } from "@/bindings";
 import {
+  clampRectToPage,
   freeTextRenderProps,
   hexToRgb01,
   MIN_RESIZE_SIZE_PT,
   resizeRectEdge,
+  resizeScreenEdge,
   rgb01ToHex,
   rgbToCss,
   rgbaToCss,
@@ -163,6 +165,59 @@ describe("resizeRectEdge (R2, plan 050 D2-UX-3b)", () => {
     const result = resizeRectEdge(RECT, "bottom", 720);
     expect(result[1]).toBe(724 - MIN_RESIZE_SIZE_PT);
     expect(result[1]).toBeLessThan(result[3]);
+  });
+});
+
+// Plan 119 p1c: the resize handles sit on SCREEN sides. Moving a screen side
+// and converting back through the viewport keeps the edge right on a rotated
+// page, where a screen side is not the PDF edge of the same name.
+describe("resizeScreenEdge", () => {
+  const SCREEN = { x: 100, y: 200, width: 150, height: 24 };
+
+  it("moves the left side and keeps the right side", () => {
+    expect(resizeScreenEdge(SCREEN, "left", 60, 12)).toEqual({ x: 60, y: 200, width: 190, height: 24 });
+  });
+
+  it("moves the right side and keeps the left side", () => {
+    expect(resizeScreenEdge(SCREEN, "right", 300, 12)).toEqual({ x: 100, y: 200, width: 200, height: 24 });
+  });
+
+  it("moves the top side and keeps the bottom side", () => {
+    expect(resizeScreenEdge(SCREEN, "top", 180, 12)).toEqual({ x: 100, y: 180, width: 150, height: 44 });
+  });
+
+  it("moves the bottom side and keeps the top side", () => {
+    expect(resizeScreenEdge(SCREEN, "bottom", 260, 12)).toEqual({ x: 100, y: 200, width: 150, height: 60 });
+  });
+
+  it.each([
+    ["left", 249, { x: 238, y: 200, width: 12, height: 24 }],
+    ["right", 101, { x: 100, y: 200, width: 12, height: 24 }],
+    ["top", 223, { x: 100, y: 212, width: 150, height: 12 }],
+    ["bottom", 201, { x: 100, y: 200, width: 150, height: 12 }],
+  ] as const)("keeps the minimum size when the %s side is dragged across", (side, value, expected) => {
+    expect(resizeScreenEdge(SCREEN, side, value, 12)).toEqual(expected);
+  });
+});
+
+describe("clampRectToPage", () => {
+  const PAGE = [0, 0, 612, 792];
+
+  it("leaves a rect inside the page as it is", () => {
+    expect(clampRectToPage([100, 600, 200, 624], PAGE)).toEqual([100, 600, 200, 624]);
+  });
+
+  it.each([
+    ["left", [-40, 600, 200, 624], [0, 600, 200, 624]],
+    ["right", [100, 600, 700, 624], [100, 600, 612, 624]],
+    ["bottom", [100, -30, 200, 624], [100, 0, 200, 624]],
+    ["top", [100, 600, 200, 900], [100, 600, 200, 792]],
+  ] as const)("cuts the %s edge at the page box", (_edge, rect, expected) => {
+    expect(clampRectToPage(rect, PAGE)).toEqual(expected);
+  });
+
+  it("reads a page box with a non-zero origin and swapped corners", () => {
+    expect(clampRectToPage([0, 0, 900, 900], [612, 792, 12, 20])).toEqual([12, 20, 612, 792]);
   });
 });
 

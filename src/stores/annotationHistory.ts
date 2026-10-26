@@ -1,15 +1,17 @@
 import type { Annotation } from "@/bindings";
-import type { ClientAnnotation } from "./annotationsStore";
-import { historyStore, type HistoryEntry } from "./historyStore";
+import type { ClientAnnotation, NewAnnotation } from "./annotationsStore";
+import { historyStore, type DocumentHistory, type HistoryEntry } from "./historyStore";
+import type { OwnFieldAnnotation } from "@/components/workspace/pendingAnnotationGeometry";
 
 type FreeTextAnnotation = Extract<Annotation, { type: "free_text" }>;
 type StampAnnotation = Extract<Annotation, { type: "stamp" }>;
-export type EditableAnnotationPatch = Partial<FreeTextAnnotation> | Partial<StampAnnotation>;
+type EditableAnnotation = FreeTextAnnotation | StampAnnotation | OwnFieldAnnotation;
+export type EditableAnnotationPatch = Partial<EditableAnnotation>;
 
 export const TEXT_EDIT_COALESCE_MS = 800;
 
 export interface AnnotationHistoryActions {
-  add: (docPath: string, annotation: Annotation) => string;
+  add: (docPath: string, annotation: NewAnnotation) => string;
   update: (
     docPath: string,
     clientId: string,
@@ -37,6 +39,20 @@ interface TextEditBurst {
   entry: HistoryEntry;
   editedAt: number;
   historyVersion: number;
+}
+
+function canCoalesceTextEdit(
+  burst: TextEditBurst | undefined,
+  clientId: string,
+  editedAt: number,
+  current: DocumentHistory | undefined,
+): burst is TextEditBurst {
+  return burst !== undefined &&
+    burst.clientId === clientId &&
+    editedAt - burst.editedAt <= TEXT_EDIT_COALESCE_MS &&
+    current?.version === burst.historyVersion &&
+    current.undo.at(-1) === burst.entry &&
+    current.redo.length === 0;
 }
 
 const filledFieldLinks = new Map<string, FilledFieldLink>();
@@ -75,7 +91,7 @@ function syncFilledFields(
   }
 }
 
-function rectSize(rect: FreeTextAnnotation["rect"] | StampAnnotation["rect"]): [number, number] {
+function rectSize(rect: EditableAnnotation["rect"]): [number, number] {
   return [
     Math.abs((rect[2] ?? 0) - (rect[0] ?? 0)),
     Math.abs((rect[3] ?? 0) - (rect[1] ?? 0)),
@@ -83,7 +99,7 @@ function rectSize(rect: FreeTextAnnotation["rect"] | StampAnnotation["rect"]): [
 }
 
 function updateLabel(
-  before: FreeTextAnnotation | StampAnnotation,
+  before: EditableAnnotation,
   patch: EditableAnnotationPatch,
 ): string {
   if ("contents" in patch && patch.contents !== undefined && !("style" in patch) && patch.rect === undefined) {
@@ -141,9 +157,9 @@ export function createAnnotationHistoryActions(
     update: (docPath, clientId, patch) => {
       const before = adapter.get(docPath);
       const annotation = before.find(
-        (candidate): candidate is ClientAnnotation & (FreeTextAnnotation | StampAnnotation) =>
+        (candidate): candidate is ClientAnnotation & EditableAnnotation =>
           candidate.__clientId === clientId &&
-          (candidate.type === "free_text" || candidate.type === "stamp"),
+          (candidate.type === "free_text" || candidate.type === "stamp" || candidate.type === "form_field"),
       );
       if (annotation === undefined) return;
       const after = before.map((candidate) =>
@@ -159,12 +175,7 @@ export function createAnnotationHistoryActions(
       const burst = textBursts.get(docPath);
       if (
         label === "text" &&
-        burst !== undefined &&
-        burst.clientId === clientId &&
-        editedAt - burst.editedAt <= TEXT_EDIT_COALESCE_MS &&
-        currentHistory?.version === burst.historyVersion &&
-        currentHistory.undo.at(-1) === burst.entry &&
-        currentHistory.redo.length === 0
+        canCoalesceTextEdit(burst, clientId, editedAt, currentHistory)
       ) {
         burst.entry.redo = () => apply(docPath, after);
         burst.editedAt = editedAt;
@@ -185,8 +196,11 @@ export function createAnnotationHistoryActions(
     },
     remove: (docPath, clientId) => {
       const before = adapter.get(docPath);
-      if (!before.some((annotation) => annotation.__clientId === clientId)) return;
-      const after = before.filter((annotation) => annotation.__clientId !== clientId);
+      const target = before.find((annotation) => annotation.__clientId === clientId);
+      if (!target || target.__deleted) return;
+      const after = target.type === "form_field" && target.__replaces !== undefined
+        ? before.map((annotation) => annotation === target ? { ...annotation, __deleted: true } : annotation)
+        : before.filter((annotation) => annotation.__clientId !== clientId);
       apply(docPath, after);
       pushTransition(docPath, "delete", before, after);
       textBursts.delete(docPath);

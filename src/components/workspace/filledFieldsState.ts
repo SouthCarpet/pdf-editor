@@ -60,3 +60,15 @@ export function unmarkFieldForClientId(
   delete fieldIdByClientId[clientId];
   return { key, ids, fieldIdByClientId };
 }
+
+/** Plan 119 p1b: after a save, keeps only the marks of the values that are
+ * still pending (added or edited while the save was writing). */
+export function keepFilledMarks(
+  current: FilledFieldsState,
+  clientIds: ReadonlySet<string>,
+): FilledFieldsState {
+  const fieldIdByClientId = Object.fromEntries(
+    Object.entries(current.fieldIdByClientId).filter(([clientId]) => clientIds.has(clientId)),
+  );
+  return { key: current.key, ids: new Set(Object.values(fieldIdByClientId)), fieldIdByClientId };
+}

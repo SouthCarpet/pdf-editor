@@ -22,6 +22,23 @@ const MAX_WHITESPACE_DENSITY: f32 = 0.05;
 // room for a short value while discarding border-adjacent slivers.
 const MIN_SPLIT_UNDERLINE_WIDTH: u32 = 30;
 const VERTICAL_STROKE_TOLERANCE: u32 = 2;
+// A stroke within 3 px of a box edge is that edge: the box is the hole of
+// the mask after a one-pixel dilation, so it sits 1 to 2 px inside the line.
+const BOX_EDGE_TOLERANCE: u32 = 3;
+const MIN_STROKE_OVERLAP: f32 = 0.8;
+const MIN_NESTED_AREA: f32 = 0.5;
+// Plan 119 p1c: a detected rectangle is dropped when native widgets cover at
+// least half of its area, the same half the nested-box rule asks. A small
+// widget inside a large cell (a checkbox in a corner) leaves the cell a field.
+const MIN_NATIVE_OVERLAP: f32 = MIN_NESTED_AREA;
+// Label cells (plan 119 p1, debug note 051). Ink in a horizontal run of
+// 30 px or more is a rule or an underscore run, not printed label text.
+// Fewer than 40 label-ink pixels is scan noise. A cell with label text is
+// a field only when the label leaves a free stretch of at least 60 px
+// (about 10 mm) and at least half of the cell's inner width.
+const LABEL_INSET: u32 = 2;
+const MIN_LABEL_INK: u32 = 40;
+const MIN_FREE_WRITING_WIDTH: u32 = 60;
 
 #[derive(Debug, Clone, Serialize, Deserialize, specta::Type, PartialEq)]
 pub struct DetectedFormField {
@@ -85,17 +102,7 @@ pub async fn detect_scanned_form_fields(
     dpi: u32,
 ) -> AppResult<DetectionAnalysis> {
     let scratch = tempfile::tempdir().map_err(AppError::from)?;
-    let raster_path = scratch.path().join("page.png");
-    mupdf
-        .render_page_to_png(path, page_index, &raster_path, dpi, None)
-        .await?;
-
-    let gray = image::open(&raster_path)
-        .map_err(|error| AppError::Internal {
-            detail: format!("load rendered form page: {error}"),
-        })?
-        .into_luma8();
-    let doc =
+    let mut doc =
         crate::services::pdf_guard::load_guarded(path).map_err(|error| AppError::PdfCorrupted {
             detail: error.to_string(),
         })?;
@@ -107,8 +114,129 @@ pub async fn detect_scanned_form_fields(
             detail: format!("page index {page_index} is outside the document"),
         })?;
     let geometry = page_geometry(&doc, page_id).map_err(AppError::from)?;
+    // Read before the annotations are dropped from the printed copy below.
+    let widgets = native_widget_rects(&doc, page_id);
+    let printed_page = page_without_annotations(&mut doc, page_id, path, scratch.path())?;
 
-    Ok(analyze_form_raster(&gray, geometry, page_index))
+    let raster_path = scratch.path().join("page.png");
+    mupdf
+        .render_page_to_png(&printed_page, page_index, &raster_path, dpi, None)
+        .await?;
+
+    let gray = image::open(&raster_path)
+        .map_err(|error| AppError::Internal {
+            detail: format!("load rendered form page: {error}"),
+        })?
+        .into_luma8();
+
+    Ok(analyze_form_page(&gray, geometry, page_index, &widgets))
+}
+
+/// Plan 119 p1c: detection on a page of a document that may also hold
+/// native AcroForm fields. A printed box under a widget is that widget's
+/// cell, so it is not offered a second time.
+pub(crate) fn analyze_form_page(
+    gray: &GrayImage,
+    geometry: OcrPageGeometry,
+    page_index: u32,
+    widgets: &[[f32; 4]],
+) -> DetectionAnalysis {
+    let mut analysis = analyze_form_raster(gray, geometry, page_index);
+    analysis.fields = suppress_native_overlaps(analysis.fields, widgets);
+    analysis
+}
+
+/// The `/Rect` of every widget annotation on the page, corners put in order
+/// (`[x0, y0, x1, y1]`, PDF points, the space detected fields use).
+pub(crate) fn native_widget_rects(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+) -> Vec<[f32; 4]> {
+    let Ok(annotations) = doc.get_page_annotations(page_id) else {
+        return Vec::new();
+    };
+    annotations
+        .into_iter()
+        .filter(|annotation| {
+            annotation
+                .get(b"Subtype")
+                .and_then(lopdf::Object::as_name)
+                .ok()
+                == Some(b"Widget")
+        })
+        .filter_map(|annotation| annotation_rect(doc, annotation))
+        .collect()
+}
+
+fn annotation_rect(doc: &lopdf::Document, annotation: &lopdf::Dictionary) -> Option<[f32; 4]> {
+    let rect = doc
+        .dereference(annotation.get(b"Rect").ok()?)
+        .ok()?
+        .1
+        .as_array()
+        .ok()?;
+    let mut corners = [0.0_f32; 4];
+    if rect.len() != 4 {
+        return None;
+    }
+    for (corner, object) in corners.iter_mut().zip(rect) {
+        *corner = doc.dereference(object).ok()?.1.as_float().ok()?;
+    }
+    Some([
+        corners[0].min(corners[2]),
+        corners[1].min(corners[3]),
+        corners[0].max(corners[2]),
+        corners[1].max(corners[3]),
+    ])
+}
+
+fn suppress_native_overlaps(
+    fields: Vec<DetectedFormField>,
+    widgets: &[[f32; 4]],
+) -> Vec<DetectedFormField> {
+    fields
+        .into_iter()
+        .filter(|field| {
+            !widgets
+                .iter()
+                .any(|widget| mostly_covered(field.rect, *widget))
+        })
+        .collect()
+}
+
+fn mostly_covered(field: [f32; 4], widget: [f32; 4]) -> bool {
+    let width = field[2].min(widget[2]) - field[0].max(widget[0]);
+    let height = field[3].min(widget[3]) - field[1].max(widget[1]);
+    let field_area = (field[2] - field[0]) * (field[3] - field[1]);
+    width > 0.0
+        && height > 0.0
+        && field_area > 0.0
+        && width * height >= field_area * MIN_NATIVE_OVERLAP
+}
+
+/// Plan 119 p1: detection looks at the printed form, not at values typed
+/// into it. A saved copy carries its values as FreeText annotations; drawn
+/// into the raster they would turn a filled cell into a label cell and hide
+/// it on reopen. Returns `path` itself when the page has no annotations.
+fn page_without_annotations(
+    doc: &mut lopdf::Document,
+    page_id: lopdf::ObjectId,
+    path: &Path,
+    scratch: &Path,
+) -> AppResult<std::path::PathBuf> {
+    let page = doc
+        .get_dictionary_mut(page_id)
+        .map_err(|error| AppError::PdfCorrupted {
+            detail: error.to_string(),
+        })?;
+    if page.remove(b"Annots").is_none() {
+        return Ok(path.to_path_buf());
+    }
+    let printed = scratch.join("printed.pdf");
+    doc.save(&printed).map_err(|error| AppError::Internal {
+        detail: format!("write the page without annotations: {error}"),
+    })?;
+    Ok(printed)
 }
 
 pub(crate) fn analyze_form_raster(
@@ -117,9 +245,13 @@ pub(crate) fn analyze_form_raster(
     page_index: u32,
 ) -> DetectionAnalysis {
     let mask = threshold(gray);
-    let boxes = find_box_candidates(&mask);
-    let underlines = suppress_box_bottom_underlines(find_underline_candidates(&mask), &boxes);
-    let underlines = split_underlines_at_vertical_strokes(&mask, underlines);
+    let all_boxes = find_box_candidates(&mask);
+    // Split first, suppress second (plan 119 p1, debug note 051): a table
+    // border that spans several cells only matches one cell box after the
+    // column split has cut it into per-cell segments.
+    let underlines = split_underlines_at_vertical_strokes(&mask, find_underline_candidates(&mask));
+    let underlines = suppress_underlines_on_boxes(underlines, &all_boxes);
+    let boxes = drop_label_cells(&mask, drop_container_boxes(all_boxes));
     let mut candidates: Vec<(PixelRect, DetectedFieldKind, f32)> = boxes
         .iter()
         .map(|candidate| {
@@ -442,7 +574,11 @@ fn ranges_overlap_with_tolerance(
     left_0 <= right_1.saturating_add(tolerance) && right_0 <= left_1.saturating_add(tolerance)
 }
 
-fn suppress_box_bottom_underlines(
+/// Drops every underline that is part of a box: its stroke lies on a box
+/// edge or inside the box (an inner baseline, a typed underscore run), over
+/// at least 80 % of the stroke's width. Such a line belongs to the visible
+/// cell the box already covers, so keeping it puts two fields in one cell.
+fn suppress_underlines_on_boxes(
     underlines: Vec<UnderlineCandidate>,
     boxes: &[BoxCandidate],
 ) -> Vec<UnderlineCandidate> {
@@ -450,19 +586,107 @@ fn suppress_box_bottom_underlines(
         .into_iter()
         .filter(|underline| {
             !boxes.iter().any(|box_candidate| {
-                // The ADR names the box bottom edge. A drawn rectangle has a
-                // top edge with the same geometry and clean whitespace above
-                // it, so it produces the same duplicate; both edges are
-                // suppressed here.
-                let vertical_match = underline.stroke_rect.y0.abs_diff(box_candidate.rect.y1) <= 3
-                    || underline.stroke_rect.y1.abs_diff(box_candidate.rect.y0) <= 3;
-                let overlap_start = underline.stroke_rect.x0.max(box_candidate.rect.x0);
-                let overlap_end = underline.stroke_rect.x1.min(box_candidate.rect.x1);
-                let overlap = overlap_end.saturating_sub(overlap_start);
-                vertical_match && overlap as f32 >= underline.stroke_rect.width() as f32 * 0.8
+                stroke_belongs_to_box(underline.stroke_rect, box_candidate.rect)
             })
         })
         .collect()
+}
+
+fn stroke_belongs_to_box(stroke: PixelRect, cell: PixelRect) -> bool {
+    // Compare the stroke's near side only: a scanned table border is up to
+    // five pixels thick, so its far side sits further from the hole.
+    let touches_box_rows =
+        stroke.y1 + BOX_EDGE_TOLERANCE >= cell.y0 && stroke.y0 <= cell.y1 + BOX_EDGE_TOLERANCE;
+    let overlap = stroke
+        .x1
+        .min(cell.x1)
+        .saturating_sub(stroke.x0.max(cell.x0));
+    touches_box_rows && overlap as f32 >= stroke.width() as f32 * MIN_STROKE_OVERLAP
+}
+
+/// Drops a box that holds another box covering at least half of its area:
+/// a double border or an inner frame draws one visible cell as two nested
+/// holes, and the inner one is where the value goes. A small box inside a
+/// large one (a checkbox in a corner) stays a separate field.
+fn drop_container_boxes(boxes: Vec<BoxCandidate>) -> Vec<BoxCandidate> {
+    let keep: Vec<bool> = boxes
+        .iter()
+        .map(|outer| {
+            !boxes.iter().any(|inner| {
+                inner.rect != outer.rect
+                    && contains(outer.rect, inner.rect)
+                    && area(inner.rect) as f32 >= area(outer.rect) as f32 * MIN_NESTED_AREA
+            })
+        })
+        .collect();
+    boxes
+        .into_iter()
+        .zip(keep)
+        .filter_map(|(candidate, keep)| keep.then_some(candidate))
+        .collect()
+}
+
+/// Drops a box whose printed label leaves no room to write: "Name:" in a
+/// narrow cell, a column header, a day name. A cell with a label plus a
+/// wide empty stretch ("Unterschrift: ______") stays a field.
+fn drop_label_cells(mask: &GrayImage, boxes: Vec<BoxCandidate>) -> Vec<BoxCandidate> {
+    boxes
+        .into_iter()
+        .filter(|candidate| has_free_writing_space(mask, candidate.rect))
+        .collect()
+}
+
+fn has_free_writing_space(mask: &GrayImage, cell: PixelRect) -> bool {
+    let inner = PixelRect {
+        x0: cell.x0 + LABEL_INSET,
+        y0: cell.y0 + LABEL_INSET,
+        x1: cell.x1.saturating_sub(LABEL_INSET),
+        y1: cell.y1.saturating_sub(LABEL_INSET),
+    };
+    if inner.width() == 0 || inner.height() == 0 {
+        return true;
+    }
+    let columns = label_ink_per_column(mask, inner);
+    if columns.iter().sum::<u32>() < MIN_LABEL_INK {
+        return true;
+    }
+    longest_empty_run(&columns) >= MIN_FREE_WRITING_WIDTH.max(inner.width() / 2)
+}
+
+/// Label-ink pixels per column of `inner`: ink in horizontal runs shorter
+/// than `MIN_SPLIT_UNDERLINE_WIDTH`, so rules and underscore runs that
+/// cross the cell do not count as text.
+fn label_ink_per_column(mask: &GrayImage, inner: PixelRect) -> Vec<u32> {
+    let mut columns = vec![0; inner.width() as usize];
+    for y in inner.y0..inner.y1 {
+        for (x0, x1) in ink_runs(mask, y) {
+            if x1 - x0 >= MIN_SPLIT_UNDERLINE_WIDTH {
+                continue;
+            }
+            for x in x0.max(inner.x0)..x1.min(inner.x1) {
+                columns[(x - inner.x0) as usize] += 1;
+            }
+        }
+    }
+    columns
+}
+
+fn longest_empty_run(columns: &[u32]) -> u32 {
+    let mut longest = 0;
+    let mut current = 0;
+    for &ink in columns {
+        current = if ink == 0 { current + 1 } else { 0 };
+        longest = longest.max(current);
+    }
+    longest
+}
+
+fn contains(outer: PixelRect, inner: PixelRect) -> bool {
+    inner.x0 >= outer.x0 && inner.y0 >= outer.y0 && inner.x1 <= outer.x1 && inner.y1 <= outer.y1
+}
+
+fn area(rect: PixelRect) -> u64 {
+    u64::from(rect.width()) * u64::from(rect.height())
 }
 
 fn pixel_rect_to_pdf(
@@ -726,6 +950,258 @@ mod tests {
         );
     }
 
+    fn kinds(analysis: &DetectionAnalysis) -> Vec<DetectedFieldKind> {
+        analysis.fields.iter().map(|field| field.kind).collect()
+    }
+
+    fn draw_grid(image: &mut GrayImage, xs: &[u32], ys: &[u32]) {
+        let (left, right) = (xs[0], xs[xs.len() - 1] + 1);
+        let (top, bottom) = (ys[0], ys[ys.len() - 1] + 1);
+        for &x in xs {
+            draw_vertical(image, x, top, bottom);
+        }
+        for &y in ys {
+            draw_horizontal(image, left, right, y);
+        }
+    }
+
+    // Plan 119 p1 (debug note 051): a table border that spans several
+    // cells overlapped each single cell by less than 80 %, so the box-edge
+    // rule kept it, and the column split then cut it into one underline per
+    // cell: every cell got a box and an underline.
+    #[test]
+    fn grid_cells_sharing_borders_yield_exactly_one_box_each() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_grid(&mut image, &[200, 500, 800], &[300, 400, 500]);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 4],
+            "four cells are four fields, no border may come back as an underline: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn one_row_of_adjacent_cells_yields_one_box_per_cell() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_grid(&mut image, &[200, 400, 600, 800], &[300, 360]);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 3],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn cell_with_an_inner_baseline_yields_one_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_horizontal(&mut image, 220, 580, 362);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "a baseline printed inside a cell is part of that cell: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn cell_with_a_label_and_underscores_yields_one_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 700, 380);
+        // A short printed label on the left, then a typed "_____" run.
+        for glyph in 0..4 {
+            let left = 215 + glyph * 12;
+            for x in left..left + 8 {
+                draw_vertical(&mut image, x, 350, 362);
+            }
+        }
+        draw_horizontal(&mut image, 280, 680, 362);
+        draw_horizontal(&mut image, 280, 680, 363);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    fn draw_glyphs(image: &mut GrayImage, left: u32, count: u32, y0: u32, y1: u32) {
+        for glyph in 0..count {
+            let x0 = left + glyph * 12;
+            for x in x0..x0 + 8 {
+                draw_vertical(image, x, y0, y1);
+            }
+        }
+    }
+
+    #[test]
+    fn cell_filled_by_its_label_is_not_a_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 300, 360);
+        draw_glyphs(&mut image, 210, 7, 320, 340);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn centered_column_header_is_not_a_field() {
+        // 370 px cell, 170 px of text in the middle: 100 px free on each
+        // side is under half of the cell.
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 570, 368);
+        draw_glyphs(&mut image, 300, 15, 324, 344);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn cell_with_a_label_and_wide_free_space_stays_a_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 340);
+        draw_glyphs(&mut image, 210, 15, 312, 330);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn short_label_in_a_narrow_cell_is_not_a_field() {
+        // 80 px cell, 46 px free: half the cell, but under the 60 px floor.
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 280, 368);
+        draw_glyphs(&mut image, 204, 2, 324, 344);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(kinds(&analysis), vec![], "{:?}", analysis.fields);
+    }
+
+    #[test]
+    fn scan_speck_in_an_empty_cell_keeps_the_field() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 330, 340);
+        for x in 264..267 {
+            draw_vertical(&mut image, x, 318, 321);
+        }
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn double_bordered_cell_yields_only_the_inner_box() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 420);
+        draw_box(&mut image, 206, 306, 794, 414);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box],
+            "{:?}",
+            analysis.fields
+        );
+        let [x0, _, x1, _] = analysis.fields[0].rect;
+        assert!(
+            x0 > 206.0 && x1 <= 794.0,
+            "the inner rectangle (lines at x 206 and 794), not the outer one              (lines at 200 and 800), is the field: {:?}",
+            analysis.fields[0].rect
+        );
+    }
+
+    #[test]
+    fn small_box_inside_a_large_box_keeps_both_fields() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 800, 460);
+        draw_box(&mut image, 700, 320, 760, 350);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 2],
+            "a checkbox in a corner of a large field covers less than half of it: {:?}",
+            analysis.fields
+        );
+    }
+
+    #[test]
+    fn rotated_page_grid_yields_one_box_per_cell_inside_the_page() {
+        let mut image = blank(PAGE_H, PAGE_W);
+        draw_grid(&mut image, &[300, 600, 900], &[200, 300, 400]);
+        let rotated = OcrPageGeometry {
+            origin_x: 0.0,
+            origin_y: 0.0,
+            width: PAGE_W as f32,
+            height: PAGE_H as f32,
+            rotation: 90,
+        };
+
+        let analysis = analyze_form_raster(&image, rotated, 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box; 4],
+            "{:?}",
+            analysis.fields
+        );
+        for field in &analysis.fields {
+            let [x0, y0, x1, y1] = field.rect;
+            assert!(
+                x0 >= 0.0 && y0 >= 0.0 && x1 <= PAGE_W as f32 && y1 <= PAGE_H as f32,
+                "{:?} is outside the unrotated MediaBox",
+                field.rect
+            );
+        }
+    }
+
+    #[test]
+    fn free_standing_underline_next_to_a_box_is_kept() {
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 500, 380);
+        draw_horizontal(&mut image, 600, 1000, 378);
+
+        let analysis = analyze_form_raster(&image, geometry(PAGE_W, PAGE_H), 0);
+
+        assert_eq!(
+            kinds(&analysis),
+            vec![DetectedFieldKind::Box, DetectedFieldKind::Underline],
+            "a line outside every box is its own field: {:?}",
+            analysis.fields
+        );
+    }
+
     #[test]
     fn fixed_threshold_marks_only_luma_below_two_hundred_as_ink() {
         let gradient = GrayImage::from_fn(256, 1, |x, _| Luma([x as u8]));
@@ -767,5 +1243,170 @@ mod tests {
         );
 
         assert_eq!(rect, [140.0, 30.0, 180.0, 50.0]);
+    }
+
+    // Plan 119 p1c: a document can mix native AcroForm widgets and printed
+    // boxes that carry no widget (a scanned page appended to a form, or a
+    // form page with an unfilled-in table). The fixture has two pages of
+    // 1240 x 1754 pt: page 0 has a text widget, page 1 has none.
+    const WIDGET_RECT: [f32; 4] = [200.0, 1374.0, 600.0, 1454.0];
+
+    fn hybrid_fixture() -> (lopdf::Document, Vec<lopdf::ObjectId>) {
+        use lopdf::{dictionary, Object};
+        let mut doc = lopdf::Document::with_version("1.7");
+        let pages_id = doc.new_object_id();
+        let widget_page = doc.new_object_id();
+        let scanned_page = doc.new_object_id();
+        let widget = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "FT" => "Tx",
+            "T" => Object::string_literal("applicant"),
+            // Corners in reverse order: a /Rect is not always normalised.
+            "Rect" => vec![
+                WIDGET_RECT[2].into(), WIDGET_RECT[3].into(),
+                WIDGET_RECT[0].into(), WIDGET_RECT[1].into(),
+            ],
+        });
+        let note = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "FreeText",
+            "Rect" => vec![0.into(), 0.into(), 1240.into(), 1754.into()],
+        });
+        for (page_id, annots) in [(widget_page, vec![widget, note]), (scanned_page, vec![])] {
+            doc.set_object(
+                page_id,
+                dictionary! {
+                    "Type" => "Page",
+                    "Parent" => Object::Reference(pages_id),
+                    "MediaBox" => vec![0.into(), 0.into(), 1240.into(), 1754.into()],
+                    "Annots" => annots.into_iter().map(Object::Reference).collect::<Vec<_>>(),
+                },
+            );
+        }
+        doc.set_object(
+            pages_id,
+            dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(widget_page), Object::Reference(scanned_page)],
+                "Count" => 2,
+            },
+        );
+        let catalog = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => Object::Reference(pages_id),
+        });
+        doc.trailer.set("Root", Object::Reference(catalog));
+        (doc, vec![widget_page, scanned_page])
+    }
+
+    /// Detects on a raster that prints a box where the widget sits (200..600
+    /// by 300..380 px is PDF y 1374..1454) and a second box lower on the page.
+    fn detect_on_hybrid_page(page: usize) -> Vec<DetectedFormField> {
+        let (doc, pages) = hybrid_fixture();
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_box(&mut image, 200, 700, 600, 780);
+        let widgets = native_widget_rects(&doc, pages[page]);
+        let geometry = page_geometry(&doc, pages[page]).expect("fixture page geometry");
+        analyze_form_page(&image, geometry, page as u32, &widgets).fields
+    }
+
+    #[test]
+    fn native_widget_rects_lists_the_widgets_of_that_page_only() {
+        let (doc, pages) = hybrid_fixture();
+
+        assert_eq!(native_widget_rects(&doc, pages[0]), vec![WIDGET_RECT]);
+        assert!(native_widget_rects(&doc, pages[1]).is_empty());
+    }
+
+    #[test]
+    fn a_printed_box_under_a_native_widget_is_not_offered_again() {
+        let fields = detect_on_hybrid_page(0);
+
+        assert_eq!(fields.len(), 1, "only the box without a widget: {fields:?}");
+        assert!(
+            fields[0].rect[3] < 1100.0,
+            "the box left is the lower one (PDF y 974..1054), got {:?}",
+            fields[0].rect
+        );
+    }
+
+    // Oracle: E1 items 9 and 13. Two native widgets in one synthetic cell
+    // (including a saved own field) must not produce another detected overlay.
+    #[test]
+    fn two_native_widgets_in_one_cell_do_not_add_a_detected_overlay() {
+        use lopdf::{dictionary, Object};
+        let (mut doc, pages) = hybrid_fixture();
+        let own = doc.add_object(dictionary! {
+            "Type" => "Annot", "Subtype" => "Widget", "FT" => "Tx",
+            "T" => Object::string_literal("own-over-native"), "PdfEditorOwn" => true,
+            "Rect" => WIDGET_RECT.into_iter().map(Object::Real).collect::<Vec<_>>(),
+        });
+        doc.get_dictionary_mut(pages[0])
+            .unwrap()
+            .get_mut(b"Annots")
+            .unwrap()
+            .as_array_mut()
+            .unwrap()
+            .push(Object::Reference(own));
+        let widgets = native_widget_rects(&doc, pages[0]);
+        assert_eq!(widgets, vec![WIDGET_RECT, WIDGET_RECT]);
+        let mut image = blank(PAGE_W, PAGE_H);
+        draw_box(&mut image, 200, 300, 600, 380);
+        draw_box(&mut image, 200, 700, 600, 780);
+        let geometry = page_geometry(&doc, pages[0]).unwrap();
+        let fields = analyze_form_page(&image, geometry, 0, &widgets).fields;
+        assert_eq!(fields.len(), 1, "only the lower cell has no native widget");
+        assert!(fields[0].rect[3] < 1100.0);
+    }
+
+    #[test]
+    fn the_page_without_widgets_keeps_every_detected_box() {
+        let fields = detect_on_hybrid_page(1);
+
+        assert_eq!(fields.len(), 2, "no widget on this page: {fields:?}");
+    }
+
+    fn field_at(rect: [f32; 4]) -> DetectedFormField {
+        DetectedFormField {
+            id: "0:0".into(),
+            page_index: 0,
+            rect,
+            kind: DetectedFieldKind::Box,
+            confidence: 0.9,
+        }
+    }
+
+    #[test]
+    fn a_box_mostly_under_a_widget_is_dropped() {
+        // The widget covers 60 % of the box (240 of 400 pt of its width).
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[360.0, 1374.0, 900.0, 1454.0]],
+        );
+
+        assert!(kept.is_empty());
+    }
+
+    #[test]
+    fn a_box_that_only_touches_a_widget_stays() {
+        // The widget covers 25 % of the box, under the half the rule asks.
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[500.0, 1374.0, 900.0, 1454.0]],
+        );
+
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn a_large_cell_holding_a_small_checkbox_widget_stays() {
+        let kept = suppress_native_overlaps(
+            vec![field_at([200.0, 1374.0, 600.0, 1454.0])],
+            &[[210.0, 1380.0, 226.0, 1396.0]],
+        );
+
+        assert_eq!(kept.len(), 1);
     }
 }

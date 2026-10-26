@@ -6,7 +6,12 @@
 //   right  = NodeConfigPanel when a node is selected
 //
 // Top-right toolbar covers run/save/load preset.
-import { useCallback, useMemo, useState } from "react";
+//
+// Kaliber r4 (plan 119 K3b): the graph is a data screen (R34 b). The canvas is
+// the lead element, on the well colour; panels sit on the sheet with one
+// hairline. xyflow reads its colours from --xy-* custom properties, so every
+// one of them is set here from a Kaliber token. No shadow, no own colour.
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ReactFlow,
@@ -33,6 +38,33 @@ import { usePipelineStore, type PipelineEditorNode } from "@/stores/pipelineStor
 import { nodeKindByKey, type NodeKindMeta } from "@/pipeline/nodeKinds";
 import { computeEdgeWarnings } from "@/pipeline/preservation";
 import { selectedNodeAfterChanges } from "@/pipeline/selection";
+
+const FLOW_STYLE = {
+  "--xy-background-color": "var(--color-well)",
+  "--xy-background-pattern-color": "var(--color-border)",
+  "--xy-edge-stroke": "var(--color-text-muted)",
+  "--xy-edge-stroke-selected": "var(--color-accent)",
+  "--xy-connectionline-stroke": "var(--color-accent)",
+  "--xy-handle-background-color": "var(--color-surface-raised)",
+  "--xy-handle-border-color": "var(--color-text-muted)",
+  "--xy-node-background-color": "var(--color-surface-raised)",
+  "--xy-node-color": "var(--color-text)",
+  "--xy-node-border": "1px solid var(--color-border-strong)",
+  "--xy-node-boxshadow-hover": "none",
+  "--xy-node-boxshadow-selected": "none",
+  "--xy-controls-box-shadow": "none",
+  "--xy-controls-button-background-color": "var(--color-surface-raised)",
+  "--xy-controls-button-background-color-hover": "var(--color-surface-hover)",
+  "--xy-controls-button-border-color": "var(--color-border)",
+  "--xy-controls-button-color": "var(--color-text)",
+  "--xy-controls-button-color-hover": "var(--color-text)",
+  "--xy-minimap-background-color": "var(--color-surface-raised)",
+  "--xy-minimap-mask-background-color": "color-mix(in oklab, var(--color-background) 70%, transparent)",
+  "--xy-minimap-node-background-color": "var(--color-border-strong)",
+  "--xy-edge-label-background-color": "var(--color-surface-raised)",
+  "--xy-edge-label-color": "var(--color-text)",
+  "--xy-attribution-background-color": "var(--color-surface-raised)",
+} as CSSProperties;
 
 const NODE_TYPES = {
   pipeline_node: PipelineNodeView,
@@ -157,6 +189,7 @@ function InnerEditor() {
           onConnect={onConnect}
           onInit={setRfInstance}
           onPaneClick={() => setSelected(null)}
+          style={FLOW_STYLE}
           nodeTypes={NODE_TYPES}
           edgeTypes={EDGE_TYPES}
           fitView
@@ -176,7 +209,7 @@ function InnerEditor() {
       {selectedNode ? (
         <NodeConfigPanel node={selectedNode} />
       ) : (
-        <div className="border-l border-[var(--color-border)] bg-[var(--color-card)] p-3 text-sm text-[var(--color-muted)]">
+        <div className="k-caption border-l border-[var(--color-border)] bg-[var(--color-surface-raised)] p-3">
           {t("editor.selection_hint")}
         </div>
       )}
