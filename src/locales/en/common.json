@@ -49,7 +49,7 @@
       "theme_title": "Change the theme",
       "theme_body": "The sun and moon switch in the header changes between Light and Dark. Settings, Appearance also has System.",
       "update_title": "Check for updates",
-      "update_body": "PDF Editor looks for a new version only after you allow it in Settings, About. A new version then shows as Update available in the header.",
+      "update_body": "PDF Editor looks for a new version only after you allow it in Settings, Updates. A new version then shows as Update available in the header.",
       "shortcuts_title": "Keyboard shortcuts"
     }
   },

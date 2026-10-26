@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { commands, type UpdateCheck, type UpdateInstall } from "@/bindings";
 
 /** Where a check comes from. A start check stays silent: it only marks a
- * found update with a dot on the Settings button. */
+ * found update with the quiet "Update available" line in the header. */
 export type CheckTrigger = "start" | "about" | "manual";
 
 /** The Update button: idle, downloading and checking the setup, or

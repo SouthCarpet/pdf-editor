@@ -26,9 +26,10 @@ interface AppState {
 }
 
 /** Plan 119 removed the "strict privacy" switch: it never gated a network
- * path, and the update consent in About is the only network control. An
- * old blob still carries `privacyStrict`; drop it so it is not stored again.
- * Kaliber r4 made `ThemeProvider` the one owner of the theme (key`n * `kaliber-theme`), so the old `theme` copy goes too. */
+ * path, and the update consent in Settings > Updates is the only network
+ * control. An old blob still carries `privacyStrict`; drop it so it is not
+ * stored again. Kaliber r4 made `ThemeProvider` the one owner of the theme
+ * (key `kaliber-theme`), so the old `theme` copy goes too. */
 function withoutRetiredKeys(persisted: unknown): Partial<AppState> {
   const rest: Record<string, unknown> = { ...(persisted as Record<string, unknown> | undefined) };
   delete rest.privacyStrict;

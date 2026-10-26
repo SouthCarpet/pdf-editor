@@ -4,11 +4,6 @@
 
 The app uses Fira Sans and the Kaliber r4 design language.
 
-- App styles now read Kaliber roles directly; the old token aliases are removed.
-  Field fills, warning text, native select arrows, type sizes and radii keep
-  their previous values.
-- The page strip shows every page. Its list now fits the panel, so the last pages can be reached.
-
 ### Added
 
 - Thumbnail image carry into the workspace page (about 200 ms), with
@@ -44,13 +39,13 @@ The app uses Fira Sans and the Kaliber r4 design language.
   the old MSI and the setup, with the same lookup as the setup.
 - Opt-in update check against GitHub releases, stored as
   `update_check_enabled` in `settings.json` (off by default). With it on,
-  the app checks at start (silent, a dot on the Settings button), when
-  About opens and on **Check now**. A connection error shows apart from
-  "latest version".
+  the app checks at start (silent, a quiet **Update available** line in the
+  header), when Settings opens and on **Check now** (Settings > About). A
+  connection error shows apart from "latest version".
 - About shows the release version.
 - `docs/install-contract.md`: MSI identity, file associations, every data
   store with its path, the runtime payload.
-- **Update to X.Y.Z** in About (after a click only, with the update consent
+- **Update to X.Y.Z** in Settings > Updates (after a click only, with the update consent
   on): asks about unsaved work, downloads `pdf-editor-setup-X.Y.Z.exe` and
   `SHA256SUMS.txt` from the checked release (GitHub hosts only, also after
   redirects; size from the release metadata, 512 MiB cap), checks the
@@ -169,10 +164,13 @@ The app uses Fira Sans and the Kaliber r4 design language.
 
 - The update check compares GitHub releases, not the local git commit. The
   "Update" banner and the local-source updater button are gone; download
-  and install of an update come later in plan 119.
+  and install of an update run from Settings > Updates (see Added).
 - About is the last section of Settings.
 - `scripts/test-privacy.ps1` allows `reqwest` only in
   `src-tauri/src/services/release_check.rs`.
+- App styles now read Kaliber roles directly; the old token aliases are removed.
+  Field fills, warning text, native select arrows, type sizes and radii keep
+  their previous values.
 
 ### Removed
 
@@ -229,3 +227,4 @@ The app uses Fira Sans and the Kaliber r4 design language.
 - FreeText annotations carry the PDF Print flag, so saved text is included
   in print renders.
 - Facing pages draw pending own fields once when the page also has typed values.
+- The page strip shows every page. Its list now fits the panel, so the last pages can be reached.

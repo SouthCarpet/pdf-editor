@@ -267,8 +267,9 @@ drift apart.
 
 The app asks `https://api.github.com/repos/SouthCarpet/pdf-editor/releases/latest`
 for the latest release, only when `update_check_enabled` is on. It checks at
-app start (silent: only a dot on the Settings button when a newer version
-exists), when the About section opens and after a click on **Check now**.
+app start (silent: a quiet **Update available** line in the header when a
+newer version exists), when Settings opens and after a click on **Check now**
+(Settings > About).
 With the consent off, no path sends a request. Only a stable tag `vX.Y.Z`
 or `X.Y.Z` that is numerically newer than the running version counts;
 pre-releases and drafts never count. A connection error and an unusable
@@ -277,7 +278,7 @@ check downloads nothing.
 
 ## Update download and start
 
-Only after a click on **Update to X.Y.Z** in About, and only with
+Only after a click on **Update to X.Y.Z** in Settings > Updates, and only with
 `update_check_enabled` on (`src-tauri/src/services/update_install.rs`,
 commands `download_update` and `install_update`):
 
