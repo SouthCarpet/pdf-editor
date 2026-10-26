@@ -96,9 +96,10 @@ blob.
 
 Third-party licence inventory: [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 The inventory is repository documentation; it adds no installer payload files.
-The payload already includes the two OCR licence texts listed above. DLL
-entries marked "Unresolved" and the Microsoft redistribution entitlement
-still need review before public binary distribution.
+The payload already includes the two OCR licence texts listed above. Every
+DLL row names its licence; four rows have no identified exact build, and the
+eight Visual C++ runtime DLLs ship unmodified as qpdf's Windows archive ships
+them (THIRD-PARTY-NOTICES, "Sidecar DLL inventory").
 
 ## Per-user setup (`packaging/pdf-editor.iss`)
 

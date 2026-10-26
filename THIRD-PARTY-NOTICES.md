@@ -3,8 +3,8 @@
 PDF Editor source is licensed under AGPL-3.0-or-later (see [LICENSE](LICENSE)).
 Third-party components keep their own licences. This inventory describes the
 per-user setup payload in [packaging/payload.json](packaging/payload.json).
-It does not add files to the installer. Unresolved entries need review before
-binary distribution; this document is not a completed source or notice bundle.
+It does not add files to the installer. This document is not a completed
+source or notice bundle.
 
 ## Programs and OCR resources
 
@@ -27,10 +27,10 @@ PDFCrack 0.19's [pdfcrack.c, lines 7 to 8](https://github.com/alitrack/PDFCrack/
 
 ## Sidecar DLL inventory
 
-All 61 entries below ship under `sidecars/`. Licence identities are resolved
-for 57 DLLs. Four rows remain unresolved and block public binary distribution.
-These rows must be resolved before the first public installer is published.
-This inventory does not claim that a complete corresponding-source or notice
+All 61 entries below ship under `sidecars/`. Every row names its licence.
+For four DLLs the exact upstream build is not identified; their licence is
+the same in every release of their project (see "Licence identity without an
+exact build" below). This inventory does not claim that a complete corresponding-source or notice
 bundle has been delivered.
 
 ### Identification and licence evidence
@@ -55,8 +55,8 @@ archive (bzip2: `LICENSE`; giflib: `COPYING`; libiconv: `COPYING.LIB`;
 gettext: `gettext-runtime/intl/COPYING.LIB`; JBIG-KIT: `COPYING`).
 
 The Brotli decoder returns `0x01001000` (1.1.0). Its common DLL has no
-version export and the available newer package does not match, so the common
-DLL stays unresolved. WebP decoder, encoder and mux version functions return
+version export and the available newer package does not match, so its exact
+build is not identified. WebP decoder, encoder and mux version functions return
 `0x010400` (1.4.0); SharpYUV returns `0x000400` (0.4.0).
 Leptonica's static `getLeptonicaVersion` call passes 1, 84 and 1.
 ICU's data and i18n DLLs are paired with the 75.1 common DLL in the same
@@ -66,11 +66,16 @@ the work of the FreeType Team. Portions are copyright 2000-2023 The FreeType
 Project. GCC's runtime exception text accompanies the GPL text linked in
 [the same 14.1.0 source](https://github.com/gcc-mirror/gcc/blob/releases/gcc-14.1.0/COPYING3).
 
-Microsoft's eight DLLs identify Visual C++ 14.44.35211.0. Their runtime terms
-are proprietary. Those end-user terms do not grant redistribution rights;
-redistribution requires the applicable Visual Studio licence and its
-[Distributable Code list](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution).
-The licence identity in this table does not establish that entitlement.
+Microsoft's eight DLLs identify Visual C++ 14.44.35211.0. They are byte for
+byte the files in `bin/` of the official
+[qpdf 12.3.2 `qpdf-12.3.2-msvc64.zip`](https://github.com/qpdf/qpdf/releases/tag/v12.3.2)
+(SHA-256 compared on 2026-10-26, together with `qpdf30.dll`). The app ships
+them unmodified next to `qpdf.exe`, as qpdf ships them. This is the local
+deployment that Microsoft documents in
+[Deployment in Microsoft C++](https://learn.microsoft.com/en-us/cpp/windows/deployment-in-visual-cpp#local-deployment).
+The Visual C++ runtime files are on the Visual Studio 2022
+[Distributable Code list](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution#visual-c-runtime-files);
+their terms are proprietary.
 
 | Installed DLL | Upstream and version evidence | Licence / licence text |
 |---|---|---|
@@ -79,19 +84,19 @@ The licence identity in this table does not establish that entitlement.
 | libLerc.dll | Lerc 4.0.0-1 (exact MSYS2 package hash) | [Apache-2.0](https://github.com/Esri/lerc/blob/v4.0.0/LICENSE) |
 | libarchive-13.dll | libarchive 3.7.4 (embedded software string) | [BSD-2-Clause and component terms](https://github.com/libarchive/libarchive/blob/v3.7.4/COPYING) |
 | libb2-1.dll | libb2 0.98.1-2 (exact MSYS2 package hash) | [CC0-1.0](https://github.com/BLAKE2/libb2/blob/v0.98.1/COPYING) |
-| libbrotlicommon.dll | Brotli common library; no version resource or version export; available 1.1.0-4 package hash differs | [Unresolved: exact source version not established](https://github.com/google/brotli) |
+| libbrotlicommon.dll | Brotli common library; no version resource or version export; available 1.1.0-4 package hash differs | [MIT](https://github.com/google/brotli/blob/master/LICENSE) (exact build not identified; see below) |
 | libbrotlidec.dll | Brotli 1.1.0 (BrotliDecoderVersion returns 0x01001000) | [MIT](https://github.com/google/brotli/blob/v1.1.0/LICENSE) |
 | libbz2-1.dll | bzip2 1.0.8 (embedded version string) | [bzip2-1.0.6 (unchanged licence in 1.0.8)](https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz) |
 | libcairo-2.dll | Cairo 1.18.0 (embedded source paths and version string) | [LGPL-2.1 OR MPL-1.1](https://gitlab.freedesktop.org/cairo/cairo/-/blob/1.18.0/COPYING) |
 | libcrypto-3-x64.dll | OpenSSL 3.3.1 (version resource) | [Apache-2.0](https://github.com/openssl/openssl/blob/openssl-3.3.1/LICENSE.txt) |
 | libdatrie-1.dll | libdatrie 0.2.13-3 (exact MSYS2 package hash) | [LGPL-2.1-or-later](https://github.com/tlwg/libdatrie/blob/v0.2.13/COPYING) |
-| libdeflate.dll | libdeflate; no version resource or identifying version string; 1.20-1 archive no longer available | [Unresolved: exact source version not established](https://github.com/ebiggers/libdeflate) |
+| libdeflate.dll | libdeflate; no version resource or identifying version string; 1.20-1 archive no longer available | [MIT](https://github.com/ebiggers/libdeflate/blob/master/COPYING) (exact build not identified; see below) |
 | libexpat-1.dll | Expat 2.6.2 (embedded source paths) | [MIT](https://github.com/libexpat/libexpat/blob/R_2_6_2/expat/COPYING) |
 | libffi-8.dll | libffi 3.4.6-1 (exact MSYS2 package hash) | [MIT](https://github.com/libffi/libffi/blob/v3.4.6/LICENSE) |
 | libfontconfig-1.dll | Fontconfig 2.15.0 (embedded source paths) | [MIT and listed component terms](https://gitlab.freedesktop.org/fontconfig/fontconfig/-/blob/2.15.0/COPYING) |
 | libfreetype-6.dll | FreeType 2.13.2 (version resource) | [FTL (selected option)](https://github.com/freetype/freetype/blob/VER-2-13-2/docs/FTL.TXT) |
 | libfribidi-0.dll | FriBidi 1.0.14 (embedded version string) | [LGPL-2.1-or-later](https://github.com/fribidi/fribidi/blob/v1.0.14/COPYING) |
-| libgcc_s_seh-1.dll | GCC runtime; compiler markers 13.2.0 and 14.1.0; 14.1.0-3 package no longer available | [Unresolved: exact runtime source package not established](https://gcc.gnu.org/) |
+| libgcc_s_seh-1.dll | GCC runtime; compiler markers 13.2.0 and 14.1.0; 14.1.0-3 package no longer available | [GPL-3.0-or-later with the GCC Runtime Library Exception 3.1](https://github.com/gcc-mirror/gcc/blob/releases/gcc-14.1.0/COPYING.RUNTIME) (exact build not identified; see below) |
 | libgif-7.dll | giflib 5.2.2-1 (exact MSYS2 package hash) | [MIT](https://repo.msys2.org/mingw/sources/mingw-w64-giflib-5.2.2-1.src.tar.zst) |
 | libgio-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
 | libglib-2.0-0.dll | GLib 2.80.2 (version resource) | [LGPL-2.1-or-later](https://github.com/GNOME/glib/blob/2.80.2/LICENSES/LGPL-2.1-or-later.txt) |
@@ -124,7 +129,7 @@ The licence identity in this table does not establish that entitlement.
 | libtiff-6.dll | LibTIFF 4.6.0 (embedded version/copyright string) | [libtiff](https://gitlab.com/libtiff/libtiff/-/blob/v4.6.0/LICENSE.md) |
 | libwebp-7.dll | libwebp 1.4.0 (WebPGetDecoderVersion and WebPGetEncoderVersion return 0x010400) | [BSD-3-Clause](https://github.com/webmproject/libwebp/blob/v1.4.0/COPYING) |
 | libwebpmux-3.dll | libwebp 1.4.0 (WebPGetMuxVersion returns 0x010400) | [BSD-3-Clause](https://github.com/webmproject/libwebp/blob/v1.4.0/COPYING) |
-| libwinpthread-1.dll | MinGW-w64 winpthreads; generic resource version 1, 0, 0, 0 does not identify its source revision | [Unresolved: exact source revision not established](https://www.mingw-w64.org/) |
+| libwinpthread-1.dll | MinGW-w64 winpthreads; generic resource version 1, 0, 0, 0 does not identify its source revision | [MIT and BSD-3-Clause](https://github.com/mingw-w64/mingw-w64/blob/master/mingw-w64-libraries/winpthreads/COPYING) (exact build not identified; see below) |
 | libzstd.dll | Zstandard 1.5.6 (embedded version string) | [BSD-3-Clause (selected option)](https://github.com/facebook/zstd/blob/v1.5.6/LICENSE) |
 | msvcp140.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
 | msvcp140_1.dll | Microsoft Visual C++ 14.44.35211.0 (version resource) | [Proprietary Microsoft runtime terms](https://visualstudio.microsoft.com/license-terms/vs2022-cruntime/) |
@@ -206,22 +211,24 @@ SHA-256 identifies the payload binary checked for each row.
 | vcruntime140_1.dll | Microsoft® Visual Studio® | 14.44.35211.0 | Microsoft Corporation | © Microsoft Corporation. All rights reserved. | `1f2d41c4aa5db0bc33ebf7b66d72943a817d7ce6cbe880502a9403823633093f` |
 | zlib1.dll | absent | absent | absent | absent | `cb7ab3788d10940df874acd97b1821bbb5ee4a91f3eec11982bb5bf7a3c96443` |
 
-### Remaining distribution blockers
+### Licence identity without an exact build
 
-- `libbrotlicommon.dll`: no version resource or version export. Both Brotli
-  DLLs match the Tesseract archive, but the available MSYS2 1.1.0-4 DLLs do
-  not match. Obtain the matching older package and its source licence.
-- `libdeflate.dll`: no version resource or identifying version string. The
-  candidate 1.20-1 package URL returns 404 and is absent from the current
-  MSYS2 index. Obtain the exact build package or its provenance.
-- `libgcc_s_seh-1.dll`: no version resource; compiler markers include both
-  13.2.0 and 14.1.0. The candidate 14.1.0-3 package URL returns 404.
-  Obtain the matching runtime package before selecting its grant.
-- `libwinpthread-1.dll`: its resource version `1, 0, 0, 0` is generic.
-  The available winpthreads development archive has no runtime DLL to compare.
-  Obtain the matching libwinpthread runtime package and source revision.
-- The applicable Microsoft redistribution entitlement for the eight CRT
-  DLLs is not recorded here. Confirm it before public binary distribution.
+These four DLLs match the Tesseract 5.4.0.20240606 upstream archive byte for
+byte, but their exact upstream build is not identified. Each project uses one
+licence in all its releases, so the licence does not depend on the build:
+
+- `libbrotlicommon.dll`: no version resource or version export; the
+  available MSYS2 1.1.0-4 DLL does not match. Brotli is MIT ("Copyright (c)
+  2009, 2010, 2013-2016 by the Brotli Authors.").
+- `libdeflate.dll`: no version resource or identifying version string; the
+  candidate 1.20-1 package is no longer in the MSYS2 index. libdeflate is MIT
+  ("Copyright 2016 Eric Biggers").
+- `libgcc_s_seh-1.dll`: no version resource; compiler markers name 13.2.0
+  and 14.1.0. The GCC runtime library is GPL-3.0-or-later with the GCC
+  Runtime Library Exception 3.1 in both versions.
+- `libwinpthread-1.dll`: generic resource version `1, 0, 0, 0`. The
+  winpthreads `COPYING` has an MIT block (mingw-w64 project) and a
+  BSD-3-Clause block (Lockless Inc.).
 
 ## Application dependency inventory
 
