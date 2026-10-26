@@ -8,8 +8,7 @@
   version). Tauri 2.11 drives WiX 3.14; the WiX 4 Package template this
   file replaces (Phase 17 Task 89) shipped no resources placeholder and no
   per-binary loop, so no bundle it produced could ever contain the
-  sidecar exes or DLLs. See .vault/process/plans/plan_v1_sidecar_dlls.md
-  (amendment 2026-08-17) and animus plan 047_msi-wix3-port.
+  sidecar exes or DLLs.
 
   IMPORTANT: this file is a Handlebars template. Do NOT write literal
   double-curly-brace sequences anywhere in this file, including inside XML

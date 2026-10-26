@@ -4,7 +4,7 @@
 // PDF objects, aborting the process rather than returning an Err; fixed
 // upstream in 0.42.0). Two independent verifications on 2026-08-03 showed the
 // byte-level pre-scan in `pdf_guard` cannot close it, so the version bump is
-// the only real fix. See `.vault/process/security/security_lopdf_nesting_dos.md`.
+// the only real fix.
 //
 // Eight minor versions turned out to break exactly ONE thing in this codebase:
 // `Object::as_name_str` was removed. `as_name()` now returns `Result<&[u8]>`

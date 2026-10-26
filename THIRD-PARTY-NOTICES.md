@@ -230,6 +230,18 @@ licence in all its releases, so the licence does not depend on the build:
   winpthreads `COPYING` has an MIT block (mingw-w64 project) and a
   BSD-3-Clause block (Lockless Inc.).
 
+## Source code of copyleft components
+
+Each GitHub release of PDF Editor carries, next to the setup, an archive
+`pdf-editor-X.Y.Z-third-party-sources.zip` with the source of every
+component in the installer that is under the GPL, LGPL or AGPL, in the
+version listed above: Ghostscript, MuPDF, PDFCrack, JBIG-KIT, cairo, GLib,
+Pango, FriBidi, libthai, libdatrie, Graphite2, libiconv, gettext (libintl)
+and intro.js. A `SOURCES.md` file inside the archive names the origin and the
+SHA-256 of each source archive. The source of PDF Editor itself is this
+repository at the release tag. The GCC runtime DLLs ship under the GCC
+Runtime Library Exception and are not in the archive.
+
 ## Application dependency inventory
 
 The following inventories record declared package licences. They include

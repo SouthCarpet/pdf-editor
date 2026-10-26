@@ -81,6 +81,17 @@ Thumbs.db
 .phase12-stash/
 .claude/settings.local.json
 
+# Private agent instructions, skills, hooks and notes: kept on the owner's
+# machine, not published.
+/CLAUDE.md
+/AGENTS.md
+/.claude/
+/.vault/
+/.mcp.json
+/scripts/vault/
+/scripts/hooks/
+/docs/superpowers/
+
 # tsc composite project incremental + emit
 tsconfig.tsbuildinfo
 dist-types/

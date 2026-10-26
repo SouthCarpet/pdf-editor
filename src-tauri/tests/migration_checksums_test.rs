@@ -8,7 +8,6 @@
 // `pdf-editor.exe`). A Windows checkout with `core.autocrlf=true` and no
 // `.gitattributes` rule for `*.sql` turned the files into CRLF, and its build
 // refused every database the release had created.
-// See .vault/process/debug/debug_054_2026-10-12.md.
 use pdf_editor_lib::persistence::db::{create_pool, run_migrations};
 use sha2::{Digest, Sha384};
 use std::path::Path;

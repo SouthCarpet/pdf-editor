@@ -1025,7 +1025,7 @@ html[data-k-loop="button"] .k-btn-loadable.is-loading > .k-btn-bar > span { anim
 .k-slider:disabled::-webkit-slider-thumb { background: var(--color-disabled-fill); border-color: var(--color-text-muted); transition: none; }
 .k-slider:disabled::-moz-range-thumb { background: var(--color-disabled-fill); border-color: var(--color-text-muted); transition: none; }
 
-/* The dot form (lane K4 fix round 1, Michal 2026-10-01): the same native range input with a
+/* The dot form (lane K4 fix round 1, @southcarpet 2026-10-01): the same native range input with a
    round thumb, for a volume or level control. Only the corner radius of the thumb differs
    (a round control mark, like the radio dot, not a pill tag): the size, the 2 px accent
    border, the states and the tone-only motion are the slider's own. The focus ring follows
@@ -2530,7 +2530,7 @@ a.k-btn { display: inline-flex; align-items: center; justify-content: center; te
    show full width at half strength, and the status text still says what runs.
    kaliber-motion.js switches the theme without a view transition and removes a
    toast without waiting for its leave animation. Lane K6: colour and opacity fades are
-   instant too (spec R18, Michal): ink comes on and goes off at once after the same hold. */
+   instant too (spec R18, @southcarpet): ink comes on and goes off at once after the same hold. */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   /* The range thumb is a vendor pseudo-element that * does not reach. */

@@ -47,7 +47,7 @@ export type AclManifest = Record<string, AclNamespace>;
 // reference through a `<namespace>:default` entry (`core:default`,
 // `dialog:default`, `fs:default`, plus the `core:*` sub-namespaces
 // `core:default` itself expands to). It is data straight from Tauri's own
-// permission schema for the pinned `tauri = "=2.11"` (`CLAUDE.md`), not app
+// permission schema for the pinned `tauri = "=2.11"` (`src-tauri/Cargo.toml`), not app
 // logic, so it changes only when that pin moves - and the sync test below
 // re-checks it against the real file whenever a build has produced one.
 // `lintCapabilities()` falls back to this only when the generated file is

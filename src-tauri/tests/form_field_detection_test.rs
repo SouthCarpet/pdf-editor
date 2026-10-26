@@ -1,7 +1,6 @@
 // Plan 050 task D2: scanned form field detection on the synthetic scan.
 //
-// The ADR `.vault/process/plans/plan_v1_scanned_form_field_detection.md`
-// section "Verification plan for D2-impl" lists what "verified on
+// The design note "Verification plan for D2-impl" lists what "verified on
 // timesheet-scan.pdf" means. Every bullet there has an assertion here.
 //
 // timesheet-scan.pdf is a generated 1-bit image-only PDF: one page,

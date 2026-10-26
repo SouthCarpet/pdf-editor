@@ -1,6 +1,6 @@
 # Force LF for source files so rustfmt (`newline_style = "Unix"`) passes on
 # the Windows CI runner (default `core.autocrlf` rewrites checkouts to CRLF
-# otherwise). See .vault/process/debug/debug_011_2026-05-15.md.
+# otherwise).
 
 *.rs        text eol=lf
 *.toml      text eol=lf
@@ -24,7 +24,6 @@
 # refuses a database whose stored value differs. The release was built from
 # LF files, so a CRLF checkout built an app that refused every existing
 # database. tests/migration_checksums_test.rs locks the released checksums.
-# See .vault/process/debug/debug_054_2026-10-12.md.
 *.sql       text eol=lf
 
 # PowerShell scripts are Windows-native — keep CRLF (or whatever)

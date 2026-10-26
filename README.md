@@ -159,10 +159,7 @@ The SQL migrations in `src-tauri/migrations/` must keep LF line endings: sqlx st
 - [Release checklist](docs/release-checklist.md)
 - [Known issues](KNOWN_ISSUES.md)
 - [Changelog](CHANGELOG.md)
-- [Architecture spec](docs/superpowers/specs/2026-05-10-pdf-editor-design.md)
-- [Implementation plan](docs/superpowers/plans/2026-05-10-pdf-editor.md)
 - [Stack](docs/stack.md)
-- [Vault](.vault/) — engine specs, debug notes, ADRs
 
 ## Licence
 
