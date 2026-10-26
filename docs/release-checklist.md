@@ -49,7 +49,7 @@ Use a test Windows user or a virtual machine. Keep the setup log:
    uninstall message and changes nothing.
 5. **Update from an older test build.** Install an older test setup,
    create settings, a project and a signature. Turn on **Check GitHub for
-   new versions** in Settings > About. With the new release published, About
+   new versions** in Settings > Updates. With the new release published, Updates
    shows **Update to X.Y.Z**. Leave a document with unsaved changes open and
    click it: the unsaved-changes dialog comes first. Then the app downloads,
    checks and starts the setup and closes. The setup updates in place; the
@@ -68,7 +68,8 @@ Use a test Windows user or a virtual machine. Keep the setup log:
    (its PDF files stay). A
    silent uninstall (`unins000.exe /VERYSILENT`) asks nothing and keeps all
    data. The file associations are gone after each uninstall.
-8. **Publish.** Publish the draft release only after steps 1 to 7 pass,
+8. **Publish.** Publish the draft release only after steps 1 to 7 and the
+   checks in section 3 pass,
    and not while the release workflow runs: the job reads the draft state
    once, just before it uploads.
    Only then does the update check of installed apps see it.
